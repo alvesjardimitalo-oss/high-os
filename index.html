@@ -55,9 +55,9 @@
       </aside>
       <div class="content">
         <section class="page active" id="page-dashboard">
-          <div class="page-head"><div><div class="eyebrow">CENTRAL OPERACIONAL</div><h2>DASHBOARD</h2></div><span class="dev-badge">DEV V3</span></div>
+          <div class="page-head"><div><div class="eyebrow">CENTRAL OPERACIONAL</div><h2>DASHBOARD</h2></div><span class="dev-badge">DEV V4</span></div>
           <div class="welcome"><div><span>Bem-vindo ao</span><strong>HIGH OS</strong><p>Login Google, autorização e níveis de acesso estão ativos. Os módulos operacionais serão adicionados nesta base.</p></div><div class="big-mark">HIGH<br><b>ILEGAL</b></div></div>
-          <div class="cards"><article><b>◆</b><strong>Facções</strong><span>Próximo módulo</span></article><article><b>▤</b><strong>Solicitações</strong><span>Estrutura preparada</span></article><article><b>◷</b><strong>Histórico</strong><span>Auditoria planejada</span></article><article><b>✓</b><strong>Firebase</strong><span class="online">Conectado</span></article></div>
+          <div class="cards"><article><b>◆</b><strong>Facções</strong><span class="online">Operacional</span></article><article><b>▤</b><strong>Solicitações</strong><span class="online">Operacional</span></article><article><b>♟</b><strong>Usuários</strong><span class="online">Administração ativa</span></article><article><b>✓</b><strong>Firebase</strong><span class="online">Conectado</span></article></div>
           <div class="info-panel"><div><span>CONTA AUTORIZADA</span><strong id="dashEmail">—</strong></div><div><span>NÍVEL DE ACESSO</span><strong id="dashRole">—</strong></div><div><span>STATUS</span><strong class="online">ATIVO</strong></div></div>
         </section>
         <section class="page" id="page-faccoes">
@@ -66,28 +66,78 @@
 <div id="facStats" class="fac-stats"></div><div id="facList" class="fac-grid"><div class="placeholder"><b>◆</b><h3>CARREGANDO</h3></div></div>
 </section>
         <section class="page" id="page-solicitacoes">
-          <div class="page-head"><div><div class="eyebrow">GESTÃO OPERACIONAL</div><h2>SOLICITAÇÕES</h2></div><button id="newRequestBtn" class="btn-primary compact">NOVA SOLICITAÇÃO</button></div>
-          <div class="req-toolbar"><input id="reqSearch" placeholder="Buscar protocolo, Group, facção, tipo..."><select id="reqStatus"><option value="">TODOS OS STATUS</option><option>PENDENTE</option><option>EM ANDAMENTO</option><option>CONCLUÍDA</option><option>CANCELADA</option></select><select id="reqTypeFilter"><option value="">TODOS OS TIPOS</option></select></div>
+          <div class="page-head"><div><div class="eyebrow">BASE DE REFERÊNCIA • PADRÃO HIGH</div><h2>BIBLIOTECA DE SOLICITAÇÕES</h2><p class="page-subtitle">Modelos já utilizados para consultar, gerar, adaptar e copiar solicitações para o Discord.</p></div><button id="newRequestBtn" class="btn-primary compact">NOVO MODELO</button></div>
+          <div class="req-toolbar"><input id="reqSearch" placeholder="Buscar modelo, assunto, categoria, Group..."><select id="reqTypeFilter"><option value="">TODAS AS CATEGORIAS</option></select></div>
           <div id="reqStats" class="fac-stats"></div>
-          <div id="reqList" class="req-list"><div class="placeholder"><b>▤</b><h3>CARREGANDO</h3></div></div>
+          <div id="reqList" class="req-list"><div class="placeholder"><b>▤</b><h3>CARREGANDO MODELOS</h3></div></div>
         </section>
         <section class="page" id="page-metricas"><div class="page-head"><div><div class="eyebrow">GESTÃO OPERACIONAL</div><h2>MÉTRICAS</h2></div></div><div class="placeholder"><b>▥</b><h3>MÓDULO PREPARADO</h3><p>Área reservada para as métricas das organizações.</p></div></section>
         <section class="page" id="page-historico"><div class="page-head"><div><div class="eyebrow">AUDITORIA</div><h2>HISTÓRICO</h2></div></div><div class="placeholder"><b>◷</b><h3>MÓDULO PREPARADO</h3><p>Alterações, entregas e recolhimentos serão registrados aqui.</p></div></section>
-        <section class="page" id="page-usuarios"><div class="page-head"><div><div class="eyebrow">ADMINISTRAÇÃO</div><h2>USUÁRIOS</h2></div></div><div class="placeholder"><b>♟</b><h3>ACESSO ADMIN</h3><p>Na próxima etapa, o ADMIN poderá cadastrar, desativar e alterar níveis de acesso sem abrir o Firebase.</p></div></section>
+        <section class="page" id="page-usuarios">
+          <div class="page-head"><div><div class="eyebrow">ADMINISTRAÇÃO</div><h2>USUÁRIOS</h2></div><button id="newUserBtn" class="btn-primary compact">NOVO USUÁRIO</button></div>
+          <div class="user-toolbar"><input id="userSearch" placeholder="Buscar nome ou e-mail..."><select id="userRoleFilter"><option value="">TODOS OS NÍVEIS</option><option>ADMIN</option><option>PADRINHO</option><option>STAFF</option><option>CONSULTA</option></select><select id="userStatusFilter"><option value="">TODOS OS STATUS</option><option value="ATIVO">ATIVOS</option><option value="INATIVO">INATIVOS</option></select></div>
+          <div id="userStats" class="fac-stats"></div>
+          <div id="userList" class="user-list"><div class="placeholder"><b>♟</b><h3>CARREGANDO</h3></div></div>
+        </section>
       </div>
     </section>
   </main>
-<div id="facModal" class="modal hidden"><div class="modal-card"><button class="modal-x" id="facModalClose">×</button><div class="eyebrow">GESTÃO DE FACÇÃO</div><h2 id="facModalTitle">FACÇÃO</h2><form id="facForm"><input type="hidden" id="fGroup"><div class="form-grid"><label>Group<input id="fGroupShow" disabled></label><label>Status<select id="fStatus"><option value="ATIVA">ATIVA</option><option value="INATIVA">INATIVA / VAGA</option></select></label><label>Facção<input id="fFaccao"></label><label>QG / Favela<input id="fQG"></label><label class="wide">Produto<textarea id="fProduto"></textarea></label><label>Líder (ID / Nome / Tel)<input id="fLider"></label><label>Staff responsável<input id="fStaff"></label><label>Data entrega<input id="fData" placeholder="dd/mm/aaaa"></label><label>Anúncio Discord<input id="fAnuncio"></label><label class="wide">CDS<input id="fCds"></label><label class="wide">Observações<textarea id="fObs"></textarea></label></div><div class="modal-actions"><button type="button" id="recolherBtn" class="btn-danger">RECOLHER FACÇÃO</button><button type="submit" class="btn-primary">SALVAR ALTERAÇÕES</button></div></form></div></div>
+<div id="facModal" class="modal hidden"><div class="modal-card fac-modal-card-wide"><button class="modal-x" id="facModalClose">×</button><div class="eyebrow">GESTÃO DE FACÇÃO</div><h2 id="facModalTitle">FACÇÃO</h2><form id="facForm"><input type="hidden" id="fGroup"><div class="form-grid"><label>Group<input id="fGroupShow" disabled></label><label>Status<select id="fStatus"><option value="ATIVA">ATIVA</option><option value="INATIVA">INATIVA / VAGA</option></select></label><label>Facção<input id="fFaccao"></label><label>QG / Favela<input id="fQG"></label><label class="wide">Produto<textarea id="fProduto"></textarea></label><label>Líder (ID / Nome / Tel)<input id="fLider"></label><label>Staff responsável<input id="fStaff"></label><label>Data entrega<input id="fData" placeholder="dd/mm/aaaa"></label><label>Anúncio Discord<input id="fAnuncio"></label><label class="wide">CDS<input id="fCds"></label><label class="wide">Observações<textarea id="fObs"></textarea></label></div>
+<div class="benefits-box">
+  <div class="benefits-head"><div><div class="eyebrow">BASE DO LOCAL / GROUP</div><h3>BENEFÍCIOS E SETAGENS</h3></div><small>Estes dados permanecem no local mesmo após recolhimento.</small></div>
+  <div class="benefit-toggles">
+    <label><input type="checkbox" id="fVipOrg"> VIP Org</label>
+    <label><input type="checkbox" id="fChatFaccao"> Chat da Facção</label>
+    <label><input type="checkbox" id="fRotaExclusiva"> Rota Exclusiva</label>
+    <label><input type="checkbox" id="fTelao"> Telão</label>
+  </div>
+  <div class="form-grid benefit-grid">
+    <label>Salário<input id="fSalario" placeholder="1200"></label>
+    <label>Intervalo do salário (min)<input id="fSalarioMin" placeholder="40"></label>
+    <label>Nº Rádio Exclusiva<input id="fRadio" placeholder="Ex.: 155"></label>
+    <label>Capacidade do Baú<input id="fBauCapacidade" placeholder="Ex.: 2000kg"></label>
+    <label class="wide">Garagem VIP — Blip<input id="fGaragemVipBlip" placeholder="{x,y,z,h}"></label>
+    <label class="wide">Garagem VIP — Spawn<input id="fGaragemVipSpawn" placeholder="{x,y,z,h}"></label>
+    <label class="wide">Veículos VIP<input id="fGaragemVipVeiculos" placeholder='LLMOTOSTIER2002, fooxcustomzlexrfc'></label>
+    <label>Loja de Roupas<input id="fLojaRoupas" placeholder="{x,y,z,h}"></label>
+    <label>Barbearia<input id="fBarbearia" placeholder="{x,y,z,h}"></label>
+    <label>Tatuagem<input id="fTatuagem" placeholder="{x,y,z,h}"></label>
+    <label>Shop Exclusivo<input id="fShopExclusivo" placeholder="{x,y,z,h}"></label>
+    <label>Baú<input id="fBau" placeholder="{x,y,z,h}"></label>
+    <label>Arena<input id="fArena" placeholder="{x,y,z,h}"></label>
+    <label>Farm<input id="fFarm" placeholder="{x,y,z,h}"></label>
+    <label>Craft<input id="fCraft" placeholder="{x,y,z,h}"></label>
+    <label class="wide">Blips da Rota Exclusiva<textarea id="fRotaBlips" placeholder="{x,y,z},&#10;{x,y,z},&#10;{x,y,z}"></textarea></label>
+    <label>Modelo/Nome do Telão<input id="fTelaoNome" placeholder="Ex.: paradise_telao01a"></label>
+    <label>Telão — CDS/postit<input id="fTelaoPostit" placeholder="{x,y,z}"></label>
+    <label class="wide">Telão — CDS do jogador<input id="fTelaoCds" placeholder="{x,y,z,h}"></label>
+    <label class="wide">Outros benefícios / setagens<textarea id="fOutrosBeneficios" placeholder="Um por linha. Ex.: Interfone, mochila, uniforme, rádio, blip especial..."></textarea></label>
+  </div>
+</div>
+<div class="delivery-box">
+  <div class="benefits-head"><div><div class="eyebrow">DISCORD DO ILEGAL</div><h3>EXTRATO DA ENTREGA</h3></div><button type="button" id="copyDeliveryBtn" class="btn-secondary compact">COPIAR EXTRATO</button></div>
+  <textarea id="deliveryPreview" readonly></textarea>
+</div>
+<div class="modal-actions"><button type="button" id="recolherBtn" class="btn-danger">RECOLHER FACÇÃO</button><button type="submit" class="btn-primary">SALVAR ALTERAÇÕES</button></div></form></div></div>
 
-<div id="reqModal" class="modal hidden"><div class="modal-card req-modal-card"><button class="modal-x" id="reqModalClose">×</button><div class="eyebrow">CENTRAL DE SOLICITAÇÕES</div><h2 id="reqModalTitle">NOVA SOLICITAÇÃO</h2>
+<div id="reqModal" class="modal hidden"><div class="modal-card req-modal-card"><button class="modal-x" id="reqModalClose">×</button><div class="eyebrow">BIBLIOTECA DE SOLICITAÇÕES</div><h2 id="reqModalTitle">GERAR SOLICITAÇÃO</h2>
 <form id="reqForm"><input type="hidden" id="reqId"><div class="form-grid">
-<label>Group<select id="reqGroup" required></select></label><label>Tipo<select id="reqTipo" required></select></label>
-<label>Status<select id="reqFormStatus"><option>PENDENTE</option><option>EM ANDAMENTO</option><option>CONCLUÍDA</option><option>CANCELADA</option></select></label><label>Prioridade<select id="reqPrioridade"><option>NORMAL</option><option>URGENTE</option></select></label>
-<label class="wide">Assunto<input id="reqAssunto" placeholder="Ex.: Ativação de rota de farm exclusiva"></label>
-<label class="wide">Dados da solicitação<textarea id="reqDetalhes" rows="9" placeholder="Preencha os dados necessários..."></textarea></label>
-<label>Responsável<input id="reqResponsavel" placeholder="Quem ficará responsável"></label><label>Facção<input id="reqFaccao" disabled></label>
-<label class="wide">Prévia no padrão da cidade<textarea id="reqPreview" rows="12" readonly></textarea></label>
-</div><div class="modal-actions"><button type="button" id="copyReqBtn" class="btn-secondary">COPIAR SOLICITAÇÃO</button><button type="submit" class="btn-primary compact">SALVAR SOLICITAÇÃO</button></div></form></div></div>
+<label>Modelo / Categoria<select id="reqTipo" required></select></label><label>Group<select id="reqGroup"></select></label>
+<label class="wide">Nome do modelo<input id="reqModelName" placeholder="Ex.: Ativação de VIP Org completo"></label>
+<label class="wide">Assunto<input id="reqAssunto" placeholder="Ex.: Ativação de benefícios de uma organização e alguns blips"></label>
+<label class="wide">Campos / dados para esta solicitação<textarea id="reqDetalhes" rows="9" placeholder="Preencha apenas os dados que mudam nesta solicitação..."></textarea></label>
+<label>Facção vinculada<input id="reqFaccao" disabled></label><label>Origem<input id="reqOrigem" disabled value="Biblioteca de modelos"></label>
+<label class="wide">Prévia pronta para o Discord<textarea id="reqPreview" rows="14" readonly></textarea></label>
+</div><div class="modal-actions"><button type="button" id="copyReqBtn" class="btn-secondary">COPIAR PARA O DISCORD</button><button type="submit" id="saveModelBtn" class="btn-primary compact">SALVAR MODELO</button></div></form></div></div>
+
+<div id="userModal" class="modal hidden"><div class="modal-card user-modal-card"><button class="modal-x" id="userModalClose">×</button><div class="eyebrow">ADMINISTRAÇÃO DE ACESSO</div><h2 id="userModalTitle">NOVO USUÁRIO</h2>
+<form id="userForm"><input type="hidden" id="userOriginalEmail"><div class="form-grid">
+<label class="wide">E-mail Google<input id="uEmail" type="email" required placeholder="usuario@gmail.com"></label>
+<label>Nome<input id="uName" required placeholder="Nome de exibição"></label>
+<label>Nível de acesso<select id="uRole"><option>CONSULTA</option><option>STAFF</option><option>PADRINHO</option><option>ADMIN</option></select></label>
+<label>Status<select id="uActive"><option value="true">ATIVO</option><option value="false">INATIVO</option></select></label>
+<label class="wide">Observação administrativa<textarea id="uNotes" rows="4" placeholder="Opcional"></textarea></label>
+</div><div class="role-help"><b>Níveis:</b> ADMIN gerencia acessos; PADRINHO e STAFF são perfis operacionais; CONSULTA é perfil de leitura para evolução das permissões.</div><div class="modal-actions"><button type="button" id="toggleUserBtn" class="btn-danger">DESATIVAR ACESSO</button><button type="submit" class="btn-primary compact">SALVAR USUÁRIO</button></div></form></div></div>
   <script type="module" src="assets/app.js"></script>
 </body>
 </html>
