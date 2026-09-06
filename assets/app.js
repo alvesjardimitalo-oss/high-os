@@ -586,3 +586,64 @@ async function saveNewDelivery(e){
 }
 initDeliveryUi();
 const _loadFaccoesV5=loadFaccoes;loadFaccoes=async function(){await _loadFaccoesV5();renderFaccoes();await loadDeliveries()};
+
+// ===== HIGH OS V5.1 · PERFIL TÉCNICO + MEMÓRIA OPERACIONAL DO GROUP =====
+let historico=[];
+function historyDateValue(h){
+ const d=h?.data;
+ try{if(d?.toDate)return d.toDate();if(d?.seconds)return new Date(d.seconds*1000);if(h?.createdAtText)return new Date(h.createdAtText)}catch(e){}
+ return null;
+}
+function formatHistoryDate(h){const d=historyDateValue(h);return d&&!isNaN(d)?d.toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):'—'}
+function historyFamily(tipo=''){
+ const t=String(tipo).toUpperCase();
+ if(t.includes('RECOLH'))return 'RECOLHIMENTO';
+ if(t.includes('ENTREGA'))return 'ENTREGA';
+ if(t.includes('USUARIO'))return 'USUARIO';
+ if(t.includes('SOLICIT')||t.includes('MODELO'))return 'MODELO_SOLICITACAO';
+ if(t.includes('EDICAO')||t.includes('ALTER'))return 'EDICAO';
+ return t;
+}
+function historyTitle(h){
+ const fam=historyFamily(h.tipo);
+ if(fam==='ENTREGA')return `Entrega ${h.group||''}${h.faccao?' → '+h.faccao:''}`.trim();
+ if(fam==='RECOLHIMENTO')return `Recolhimento ${h.group||''}`.trim();
+ if(fam==='EDICAO')return `Alteração no perfil técnico ${h.group||''}`.trim();
+ if(fam==='USUARIO')return `Acesso / usuário ${h.usuarioAlvo||''}`.trim();
+ if(fam==='MODELO_SOLICITACAO')return `Biblioteca de solicitações`;
+ if(String(h.tipo||'').toUpperCase()==='IMPORTACAO_INICIAL')return 'Importação da base inicial';
+ return String(h.tipo||'Evento').replaceAll('_',' ');
+}
+function changedSummary(h){
+ const a=h?.antes||{},d=h?.depois||{}; const out=[];
+ const keys=[['qg','QG'],['cds','CDS principal'],['produto','Produto'],['faccao','Facção'],['lider','Líder'],['staff','Staff'],['status','Status']];
+ keys.forEach(([k,n])=>{if(String(a[k]??'')!==String(d[k]??''))out.push(`${n}: ${a[k]||'—'} → ${d[k]||'—'}`)});
+ const ab=a.beneficios||{},db=d.beneficios||{};
+ const names={vipOrg:'VIP Org',chatFaccao:'Chat Facção',radio:'Rádio',salario:'Salário',garagemVipBlip:'Garagem VIP',garagemPublicaBlip:'Garagem Pública',helipontoBlip:'Heliponto',rotaExclusiva:'Rota Exclusiva',telao:'Telão',lojaRoupas:'Loja de roupas',barbearia:'Barbearia',tatuagem:'Tatuagem',shopExclusivo:'Shop',bau:'Baú',farm:'Farm',craft:'Craft',arena:'Arena'};
+ Object.keys(names).forEach(k=>{if(JSON.stringify(ab[k]??'')!==JSON.stringify(db[k]??''))out.push(`${names[k]} alterado`)});
+ return out.slice(0,5);
+}
+async function loadHistory(){
+ if(!$('#historyList')&&!$('#groupHistoryPreview'))return;
+ try{
+  const qs=await getDocs(histCol);historico=qs.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(historyDateValue(b)?.getTime()||0)-(historyDateValue(a)?.getTime()||0));renderHistory();
+ }catch(e){if($('#historyList'))$('#historyList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR</h3><p>${esc(e.message)}</p></div>`}
+}
+function renderHistory(){
+ if(!$('#historyList'))return;
+ const q=($('#historySearch')?.value||'').toLowerCase(),type=$('#historyType')?.value||'';
+ const list=historico.filter(h=>(!type||historyFamily(h.tipo)===type||String(h.tipo||'')===type)&&(!q||[h.tipo,h.group,h.faccao,h.usuario,h.usuarioAlvo,h.descricao,JSON.stringify(h.depois||{})].join(' ').toLowerCase().includes(q)));
+ const deliveries=historico.filter(h=>historyFamily(h.tipo)==='ENTREGA').length,recol=historico.filter(h=>historyFamily(h.tipo)==='RECOLHIMENTO').length,edits=historico.filter(h=>historyFamily(h.tipo)==='EDICAO').length;
+ $('#historyStats').innerHTML=`<span><b>${historico.length}</b> EVENTOS</span><span><b>${deliveries}</b> ENTREGAS</span><span><b>${recol}</b> RECOLHIMENTOS</span><span><b>${edits}</b> ALTERAÇÕES</span><span><b>${list.length}</b> EXIBIDOS</span>`;
+ if(!list.length){$('#historyList').innerHTML='<div class="placeholder"><b>◷</b><h3>NENHUM EVENTO ENCONTRADO</h3><p>Altere os filtros ou registre uma nova operação.</p></div>';return}
+ $('#historyList').innerHTML=list.map(h=>{const changes=changedSummary(h);return `<article class="history-row"><div class="history-icon h-${historyFamily(h.tipo).toLowerCase()}">◷</div><div class="history-main"><div class="history-top"><strong>${esc(historyTitle(h))}</strong><span>${esc(formatHistoryDate(h))}</span></div><div class="history-meta">${h.group?`<b>${esc(h.group)}</b>`:''}${h.faccao?` • ${esc(h.faccao)}`:''}${h.usuario?` • por ${esc(h.usuario)}`:''}</div>${h.descricao?`<p>${esc(h.descricao)}</p>`:''}${changes.length?`<div class="history-changes">${changes.map(x=>`<span>${esc(x)}</span>`).join('')}</div>`:''}${Array.isArray(h.solicitacoesGeradas)&&h.solicitacoesGeradas.length?`<small>${h.solicitacoesGeradas.length} solicitação(ões) técnica(s) gerada(s)</small>`:''}</div></article>`}).join('');
+}
+function renderGroupProfileMemory(f){
+ if(!f)return;const b=f.beneficios||{},installed=INSTALLATIONS.filter(([k])=>isInstalled(b,k));
+ if($('#groupProfileSummary'))$('#groupProfileSummary').innerHTML=`<div><span>STATUS</span><b class="${f.status==='ATIVA'?'online':''}">${f.status==='ATIVA'?'OCUPADO':'VAGO'}</b></div><div><span>OCUPANTE ATUAL</span><b>${esc(f.faccao||'—')}</b></div><div><span>QG / LOCAL</span><b>${esc(f.qg||'SEM LOCAL')}</b></div><div><span>INSTALAÇÕES</span><b>${installed.length}</b></div>`;
+ const hs=historico.filter(h=>h.group===f.group).slice(0,6),box=$('#groupHistoryPreview');if(!box)return;
+ box.innerHTML=hs.length?hs.map(h=>`<div class="group-history-item"><i></i><div><b>${esc(historyTitle(h))}</b><span>${esc(formatHistoryDate(h))}${h.usuario?' • '+esc(h.usuario):''}</span></div></div>`).join(''):'<div class="delivery-no-change">Ainda não há eventos registrados para este Group.</div>';
+}
+$('#historySearch')?.addEventListener('input',renderHistory);$('#historyType')?.addEventListener('change',renderHistory);
+const _openFacV51=openFac;openFac=function(id){_openFacV51(id);renderGroupProfileMemory(faccoes.find(x=>x.id===id))};
+const _loadFaccoesV51=loadFaccoes;loadFaccoes=async function(){await _loadFaccoesV51();await loadHistory()};
