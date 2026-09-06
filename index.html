@@ -55,7 +55,7 @@
       </aside>
       <div class="content">
         <section class="page active" id="page-dashboard">
-          <div class="page-head"><div><div class="eyebrow">CENTRAL OPERACIONAL</div><h2>DASHBOARD</h2></div><span class="dev-badge">DEV V2</span></div>
+          <div class="page-head"><div><div class="eyebrow">CENTRAL OPERACIONAL</div><h2>DASHBOARD</h2></div><span class="dev-badge">DEV V3</span></div>
           <div class="welcome"><div><span>Bem-vindo ao</span><strong>HIGH OS</strong><p>Login Google, autorização e níveis de acesso estão ativos. Os módulos operacionais serão adicionados nesta base.</p></div><div class="big-mark">HIGH<br><b>ILEGAL</b></div></div>
           <div class="cards"><article><b>◆</b><strong>Facções</strong><span>Próximo módulo</span></article><article><b>▤</b><strong>Solicitações</strong><span>Estrutura preparada</span></article><article><b>◷</b><strong>Histórico</strong><span>Auditoria planejada</span></article><article><b>✓</b><strong>Firebase</strong><span class="online">Conectado</span></article></div>
           <div class="info-panel"><div><span>CONTA AUTORIZADA</span><strong id="dashEmail">—</strong></div><div><span>NÍVEL DE ACESSO</span><strong id="dashRole">—</strong></div><div><span>STATUS</span><strong class="online">ATIVO</strong></div></div>
@@ -65,7 +65,12 @@
 <div class="fac-toolbar"><input id="facSearch" placeholder="Buscar Group, facção, QG, líder..."><select id="facSegment"><option value="">TODOS OS SEGMENTOS</option><option>ARMAS</option><option>MUNIÇÃO</option><option>LAVAGEM</option><option>DROGAS</option><option>DESMANCHE</option><option>ESTELIONATÁRIOS</option><option>OUTROS</option></select><select id="facStatus"><option value="">TODOS OS STATUS</option><option value="ATIVA">ATIVAS</option><option value="INATIVA">VAGAS</option></select></div>
 <div id="facStats" class="fac-stats"></div><div id="facList" class="fac-grid"><div class="placeholder"><b>◆</b><h3>CARREGANDO</h3></div></div>
 </section>
-        <section class="page" id="page-solicitacoes"><div class="page-head"><div><div class="eyebrow">GESTÃO OPERACIONAL</div><h2>SOLICITAÇÕES</h2></div></div><div class="placeholder"><b>▤</b><h3>MÓDULO PREPARADO</h3><p>Solicitações no padrão da cidade, status, responsável e histórico.</p></div></section>
+        <section class="page" id="page-solicitacoes">
+          <div class="page-head"><div><div class="eyebrow">GESTÃO OPERACIONAL</div><h2>SOLICITAÇÕES</h2></div><button id="newRequestBtn" class="btn-primary compact">NOVA SOLICITAÇÃO</button></div>
+          <div class="req-toolbar"><input id="reqSearch" placeholder="Buscar protocolo, Group, facção, tipo..."><select id="reqStatus"><option value="">TODOS OS STATUS</option><option>PENDENTE</option><option>EM ANDAMENTO</option><option>CONCLUÍDA</option><option>CANCELADA</option></select><select id="reqTypeFilter"><option value="">TODOS OS TIPOS</option></select></div>
+          <div id="reqStats" class="fac-stats"></div>
+          <div id="reqList" class="req-list"><div class="placeholder"><b>▤</b><h3>CARREGANDO</h3></div></div>
+        </section>
         <section class="page" id="page-metricas"><div class="page-head"><div><div class="eyebrow">GESTÃO OPERACIONAL</div><h2>MÉTRICAS</h2></div></div><div class="placeholder"><b>▥</b><h3>MÓDULO PREPARADO</h3><p>Área reservada para as métricas das organizações.</p></div></section>
         <section class="page" id="page-historico"><div class="page-head"><div><div class="eyebrow">AUDITORIA</div><h2>HISTÓRICO</h2></div></div><div class="placeholder"><b>◷</b><h3>MÓDULO PREPARADO</h3><p>Alterações, entregas e recolhimentos serão registrados aqui.</p></div></section>
         <section class="page" id="page-usuarios"><div class="page-head"><div><div class="eyebrow">ADMINISTRAÇÃO</div><h2>USUÁRIOS</h2></div></div><div class="placeholder"><b>♟</b><h3>ACESSO ADMIN</h3><p>Na próxima etapa, o ADMIN poderá cadastrar, desativar e alterar níveis de acesso sem abrir o Firebase.</p></div></section>
@@ -73,6 +78,16 @@
     </section>
   </main>
 <div id="facModal" class="modal hidden"><div class="modal-card"><button class="modal-x" id="facModalClose">×</button><div class="eyebrow">GESTÃO DE FACÇÃO</div><h2 id="facModalTitle">FACÇÃO</h2><form id="facForm"><input type="hidden" id="fGroup"><div class="form-grid"><label>Group<input id="fGroupShow" disabled></label><label>Status<select id="fStatus"><option value="ATIVA">ATIVA</option><option value="INATIVA">INATIVA / VAGA</option></select></label><label>Facção<input id="fFaccao"></label><label>QG / Favela<input id="fQG"></label><label class="wide">Produto<textarea id="fProduto"></textarea></label><label>Líder (ID / Nome / Tel)<input id="fLider"></label><label>Staff responsável<input id="fStaff"></label><label>Data entrega<input id="fData" placeholder="dd/mm/aaaa"></label><label>Anúncio Discord<input id="fAnuncio"></label><label class="wide">CDS<input id="fCds"></label><label class="wide">Observações<textarea id="fObs"></textarea></label></div><div class="modal-actions"><button type="button" id="recolherBtn" class="btn-danger">RECOLHER FACÇÃO</button><button type="submit" class="btn-primary">SALVAR ALTERAÇÕES</button></div></form></div></div>
+
+<div id="reqModal" class="modal hidden"><div class="modal-card req-modal-card"><button class="modal-x" id="reqModalClose">×</button><div class="eyebrow">CENTRAL DE SOLICITAÇÕES</div><h2 id="reqModalTitle">NOVA SOLICITAÇÃO</h2>
+<form id="reqForm"><input type="hidden" id="reqId"><div class="form-grid">
+<label>Group<select id="reqGroup" required></select></label><label>Tipo<select id="reqTipo" required></select></label>
+<label>Status<select id="reqFormStatus"><option>PENDENTE</option><option>EM ANDAMENTO</option><option>CONCLUÍDA</option><option>CANCELADA</option></select></label><label>Prioridade<select id="reqPrioridade"><option>NORMAL</option><option>URGENTE</option></select></label>
+<label class="wide">Assunto<input id="reqAssunto" placeholder="Ex.: Ativação de rota de farm exclusiva"></label>
+<label class="wide">Dados da solicitação<textarea id="reqDetalhes" rows="9" placeholder="Preencha os dados necessários..."></textarea></label>
+<label>Responsável<input id="reqResponsavel" placeholder="Quem ficará responsável"></label><label>Facção<input id="reqFaccao" disabled></label>
+<label class="wide">Prévia no padrão da cidade<textarea id="reqPreview" rows="12" readonly></textarea></label>
+</div><div class="modal-actions"><button type="button" id="copyReqBtn" class="btn-secondary">COPIAR SOLICITAÇÃO</button><button type="submit" class="btn-primary compact">SALVAR SOLICITAÇÃO</button></div></form></div></div>
   <script type="module" src="assets/app.js"></script>
 </body>
 </html>
