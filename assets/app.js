@@ -3,7 +3,7 @@ import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChang
 import { getFirestore, doc, getDoc } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
 
 const firebaseConfig = {
-  apiKey: 'AIzaSyBKtl3rCA9Id1RDMwGch-yi4hxAs83Drau',
+  apiKey: 'AIzaSyBKtl3rCA9Id1RDMwGch-yi4hxAs83DraU',
   authDomain: 'high-os.firebaseapp.com',
   projectId: 'high-os',
   storageBucket: 'high-os.firebasestorage.app',
