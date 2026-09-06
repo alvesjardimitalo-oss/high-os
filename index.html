@@ -56,7 +56,7 @@
       </aside>
       <div class="content">
         <section class="page active" id="page-dashboard">
-          <div class="page-head"><div><div class="eyebrow">CENTRAL OPERACIONAL</div><h2>DASHBOARD</h2></div><span class="dev-badge">DEV V5</span></div>
+          <div class="page-head"><div><div class="eyebrow">CENTRAL OPERACIONAL</div><h2>DASHBOARD</h2></div><span class="dev-badge">DEV V5.1</span></div>
           <div class="welcome"><div><span>Bem-vindo ao</span><strong>HIGH OS</strong><p>Groups/QGs, entregas e Biblioteca de Solicitações compartilham agora a mesma base operacional.</p></div><div class="big-mark">HIGH<br><b>ILEGAL</b></div></div>
           <div class="cards"><article><b>◆</b><strong>Groups / QGs</strong><span class="online">Operacional</span></article><article><b>▤</b><strong>Solicitações</strong><span class="online">Operacional</span></article><article><b>♟</b><strong>Usuários</strong><span class="online">Administração ativa</span></article><article><b>✓</b><strong>Firebase</strong><span class="online">Conectado</span></article></div>
           <div class="info-panel"><div><span>CONTA AUTORIZADA</span><strong id="dashEmail">—</strong></div><div><span>NÍVEL DE ACESSO</span><strong id="dashRole">—</strong></div><div><span>STATUS</span><strong class="online">ATIVO</strong></div></div>
@@ -78,7 +78,11 @@
           <div id="reqList" class="req-list"><div class="placeholder"><b>▤</b><h3>CARREGANDO MODELOS</h3></div></div>
         </section>
         <section class="page" id="page-metricas"><div class="page-head"><div><div class="eyebrow">GESTÃO OPERACIONAL</div><h2>MÉTRICAS</h2></div></div><div class="placeholder"><b>▥</b><h3>MÓDULO PREPARADO</h3><p>Área reservada para as métricas das organizações.</p></div></section>
-        <section class="page" id="page-historico"><div class="page-head"><div><div class="eyebrow">AUDITORIA</div><h2>HISTÓRICO</h2></div></div><div class="placeholder"><b>◷</b><h3>MÓDULO PREPARADO</h3><p>Alterações, entregas e recolhimentos serão registrados aqui.</p></div></section>
+        <section class="page" id="page-historico">
+          <div class="page-head"><div><div class="eyebrow">AUDITORIA OPERACIONAL</div><h2>HISTÓRICO</h2><p class="page-subtitle">Linha do tempo de entregas, recolhimentos, alterações de estrutura, usuários e solicitações registradas no High OS.</p></div></div>
+          <div class="history-toolbar"><input id="historySearch" placeholder="Buscar Group, facção, usuário ou evento..."><select id="historyType"><option value="">TODOS OS EVENTOS</option><option value="ENTREGA_GROUP">ENTREGAS</option><option value="RECOLHIMENTO">RECOLHIMENTOS</option><option value="EDICAO">ALTERAÇÕES DE GROUP</option><option value="ENTREGA">ENTREGAS LEGADAS</option><option value="MODELO_SOLICITACAO">MODELOS / SOLICITAÇÕES</option><option value="USUARIO">USUÁRIOS</option></select></div>
+          <div id="historyStats" class="fac-stats"></div><div id="historyList" class="history-list"><div class="placeholder"><b>◷</b><h3>CARREGANDO HISTÓRICO</h3></div></div>
+        </section>
         <section class="page" id="page-usuarios">
           <div class="page-head"><div><div class="eyebrow">ADMINISTRAÇÃO</div><h2>USUÁRIOS</h2></div><button id="newUserBtn" class="btn-primary compact">NOVO USUÁRIO</button></div>
           <div class="user-toolbar"><input id="userSearch" placeholder="Buscar nome ou e-mail..."><select id="userRoleFilter"><option value="">TODOS OS NÍVEIS</option><option>ADMIN</option><option>PADRINHO</option><option>STAFF</option><option>CONSULTA</option></select><select id="userStatusFilter"><option value="">TODOS OS STATUS</option><option value="ATIVO">ATIVOS</option><option value="INATIVO">INATIVOS</option></select></div>
@@ -88,7 +92,7 @@
       </div>
     </section>
   </main>
-<div id="facModal" class="modal hidden"><div class="modal-card fac-modal-card-wide"><button class="modal-x" id="facModalClose">×</button><div class="eyebrow">GESTÃO DE FACÇÃO</div><h2 id="facModalTitle">FACÇÃO</h2><form id="facForm"><input type="hidden" id="fGroup"><div class="form-grid"><label>Group<input id="fGroupShow" disabled></label><label>Status<select id="fStatus"><option value="ATIVA">ATIVA</option><option value="INATIVA">INATIVA / VAGA</option></select></label><label>Facção<input id="fFaccao"></label><label>QG / Favela<input id="fQG"></label><label class="wide">Produto<textarea id="fProduto"></textarea></label><label>Líder (ID / Nome / Tel)<input id="fLider"></label><label>Staff responsável<input id="fStaff"></label><label>Data entrega<input id="fData" placeholder="dd/mm/aaaa"></label><label>Anúncio Discord<input id="fAnuncio"></label><label class="wide">CDS<input id="fCds"></label><label class="wide">Observações<textarea id="fObs"></textarea></label></div>
+<div id="facModal" class="modal hidden"><div class="modal-card fac-modal-card-wide"><button class="modal-x" id="facModalClose">×</button><div class="eyebrow">PERFIL TÉCNICO DO GROUP</div><h2 id="facModalTitle">GROUP</h2><div id="groupProfileSummary" class="group-profile-summary"></div><form id="facForm"><input type="hidden" id="fGroup"><div class="form-grid"><label>Group<input id="fGroupShow" disabled></label><label>Status<select id="fStatus"><option value="ATIVA">ATIVA</option><option value="INATIVA">INATIVA / VAGA</option></select></label><label>Facção<input id="fFaccao"></label><label>QG / Favela<input id="fQG"></label><label class="wide">Produto<textarea id="fProduto"></textarea></label><label>Líder (ID / Nome / Tel)<input id="fLider"></label><label>Staff responsável<input id="fStaff"></label><label>Data entrega<input id="fData" placeholder="dd/mm/aaaa"></label><label>Anúncio Discord<input id="fAnuncio"></label><label class="wide">CDS<input id="fCds"></label><label class="wide">Observações<textarea id="fObs"></textarea></label></div>
 <div class="benefits-box">
   <div class="benefits-head"><div><div class="eyebrow">BASE DO LOCAL / GROUP</div><h3>BENEFÍCIOS E SETAGENS</h3></div><small>Estes dados permanecem no local mesmo após recolhimento.</small></div>
   <div class="benefit-toggles">
@@ -125,6 +129,10 @@
     <label class="wide">Telão — CDS do jogador<input id="fTelaoCds" placeholder="{x,y,z,h}"></label>
     <label class="wide">Outros benefícios / setagens<textarea id="fOutrosBeneficios" placeholder="Um por linha. Ex.: Interfone, mochila, uniforme, rádio, blip especial..."></textarea></label>
   </div>
+</div>
+<div class="group-history-box">
+  <div class="benefits-head"><div><div class="eyebrow">MEMÓRIA DO PATRIMÔNIO</div><h3>HISTÓRICO RECENTE DO GROUP</h3></div><small>Entregas, recolhimentos e alterações ficam vinculados ao Group, mesmo quando a facção muda.</small></div>
+  <div id="groupHistoryPreview" class="group-history-preview"></div>
 </div>
 <div class="delivery-box delivery-requests-box">
   <div class="benefits-head"><div><div class="eyebrow">GERADO PELA ENTREGA</div><h3>SOLICITAÇÕES TÉCNICAS NECESSÁRIAS</h3></div><button type="button" id="copyDeliveryRequestsBtn" class="btn-secondary compact">COPIAR SOLICITAÇÕES</button></div>
