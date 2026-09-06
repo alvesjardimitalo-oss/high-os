@@ -81,6 +81,12 @@ function getFormBenefits(){
   telaoNome:$('#fTelaoNome').value.trim(),
   telaoPostit:$('#fTelaoPostit').value.trim(),
   telaoCds:$('#fTelaoCds').value.trim(),
+  garagemPublica:$('#fGaragemPublica').checked,
+  garagemPublicaBlip:$('#fGaragemPublicaBlip').value.trim(),
+  garagemPublicaSpawn:$('#fGaragemPublicaSpawn').value.trim(),
+  heliponto:$('#fHeliponto').checked,
+  helipontoBlip:$('#fHelipontoBlip').value.trim(),
+  helipontoSpawn:$('#fHelipontoSpawn').value.trim(),
   outros:$('#fOutrosBeneficios').value.trim()
  };
 }
@@ -90,7 +96,9 @@ function setFormBenefits(b={}){
  $('#fGaragemVipBlip').value=b.garagemVipBlip||'';$('#fGaragemVipSpawn').value=b.garagemVipSpawn||'';$('#fGaragemVipVeiculos').value=b.garagemVipVeiculos||'';
  $('#fLojaRoupas').value=b.lojaRoupas||'';$('#fBarbearia').value=b.barbearia||'';$('#fTatuagem').value=b.tatuagem||'';$('#fShopExclusivo').value=b.shopExclusivo||'';
  $('#fBau').value=b.bau||'';$('#fBauCapacidade').value=b.bauCapacidade||'';$('#fArena').value=b.arena||'';$('#fFarm').value=b.farm||'';$('#fCraft').value=b.craft||'';
- $('#fRotaExclusiva').checked=!!b.rotaExclusiva;$('#fRotaBlips').value=b.rotaBlips||'';$('#fTelao').checked=!!b.telao;$('#fTelaoNome').value=b.telaoNome||'';$('#fTelaoPostit').value=b.telaoPostit||'';$('#fTelaoCds').value=b.telaoCds||'';$('#fOutrosBeneficios').value=b.outros||'';
+ $('#fRotaExclusiva').checked=!!b.rotaExclusiva;$('#fRotaBlips').value=b.rotaBlips||'';$('#fTelao').checked=!!b.telao;$('#fTelaoNome').value=b.telaoNome||'';$('#fTelaoPostit').value=b.telaoPostit||'';$('#fTelaoCds').value=b.telaoCds||'';
+ $('#fGaragemPublica').checked=!!b.garagemPublica;$('#fGaragemPublicaBlip').value=b.garagemPublicaBlip||'';$('#fGaragemPublicaSpawn').value=b.garagemPublicaSpawn||'';
+ $('#fHeliponto').checked=!!b.heliponto;$('#fHelipontoBlip').value=b.helipontoBlip||'';$('#fHelipontoSpawn').value=b.helipontoSpawn||'';$('#fOutrosBeneficios').value=b.outros||'';
 }
 function currentFactionFromForm(){
  const old=faccoes.find(x=>x.group===$('#fGroup').value)||{};
@@ -106,6 +114,7 @@ function benefitLines(f){
  if(b.lojaRoupas)out.push('Loja de Roupas');if(b.barbearia)out.push('Barbearia');if(b.tatuagem)out.push('Tatuagem');if(b.shopExclusivo)out.push('Shop Exclusivo');
  if(b.bau)out.push(`Baú${b.bauCapacidade?' ('+b.bauCapacidade+')':''}`);if(b.arena)out.push('Blip de Arena');if(b.farm)out.push('Farm');if(b.craft)out.push('Craft');
  if(b.rotaExclusiva)out.push('Rota Exclusiva');if(b.telao)out.push(`Telão${b.telaoNome?' ('+b.telaoNome+')':''}`);
+ if(b.garagemPublica)out.push('Garagem Pública');if(b.heliponto)out.push('Heliponto');
  if(b.outros)out.push(...b.outros.split(/\r?\n/).map(x=>x.trim()).filter(Boolean));
  return out;
 }
@@ -116,7 +125,28 @@ function buildDeliveryExtract(f=currentFactionFromForm()){
  if(f.observacoes)L.push('','Observações: '+f.observacoes);
  return L.join('\n');
 }
-function updateDeliveryPreview(){if($('#deliveryPreview'))$('#deliveryPreview').value=buildDeliveryExtract()}
+function changedBenefit(oldB={},newB={},keys=[]){return keys.some(k=>String(oldB?.[k]??'')!==String(newB?.[k]??''))}
+function autoDeliveryRequests(f=currentFactionFromForm()){
+ const old=faccoes.find(x=>x.group===f.group)||{}, ob=old.beneficios||{}, b=f.beneficios||{}, req=[];
+ const add=(tipo,titulo,texto)=>req.push({tipo,titulo,texto});
+ const vipKeys=['vipOrg','salario','salarioMinutos','chatFaccao','radio','garagemVipBlip','garagemVipSpawn','garagemVipVeiculos','lojaRoupas','barbearia','tatuagem','shopExclusivo','bau','bauCapacidade','arena','farm','craft','outros'];
+ if(b.vipOrg && (!ob.vipOrg || changedBenefit(ob,b,vipKeys))){
+   let L=['Assunto: Ativação de benefícios de uma organização e alguns blips','','Solicitação:','','- Ativação de benefícios de uma organização e alguns blips','',`- Group: ${f.group}`];
+   if(b.salario)L.push('',`- Ativar salário de ${b.salario} (A cada ${b.salarioMinutos||40} minutos)`);
+   if(b.radio)L.push('',`- Ativar Rádio exclusiva: ${b.radio}`); if(b.chatFaccao)L.push('','- Ativar Chat Facção.');
+   if(b.garagemVipBlip||b.garagemVipSpawn){L.push('','- Ativar Garagem VIP:','','- Blip de Garagem VIP Org.');if(b.garagemVipVeiculos)L.push(`- Veículos: ${b.garagemVipVeiculos}`);L.push('',`- Blip: ${fmtCds(b.garagemVipBlip)}`,`- Spawn: ${fmtCds(b.garagemVipSpawn)}`)}
+   [['Loja de roupas',b.lojaRoupas],['Barbearia',b.barbearia],['Tatuagem',b.tatuagem],['Shop Exclusivo',b.shopExclusivo],['Baú',b.bau],['Blip de arena',b.arena],['Farm',b.farm],['Craft',b.craft]].forEach(([n,v])=>{if(v)L.push('',`- ${n}: ${fmtCds(v)}`)}); if(b.bauCapacidade)L.push(`- Capacidade do Baú: ${b.bauCapacidade}`); if(b.outros)L.push('',...b.outros.split(/\r?\n/).filter(Boolean).map(x=>'- '+x));
+   add('BENEFICIOS','VIP Org / Benefícios e Setagens',L.join('\n'));
+ }
+ if(b.rotaExclusiva && (!ob.rotaExclusiva || changedBenefit(ob,b,['rotaBlips']))){let pts=(b.rotaBlips||'').split(/\r?\n/).filter(Boolean);add('ROTA_FARM','Rota de Farm Exclusiva',['Assunto: Ativação de rota de farm exclusiva','','Solicitação:','','- Ativação de rota de farm exclusiva',`- Group: ${f.group}`,'','- Blips da rota nova:','',...(pts.length?pts:['{ CDS },'])].join('\n'))}
+ if(b.telao && (!ob.telao || changedBenefit(ob,b,['telaoNome','telaoPostit','telaoCds']))){add('TELAO','Telão da Organização',['Assunto: Ativação de Telão Hall em uma Organização Ilegal','','Solicitação:','','- Ativação de Telão Hall em uma Organização Ilegal.','',`- Group: ${f.group}`,`- Telão usado: ${b.telaoNome||'{modelo_do_telao}'}`,'','- Local/Coordenadas de onde está o telão (coordenadas pega com postit):',`  ${fmtCds(b.telaoPostit)}`,'','- Local/Coordenadas de onde está o telão (coordenadas pega com cds):',`  ${fmtCds(b.telaoCds)}`].join('\n'))}
+ if(b.garagemPublica && (!ob.garagemPublica || changedBenefit(ob,b,['garagemPublicaBlip','garagemPublicaSpawn']))){add('GARAGEM','Garagem Pública',['Assunto:','','- Solicitaçao de Garagem Publica;','','Solicitaçao:','','- Adicione uma garagem publica na CDS abaixo:','',`* Blip: ${fmtCds(b.garagemPublicaBlip)}`,`* Spawn: ${fmtCds(b.garagemPublicaSpawn)}`,'',`- Permissao : ${f.group}`].join('\n'))}
+ if(b.heliponto && (!ob.heliponto || changedBenefit(ob,b,['helipontoBlip','helipontoSpawn']))){add('HELIPONTO','Heliponto',['Assunto: Adição de Heliponto','','Solicitação:','- Adicione um Heliponto na cds abaixo;',`- ${fmtCds(b.helipontoBlip)}`,...(b.helipontoSpawn?['',`- Spawn: ${fmtCds(b.helipontoSpawn)}`]:[]),'',`- Group: ${f.group}.`].join('\n'))}
+ return req;
+}
+function renderDeliveryRequests(){const box=$('#deliveryRequestsPreview');if(!box)return;const rs=autoDeliveryRequests();box.innerHTML=rs.length?rs.map((r,i)=>`<article class="delivery-request-card"><div><b>${i+1}. ${esc(r.titulo)}</b><span>${esc(r.tipo)}</span></div><pre>${esc(r.texto)}</pre></article>`).join(''):'<div class="delivery-no-change">Nenhuma nova solicitação necessária com as alterações atuais.</div>'}
+function updateDeliveryPreview(){if($('#deliveryPreview'))$('#deliveryPreview').value=buildDeliveryExtract();renderDeliveryRequests()}
+async function copyDeliveryRequests(){const rs=autoDeliveryRequests(),t=rs.map((r,i)=>`===== ${i+1}. ${r.titulo.toUpperCase()} =====\n\n${r.texto}`).join('\n\n');if(!t)return alert('Nenhuma solicitação técnica nova foi identificada.');try{await navigator.clipboard.writeText(t);const b=$('#copyDeliveryRequestsBtn'),o=b.textContent;b.textContent='COPIADO ✓';setTimeout(()=>b.textContent=o,1400)}catch(e){alert('Não foi possível copiar automaticamente.') }}
 async function copyDeliveryExtract(){const t=$('#deliveryPreview').value;try{await navigator.clipboard.writeText(t);const b=$('#copyDeliveryBtn'),o=b.textContent;b.textContent='COPIADO ✓';setTimeout(()=>b.textContent=o,1400)}catch(e){$('#deliveryPreview').select();document.execCommand('copy')}}
 
 function openFac(id){
@@ -126,13 +156,13 @@ function openFac(id){
 }
 $('#facModalClose').onclick=()=>$('#facModal').classList.add('hidden');
 $('#facModal').addEventListener('click',e=>{if(e.target.id==='facModal')$('#facModal').classList.add('hidden')});
-['fStatus','fFaccao','fQG','fProduto','fLider','fStaff','fData','fAnuncio','fCds','fObs','fVipOrg','fChatFaccao','fSalario','fSalarioMin','fRadio','fGaragemVipBlip','fGaragemVipSpawn','fGaragemVipVeiculos','fLojaRoupas','fBarbearia','fTatuagem','fShopExclusivo','fBau','fBauCapacidade','fArena','fFarm','fCraft','fRotaExclusiva','fRotaBlips','fTelao','fTelaoNome','fTelaoPostit','fTelaoCds','fOutrosBeneficios'].forEach(id=>$('#'+id)?.addEventListener('input',updateDeliveryPreview));
-$('#copyDeliveryBtn').onclick=copyDeliveryExtract;
+['fStatus','fFaccao','fQG','fProduto','fLider','fStaff','fData','fAnuncio','fCds','fObs','fVipOrg','fChatFaccao','fSalario','fSalarioMin','fRadio','fGaragemVipBlip','fGaragemVipSpawn','fGaragemVipVeiculos','fLojaRoupas','fBarbearia','fTatuagem','fShopExclusivo','fBau','fBauCapacidade','fArena','fFarm','fCraft','fRotaExclusiva','fRotaBlips','fTelao','fTelaoNome','fTelaoPostit','fTelaoCds','fGaragemPublica','fGaragemPublicaBlip','fGaragemPublicaSpawn','fHeliponto','fHelipontoBlip','fHelipontoSpawn','fOutrosBeneficios'].forEach(id=>$('#'+id)?.addEventListener('input',updateDeliveryPreview));
+$('#copyDeliveryBtn').onclick=copyDeliveryExtract; $('#copyDeliveryRequestsBtn').onclick=copyDeliveryRequests;
 
 $('#facForm').onsubmit=async e=>{
  e.preventDefault();const group=$('#fGroup').value,old=faccoes.find(x=>x.group===group);const data={...old,status:$('#fStatus').value,faccao:$('#fFaccao').value.trim(),qg:$('#fQG').value.trim(),produto:$('#fProduto').value.trim(),lider:$('#fLider').value.trim(),staff:$('#fStaff').value.trim(),dataEntrega:$('#fData').value.trim(),anuncio:$('#fAnuncio').value.trim(),cds:$('#fCds').value.trim(),observacoes:$('#fObs').value.trim(),beneficios:getFormBenefits(),updatedAt:serverTimestamp(),updatedBy:currentUser.email};
  if(data.status==='ATIVA'&&!data.faccao){alert('Informe o nome da facção para marcar como ATIVA.');return}
- try{await setDoc(doc(db,'highos','data','faccoes',group),data);await addDoc(histCol,{tipo:old?.status==='INATIVA'&&data.status==='ATIVA'?'ENTREGA':'EDICAO',group,antes:snapshot(old),depois:snapshot(data),usuario:currentUser.email,data:serverTimestamp()});$('#facModal').classList.add('hidden');await loadFaccoes()}catch(err){alert('Erro ao salvar: '+err.message)}
+ try{const generated=autoDeliveryRequests(data);await setDoc(doc(db,'highos','data','faccoes',group),data);await addDoc(histCol,{tipo:old?.status==='INATIVA'&&data.status==='ATIVA'?'ENTREGA':'EDICAO',group,antes:snapshot(old),depois:snapshot(data),solicitacoesGeradas:generated,extratoEntrega:buildDeliveryExtract(data),usuario:currentUser.email,data:serverTimestamp()});$('#facModal').classList.add('hidden');await loadFaccoes()}catch(err){alert('Erro ao salvar: '+err.message)}
 };
 $('#recolherBtn').onclick=async()=>{
  const group=$('#fGroup').value,old=faccoes.find(x=>x.group===group);if(!old||!confirm(`Recolher ${old.faccao||group} e deixar ${group} VAGO? O histórico será preservado.`))return;
