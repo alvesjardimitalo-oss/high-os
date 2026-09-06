@@ -56,16 +56,81 @@ $('#seedBtn').onclick=async()=>{
  try{const batch=writeBatch(db);SEED.forEach(f=>batch.set(doc(db,'highos','data','faccoes',f.group),{...f,updatedAt:serverTimestamp(),updatedBy:currentUser.email}));await batch.commit();await addDoc(histCol,{tipo:'IMPORTACAO_INICIAL',descricao:`Base inicial importada: ${SEED.length} posições`,usuario:currentUser.email,data:serverTimestamp()});await loadFaccoes();alert('Base inicial importada com sucesso.')}catch(e){alert('Erro na importação: '+e.message)}
 };
 
+function getFormBenefits(){
+ return {
+  vipOrg:$('#fVipOrg').checked,
+  chatFaccao:$('#fChatFaccao').checked,
+  salario:$('#fSalario').value.trim(),
+  salarioMinutos:$('#fSalarioMin').value.trim(),
+  radio:$('#fRadio').value.trim(),
+  garagemVipBlip:$('#fGaragemVipBlip').value.trim(),
+  garagemVipSpawn:$('#fGaragemVipSpawn').value.trim(),
+  garagemVipVeiculos:$('#fGaragemVipVeiculos').value.trim(),
+  lojaRoupas:$('#fLojaRoupas').value.trim(),
+  barbearia:$('#fBarbearia').value.trim(),
+  tatuagem:$('#fTatuagem').value.trim(),
+  shopExclusivo:$('#fShopExclusivo').value.trim(),
+  bau:$('#fBau').value.trim(),
+  bauCapacidade:$('#fBauCapacidade').value.trim(),
+  arena:$('#fArena').value.trim(),
+  farm:$('#fFarm').value.trim(),
+  craft:$('#fCraft').value.trim(),
+  rotaExclusiva:$('#fRotaExclusiva').checked,
+  rotaBlips:$('#fRotaBlips').value.trim(),
+  telao:$('#fTelao').checked,
+  telaoNome:$('#fTelaoNome').value.trim(),
+  telaoPostit:$('#fTelaoPostit').value.trim(),
+  telaoCds:$('#fTelaoCds').value.trim(),
+  outros:$('#fOutrosBeneficios').value.trim()
+ };
+}
+function setFormBenefits(b={}){
+ $('#fVipOrg').checked=!!b.vipOrg;$('#fChatFaccao').checked=!!b.chatFaccao;
+ $('#fSalario').value=b.salario||'';$('#fSalarioMin').value=b.salarioMinutos||'';$('#fRadio').value=b.radio||'';
+ $('#fGaragemVipBlip').value=b.garagemVipBlip||'';$('#fGaragemVipSpawn').value=b.garagemVipSpawn||'';$('#fGaragemVipVeiculos').value=b.garagemVipVeiculos||'';
+ $('#fLojaRoupas').value=b.lojaRoupas||'';$('#fBarbearia').value=b.barbearia||'';$('#fTatuagem').value=b.tatuagem||'';$('#fShopExclusivo').value=b.shopExclusivo||'';
+ $('#fBau').value=b.bau||'';$('#fBauCapacidade').value=b.bauCapacidade||'';$('#fArena').value=b.arena||'';$('#fFarm').value=b.farm||'';$('#fCraft').value=b.craft||'';
+ $('#fRotaExclusiva').checked=!!b.rotaExclusiva;$('#fRotaBlips').value=b.rotaBlips||'';$('#fTelao').checked=!!b.telao;$('#fTelaoNome').value=b.telaoNome||'';$('#fTelaoPostit').value=b.telaoPostit||'';$('#fTelaoCds').value=b.telaoCds||'';$('#fOutrosBeneficios').value=b.outros||'';
+}
+function currentFactionFromForm(){
+ const old=faccoes.find(x=>x.group===$('#fGroup').value)||{};
+ return {...old,group:$('#fGroup').value,status:$('#fStatus').value,faccao:$('#fFaccao').value.trim(),qg:$('#fQG').value.trim(),produto:$('#fProduto').value.trim(),lider:$('#fLider').value.trim(),staff:$('#fStaff').value.trim(),dataEntrega:$('#fData').value.trim(),anuncio:$('#fAnuncio').value.trim(),cds:$('#fCds').value.trim(),observacoes:$('#fObs').value.trim(),beneficios:getFormBenefits()};
+}
+function benefitLines(f){
+ const b=f?.beneficios||{}, out=[];
+ if(b.vipOrg)out.push('VIP Org');
+ if(b.salario)out.push(`Salário: R$ ${b.salario} a cada ${b.salarioMinutos||40} minutos`);
+ if(b.chatFaccao)out.push('Chat da Facção');
+ if(b.radio)out.push(`Rádio Exclusiva: ${b.radio}`);
+ if(b.garagemVipBlip||b.garagemVipSpawn)out.push('Garagem VIP Org');
+ if(b.lojaRoupas)out.push('Loja de Roupas');if(b.barbearia)out.push('Barbearia');if(b.tatuagem)out.push('Tatuagem');if(b.shopExclusivo)out.push('Shop Exclusivo');
+ if(b.bau)out.push(`Baú${b.bauCapacidade?' ('+b.bauCapacidade+')':''}`);if(b.arena)out.push('Blip de Arena');if(b.farm)out.push('Farm');if(b.craft)out.push('Craft');
+ if(b.rotaExclusiva)out.push('Rota Exclusiva');if(b.telao)out.push(`Telão${b.telaoNome?' ('+b.telaoNome+')':''}`);
+ if(b.outros)out.push(...b.outros.split(/\r?\n/).map(x=>x.trim()).filter(Boolean));
+ return out;
+}
+function buildDeliveryExtract(f=currentFactionFromForm()){
+ const items=benefitLines(f), L=['ENTREGA DE ORGANIZAÇÃO — HIGH ILEGAL','','Facção: '+(f.faccao||'—'),'Group: '+(f.group||'—'),'Segmento: '+(f.segmento||'—'),'Local/QG: '+(f.qg||'—')];
+ if(f.produto)L.push('Produto/Eixo: '+f.produto);if(f.lider)L.push('Líder: '+f.lider);if(f.staff)L.push('Staff responsável: '+f.staff);if(f.dataEntrega)L.push('Data da entrega: '+f.dataEntrega);
+ L.push('','Benefícios / Setagens:');L.push(...(items.length?items.map(x=>'• '+x):['• Nenhum benefício/setagem cadastrado']));
+ if(f.observacoes)L.push('','Observações: '+f.observacoes);
+ return L.join('\n');
+}
+function updateDeliveryPreview(){if($('#deliveryPreview'))$('#deliveryPreview').value=buildDeliveryExtract()}
+async function copyDeliveryExtract(){const t=$('#deliveryPreview').value;try{await navigator.clipboard.writeText(t);const b=$('#copyDeliveryBtn'),o=b.textContent;b.textContent='COPIADO ✓';setTimeout(()=>b.textContent=o,1400)}catch(e){$('#deliveryPreview').select();document.execCommand('copy')}}
+
 function openFac(id){
  const f=faccoes.find(x=>x.id===id);if(!f)return;
- $('#fGroup').value=f.group;$('#fGroupShow').value=f.group;$('#fStatus').value=f.status||'INATIVA';$('#fFaccao').value=f.faccao||'';$('#fQG').value=f.qg||'';$('#fProduto').value=f.produto||'';$('#fLider').value=f.lider||'';$('#fStaff').value=f.staff||'';$('#fData').value=f.dataEntrega||'';$('#fAnuncio').value=f.anuncio||'';$('#fCds').value=f.cds||'';$('#fObs').value=f.observacoes||'';$('#facModalTitle').textContent=f.group;$('#facModal').classList.remove('hidden');
+ $('#fGroup').value=f.group;$('#fGroupShow').value=f.group;$('#fStatus').value=f.status||'INATIVA';$('#fFaccao').value=f.faccao||'';$('#fQG').value=f.qg||'';$('#fProduto').value=f.produto||'';$('#fLider').value=f.lider||'';$('#fStaff').value=f.staff||'';$('#fData').value=f.dataEntrega||'';$('#fAnuncio').value=f.anuncio||'';$('#fCds').value=f.cds||'';$('#fObs').value=f.observacoes||'';setFormBenefits(f.beneficios||{});$('#facModalTitle').textContent=f.group;$('#facModal').classList.remove('hidden');updateDeliveryPreview();
  $('#recolherBtn').style.display=f.status==='ATIVA'?'block':'none';
 }
 $('#facModalClose').onclick=()=>$('#facModal').classList.add('hidden');
 $('#facModal').addEventListener('click',e=>{if(e.target.id==='facModal')$('#facModal').classList.add('hidden')});
+['fStatus','fFaccao','fQG','fProduto','fLider','fStaff','fData','fAnuncio','fCds','fObs','fVipOrg','fChatFaccao','fSalario','fSalarioMin','fRadio','fGaragemVipBlip','fGaragemVipSpawn','fGaragemVipVeiculos','fLojaRoupas','fBarbearia','fTatuagem','fShopExclusivo','fBau','fBauCapacidade','fArena','fFarm','fCraft','fRotaExclusiva','fRotaBlips','fTelao','fTelaoNome','fTelaoPostit','fTelaoCds','fOutrosBeneficios'].forEach(id=>$('#'+id)?.addEventListener('input',updateDeliveryPreview));
+$('#copyDeliveryBtn').onclick=copyDeliveryExtract;
 
 $('#facForm').onsubmit=async e=>{
- e.preventDefault();const group=$('#fGroup').value,old=faccoes.find(x=>x.group===group);const data={...old,status:$('#fStatus').value,faccao:$('#fFaccao').value.trim(),qg:$('#fQG').value.trim(),produto:$('#fProduto').value.trim(),lider:$('#fLider').value.trim(),staff:$('#fStaff').value.trim(),dataEntrega:$('#fData').value.trim(),anuncio:$('#fAnuncio').value.trim(),cds:$('#fCds').value.trim(),observacoes:$('#fObs').value.trim(),updatedAt:serverTimestamp(),updatedBy:currentUser.email};
+ e.preventDefault();const group=$('#fGroup').value,old=faccoes.find(x=>x.group===group);const data={...old,status:$('#fStatus').value,faccao:$('#fFaccao').value.trim(),qg:$('#fQG').value.trim(),produto:$('#fProduto').value.trim(),lider:$('#fLider').value.trim(),staff:$('#fStaff').value.trim(),dataEntrega:$('#fData').value.trim(),anuncio:$('#fAnuncio').value.trim(),cds:$('#fCds').value.trim(),observacoes:$('#fObs').value.trim(),beneficios:getFormBenefits(),updatedAt:serverTimestamp(),updatedBy:currentUser.email};
  if(data.status==='ATIVA'&&!data.faccao){alert('Informe o nome da facção para marcar como ATIVA.');return}
  try{await setDoc(doc(db,'highos','data','faccoes',group),data);await addDoc(histCol,{tipo:old?.status==='INATIVA'&&data.status==='ATIVA'?'ENTREGA':'EDICAO',group,antes:snapshot(old),depois:snapshot(data),usuario:currentUser.email,data:serverTimestamp()});$('#facModal').classList.add('hidden');await loadFaccoes()}catch(err){alert('Erro ao salvar: '+err.message)}
 };
@@ -77,31 +142,74 @@ $('#recolherBtn').onclick=async()=>{
 function snapshot(o){if(!o)return null;const x={...o};delete x.updatedAt;return x}
 
 
-// ===== HIGH OS V3 · CENTRAL DE SOLICITAÇÕES =====
+// ===== HIGH OS V4.2 · CENTRAL DE SOLICITAÇÕES · PADRÕES OFICIAIS HIGH =====
 const REQUEST_TYPES=[
-  ['GARAGEM','Garagem Pública'],['HELIPONTO','Heliponto'],['ROTA_FARM','Rota de Farm'],['BAU','Baú'],['BLIP','Blip'],['UNIFORME','Uniforme / Roupas'],['ITENS','Criação / Alteração de Itens'],['ALTERACAO_GROUP','Alteração de Group / Facção'],['GERAL','Solicitação Geral']
+  ['GARAGEM','Garagem Pública'],
+  ['HELIPONTO','Heliponto'],
+  ['GARAGEM_VIP','Garagem VIP / VIP Fac'],
+  ['ROTA_FARM','Rota de Farm Exclusiva'],
+  ['BAU','Baú'],
+  ['BLIP','Adição / Alteração de Blip'],
+  ['REMOVER_BLIP','Remoção de Blip'],
+  ['RADIO','Rádio Exclusiva'],
+  ['BENEFICIOS','VIP Org / Benefícios e Setagens'],
+  ['TELAO','Telão da Organização'],
+  ['LOJA_FACCAO','Loja de Facção / Shop Exclusivo'],
+  ['TELEPORT','Teleport'],
+  ['WEBHOOK','Log / Webhook'],
+  ['UNIFORME','Uniforme / Roupas'],
+  ['ITENS','Criação / Alteração de Itens'],
+  ['ALTERACAO_GROUP','Alteração de Group / Facção'],
+  ['GERAL','Solicitação Geral']
 ];
+
 const TYPE_PLACEHOLDERS={
- GARAGEM:'Blip: x,y,z,h\nSpawn: x,y,z,h\nPermissão: (se houver)\nObservações:',
- HELIPONTO:'Heliponto: x,y,z,h\nSpawn: x,y,z,h\nAcesso: público ou restrito\nObservações:',
- ROTA_FARM:'Group: \nAtivação de rota exclusiva\nBlips da rota nova:\n{ x,y,z,h },\n{ x,y,z,h }',
- BAU:'CDS: x,y,z,h\nCapacidade: \nPermissão/Group: \nObservações:',
- BLIP:'Tipo do blip: \nCDS: x,y,z,h\nNome/descrição: \nPermissão: ',
- UNIFORME:'Peça/categoria atual: \nCategoria correta: \nIDs/texturas: \nDescrição do ajuste:',
- ITENS:'Nome do item: \nSpawn: \nArquivo PNG: spawn_do_item.png\nInteração/uso: \nDescrição:',
- ALTERACAO_GROUP:'Alteração solicitada: \nGroup atual: \nNovo Group/facção: \nMotivo/observações:',
+ GARAGEM:'Blip: {x,y,z,h}\nSpawn: {x,y,z,h}\nObservações:',
+ HELIPONTO:'Blip: {x,y,z,h}\nSpawn: {x,y,z,h}\nObservações:',
+ GARAGEM_VIP:'Veículos: LLMOTOSTIER2002, fooxcustomzlexrfc\nBlip: {x,y,z,h}\nSpawn: {x,y,z,h}\nObservações:',
+ ROTA_FARM:'Blips da rota nova:\n{x,y,z},\n{x,y,z},\n{x,y,z}\nObservações:',
+ BAU:'CDS: {x,y,z,h}\nCapacidade: \nPermissão: \nObservações:',
+ BLIP:'Tipo do blip: \nCDS: {x,y,z,h}\nSpawn: {x,y,z,h} (se houver)\nObservações:',
+ REMOVER_BLIP:'Tipo do blip: \nCDS: {x,y,z,h}\nObservações:',
+ RADIO:'Rádio: \nObservações:',
+ BENEFICIOS:'Os benefícios são puxados automaticamente da ficha do Group.\nUse este campo somente para complemento/observação ou substituição pontual.\nObservações:',
+ TELAO:'Os dados do telão são puxados automaticamente da ficha do Group.\nModelo do Telão: \nCDS/postit: \nCDS: \nObservações:',
+ LOJA_FACCAO:'CDS: {x,y,z,h}\nObservações:',
+ TELEPORT:'Entrada: {x,y,z,h}\nSaída: {x,y,z,h}\nObservações:',
+ WEBHOOK:'Webhook: \nDiscord/Canal: \nPermissão: \nObservações:',
+ UNIFORME:'Organização/Group: \nNome do uniforme: \nArquivo/anexo: \nCategoria/ajuste: \nObservações:',
+ ITENS:'Nome do item: \nSpawn: \nArquivo PNG: spawn_do_item.png\nInteração/uso: \nDescrição: \nObservações:',
+ ALTERACAO_GROUP:'Alteração solicitada: \nGroup atual: \nNovo Group: \nBlip/CDS relacionado: \nObservações:',
  GERAL:'Descreva de forma objetiva o que precisa ser realizado:\n\nDados técnicos / CDS / permissões:'
 };
+
+const BUILTIN_REQUEST_MODELS=REQUEST_TYPES.map(([tipo,nome])=>({
+  id:'builtin-'+tipo,
+  builtin:true,
+  tipo,
+  nome:nome,
+  assunto:defaultSubject(tipo),
+  detalhes:TYPE_PLACEHOLDERS[tipo]||'',
+  origem:'Base padrão High OS'
+}));
+
 function initRequestUi(){
   const opts=REQUEST_TYPES.map(([v,n])=>`<option value="${v}">${n}</option>`).join('');
-  $('#reqTipo').innerHTML=opts; $('#reqTypeFilter').innerHTML='<option value="">TODOS OS TIPOS</option>'+opts;
+  $('#reqTipo').innerHTML=opts; $('#reqTypeFilter').innerHTML='<option value="">TODAS AS CATEGORIAS</option>'+opts;
   $('#newRequestBtn').onclick=()=>openRequestModal();
   $('#reqModalClose').onclick=()=>$('#reqModal').classList.add('hidden');
   $('#reqModal').addEventListener('click',e=>{if(e.target.id==='reqModal')$('#reqModal').classList.add('hidden')});
-  $('#reqTipo').addEventListener('change',()=>{if(!$('#reqId').value)$('#reqDetalhes').placeholder=TYPE_PLACEHOLDERS[$('#reqTipo').value]||'';updateRequestPreview()});
-  ['reqGroup','reqAssunto','reqDetalhes','reqPrioridade','reqFormStatus','reqResponsavel'].forEach(id=>$('#'+id).addEventListener('input',()=>{if(id==='reqGroup')syncRequestFaction();updateRequestPreview()}));
-  $('#reqSearch').addEventListener('input',renderRequests); $('#reqStatus').addEventListener('change',renderRequests); $('#reqTypeFilter').addEventListener('change',renderRequests);
-  $('#copyReqBtn').onclick=copyRequestText; $('#reqForm').addEventListener('submit',saveRequest);
+  $('#reqTipo').addEventListener('change',()=>{
+    if(!$('#reqId').value){
+      $('#reqDetalhes').value=TYPE_PLACEHOLDERS[$('#reqTipo').value]||'';
+      $('#reqAssunto').value=defaultSubject($('#reqTipo').value);
+      $('#reqModelName').value=requestTypeName($('#reqTipo').value);
+    }
+    updateRequestPreview();
+  });
+  ['reqGroup','reqAssunto','reqDetalhes','reqModelName'].forEach(id=>$('#'+id).addEventListener('input',()=>{if(id==='reqGroup')syncRequestFaction();updateRequestPreview()}));
+  $('#reqSearch').addEventListener('input',renderRequests); $('#reqTypeFilter').addEventListener('change',renderRequests);
+  $('#copyReqBtn').onclick=copyRequestText; $('#reqForm').addEventListener('submit',saveRequestModel);
 }
 function requestTypeName(v){return REQUEST_TYPES.find(x=>x[0]===v)?.[1]||v||'Solicitação Geral'}
 function updateRequestGroupOptions(selected=''){
@@ -109,78 +217,176 @@ function updateRequestGroupOptions(selected=''){
   $('#reqGroup').value=selected||''; syncRequestFaction();
 }
 function syncRequestFaction(){const f=faccoes.find(x=>x.group===$('#reqGroup').value);$('#reqFaccao').value=f?.faccao||''}
-function defaultSubject(type){return ({GARAGEM:'Solicitaçao de Garagem Publica',HELIPONTO:'Solicitaçao de Heliponto',ROTA_FARM:'Ativação de rota de farm exclusiva',BAU:'Criação / alteração de baú',BLIP:'Criação / alteração de blip',UNIFORME:'Ajuste de uniforme / roupas',ITENS:'Criação / alteração de itens',ALTERACAO_GROUP:'Alteração de Group / facção',GERAL:'Solicitação operacional'})[type]||'Solicitação operacional'}
+function defaultSubject(type){return ({
+ GARAGEM:'Solicitaçao de Garagem Publica',
+ HELIPONTO:'Adição de Heliponto',
+ GARAGEM_VIP:'Ativação de garagem VIP',
+ ROTA_FARM:'Ativação de rota de farm exclusiva',
+ BAU:'Adição de baú',
+ BLIP:'Adição de blip',
+ REMOVER_BLIP:'Remover blip',
+ RADIO:'Ativação de rádio exclusiva para uma facção',
+ BENEFICIOS:'Ativação de benefícios de uma organização e alguns blips',
+ TELAO:'Ativação de Telão Hall em uma Organização Ilegal',
+ LOJA_FACCAO:'Adição de blip de loja de facção',
+ TELEPORT:'Criação de blip de teleport',
+ WEBHOOK:'Ativação de log através da Webhook',
+ UNIFORME:'Adição de uniforme',
+ ITENS:'Criação / alteração de itens',
+ ALTERACAO_GROUP:'Alteração de Group / facção',
+ GERAL:'Solicitação operacional'
+})[type]||'Solicitação operacional'}
 
 function getDetailValue(label, detalhes=''){
- const rx=new RegExp('^\\s*'+label+'\\s*[:=-]\\s*(.+)$','im');
+ const safe=String(label).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+ const rx=new RegExp('^\\s*[-*]?\\s*'+safe+'\\s*[:=-]\\s*(.+)$','im');
  const m=String(detalhes||'').match(rx);
  return m?m[1].trim():'';
 }
+function getDetailBlock(label, detalhes=''){
+ const lines=String(detalhes||'').split(/\r?\n/); let on=false,out=[];
+ for(const raw of lines){const t=raw.trim();if(!t)continue;
+   if(new RegExp('^[-*]?\\s*'+label.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\s*:?$','i').test(t)){on=true;continue}
+   if(on && /^[A-Za-zÀ-ÿ][^{}]*:\s*/.test(t))break;
+   if(on)out.push(t);
+ }
+ return out;
+}
+function fmtCds(v){if(!v)return '{CDS}';return v.startsWith('{')?v:`{${v.replace(/^\{|\}$/g,'')}}`}
+function pushObs(lines,detalhes){const obs=getDetailValue('Observações?',detalhes)||getDetailValue('Obs',detalhes);if(obs)lines.push('',`- Observação: ${obs}`)}
 
 function buildRequestText(){
  const group=$('#reqGroup').value.trim();
  const tipo=$('#reqTipo').value;
- const detalhes=$('#reqDetalhes').value.trim();
+ const d=$('#reqDetalhes').value.trim();
+ const subject=$('#reqAssunto').value.trim()||defaultSubject(tipo);
+ const G=group||'{Nome do Group}';
+ const fac=faccoes.find(x=>x.group===group); const b=fac?.beneficios||{};
+ let L=[];
 
- // MODELO OFICIAL HIGH · GARAGEM PÚBLICA
  if(tipo==='GARAGEM'){
-   const blip=getDetailValue('Blip',detalhes);
-   const spawn=getDetailValue('Spawn',detalhes);
-   return [
-     'Assunto:',
-     '',
-     '- Solicitaçao de Garagem Publica;',
-     '',
-     'Solicitaçao:',
-     '',
-     '- Adicione uma garagem publica na CDS abaixo:',
-     '',
-     `* Blip: ${blip||'{CDS}'}`,
-     `* Spawn: ${spawn||'{CDS}'}`,
-     '',
-     `- Permissao : ${group||'{Nome do Group}'}`
-   ].join('\n');
+   L=['Assunto:','','- Solicitaçao de Garagem Publica;','','Solicitaçao:','','- Adicione uma garagem publica na CDS abaixo:','',`* Blip: ${fmtCds(getDetailValue('Blip',d))}`,`* Spawn: ${fmtCds(getDetailValue('Spawn',d))}`,'',`- Permissao : ${G}`];
  }
-
- // Demais modelos continuam no formato atual até serem substituídos pelos padrões oficiais High.
- const f=faccoes.find(x=>x.group===group);
- const assunto=$('#reqAssunto').value.trim()||defaultSubject(tipo);
- const lines=[`Assunto: ${assunto}`,'','Solicitação:'];
- if(group) lines.push(`- Group: ${group}`);
- if(f?.faccao) lines.push(`- Facção: ${f.faccao}`);
- if(f?.qg) lines.push(`- Local/QG: ${f.qg}`);
- if(detalhes){detalhes.split(/\r?\n/).forEach(line=>{const t=line.trim();if(t)lines.push(t.startsWith('-')?t:`- ${t}`)})}
- if($('#reqPrioridade').value==='URGENTE')lines.push('','- Prioridade: URGENTE');
- return lines.join('\n');
+ else if(tipo==='HELIPONTO'){
+   const blip=getDetailValue('Blip',d)||getDetailValue('Heliponto',d)||getDetailValue('CDS',d),spawn=getDetailValue('Spawn',d);
+   L=['Assunto:','',`- ${subject};`,'','Solicitação:','','- Adicione um Heliponto na CDS abaixo:','',`* Blip: ${fmtCds(blip)}`];
+   if(spawn)L.push(`* Spawn: ${fmtCds(spawn)}`); L.push('',`- Permissão: ${G}`); pushObs(L,d);
+ }
+ else if(tipo==='GARAGEM_VIP'){
+   const veic=getDetailValue('Veículos?',d)||'"LLMOTOSTIER2002" e "fooxcustomzlexrfc"';
+   L=[`Assunto: ${subject}`,'','Solicitação:','','- Ativação de garagem VIP','','- Garagem VIP:','','- Blip de Garagem VIP Org.',`- Veículos: ${veic}`,'',`- Group: ${G}`,'',`- Blip:`,`  ${fmtCds(getDetailValue('Blip',d))}`,'',`- Spawn:`,`  ${fmtCds(getDetailValue('Spawn',d))}`];pushObs(L,d);
+ }
+ else if(tipo==='ROTA_FARM'){
+   let pts=getDetailBlock('Blips da rota nova',d); if(!pts.length)pts=d.split(/\r?\n/).map(x=>x.trim()).filter(x=>/^\{.*\},?$/.test(x)); if(!pts.length&&b.rotaBlips)pts=String(b.rotaBlips).split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+   L=[`Assunto: ${subject}`,'','Solicitação:','','- Ativação de rota de farm exclusiva',`- Group: ${G}`,'','- Blips da rota nova:',''];
+   L.push(...(pts.length?pts:['{ CDS },','{ CDS },'])); pushObs(L,d);
+ }
+ else if(tipo==='BAU'){
+   L=[`Assunto: ${subject}`,'','Solicitação:','','- Adição de baú.',`- Group: ${G}`,'',`- Local/Coordenadas:`,`  ${fmtCds(getDetailValue('CDS',d)||getDetailValue('Blip',d))}`];
+   const cap=getDetailValue('Capacidade',d),perm=getDetailValue('Permissão',d);if(cap)L.push(`- Capacidade: ${cap}`);L.push(`- Permissão: ${perm||G}`);pushObs(L,d);
+ }
+ else if(tipo==='BLIP'){
+   const bt=getDetailValue('Tipo do blip',d)||'blip';
+   L=[`Assunto: ${subject}`,'','Solicitação:','',`- Adição de ${bt}.`,`- Group: ${G}`,'',`- Local/Coordenadas:`,`  ${fmtCds(getDetailValue('CDS',d)||getDetailValue('Blip',d))}`];
+   const sp=getDetailValue('Spawn',d);if(sp)L.push('',`- Spawn:`,`  ${fmtCds(sp)}`);pushObs(L,d);
+ }
+ else if(tipo==='REMOVER_BLIP'){
+   const bt=getDetailValue('Tipo do blip',d)||'blip';L=[`Assunto: ${subject}`,'','Solicitação:','',`- Remover ${bt}.`,`- Group: ${G}`,'',`- Local/Coordenadas:`,`  ${fmtCds(getDetailValue('CDS',d)||getDetailValue('Blip',d))}`];pushObs(L,d);
+ }
+ else if(tipo==='RADIO'){
+   const radio=getDetailValue('Rádio(?: Exclusiva)?',d)||getDetailValue('Radio(?: exclusiva)?',d)||'{Número da rádio}';
+   L=[`Assunto: ${subject}`,'','Solicitação:','',`- Ativação de rádio exclusiva para uma facção.`,`- Group: ${G}`,'',`- Rádio Exclusiva: ${radio}.`];pushObs(L,d);
+ }
+ else if(tipo==='BENEFICIOS'){
+   L=[`Assunto: ${subject}`,'','Solicitação:','','- Ativação de benefícios de uma organização e alguns blips','',`- Group: ${G}`];
+   const salario=getDetailValue('Salário',d)||b.salario; const mins=b.salarioMinutos||'40'; if(salario)L.push('',`- Ativar salário de ${salario} (A cada ${mins} minutos)`);
+   const radio=getDetailValue('Rádio',d)||b.radio; if(radio)L.push('',`- Ativar Rádio exclusiva: ${radio}`);
+   const chatOverride=getDetailValue('Chat Facção',d); if(b.chatFaccao||/^sim|ativar|sim$/i.test(chatOverride))L.push('','- Ativar Chat Facção.');
+   const gvB=getDetailValue('Garagem VIP - Blip',d)||b.garagemVipBlip,gvS=getDetailValue('Garagem VIP - Spawn',d)||b.garagemVipSpawn,veic=getDetailValue('Veículos',d)||b.garagemVipVeiculos;
+   if(gvB||gvS){L.push('','- Garagem VIP:','','- Blip de Garagem VIP Org.');if(veic)L.push(`- Veículos: ${veic}`);L.push('',`- Blip:`,`  ${fmtCds(gvB)}`,'',`- Spawn:`,`  ${fmtCds(gvS)}`)}
+   const singles=[['Loja de roupas',b.lojaRoupas],['Barbearia',b.barbearia],['Tatuagem',b.tatuagem],['Shop Exclusivo',b.shopExclusivo],['Farm',b.farm],['Craft',b.craft],['Baú',b.bau],['Arena',b.arena]];
+   for(const [label,saved] of singles){const v=getDetailValue(label,d)||saved;if(v)L.push('',`- ${label}:`,`  ${fmtCds(v)}`)}
+   if(b.bauCapacidade)L.push(`- Capacidade do Baú: ${b.bauCapacidade}`);
+   if(b.outros){L.push('','- Outros benefícios / setagens:');L.push(...String(b.outros).split(/\r?\n/).map(x=>x.trim()).filter(Boolean).map(x=>`- ${x}`))}
+   pushObs(L,d);
+ }
+ else if(tipo==='TELAO'){
+   const nome=getDetailValue('Modelo do Telão',d)||getDetailValue('Telão usado',d)||b.telaoNome||'{modelo_do_telao}';
+   const postit=getDetailValue('CDS/postit',d)||b.telaoPostit||'{CDS postit}'; const cds=getDetailValue('CDS',d)||b.telaoCds||'{CDS jogador}';
+   L=[`Assunto: ${subject}`,'','Solicitação:','','- Ativação de Telão Hall em uma Organização Ilegal.','',`- Group: ${G}`,`- Telão usado: ${nome}`,'','- Local/Coordenadas de onde está o telão (coordenadas pega com postit):',`  ${fmtCds(postit)}`,'','- Local/Coordenadas de onde está o telão (coordenadas pega com cds):',`  ${fmtCds(cds)}`];pushObs(L,d);
+ }
+ else if(tipo==='LOJA_FACCAO'){
+   L=[`Assunto: ${subject}`,'','Solicitação:','',`- Adicionar uma loja na cds abaixo com acesso exclusivo para o group ${G};`,`- ${fmtCds(getDetailValue('CDS',d)||getDetailValue('Blip',d))}`,'',`- Group: ${G}.`];pushObs(L,d);
+ }
+ else if(tipo==='TELEPORT'){
+   L=[`Assunto: ${subject}`,'','Solicitação:','','- Criação de blip de teleport','',`- Entrada: ${fmtCds(getDetailValue('Entrada',d))}`,`- Saída: ${fmtCds(getDetailValue('Saída',d)||getDetailValue('Saida',d))}`,'',`- Group: ${G}.`];pushObs(L,d);
+ }
+ else if(tipo==='WEBHOOK'){
+   L=[`Assunto: ${subject}`,'','Solicitação:','','- Ativação de log através da Webhook.',`- Webhook: ${getDetailValue('Webhook',d)||'{Webhook}'}`,`- Discord para colocar a log: ${getDetailValue('Discord/Canal',d)||getDetailValue('Discord',d)||'{Canal/Discord}'}`,'',`- Permissão que o recurso está: ${getDetailValue('Permissão',d)||G}.`];pushObs(L,d);
+ }
+ else if(tipo==='UNIFORME'){
+   const org=getDetailValue('Organização/Group',d)||group;const nome=getDetailValue('Nome do uniforme',d);const arq=getDetailValue('Arquivo/anexo',d);
+   L=[`Assunto: ${subject}`,'','Solicitação:','','- Adição de uniforme.','- Cidade: High','','- Arquivo/anexo:'];
+   if(nome||org)L.push(`Uniforme ${org?org+' ':''}${nome||''}`.trim()+'.');if(arq)L.push(arq);const ajuste=getDetailValue('Categoria/ajuste',d);if(ajuste)L.push('',`- Ajuste solicitado: ${ajuste}`);pushObs(L,d);
+ }
+ else if(tipo==='ITENS'){
+   const nome=getDetailValue('Nome do item',d)||'{Nome do item}',spawn=getDetailValue('Spawn',d)||'{spawn_do_item}',png=getDetailValue('Arquivo PNG',d)||`${spawn}.png`,uso=getDetailValue('Interação/uso',d),desc=getDetailValue('Descrição',d);
+   L=[`Assunto: ${subject}`,'','Solicitação:','','- Criação / alteração de item.','',`- Nome do item: ${nome}`,`- Spawn: ${spawn}`,`- Arquivo PNG: ${png}`];if(uso)L.push(`- Interação/uso: ${uso}`);if(desc)L.push(`- Descrição: ${desc}`);if(group)L.push('',`- Group/Permissão: ${group}`);pushObs(L,d);
+ }
+ else if(tipo==='ALTERACAO_GROUP'){
+   L=[`Assunto: ${subject}`,'','Solicitação:','',`- ${getDetailValue('Alteração solicitada',d)||'Alteração de Group / permissão.'}`,`- Group atual: ${getDetailValue('Group atual',d)||'{Group atual}'}`,`- Novo Group: ${getDetailValue('Novo Group',d)||group||'{Novo Group}'}`];const cds=getDetailValue('Blip/CDS relacionado',d);if(cds)L.push(`- Blip/CDS relacionado: ${fmtCds(cds)}`);pushObs(L,d);
+ }
+ else if(tipo==='GERAL'){
+   L=[`Assunto: ${subject}`,'','Solicitação:',''];if(d)L.push(d);
+ }
+ else {
+   L=[`Assunto: ${subject}`,'','Solicitação:',''];if(group)L.push(`- Group: ${group}`);if(d)L.push(d);
+ }
+ return L.join('\n');
 }
-function updateRequestPreview(){$('#reqPreview').value=buildRequestText()}
+
 function openRequestModal(id='',group=''){
- const r=id?solicitacoes.find(x=>x.id===id):null;
- $('#reqId').value=r?.id||''; updateRequestGroupOptions(r?.group||group||'');
- $('#reqTipo').value=r?.tipo||'GERAL'; $('#reqFormStatus').value=r?.status||'PENDENTE'; $('#reqPrioridade').value=r?.prioridade||'NORMAL';
- $('#reqAssunto').value=r?.assunto||defaultSubject($('#reqTipo').value); $('#reqDetalhes').value=r?.detalhes||''; $('#reqResponsavel').value=r?.responsavel||'';
- $('#reqDetalhes').placeholder=TYPE_PLACEHOLDERS[$('#reqTipo').value]||''; $('#reqModalTitle').textContent=r?`SOLICITAÇÃO ${r.protocolo||''}`:'NOVA SOLICITAÇÃO'; syncRequestFaction();updateRequestPreview();$('#reqModal').classList.remove('hidden');
+ const model=id?[...BUILTIN_REQUEST_MODELS,...solicitacoes].find(x=>x.id===id):null;
+ $('#reqId').value=model?.builtin?'':(model?.id||'');
+ updateRequestGroupOptions(group||model?.group||'');
+ $('#reqTipo').value=model?.tipo||'GERAL';
+ $('#reqModelName').value=model?.nome||requestTypeName($('#reqTipo').value);
+ $('#reqAssunto').value=model?.assunto||defaultSubject($('#reqTipo').value);
+ $('#reqDetalhes').value=model?.detalhes||TYPE_PLACEHOLDERS[$('#reqTipo').value]||'';
+ $('#reqOrigem').value=model?.origem||(model?.builtin?'Base padrão High OS':'Biblioteca de modelos');
+ $('#reqModalTitle').textContent=model?'GERAR A PARTIR DO MODELO':'NOVO MODELO / SOLICITAÇÃO';
+ syncRequestFaction();updateRequestPreview();$('#reqModal').classList.remove('hidden');
 }
 async function loadRequests(){
- try{const qs=await getDocs(reqCol);solicitacoes=qs.docs.map(d=>({id:d.id,...d.data()}));solicitacoes.sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));renderRequests()}catch(e){$('#reqList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR</h3><p>${esc(e.message)}</p></div>`}
-}
-function renderRequests(){
- const q=($('#reqSearch').value||'').toLowerCase(),st=$('#reqStatus').value,tp=$('#reqTypeFilter').value;
- const list=solicitacoes.filter(r=>(!st||r.status===st)&&(!tp||r.tipo===tp)&&(!q||[r.protocolo,r.group,r.faccao,r.tipo,r.assunto,r.responsavel].join(' ').toLowerCase().includes(q)));
- const pend=solicitacoes.filter(r=>r.status==='PENDENTE').length,and=solicitacoes.filter(r=>r.status==='EM ANDAMENTO').length,done=solicitacoes.filter(r=>r.status==='CONCLUÍDA').length;
- $('#reqStats').innerHTML=`<span><b>${solicitacoes.length}</b> TOTAL</span><span><b>${pend}</b> PENDENTES</span><span><b>${and}</b> EM ANDAMENTO</span><span><b>${done}</b> CONCLUÍDAS</span><span><b>${list.length}</b> EXIBIDAS</span>`;
- if(!solicitacoes.length){$('#reqList').innerHTML='<div class="placeholder"><b>▤</b><h3>NENHUMA SOLICITAÇÃO</h3><p>Clique em “NOVA SOLICITAÇÃO” ou abra uma facção e crie por lá.</p></div>';return}
- $('#reqList').innerHTML=list.map(r=>`<article class="req-card" data-id="${r.id}"><div class="req-card-top"><div><span class="protocol">${esc(r.protocolo||'SEM PROTOCOLO')}</span><h3>${esc(r.assunto||requestTypeName(r.tipo))}</h3></div><span class="req-status s-${slug(r.status)}">${esc(r.status)}</span></div><div class="req-meta"><b>${esc(r.group||'GERAL')}</b>${r.faccao?' • '+esc(r.faccao):''} • ${esc(requestTypeName(r.tipo))}${r.prioridade==='URGENTE'?' • ⚠ URGENTE':''}</div><p>${esc((r.detalhes||'').slice(0,180))}</p><div class="req-footer"><span>${esc(r.responsavel||'Sem responsável')}</span><button class="mini-btn">ABRIR</button></div></article>`).join('');
- document.querySelectorAll('.req-card').forEach(c=>c.onclick=()=>openRequestModal(c.dataset.id));
-}
-async function saveRequest(e){
- e.preventDefault(); const id=$('#reqId').value; const group=$('#reqGroup').value; const f=faccoes.find(x=>x.group===group); const tipo=$('#reqTipo').value;
- const payload={group,segmento:f?.segmento||'',faccao:f?.faccao||'',qg:f?.qg||'',tipo,assunto:$('#reqAssunto').value.trim()||defaultSubject(tipo),detalhes:$('#reqDetalhes').value.trim(),status:$('#reqFormStatus').value,prioridade:$('#reqPrioridade').value,responsavel:$('#reqResponsavel').value.trim(),textoGerado:buildRequestText(),updatedAt:serverTimestamp(),updatedBy:currentUser.email};
  try{
-   if(id){const old=solicitacoes.find(x=>x.id===id);await setDoc(doc(db,'highos','data','solicitacoes',id),{...old,...payload},{merge:true});await addDoc(histCol,{tipo:'SOLICITACAO_EDITADA',solicitacaoId:id,group,antes:snapshot(old),depois:snapshot(payload),usuario:currentUser.email,data:serverTimestamp()});}
-   else{const protocolo='SOL-'+new Date().toISOString().slice(0,10).replaceAll('-','')+'-'+Math.random().toString(36).slice(2,6).toUpperCase();const ref=await addDoc(reqCol,{...payload,protocolo,createdAt:serverTimestamp(),createdBy:currentUser.email});await addDoc(histCol,{tipo:'SOLICITACAO_CRIADA',solicitacaoId:ref.id,group,descricao:`${protocolo} • ${payload.assunto}`,usuario:currentUser.email,data:serverTimestamp()});}
+   const qs=await getDocs(reqCol);
+   solicitacoes=qs.docs.map(d=>({id:d.id,...d.data()})).filter(x=>x.isModelo===true);
+   solicitacoes.sort((a,b)=>(a.nome||a.assunto||'').localeCompare(b.nome||b.assunto||'','pt-BR'));
+   renderRequests();
+ }catch(e){$('#reqList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR</h3><p>${esc(e.message)}</p></div>`}
+}
+function allRequestModels(){return [...BUILTIN_REQUEST_MODELS,...solicitacoes]}
+function renderRequests(){
+ const q=($('#reqSearch').value||'').toLowerCase(),tp=$('#reqTypeFilter').value;
+ const models=allRequestModels();
+ const list=models.filter(r=>(!tp||r.tipo===tp)&&(!q||[r.nome,r.assunto,r.tipo,requestTypeName(r.tipo),r.group,r.origem,r.detalhes].join(' ').toLowerCase().includes(q)));
+ const custom=solicitacoes.length;
+ $('#reqStats').innerHTML=`<span><b>${models.length}</b> MODELOS</span><span><b>${BUILTIN_REQUEST_MODELS.length}</b> PADRÃO HIGH</span><span><b>${custom}</b> PERSONALIZADOS</span><span><b>${list.length}</b> EXIBIDOS</span>`;
+ if(!list.length){$('#reqList').innerHTML='<div class="placeholder"><b>▤</b><h3>NENHUM MODELO ENCONTRADO</h3><p>Ajuste os filtros ou crie um novo modelo de referência.</p></div>';return}
+ $('#reqList').innerHTML=list.map(r=>`<article class="req-card model-card" data-id="${esc(r.id)}"><div class="req-card-top"><div><span class="protocol">${r.builtin?'PADRÃO HIGH':'MODELO SALVO'}</span><h3>${esc(r.nome||r.assunto||requestTypeName(r.tipo))}</h3></div><span class="req-status s-concluida">${esc(requestTypeName(r.tipo))}</span></div><div class="req-meta">${esc(r.assunto||defaultSubject(r.tipo))}</div><p>${esc((r.detalhes||TYPE_PLACEHOLDERS[r.tipo]||'').slice(0,210))}</p><div class="req-footer"><span>${esc(r.origem||'Biblioteca High OS')}</span><button class="mini-btn generate-model" data-id="${esc(r.id)}">GERAR / COPIAR</button></div></article>`).join('');
+ document.querySelectorAll('.generate-model').forEach(b=>b.onclick=e=>{e.stopPropagation();openRequestModal(b.dataset.id)});
+ document.querySelectorAll('.model-card').forEach(c=>c.onclick=()=>openRequestModal(c.dataset.id));
+}
+async function saveRequestModel(e){
+ e.preventDefault();
+ const id=$('#reqId').value;
+ const tipo=$('#reqTipo').value;
+ const payload={isModelo:true,tipo,nome:$('#reqModelName').value.trim()||requestTypeName(tipo),assunto:$('#reqAssunto').value.trim()||defaultSubject(tipo),detalhes:$('#reqDetalhes').value.trim(),origem:'Biblioteca High OS',updatedAt:serverTimestamp(),updatedBy:currentUser.email};
+ try{
+   if(id){await setDoc(doc(db,'highos','data','solicitacoes',id),payload,{merge:true});await addDoc(histCol,{tipo:'MODELO_SOLICITACAO_EDITADO',solicitacaoId:id,descricao:payload.nome,usuario:currentUser.email,data:serverTimestamp()});}
+   else{const ref=await addDoc(reqCol,{...payload,createdAt:serverTimestamp(),createdBy:currentUser.email});await addDoc(histCol,{tipo:'MODELO_SOLICITACAO_CRIADO',solicitacaoId:ref.id,descricao:payload.nome,usuario:currentUser.email,data:serverTimestamp()});}
    $('#reqModal').classList.add('hidden');await loadRequests();
- }catch(err){alert('Erro ao salvar solicitação: '+err.message)}
+ }catch(err){alert('Erro ao salvar modelo: '+err.message)}
 }
 async function copyRequestText(){const text=$('#reqPreview').value;try{await navigator.clipboard.writeText(text);const b=$('#copyReqBtn'),old=b.textContent;b.textContent='COPIADO ✓';setTimeout(()=>b.textContent=old,1400)}catch(e){$('#reqPreview').select();document.execCommand('copy')}}
 function slug(v){return (v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-')}
