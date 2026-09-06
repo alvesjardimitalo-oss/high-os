@@ -90,6 +90,8 @@
     <label><input type="checkbox" id="fChatFaccao"> Chat da Facção</label>
     <label><input type="checkbox" id="fRotaExclusiva"> Rota Exclusiva</label>
     <label><input type="checkbox" id="fTelao"> Telão</label>
+    <label><input type="checkbox" id="fGaragemPublica"> Garagem Pública</label>
+    <label><input type="checkbox" id="fHeliponto"> Heliponto</label>
   </div>
   <div class="form-grid benefit-grid">
     <label>Salário<input id="fSalario" placeholder="1200"></label>
@@ -99,6 +101,10 @@
     <label class="wide">Garagem VIP — Blip<input id="fGaragemVipBlip" placeholder="{x,y,z,h}"></label>
     <label class="wide">Garagem VIP — Spawn<input id="fGaragemVipSpawn" placeholder="{x,y,z,h}"></label>
     <label class="wide">Veículos VIP<input id="fGaragemVipVeiculos" placeholder='LLMOTOSTIER2002, fooxcustomzlexrfc'></label>
+    <label>Garagem Pública — Blip<input id="fGaragemPublicaBlip" placeholder="{x,y,z,h}"></label>
+    <label>Garagem Pública — Spawn<input id="fGaragemPublicaSpawn" placeholder="{x,y,z,h}"></label>
+    <label>Heliponto — Blip<input id="fHelipontoBlip" placeholder="{x,y,z,h}"></label>
+    <label>Heliponto — Spawn<input id="fHelipontoSpawn" placeholder="{x,y,z,h}"></label>
     <label>Loja de Roupas<input id="fLojaRoupas" placeholder="{x,y,z,h}"></label>
     <label>Barbearia<input id="fBarbearia" placeholder="{x,y,z,h}"></label>
     <label>Tatuagem<input id="fTatuagem" placeholder="{x,y,z,h}"></label>
@@ -113,6 +119,11 @@
     <label class="wide">Telão — CDS do jogador<input id="fTelaoCds" placeholder="{x,y,z,h}"></label>
     <label class="wide">Outros benefícios / setagens<textarea id="fOutrosBeneficios" placeholder="Um por linha. Ex.: Interfone, mochila, uniforme, rádio, blip especial..."></textarea></label>
   </div>
+</div>
+<div class="delivery-box delivery-requests-box">
+  <div class="benefits-head"><div><div class="eyebrow">GERADO PELA ENTREGA</div><h3>SOLICITAÇÕES TÉCNICAS NECESSÁRIAS</h3></div><button type="button" id="copyDeliveryRequestsBtn" class="btn-secondary compact">COPIAR SOLICITAÇÕES</button></div>
+  <p class="delivery-help">O High OS compara a estrutura já cadastrada do QG com o que está sendo entregue agora. Só entram aqui ativações ou alterações necessárias.</p>
+  <div id="deliveryRequestsPreview" class="delivery-requests-preview"></div>
 </div>
 <div class="delivery-box">
   <div class="benefits-head"><div><div class="eyebrow">DISCORD DO ILEGAL</div><h3>EXTRATO DA ENTREGA</h3></div><button type="button" id="copyDeliveryBtn" class="btn-secondary compact">COPIAR EXTRATO</button></div>
