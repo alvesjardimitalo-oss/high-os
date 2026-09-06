@@ -8,3 +8,11 @@
 .benefits-box,.delivery-box{margin-top:18px;padding:16px;border:1px solid #342440;background:#0c0911;border-radius:12px}.benefits-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;margin-bottom:12px}.benefits-head h3{margin:4px 0 0;font-size:16px}.benefits-head small{color:#817687;max-width:330px;text-align:right;line-height:1.4}.benefit-toggles{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}.benefit-toggles label{display:flex;align-items:center;gap:7px;padding:8px 10px;border:1px solid #392b45;background:#15101a;border-radius:999px;color:#c9bcd0;font-size:11px;font-weight:800}.benefit-toggles input{accent-color:#9a1ee7}.benefit-grid{padding-top:4px}.delivery-box textarea{width:100%;box-sizing:border-box;min-height:240px;background:#08060c;border:1px solid #30263b;color:#e9dff0;border-radius:9px;padding:13px;resize:vertical;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;line-height:1.5}.btn-secondary.compact{padding:9px 12px;min-width:auto}.fac-modal-card-wide{width:min(980px,96vw)}@media(max-width:720px){.benefits-head{flex-direction:column}.benefits-head small{text-align:left}.benefit-toggles{display:grid;grid-template-columns:1fr 1fr}.benefits-head .btn-secondary.compact{width:100%}}
 
 .page-subtitle{margin:6px 0 0;color:#8e8496;font-size:12px;max-width:720px}.model-card .req-status{white-space:nowrap}.model-card .req-card p{max-height:90px;overflow:hidden}
+/* HIGH OS v4.5 — Entrega como centro do fluxo */
+.delivery-help{margin:0 0 12px;color:var(--muted,#9aa0aa);font-size:12px;line-height:1.45}
+.delivery-requests-preview{display:grid;gap:10px}
+.delivery-request-card{border:1px solid rgba(255,255,255,.1);border-radius:10px;background:rgba(0,0,0,.18);overflow:hidden}
+.delivery-request-card>div{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.08)}
+.delivery-request-card>div span{font-size:10px;letter-spacing:.08em;opacity:.65}
+.delivery-request-card pre{margin:0;padding:12px;white-space:pre-wrap;word-break:break-word;font:12px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;max-height:220px;overflow:auto}
+.delivery-no-change{padding:14px;border:1px dashed rgba(255,255,255,.14);border-radius:10px;color:var(--muted,#9aa0aa);font-size:12px}
