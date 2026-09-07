@@ -5,6 +5,8 @@ import { getFirestore, doc, getDoc, collection, getDocs, setDoc, addDoc, serverT
 const firebaseConfig={apiKey:'AIzaSyBKtl3rCA9Id1RDMwGch-yi4hxAs83DraU',authDomain:'high-os.firebaseapp.com',projectId:'high-os',storageBucket:'high-os.firebasestorage.app',messagingSenderId:'471862600170',appId:'1:471862600170:web:ff55af6f7e808ff393d293'};
 const app=initializeApp(firebaseConfig), auth=getAuth(app), db=getFirestore(app), provider=new GoogleAuthProvider();
 provider.setCustomParameters({prompt:'select_account'});
+const sheetsProvider=new GoogleAuthProvider();
+sheetsProvider.addScope('https://www.googleapis.com/auth/spreadsheets.readonly');
 const $=s=>document.querySelector(s), loginView=$('#loginView'),deniedView=$('#deniedView'),appView=$('#appView'),sessionArea=$('#sessionArea');
 let currentUser=null,currentProfile=null,faccoes=[],solicitacoes=[],usuarios=[],organizacoes=[];
 const facCol=collection(db,'highos','data','faccoes'), histCol=collection(db,'highos','data','historico'), reqCol=collection(db,'highos','data','solicitacoes'), deliveryCol=collection(db,'highos','data','entregas'), orgCol=collection(db,'highos','data','organizacoes'), usersCol=collection(db,'users');
@@ -775,10 +777,12 @@ function askAlvesinho(q){if(!q?.trim())return;alvesAddMessage('user',q);const a=
 $('#alvesForm')?.addEventListener('submit',e=>{e.preventDefault();const input=$('#alvesInput'),q=input.value;input.value='';askAlvesinho(q)});
 document.querySelectorAll('#alvesQuick [data-q]').forEach(b=>b.addEventListener('click',()=>askAlvesinho(b.dataset.q)));
 
-// ===== HIGH OS V5.5 · MÉTRICAS + MERCADO NEGRO + ALVESINHO =====
-let metricas=[],mercadoCatalogo=[],mercadoStatus='CARREGANDO';
+// ===== HIGH OS V5.7 · GOOGLE SHEETS SOMENTE LEITURA + MÉTRICAS + ALVESINHO =====
+let metricas=[],metricasCache=[],metricSourceConfig={url:'',sheet:'',autoSync:true},metricSourceState={status:'SEM FONTE',lastSync:null,count:0,error:''},sheetsAccessToken='',mercadoCatalogo=[],mercadoStatus='CARREGANDO';
 const metricCol=collection(db,'highos','data','metricas');
+const metricConfigDoc=doc(db,'highos','metricas_config');
 const MARKET_CATALOG_URL='https://alvesjardimitalo-oss.github.io/high-mercado-negro/data/catalogo.json';
+const SHEETS_SCOPE='https://www.googleapis.com/auth/spreadsheets.readonly';
 
 function metricDateValue(m){
  const raw=String(m?.data||m?.date||'').trim();
@@ -794,18 +798,91 @@ function metricAnalysis(group){
  rows.forEach(r=>{const s=metricSlots(r),entries=Object.entries(s);entries.forEach(([h,v])=>{vals.push(v);if(v>peak.value)peak={value:v,hour:h,date:r.data||r.date||'—'}});const mx=Math.max(...entries.map(x=>x[1]));entries.filter(x=>x[1]===mx&&mx>0).forEach(x=>win[x[0]]++)});
  const avg=vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:0;const pred=Object.entries(win).sort((a,b)=>b[1]-a[1])[0];return {rows,avg,peak,predominant:pred&&pred[1]?pred[0]:'—',predCount:pred?.[1]||0};
 }
+function extractSpreadsheetId(value=''){
+ const v=String(value||'').trim();if(!v)return '';
+ const m=v.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);if(m)return m[1];
+ return /^[a-zA-Z0-9-_]{20,}$/.test(v)?v:'';
+}
+function a1SheetName(name=''){return `'${String(name).replace(/'/g,"''")}'`}
+function normalizeMetricDate(v){
+ const x=String(v??'').trim();if(!x)return '';
+ let m=x.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/);if(m){let y=+m[3];if(y<100)y+=2000;return `${String(+m[1]).padStart(2,'0')}/${String(+m[2]).padStart(2,'0')}/${y}`}
+ m=x.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);if(m)return `${String(+m[3]).padStart(2,'0')}/${String(+m[2]).padStart(2,'0')}/${m[1]}`;
+ return '';
+}
+function parseMetricNumber(v){if(v===null||v===undefined||String(v).trim()==='')return null;const n=Number(String(v).replace(/\s/g,'').replace(',','.'));return Number.isFinite(n)?n:null}
+function parseMetricSheet(values=[]){
+ if(!Array.isArray(values)||!values.length)return [];
+ const slots=['14H','16H','21H','23H'];let headerIndex=-1,best=0;
+ values.slice(0,15).forEach((row,i)=>{const count=(row||[]).filter(c=>slots.includes(String(c||'').trim().toUpperCase())).length;if(count>best){best=count;headerIndex=i}});
+ if(headerIndex<0||best<4)return [];
+ let dateRowIndex=-1,dateBest=0;for(let i=Math.max(0,headerIndex-5);i<headerIndex;i++){const count=(values[i]||[]).filter(c=>normalizeMetricDate(c)).length;if(count>dateBest){dateBest=count;dateRowIndex=i}}
+ if(dateRowIndex<0)return [];
+ const header=values[headerIndex]||[],dateRow=values[dateRowIndex]||[],dateByCol=[];let currentDate='';
+ const maxCols=Math.max(header.length,dateRow.length);for(let c=0;c<maxCols;c++){const d=normalizeMetricDate(dateRow[c]);if(d)currentDate=d;dateByCol[c]=currentDate}
+ const known=new Map((faccoes||[]).filter(f=>f.group).map(f=>[alvesNorm(f.group),f.group]));const out=[];
+ for(let r=headerIndex+1;r<values.length;r++){
+  const row=values[r]||[];let group='';for(const cell of row.slice(0,8)){const n=alvesNorm(cell);if(known.has(n)){group=known.get(n);break}}
+  if(!group){for(const cell of row.slice(0,8)){const raw=String(cell||'').trim();if(/^(ARMAS|MUNI[CÇ][AÃ]O|MUNICAO|LAVAGEM|DROGAS|DESMANCHE|CONTRABANDO|ILEGALMEDIC|ILEGALMECHANIC)\s*0*\d+$/i.test(raw)){group=raw.replace(/\s+/g,'');break}}}
+  if(!group)continue;const byDate={};
+  for(let c=0;c<header.length;c++){const h=String(header[c]||'').trim().toUpperCase();if(!slots.includes(h))continue;const d=dateByCol[c];if(!d)continue;const num=parseMetricNumber(row[c]);if(num===null)continue;if(!byDate[d])byDate[d]={group,data:d,slots:{'14H':0,'16H':0,'21H':0,'23H':0},seen:new Set()};byDate[d].slots[h]=num;byDate[d].seen.add(h)}
+  Object.values(byDate).forEach(x=>{if(x.seen.size){delete x.seen;out.push(x)}});
+ }
+ return out;
+}
+async function authorizeSheets(){
+ if(sheetsAccessToken)return sheetsAccessToken;if(!currentUser)throw new Error('Entre no High OS antes de conectar a planilha.');
+ sheetsProvider.setCustomParameters({prompt:'consent',login_hint:currentUser.email||''});
+ const before=(currentUser.email||'').toLowerCase();const result=await signInWithPopup(auth,sheetsProvider);const after=(result.user?.email||'').toLowerCase();
+ if(before&&after&&before!==after)throw new Error('Autorize com a mesma conta Google usada no High OS.');
+ const credential=GoogleAuthProvider.credentialFromResult(result);const token=credential?.accessToken;if(!token)throw new Error('O Google não retornou autorização para leitura da planilha.');sheetsAccessToken=token;return token;
+}
+async function sheetsFetch(url,token){
+ const r=await fetch(url,{headers:{Authorization:`Bearer ${token}`},cache:'no-store'});let payload={};try{payload=await r.json()}catch(e){}
+ if(!r.ok){const msg=payload?.error?.message||`Google Sheets API: HTTP ${r.status}`;if(r.status===401)sheetsAccessToken='';throw new Error(msg)}return payload;
+}
+async function getSheetTitles(spreadsheetId,token){
+ const url=`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}?fields=sheets.properties(title,index)`;const p=await sheetsFetch(url,token);return (p.sheets||[]).sort((a,b)=>(a.properties?.index||0)-(b.properties?.index||0)).map(x=>x.properties?.title).filter(Boolean);
+}
+async function readMetricSheet(spreadsheetId,sheet,token){
+ const range=`${a1SheetName(sheet)}!A1:ZZ300`;const url=`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(range)}?majorDimension=ROWS&valueRenderOption=FORMATTED_VALUE`;const p=await sheetsFetch(url,token);return parseMetricSheet(p.values||[]);
+}
+async function readMetricsDirect({authorize=false,urlOverride='',sheetOverride=''}={}){
+ const source=urlOverride||metricSourceConfig.url,id=extractSpreadsheetId(source);if(!id)throw new Error('Informe um link ou ID válido do Google Sheets.');
+ let token=sheetsAccessToken;if(!token&&authorize)token=await authorizeSheets();if(!token)throw new Error('AUTORIZAÇÃO NECESSÁRIA');
+ const requested=(sheetOverride||metricSourceConfig.sheet||'').trim();if(requested){const rows=await readMetricSheet(id,requested,token);if(!rows.length)throw new Error(`A aba “${requested}” foi lida, mas o formato de métricas não foi reconhecido.`);return {rows,sheet:requested}}
+ const titles=await getSheetTitles(id,token);let best={rows:[],sheet:''};for(const title of titles){try{const rows=await readMetricSheet(id,title,token);if(rows.length>best.rows.length)best={rows,sheet:title}}catch(e){}}
+ if(!best.rows.length)throw new Error('Nenhuma aba com o padrão 14H / 16H / 21H / 23H foi encontrada.');return best;
+}
+async function loadMetricSourceConfig(){
+ try{const s=await getDoc(metricConfigDoc);if(s.exists())metricSourceConfig={...metricSourceConfig,...s.data()}}catch(e){}renderMetricSourceStatus();
+}
+function renderMetricSourceStatus(){
+ const el=$('#metricSourceStatus');if(!el)return;const has=!!extractSpreadsheetId(metricSourceConfig.url),state=metricSourceState.status;const online=state==='ONLINE';el.classList.toggle('online',online);el.classList.toggle('error',state==='ERRO');const when=metricSourceState.lastSync?new Date(metricSourceState.lastSync).toLocaleString('pt-BR'):'—';let desc='Informe o link da planilha oficial';if(has)desc=sheetsAccessToken?'Pronta para leitura direta':'Planilha configurada • autorização Google necessária para nova leitura';if(online)desc=`Conectada • ${metricSourceState.count} registros recebidos`;if(state==='ERRO')desc=esc(metricSourceState.error||'Falha na conexão');el.innerHTML=`<div><span class="metric-source-dot"></span><div><b>${has?'GOOGLE SHEETS • SOMENTE LEITURA':'FONTE NÃO CONFIGURADA'}</b><small>${desc}</small></div></div><span>${online?'Última leitura: '+esc(when):(has?'CONECTAR':'CONFIGURAR')}</span>`;
+}
+async function fetchMetricsFromSource({persist=false,quiet=false,authorize=true}={}){
+ if(!extractSpreadsheetId(metricSourceConfig.url)){if(!quiet)alert('Configure primeiro o link da planilha em Fonte.');metricSourceState={status:'SEM FONTE',lastSync:null,count:0,error:''};renderMetricSourceStatus();return false}
+ metricSourceState={...metricSourceState,status:'SINCRONIZANDO',error:''};renderMetricSourceStatus();
+ try{const result=await readMetricsDirect({authorize});const rows=result.rows;metricas=rows;metricSourceState={status:'ONLINE',lastSync:Date.now(),count:rows.length,error:'',sheet:result.sheet};renderMetricSourceStatus();renderMetrics();if(persist)await persistMetricRows(rows,result.sheet);if(!quiet)alert(`${rows.length} registro(s) lidos da aba ${result.sheet}. A planilha não foi alterada.`);return true
+ }catch(e){metricas=metricasCache.slice();if(e.message==='AUTORIZAÇÃO NECESSÁRIA'){metricSourceState={...metricSourceState,status:'AGUARDANDO',error:''};renderMetricSourceStatus();return false}metricSourceState={...metricSourceState,status:'ERRO',error:e.message};renderMetricSourceStatus();renderMetrics();if(!quiet)alert('Erro ao sincronizar métricas: '+e.message);return false}
+}
+async function persistMetricRows(rows,sheet=''){
+ const chunks=[];for(let i=0;i<rows.length;i+=400)chunks.push(rows.slice(i,i+400));for(const chunk of chunks){const batch=writeBatch(db);chunk.forEach(r=>{const id=(r.group+'_'+r.data).replace(/[^a-zA-Z0-9_-]/g,'_');batch.set(doc(db,'highos','data','metricas',id),{...r,source:'GOOGLE_SHEETS_READONLY',sourceSheet:sheet||metricSourceConfig.sheet||'',updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true})});await batch.commit()}
+ await addDoc(histCol,{tipo:'SINCRONIZACAO_METRICAS',descricao:`${rows.length} registro(s) lidos em modo somente leitura da planilha oficial${sheet?' • aba '+sheet:''}`,usuario:currentUser.email,data:serverTimestamp()});metricasCache=rows.slice();
+}
 async function loadMetrics(){
- try{const qs=await getDocs(metricCol);metricas=qs.docs.map(d=>({id:d.id,...d.data()}));renderMetrics()}catch(e){metricas=[];renderMetrics(e)}
+ try{const qs=await getDocs(metricCol);metricasCache=qs.docs.map(d=>({id:d.id,...d.data()}));metricas=metricasCache.slice()}catch(e){metricasCache=[];metricas=[]}
+ await loadMetricSourceConfig();renderMetrics();if(metricSourceConfig.url&&metricSourceConfig.autoSync!==false&&sheetsAccessToken)await fetchMetricsFromSource({persist:false,quiet:true,authorize:false});
 }
 function metricSummaryRows(){
  return faccoes.map(f=>{const a=metricAnalysis(f.group);return a?{f,a}:null}).filter(Boolean).sort((x,y)=>y.a.avg-x.a.avg);
 }
 function renderMetrics(err){
  const box=$('#metricRanking');if(!box)return;const q=alvesNorm($('#metricSearch')?.value||''),seg=$('#metricSegment')?.value||'';let rows=metricSummaryRows().filter(x=>(!seg||x.f.segmento===seg)&&(!q||alvesNorm([x.f.group,x.f.faccao,x.f.qg].join(' ')).includes(q)));
- const groupsWith=new Set(metricas.map(m=>alvesNorm(m.group||m.organizacao||m.faccao))).size;const allVals=metricas.flatMap(metricSlots).filter?[]:[];
+ const groupsWith=new Set(metricas.map(m=>alvesNorm(m.group||m.organizacao||m.faccao))).size;
  $('#metricStats').innerHTML=`<span><b>${metricas.length}</b> REGISTROS</span><span><b>${groupsWith}</b> GROUPS COM DADOS</span><span><b>${rows.length}</b> EXIBIDOS</span><span><b>14H • 16H • 21H • 23H</b> HORÁRIOS</span>`;
  if(err){box.innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR</h3><p>${esc(err.message)}</p></div>`;return}
- if(!rows.length){box.innerHTML='<div class="placeholder"><b>▥</b><h3>SEM MÉTRICAS IMPORTADAS</h3><p>Use “Importar Métricas” para registrar os dados da planilha.</p></div>';return}
+ if(!rows.length){box.innerHTML='<div class="placeholder"><b>▥</b><h3>SEM MÉTRICAS IMPORTADAS</h3><p>Configure a Fonte para ler a planilha oficial ou use a importação manual.</p></div>';return}
  box.innerHTML=rows.map((x,i)=>`<article class="metric-row"><div class="metric-pos">${i+1}</div><div class="metric-main"><div><strong>${esc(x.f.group)}</strong><span>${esc(x.f.faccao||x.f.qg||'—')}</span></div><div class="metric-kpis"><span>MÉDIA <b>${x.a.avg.toFixed(1)}</b></span><span>PICO <b>${x.a.peak.value}</b><small>${esc(x.a.peak.hour)} • ${esc(x.a.peak.date)}</small></span><span>PREDOMINÂNCIA <b>${esc(x.a.predominant)}</b></span><span>DIAS <b>${x.a.rows.length}</b></span></div></div></article>`).join('');
 }
 function parseMetricImport(text=''){
@@ -818,6 +895,20 @@ async function saveMetricImport(){
  try{const batch=writeBatch(db);rows.forEach(r=>{const id=(r.group+'_'+r.data).replace(/[^a-zA-Z0-9_-]/g,'_');batch.set(doc(db,'highos','data','metricas',id),{...r,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true})});await batch.commit();await addDoc(histCol,{tipo:'IMPORTACAO_METRICAS',descricao:`${rows.length} registro(s) de métricas importado(s)`,usuario:currentUser.email,data:serverTimestamp()});$('#metricImportModal')?.classList.add('hidden');$('#metricImportText').value='';await loadMetrics();alert(`${rows.length} registro(s) importado(s).`)}catch(e){alert('Erro ao importar métricas: '+e.message)}
 }
 $('#metricSearch')?.addEventListener('input',renderMetrics);$('#metricSegment')?.addEventListener('change',renderMetrics);$('#openMetricImportBtn')?.addEventListener('click',()=>$('#metricImportModal')?.classList.remove('hidden'));$('#metricImportClose')?.addEventListener('click',()=>$('#metricImportModal')?.classList.add('hidden'));$('#metricImportModal')?.addEventListener('click',e=>{if(e.target.id==='metricImportModal')e.currentTarget.classList.add('hidden')});$('#metricImportSave')?.addEventListener('click',saveMetricImport);
+
+function openMetricSource(){
+ $('#metricSourceUrl').value=metricSourceConfig.url||'';$('#metricSourceSheet').value=metricSourceConfig.sheet||'';$('#metricAutoSync').checked=metricSourceConfig.autoSync!==false;$('#metricSourceTestResult').textContent='A planilha será aberta somente para leitura usando a sua conta Google.';$('#metricSourceModal')?.classList.remove('hidden');
+}
+async function testMetricSource(){
+ const out=$('#metricSourceTestResult'),url=$('#metricSourceUrl').value.trim(),sheet=$('#metricSourceSheet').value.trim();if(!extractSpreadsheetId(url)){out.textContent='Informe um link ou ID válido do Google Sheets.';return}out.textContent='Solicitando permissão Google e lendo a planilha...';
+ try{const result=await readMetricsDirect({authorize:true,urlOverride:url,sheetOverride:sheet});out.innerHTML=`<b>CONEXÃO OK • SOMENTE LEITURA</b> • ${result.rows.length} registros • aba ${esc(result.sheet)}`
+ }catch(e){out.textContent='Falha: '+e.message}
+}
+async function saveMetricSource(){
+ const cfg={url:$('#metricSourceUrl').value.trim(),sheet:$('#metricSourceSheet').value.trim(),autoSync:$('#metricAutoSync').checked,mode:'GOOGLE_SHEETS_READONLY',updatedAt:serverTimestamp(),updatedBy:currentUser.email};if(!extractSpreadsheetId(cfg.url)){alert('Informe um link ou ID válido do Google Sheets.');return}
+ try{await setDoc(metricConfigDoc,cfg,{merge:true});metricSourceConfig={...metricSourceConfig,url:cfg.url,sheet:cfg.sheet,autoSync:cfg.autoSync,mode:cfg.mode};$('#metricSourceModal').classList.add('hidden');renderMetricSourceStatus();await fetchMetricsFromSource({persist:true,quiet:false,authorize:true})}catch(e){alert('Erro ao salvar a fonte: '+e.message)}
+}
+$('#metricSourceBtn')?.addEventListener('click',openMetricSource);$('#metricSourceClose')?.addEventListener('click',()=>$('#metricSourceModal')?.classList.add('hidden'));$('#metricSourceModal')?.addEventListener('click',e=>{if(e.target.id==='metricSourceModal')e.currentTarget.classList.add('hidden')});$('#metricSourceTest')?.addEventListener('click',testMetricSource);$('#metricSourceSave')?.addEventListener('click',saveMetricSource);$('#syncMetricBtn')?.addEventListener('click',()=>fetchMetricsFromSource({persist:true,quiet:false,authorize:true}));
 
 function marketFlatten(node,path='',out=[]){
  if(Array.isArray(node)){node.forEach((v,i)=>marketFlatten(v,path,out));return out}
