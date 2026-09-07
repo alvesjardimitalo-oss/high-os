@@ -173,8 +173,19 @@ function updateDeliveryPreview(){if($('#deliveryPreview'))$('#deliveryPreview').
 async function copyDeliveryRequests(){const rs=autoDeliveryRequests(),t=rs.map((r,i)=>`===== ${i+1}. ${r.titulo.toUpperCase()} =====\n\n${r.texto}`).join('\n\n');if(!t)return alert('Nenhuma solicitação técnica nova foi identificada.');try{await navigator.clipboard.writeText(t);const b=$('#copyDeliveryRequestsBtn'),o=b.textContent;b.textContent='COPIADO ✓';setTimeout(()=>b.textContent=o,1400)}catch(e){alert('Não foi possível copiar automaticamente.') }}
 async function copyDeliveryExtract(){const t=$('#deliveryPreview').value;try{await navigator.clipboard.writeText(t);const b=$('#copyDeliveryBtn'),o=b.textContent;b.textContent='COPIADO ✓';setTimeout(()=>b.textContent=o,1400)}catch(e){$('#deliveryPreview').select();document.execCommand('copy')}}
 
+function resolveGroupIdentity(f={}){
+ const seed=SEED.find(x=>x.group===f.group)||{};
+ const org=organizacoes.find(o=>String(o.nome||'').trim().toLowerCase()===String(f.faccao||'').trim().toLowerCase())||{};
+ const sameSeedOccupant=!!f.faccao && String(seed.faccao||'').trim().toLowerCase()===String(f.faccao||'').trim().toLowerCase();
+ return {
+  ...f,
+  lider:f.lider||org.lider||(sameSeedOccupant?seed.lider:'')||'',
+  staff:f.staff||(sameSeedOccupant?seed.staff:'')||'',
+  dataEntrega:f.dataEntrega||org.desde||(sameSeedOccupant?seed.dataEntrega:'')||''
+ };
+}
 function openFac(id){
- const f=faccoes.find(x=>x.id===id);if(!f)return;
+ const raw=faccoes.find(x=>x.id===id);if(!raw)return;const f=resolveGroupIdentity(raw);
  $('#fGroup').value=f.group;$('#fGroupShow').value=f.group;$('#fStatus').value=f.status||'INATIVA';$('#fFaccao').value=f.faccao||'';$('#fQG').value=f.qg||'';$('#fProduto').value=f.produto||'';$('#fLider').value=f.lider||'';$('#fStaff').value=f.staff||'';$('#fData').value=f.dataEntrega||'';$('#fAnuncio').value=f.anuncio||'';$('#fCds').value=f.cds||'';$('#fObs').value=f.observacoes||'';setFormBenefits(f.beneficios||{});renderDefaultDeliveryProfile(f);renderTechProfile(f);$('#facModalTitle').textContent=f.group;showGroupProfilePage(f);updateDeliveryPreview();
  $('#recolherBtn').style.display=f.status==='ATIVA'?'block':'none';
 }
@@ -1401,20 +1412,25 @@ const _alvesAnswerV71=alvesAnswer;alvesAnswer=function(question=''){const q=alve
 
 console.info('HIGH OS DEV V7.2 · Perfil Operacional carregado');
 
-// HIGH OS V7.3 · Benefícios e Setagens em página própria do Group.
+// HIGH OS V7.5 · Benefícios e Setagens realmente isolados em página própria.
 let groupBenefitsHome=null;
+function ensureBenefitsHome(){
+ const box=$('#groupBenefitsSettings');
+ if(box&&!groupBenefitsHome)groupBenefitsHome={parent:box.parentElement,next:box.nextSibling};
+ return box;
+}
 function openGroupSettingsPage(){
- const box=$('#groupBenefitsSettings'),mount=$('#groupSettingsMount');
+ const box=ensureBenefitsHome(),mount=$('#groupSettingsMount');
  if(!box||!mount)return;
- if(!groupBenefitsHome)groupBenefitsHome={parent:box.parentElement,next:box.nextSibling};
- mount.appendChild(box);box.open=true;
- const g=faccoes.find(x=>x.group===$('#fGroup')?.value)||{};
+ mount.appendChild(box);box.open=true;box.classList.add('settings-active');
+ const raw=faccoes.find(x=>x.group===$('#fGroup')?.value)||{};const g=resolveGroupIdentity(raw);
  $('#groupSettingsTitle').textContent=`${g.group||$('#fGroup')?.value||'GROUP'} · BENEFÍCIOS E SETAGENS`;
  $('#groupSettingsSubtitle').textContent=[g.qg||'QG sem nome',g.faccao?`Ocupante: ${g.faccao}`:'Group vago'].join(' • ');
  activateAppPage('group-settings');
 }
 function closeGroupSettingsPage(){
- const box=$('#groupBenefitsSettings');
+ const box=ensureBenefitsHome();
+ if(box){box.classList.remove('settings-active');box.open=false;}
  if(box&&groupBenefitsHome?.parent){
    if(groupBenefitsHome.next&&groupBenefitsHome.next.parentElement===groupBenefitsHome.parent)groupBenefitsHome.parent.insertBefore(box,groupBenefitsHome.next);
    else groupBenefitsHome.parent.appendChild(box);
@@ -1423,6 +1439,7 @@ function closeGroupSettingsPage(){
 }
 $('#openGroupSettings')?.addEventListener('click',openGroupSettingsPage);
 $('#groupSettingsBack')?.addEventListener('click',closeGroupSettingsPage);
+$('#saveGroupSettingsBtn')?.addEventListener('click',()=>$('#facForm')?.requestSubmit());
 
 // ===== HIGH OS V7.4 · RESUMO EXECUTIVO / CADASTRO RECOLHIDO =====
 function renderGroupOverview(f){
@@ -1441,10 +1458,12 @@ function renderGroupOverview(f){
  const d=$('#groupIdentityDetails');if(d)d.open=false;
 }
 $('#editGroupIdentityBtn')?.addEventListener('click',()=>{const d=$('#groupIdentityDetails');if(!d)return;d.open=true;setTimeout(()=>d.scrollIntoView({behavior:'smooth',block:'start'}),30)});
-const _openFacV74=openFac;openFac=function(id){_openFacV74(id);renderGroupOverview(faccoes.find(x=>x.id===id))};
+const _openFacV74=openFac;openFac=function(id){_openFacV74(id);const raw=faccoes.find(x=>x.id===id);renderGroupOverview(resolveGroupIdentity(raw||{}))};
 ['fStatus','fFaccao','fQG','fProduto','fLider','fStaff','fCds'].forEach(id=>$('#'+id)?.addEventListener('input',()=>{
  const current=faccoes.find(x=>x.group===$('#fGroup')?.value)||{};
  renderGroupOverview({...current,status:$('#fStatus')?.value||current.status,faccao:$('#fFaccao')?.value.trim()||'',qg:$('#fQG')?.value.trim()||'',produto:$('#fProduto')?.value.trim()||'',lider:$('#fLider')?.value.trim()||'',staff:$('#fStaff')?.value.trim()||'',cds:$('#fCds')?.value.trim()||''});
  const d=$('#groupIdentityDetails');if(d)d.open=true;
 }));
 console.info('HIGH OS DEV V7.4 · Perfil clean carregado');
+
+console.info('HIGH OS DEV V7.5 · Perfil clean + setagens isoladas + liderança restaurada');
