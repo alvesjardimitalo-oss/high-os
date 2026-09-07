@@ -58,7 +58,7 @@
       </aside>
       <div class="content">
         <section class="page active" id="page-dashboard">
-          <div class="page-head"><div><div class="eyebrow">CENTRAL OPERACIONAL</div><h2>DASHBOARD</h2></div><span class="dev-badge">DEV V5.4</span></div>
+          <div class="page-head"><div><div class="eyebrow">CENTRAL OPERACIONAL</div><h2>DASHBOARD</h2></div><span class="dev-badge">DEV V5.5</span></div>
           <div class="welcome"><div><span>Bem-vindo ao</span><strong>HIGH OS</strong><p>Groups/QGs, entregas e Biblioteca de Solicitações compartilham agora a mesma base operacional.</p></div><div class="big-mark">HIGH<br><b>ILEGAL</b></div></div>
           <div class="cards"><article><b>◆</b><strong>Groups / QGs</strong><span class="online">Operacional</span></article><article><b>▤</b><strong>Solicitações</strong><span class="online">Operacional</span></article><article><b>♟</b><strong>Usuários</strong><span class="online">Administração ativa</span></article><article><b>✓</b><strong>Firebase</strong><span class="online">Conectado</span></article></div>
           <div class="info-panel"><div><span>CONTA AUTORIZADA</span><strong id="dashEmail">—</strong></div><div><span>NÍVEL DE ACESSO</span><strong id="dashRole">—</strong></div><div><span>STATUS</span><strong class="online">ATIVO</strong></div></div>
@@ -84,7 +84,12 @@
           <div id="reqStats" class="fac-stats"></div>
           <div id="reqList" class="req-list"><div class="placeholder"><b>▤</b><h3>CARREGANDO MODELOS</h3></div></div>
         </section>
-        <section class="page" id="page-metricas"><div class="page-head"><div><div class="eyebrow">GESTÃO OPERACIONAL</div><h2>MÉTRICAS</h2></div></div><div class="placeholder"><b>▥</b><h3>MÓDULO PREPARADO</h3><p>Área reservada para as métricas das organizações.</p></div></section>
+        <section class="page" id="page-metricas">
+          <div class="page-head"><div><div class="eyebrow">PRESENÇA • 14H / 16H / 21H / 23H</div><h2>MÉTRICAS</h2><p class="page-subtitle">Análise operacional por Group com média, pico e horário predominante. Dados ficam na base High OS.</p></div><button id="openMetricImportBtn" class="btn-primary compact admin-only">IMPORTAR MÉTRICAS</button></div>
+          <div class="metric-toolbar"><input id="metricSearch" placeholder="Buscar Group ou facção..."><select id="metricSegment"><option value="">TODOS OS SEGMENTOS</option><option>ARMAS</option><option>MUNIÇÃO</option><option>LAVAGEM</option><option>DROGAS</option><option>DESMANCHE</option><option>OUTROS</option></select></div>
+          <div id="metricStats" class="fac-stats"></div>
+          <div class="metric-layout"><div><div id="metricRanking" class="metric-ranking"><div class="placeholder"><b>▥</b><h3>CARREGANDO MÉTRICAS</h3></div></div></div><aside class="market-panel"><div class="eyebrow">REFERÊNCIA ECONÔMICA</div><h3>MERCADO NEGRO</h3><div id="marketStatus" class="market-status">Carregando catálogo público...</div><input id="marketSearch" placeholder="Buscar item no Mercado Negro..."><div id="marketResults" class="market-results"></div></aside></div>
+        </section>
         <section class="page" id="page-historico">
           <div class="page-head"><div><div class="eyebrow">AUDITORIA OPERACIONAL</div><h2>HISTÓRICO</h2><p class="page-subtitle">Linha do tempo de entregas, recolhimentos, alterações de estrutura, usuários e solicitações registradas no High OS.</p></div></div>
           <div class="history-toolbar"><input id="historySearch" placeholder="Buscar Group, facção, usuário ou evento..."><select id="historyType"><option value="">TODOS OS EVENTOS</option><option value="ENTREGA_GROUP">ENTREGAS</option><option value="RECOLHIMENTO">RECOLHIMENTOS</option><option value="EDICAO">ALTERAÇÕES DE GROUP</option><option value="ENTREGA">ENTREGAS LEGADAS</option><option value="MODELO_SOLICITACAO">MODELOS / SOLICITAÇÕES</option><option value="USUARIO">USUÁRIOS</option></select></div>
@@ -102,6 +107,9 @@
                 <button data-q="Quais facções estão sem Group?">Facções sem Group</button>
                 <button data-q="Me dê um resumo operacional">Resumo operacional</button>
                 <button data-q="Quais foram as últimas entregas?">Últimas entregas</button>
+                <button data-q="Qual a média da Lavagem03?">Média Lavagem03</button>
+                <button data-q="Qual o pico da Lavagem03?">Pico Lavagem03</button>
+                <button data-q="Quanto custa uma T54 na pista?">Preço T54</button>
               </div>
               <small>Exemplos: “Quem ocupa Armas02?”, “O que Armas02 tem instalado?”, “Qual o rádio da Talibã?”, “Histórico do Armas02”.</small>
             </aside>
@@ -228,5 +236,8 @@
   </form>
 </div></div>
 
+
+<div class="modal hidden" id="metricImportModal"><div class="modal-card metric-import-card"><div class="modal-head"><div><div class="eyebrow">IMPORTAÇÃO MANUAL • MÉTRICAS</div><h2>COLAR DADOS</h2></div><button id="metricImportClose">×</button></div><p class="delivery-help">Formato por linha: <b>Group;Data;14H;16H;21H;23H</b>. Também aceita TAB ao copiar da planilha.</p><textarea id="metricImportText" class="metric-import-text" placeholder="Lavagem03;06/09/2026;8;10;12;9
+Armas02;06/09/2026;7;9;11;10"></textarea><div class="modal-actions"><button id="metricImportSave" class="btn-primary">IMPORTAR PARA A BASE</button></div></div></div>
 </body>
 </html>
