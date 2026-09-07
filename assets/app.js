@@ -100,9 +100,10 @@ function setFormBenefits(b={}){
  $('#fGaragemPublica').checked=!!b.garagemPublica;$('#fGaragemPublicaBlip').value=b.garagemPublicaBlip||'';$('#fGaragemPublicaSpawn').value=b.garagemPublicaSpawn||'';
  $('#fHeliponto').checked=!!b.heliponto;$('#fHelipontoBlip').value=b.helipontoBlip||'';$('#fHelipontoSpawn').value=b.helipontoSpawn||'';$('#fOutrosBeneficios').value=b.outros||'';
 }
+function selectedDefaultBenefits(){return [...document.querySelectorAll('[data-default-benefit]:checked')].map(x=>x.dataset.defaultBenefit)}
 function currentFactionFromForm(){
  const old=faccoes.find(x=>x.group===$('#fGroup').value)||{};
- return {...old,group:$('#fGroup').value,status:$('#fStatus').value,faccao:$('#fFaccao').value.trim(),qg:$('#fQG').value.trim(),produto:$('#fProduto').value.trim(),lider:$('#fLider').value.trim(),staff:$('#fStaff').value.trim(),dataEntrega:$('#fData').value.trim(),anuncio:$('#fAnuncio').value.trim(),cds:$('#fCds').value.trim(),observacoes:$('#fObs').value.trim(),beneficios:getFormBenefits()};
+ return {...old,group:$('#fGroup').value,status:$('#fStatus').value,faccao:$('#fFaccao').value.trim(),qg:$('#fQG').value.trim(),produto:$('#fProduto').value.trim(),lider:$('#fLider').value.trim(),staff:$('#fStaff').value.trim(),dataEntrega:$('#fData').value.trim(),anuncio:$('#fAnuncio').value.trim(),cds:$('#fCds').value.trim(),observacoes:$('#fObs').value.trim(),beneficios:getFormBenefits(),perfilEntrega:{planoPadrao:$('#fPlanoPadrao')?.value.trim()||'',observacao:$('#fPerfilObs')?.value.trim()||'',beneficiosPadrao:selectedDefaultBenefits()}};
 }
 function benefitLines(f){
  const b=f?.beneficios||{}, out=[];
@@ -151,16 +152,16 @@ async function copyDeliveryExtract(){const t=$('#deliveryPreview').value;try{awa
 
 function openFac(id){
  const f=faccoes.find(x=>x.id===id);if(!f)return;
- $('#fGroup').value=f.group;$('#fGroupShow').value=f.group;$('#fStatus').value=f.status||'INATIVA';$('#fFaccao').value=f.faccao||'';$('#fQG').value=f.qg||'';$('#fProduto').value=f.produto||'';$('#fLider').value=f.lider||'';$('#fStaff').value=f.staff||'';$('#fData').value=f.dataEntrega||'';$('#fAnuncio').value=f.anuncio||'';$('#fCds').value=f.cds||'';$('#fObs').value=f.observacoes||'';setFormBenefits(f.beneficios||{});$('#facModalTitle').textContent=f.group;$('#facModal').classList.remove('hidden');updateDeliveryPreview();
+ $('#fGroup').value=f.group;$('#fGroupShow').value=f.group;$('#fStatus').value=f.status||'INATIVA';$('#fFaccao').value=f.faccao||'';$('#fQG').value=f.qg||'';$('#fProduto').value=f.produto||'';$('#fLider').value=f.lider||'';$('#fStaff').value=f.staff||'';$('#fData').value=f.dataEntrega||'';$('#fAnuncio').value=f.anuncio||'';$('#fCds').value=f.cds||'';$('#fObs').value=f.observacoes||'';setFormBenefits(f.beneficios||{});renderDefaultDeliveryProfile(f);$('#facModalTitle').textContent=f.group;$('#facModal').classList.remove('hidden');updateDeliveryPreview();
  $('#recolherBtn').style.display=f.status==='ATIVA'?'block':'none';
 }
 $('#facModalClose').onclick=()=>$('#facModal').classList.add('hidden');
 $('#facModal').addEventListener('click',e=>{if(e.target.id==='facModal')$('#facModal').classList.add('hidden')});
-['fStatus','fFaccao','fQG','fProduto','fLider','fStaff','fData','fAnuncio','fCds','fObs','fVipOrg','fChatFaccao','fSalario','fSalarioMin','fRadio','fGaragemVipBlip','fGaragemVipSpawn','fGaragemVipVeiculos','fLojaRoupas','fBarbearia','fTatuagem','fShopExclusivo','fBau','fBauCapacidade','fArena','fFarm','fCraft','fRotaExclusiva','fRotaBlips','fTelao','fTelaoNome','fTelaoPostit','fTelaoCds','fGaragemPublica','fGaragemPublicaBlip','fGaragemPublicaSpawn','fHeliponto','fHelipontoBlip','fHelipontoSpawn','fOutrosBeneficios'].forEach(id=>$('#'+id)?.addEventListener('input',updateDeliveryPreview));
+['fStatus','fFaccao','fQG','fProduto','fLider','fStaff','fData','fAnuncio','fCds','fObs','fVipOrg','fChatFaccao','fSalario','fSalarioMin','fRadio','fGaragemVipBlip','fGaragemVipSpawn','fGaragemVipVeiculos','fLojaRoupas','fBarbearia','fTatuagem','fShopExclusivo','fBau','fBauCapacidade','fArena','fFarm','fCraft','fRotaExclusiva','fRotaBlips','fTelao','fTelaoNome','fTelaoPostit','fTelaoCds','fGaragemPublica','fGaragemPublicaBlip','fGaragemPublicaSpawn','fHeliponto','fHelipontoBlip','fHelipontoSpawn','fOutrosBeneficios','fPlanoPadrao','fPerfilObs'].forEach(id=>$('#'+id)?.addEventListener('input',updateDeliveryPreview));
 $('#copyDeliveryBtn').onclick=copyDeliveryExtract; $('#copyDeliveryRequestsBtn').onclick=copyDeliveryRequests;
 
 $('#facForm').onsubmit=async e=>{
- e.preventDefault();const group=$('#fGroup').value,old=faccoes.find(x=>x.group===group);const data={...old,status:$('#fStatus').value,faccao:$('#fFaccao').value.trim(),qg:$('#fQG').value.trim(),produto:$('#fProduto').value.trim(),lider:$('#fLider').value.trim(),staff:$('#fStaff').value.trim(),dataEntrega:$('#fData').value.trim(),anuncio:$('#fAnuncio').value.trim(),cds:$('#fCds').value.trim(),observacoes:$('#fObs').value.trim(),beneficios:getFormBenefits(),updatedAt:serverTimestamp(),updatedBy:currentUser.email};
+ e.preventDefault();const group=$('#fGroup').value,old=faccoes.find(x=>x.group===group);const data={...old,status:$('#fStatus').value,faccao:$('#fFaccao').value.trim(),qg:$('#fQG').value.trim(),produto:$('#fProduto').value.trim(),lider:$('#fLider').value.trim(),staff:$('#fStaff').value.trim(),dataEntrega:$('#fData').value.trim(),anuncio:$('#fAnuncio').value.trim(),cds:$('#fCds').value.trim(),observacoes:$('#fObs').value.trim(),beneficios:getFormBenefits(),perfilEntrega:{planoPadrao:$('#fPlanoPadrao')?.value.trim()||'',observacao:$('#fPerfilObs')?.value.trim()||'',beneficiosPadrao:selectedDefaultBenefits()},updatedAt:serverTimestamp(),updatedBy:currentUser.email};
  if(data.status==='ATIVA'&&!data.faccao){alert('Informe o nome da facção para marcar como ATIVA.');return}
  try{const generated=autoDeliveryRequests(data);await setDoc(doc(db,'highos','data','faccoes',group),data);await addDoc(histCol,{tipo:old?.status==='INATIVA'&&data.status==='ATIVA'?'ENTREGA':'EDICAO',group,antes:snapshot(old),depois:snapshot(data),solicitacoesGeradas:generated,extratoEntrega:buildDeliveryExtract(data),usuario:currentUser.email,data:serverTimestamp()});$('#facModal').classList.add('hidden');await loadFaccoes()}catch(err){alert('Erro ao salvar: '+err.message)}
 };
@@ -504,6 +505,16 @@ const INSTALLATIONS=[
  ['telao','Telão'],['lojaRoupas','Loja de Roupas'],['barbearia','Barbearia'],['tatuagem','Tatuagem'],['shopExclusivo','Shop Exclusivo'],
  ['bau','Baú'],['farm','Farm'],['craft','Craft'],['arena','Arena']
 ];
+function renderDefaultDeliveryProfile(f){
+ const p=f?.perfilEntrega||{}, b=f?.beneficios||{}, selected=new Set(p.beneficiosPadrao||[]);
+ if($('#fPlanoPadrao'))$('#fPlanoPadrao').value=p.planoPadrao||'';
+ if($('#fPerfilObs'))$('#fPerfilObs').value=p.observacao||'';
+ if(!$('#fDefaultBenefits'))return;
+ const available=INSTALLATIONS.filter(([k])=>isInstalled(b,k));
+ $('#fDefaultBenefits').innerHTML=available.length?available.map(([k,n])=>`<label class="install-item install-toggle"><input type="checkbox" data-default-benefit="${k}" ${selected.has(k)?'checked':''}><span><b>${esc(n)}</b><small>${esc(installedValue(b,k))}</small></span></label>`).join(''):'<div class="delivery-no-change">Cadastre primeiro as instalações/setagens acima. O perfil padrão só pode ativar recursos existentes no Group.</div>';
+ document.querySelectorAll('[data-default-benefit]').forEach(x=>x.addEventListener('change',updateDeliveryPreview));
+}
+
 function installedValue(b,k){
  if(k==='garagemVip') return [b.garagemVipBlip,b.garagemVipSpawn].filter(Boolean).join(' / ');
  if(k==='radio') return b.radio||''; if(k==='salario') return b.salario?`${b.salario} / ${b.salarioMinutos||40} min`:'';
@@ -549,8 +560,10 @@ function openNewDelivery(group=''){
 function fillDeliveryFromGroup(group){
  const f=faccoes.find(x=>x.group===group);if(!f)return;const b=f.beneficios||{};
  $('#dInstalled').innerHTML=INSTALLATIONS.map(([k,n])=>{const v=installedValue(b,k);return `<div class="install-item"><b>${esc(n)}</b><small>${v?esc(v):'Não cadastrado'}</small></div>`}).join('');
- $('#dActive').innerHTML=INSTALLATIONS.filter(([k])=>isInstalled(b,k)).map(([k,n])=>`<label class="install-item install-toggle"><input type="checkbox" data-delivery-benefit="${k}" checked><span><b>${esc(n)}</b><small>${esc(installedValue(b,k))}</small></span></label>`).join('')||'<div class="delivery-no-change">Este Group ainda não possui instalações cadastradas. Cadastre no Perfil Técnico.</div>';
+ const p=f.perfilEntrega||{}, defaults=new Set(p.beneficiosPadrao||[]), available=INSTALLATIONS.filter(([k])=>isInstalled(b,k));
+ $('#dActive').innerHTML=available.map(([k,n])=>`<label class="install-item install-toggle"><input type="checkbox" data-delivery-benefit="${k}" ${defaults.size?(defaults.has(k)?'checked':''):'checked'}><span><b>${esc(n)}</b><small>${esc(installedValue(b,k))}</small></span></label>`).join('')||'<div class="delivery-no-change">Este Group ainda não possui instalações cadastradas. Cadastre no Perfil Técnico.</div>';
  document.querySelectorAll('[data-delivery-benefit]').forEach(x=>x.addEventListener('change',updateNewDeliveryPreview));
+ $('#dPlano').value=p.planoPadrao||'';if(p.observacao&&!$('#dNotes').value)$('#dNotes').value=p.observacao;
  $('#dStaff').value=currentProfile?.name||currentUser?.displayName||'';updateNewDeliveryPreview();
 }
 function selectedDeliveryBenefits(){return [...document.querySelectorAll('[data-delivery-benefit]:checked')].map(x=>x.dataset.deliveryBenefit)}
@@ -647,3 +660,5 @@ function renderGroupProfileMemory(f){
 $('#historySearch')?.addEventListener('input',renderHistory);$('#historyType')?.addEventListener('change',renderHistory);
 const _openFacV51=openFac;openFac=function(id){_openFacV51(id);renderGroupProfileMemory(faccoes.find(x=>x.id===id))};
 const _loadFaccoesV51=loadFaccoes;loadFaccoes=async function(){await _loadFaccoesV51();await loadHistory()};
+
+// ===== HIGH OS V5.2 · PERFIL PADRÃO DE ENTREGA POR GROUP =====
