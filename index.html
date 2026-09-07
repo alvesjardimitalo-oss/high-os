@@ -206,7 +206,8 @@
   <div class="tech-profile-tabs">
     <button type="button" class="tech-tab active" data-tech-tab="craft">CRAFT / RECEITAS</button>
     <button type="button" class="tech-tab" data-tech-tab="farm">FARM / ROTA</button>
-    <button type="button" class="tech-tab" data-tech-tab="estrutura">ESTRUTURA</button>
+    <button type="button" class="tech-tab" data-tech-tab="perfil">PERFIL OPERACIONAL</button>
+    <button type="button" class="tech-tab" data-tech-tab="estrutura">RESUMO</button>
     <button type="button" class="tech-tab" data-tech-tab="solicitacoes">SOLICITAÇÕES CONECTADAS</button>
   </div>
 
@@ -258,6 +259,77 @@
       </div>
     </div>
     <textarea id="fTechRoutePointsStandard" class="hidden" aria-hidden="true"></textarea>
+  </section>
+
+
+  <section class="tech-panel" data-tech-panel="perfil">
+    <div class="tech-panel-head"><div><div class="eyebrow">FICHA TÉCNICA DO GROUP / QG</div><b>Perfil Operacional</b><span>Localização principal do QG e todas as estruturas permanentes usadas pela facção ocupante.</span></div></div>
+
+    <div class="op-section">
+      <div class="op-section-head"><div><span>LOCALIZAÇÃO PRINCIPAL</span><b>Marcador do QG no mapa de Los Santos</b></div><small>Esta CDS é do QG. Não é Craft, Farm ou garagem.</small></div>
+      <div class="form-grid">
+        <label>Nome do local / QG<input id="fOpQGName" placeholder="Ex.: Favela do MegaMall"></label>
+        <label>CDS principal do mapa<input id="fOpMainCds" placeholder="x,y,z,h"></label>
+      </div>
+    </div>
+
+    <div class="op-section">
+      <div class="op-section-head"><div><span>LOJAS E SERVIÇOS</span><b>Interações permanentes do QG</b></div></div>
+      <div class="form-grid">
+        <label>Loja da Facção<input id="fOpLojaFac" placeholder="x,y,z,h"></label>
+        <label>Bar<input id="fOpBar" placeholder="x,y,z,h"></label>
+        <label>Barbearia<input id="fOpBarbearia" placeholder="x,y,z,h"></label>
+        <label>Tatuagem<input id="fOpTatuagem" placeholder="x,y,z,h"></label>
+        <label>Loja de Roupas<input id="fOpRoupas" placeholder="x,y,z,h"></label>
+        <label>Arena<input id="fOpArena" placeholder="x,y,z,h"></label>
+      </div>
+    </div>
+
+    <div class="op-section">
+      <div class="op-section-head"><div><span>UNIFORME</span><b>Local e arquivo do uniforme da organização</b></div></div>
+      <div class="form-grid">
+        <label>Local / CDS do uniforme<input id="fOpUniformeLocal" placeholder="x,y,z,h"></label>
+        <label>Arquivo / referência<input id="fOpUniformeArquivo" placeholder="Ex.: uniforme_taliba.zip / link / nome do arquivo"></label>
+      </div>
+    </div>
+
+    <div class="op-section">
+      <div class="op-section-head"><div><span>GARAGENS</span><b>Tipos, blip e spawn de cada garagem</b></div><small>Blip e Spawn são mantidos separados.</small></div>
+      <div class="op-garage-grid">
+        <article class="op-mini-card"><h4>PÚBLICA 1</h4><label>Blip<input id="fOpPub1Blip"></label><label>Spawn<input id="fOpPub1Spawn"></label></article>
+        <article class="op-mini-card"><h4>PÚBLICA 2</h4><label>Blip<input id="fOpPub2Blip"></label><label>Spawn<input id="fOpPub2Spawn"></label></article>
+        <article class="op-mini-card"><h4>FACÇÃO / VIP</h4><label>Blip<input id="fOpVipBlip"></label><label>Spawn<input id="fOpVipSpawn"></label><label>Veículos<input id="fOpVipVehicles" placeholder="spawn1, spawn2"></label></article>
+        <article class="op-mini-card"><h4>SERVIÇO / DELUXE</h4><label>Blip<input id="fOpServiceBlip"></label><label>Spawn<input id="fOpServiceSpawn"></label><label>Veículos<input id="fOpServiceVehicles" placeholder="spawn1, spawn2"></label></article>
+      </div>
+    </div>
+
+    <div class="op-section op-two-col">
+      <div>
+        <div class="op-section-head"><div><span>HELIPONTO</span><b>Blip + Spawn</b></div></div>
+        <div class="form-grid"><label>Blip<input id="fOpHeliBlip"></label><label>Spawn<input id="fOpHeliSpawn"></label></div>
+      </div>
+      <div>
+        <div class="op-section-head"><div><span>BLINDADOS</span><b>Garagem de blindados</b></div></div>
+        <div class="form-grid"><label>Quantidade de vagas<input id="fOpArmoredSlots" type="number" min="0" placeholder="Ex.: 2"></label><label>Blip<input id="fOpArmoredBlip"></label><label>Spawn<input id="fOpArmoredSpawn"></label><label>Veículos<input id="fOpArmoredVehicles" placeholder="spawns permitidos"></label></div>
+      </div>
+    </div>
+
+    <div class="op-section telao-profile">
+      <div class="op-section-head"><div><span>TELÃO</span><b>Post-it, CDS principal e pontos de som</b></div><small>Até 4 CDS de som cadastradas separadamente.</small></div>
+      <div class="form-grid">
+        <label>Tipo<select id="fOpTelaoTipo"><option value="">—</option><option>Hall</option><option>TV</option><option>Outro</option></select></label>
+        <label>Modelo / Prop<input id="fOpTelaoModelo" placeholder="Ex.: paradise_telao01a"></label>
+        <label>CDS Post-it<input id="fOpTelaoPostit" placeholder="x,y,z"></label>
+        <label>CDS principal<input id="fOpTelaoCds" placeholder="x,y,z,h"></label>
+        <label>Permissão / Group<input id="fOpTelaoPermissao" placeholder="Group ou Público"></label>
+      </div>
+      <div class="op-sound-grid">
+        <label>Som 01<input id="fOpTelaoSom1" placeholder="x,y,z,h"></label>
+        <label>Som 02<input id="fOpTelaoSom2" placeholder="x,y,z,h"></label>
+        <label>Som 03<input id="fOpTelaoSom3" placeholder="x,y,z,h"></label>
+        <label>Som 04<input id="fOpTelaoSom4" placeholder="x,y,z,h"></label>
+      </div>
+    </div>
   </section>
 
   <section class="tech-panel" data-tech-panel="estrutura">
