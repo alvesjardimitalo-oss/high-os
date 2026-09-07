@@ -28,6 +28,8 @@ onAuthStateChanged(auth,async user=>{
   document.querySelectorAll('.admin-only').forEach(el=>el.style.display=role==='ADMIN'?'flex':'none');
   sessionArea.innerHTML=`<span class="access-pill">● ${role}</span><span class="top-email">${email}</span>`;
   await loadFaccoes();
+  await loadMetrics();
+  loadMarketCatalog();
   if(role==='ADMIN') await loadUsers();
  }catch(e){show(deniedView);$('#deniedText').textContent='Falha ao validar seu cadastro no Firestore: '+e.message}
 });
@@ -704,3 +706,145 @@ const _openFacV51=openFac;openFac=function(id){_openFacV51(id);renderGroupProfil
 const _loadFaccoesV51=loadFaccoes;loadFaccoes=async function(){await _loadFaccoesV51();await loadHistory();await loadOrganizations()};
 
 // ===== HIGH OS V5.2 · PERFIL PADRÃO DE ENTREGA POR GROUP =====
+
+// ===== HIGH OS V5.4 · ALVESINHO OPERACIONAL =====
+function alvesNorm(v=''){return String(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim()}
+function alvesFindGroup(text=''){
+ const n=alvesNorm(text);return faccoes.find(f=>n.includes(alvesNorm(f.group)))||faccoes.find(f=>n.includes(alvesNorm(f.qg||''))&&String(f.qg||'').length>2)||null;
+}
+function alvesFindOrg(text=''){
+ const n=alvesNorm(text);return organizacoes.find(o=>n.includes(alvesNorm(o.nome)))||faccoes.map(f=>({nome:f.faccao,groupAtual:f.group,segmentoAtual:f.segmento,qgAtual:f.qg,lider:f.lider,status:f.status==='ATIVA'?'ATIVA':'SEM_GROUP'})).find(o=>o.nome&&n.includes(alvesNorm(o.nome)))||null;
+}
+function alvesInstalledLines(f){
+ const b=f?.beneficios||{};const lines=[];
+ INSTALLATIONS.forEach(([k,n])=>{if(isInstalled(b,k))lines.push(`${n}: ${installedValue(b,k)||'SIM'}`)});
+ if(b.garagemVipBlip||b.garagemVipSpawn)lines.push(`Garagem VIP: Blip ${b.garagemVipBlip||'—'} | Spawn ${b.garagemVipSpawn||'—'}`);
+ if(b.garagemPublicaBlip||b.garagemPublicaSpawn)lines.push(`Garagem Pública: Blip ${b.garagemPublicaBlip||'—'} | Spawn ${b.garagemPublicaSpawn||'—'}`);
+ if(b.helipontoBlip||b.helipontoSpawn)lines.push(`Heliponto: Blip ${b.helipontoBlip||'—'} | Spawn ${b.helipontoSpawn||'—'}`);
+ return [...new Set(lines)];
+}
+function alvesLastHistory(group,limit=5){return historico.filter(h=>alvesNorm(h.group)===alvesNorm(group)).slice(0,limit)}
+function alvesDateFromDelivery(d){return d?.dataEntrega||(()=>{try{return d?.createdAt?.toDate?.().toLocaleDateString('pt-BR')||''}catch{return''}})()||'—'}
+function alvesAnswer(question=''){
+ const q=alvesNorm(question),g=alvesFindGroup(question),o=alvesFindOrg(question);
+ if(!q)return {text:'Digite uma pergunta sobre a base operacional.'};
+
+ if(q.includes('resumo')&&(q.includes('operacional')||q.includes('geral'))){
+  const occupied=faccoes.filter(f=>f.status==='ATIVA').length,vagos=faccoes.length-occupied,ativas=organizacoes.filter(x=>x.status==='ATIVA').length,sem=organizacoes.filter(x=>x.status==='SEM_GROUP').length,del=entregas.filter(x=>x.status==='ATIVA').length;
+  return {text:`Resumo operacional atual:\n• ${faccoes.length} Groups cadastrados: ${occupied} ocupados e ${vagos} vagos.\n• ${organizacoes.length} facções cadastradas: ${ativas} ativas e ${sem} sem Group.\n• ${del} entregas ativas registradas.\n• ${historico.length} eventos no histórico.`,refs:['Groups/QGs','Facções','Entregas','Histórico']};
+ }
+ if((q.includes('group')||q.includes('groups'))&&(q.includes('vago')||q.includes('livre'))){
+  const list=faccoes.filter(f=>f.status!=='ATIVA');return {text:list.length?`Groups vagos (${list.length}):\n${list.map(f=>`• ${f.group} — ${f.qg||'sem QG informado'} (${f.segmento||'OUTROS'})`).join('\n')}`:'Não há Groups vagos cadastrados.',refs:['Groups/QGs']};
+ }
+ if(q.includes('facc')&&(q.includes('sem group')||q.includes('sem qg')||q.includes('sem local'))){
+  const list=organizacoes.filter(x=>x.status==='SEM_GROUP'||!x.groupAtual);return {text:list.length?`Facções sem Group (${list.length}):\n${list.map(x=>`• ${x.nome}${x.lider?' — líder: '+x.lider:''}`).join('\n')}`:'Não há facções sem Group cadastradas.',refs:['Facções']};
+ }
+ if((q.includes('ultima')||q.includes('recent'))&&q.includes('entrega')){
+  const list=entregas.slice(0,6);return {text:list.length?`Últimas entregas registradas:\n${list.map(d=>`• ${d.group} → ${d.faccao||'—'} | ${alvesDateFromDelivery(d)} | ${d.status||'—'}`).join('\n')}`:'Ainda não há entregas registradas.',refs:['Entregas']};
+ }
+ if(g&&(q.includes('quem ocupa')||q.includes('ocupante')||q.includes('qual fac')||q.includes('faccao'))){
+  return {text:g.status==='ATIVA'&&g.faccao?`${g.group} está ocupado por ${g.faccao}.${g.lider?` Líder cadastrado: ${g.lider}.`:''}${g.qg?` QG/local: ${g.qg}.`:''}`:`${g.group} está vago no momento.${g.qg?` Local cadastrado: ${g.qg}.`:''}`,refs:[g.group,'Groups/QGs']};
+ }
+ if(g&&(q.includes('instalad')||q.includes('estrutura')||q.includes('beneficio')||q.includes('tem no')||q.includes('possui')||q.startsWith('o que'))){
+  const lines=alvesInstalledLines(g);return {text:`${g.group} — ${g.qg||'QG sem nome'}\nStatus: ${g.status==='ATIVA'?'ocupado por '+(g.faccao||'—'):'vago'}\n${lines.length?'Estrutura/setagens cadastradas:\n'+lines.map(x=>'• '+x).join('\n'):'Nenhuma instalação/setagem foi cadastrada nesse Group ainda.'}`,refs:[g.group,'Perfil Técnico']};
+ }
+ if((g||o)&&q.includes('radio')){
+  const target=g||faccoes.find(f=>alvesNorm(f.faccao)===alvesNorm(o?.nome));const radio=target?.beneficios?.radio||'';
+  return {text:target?(radio?`O rádio cadastrado para ${target.faccao||target.group} no ${target.group} é ${radio}.`:`${target.group}${target.faccao?' / '+target.faccao:''} não possui número de rádio cadastrado no Perfil Técnico.`):`Encontrei a facção ${o?.nome||''}, mas ela não está vinculada a um Group com rádio cadastrado.`,refs:[target?.group||o?.nome,'Perfil Técnico']};
+ }
+ if(g&&(q.includes('histor')||q.includes('mudanc')||q.includes('alterac'))){
+  const hs=alvesLastHistory(g.group,6);return {text:hs.length?`Histórico recente de ${g.group}:\n${hs.map(h=>`• ${formatHistoryDate(h)} — ${historyTitle(h)}${h.usuario?' — '+h.usuario:''}`).join('\n')}`:`Ainda não há eventos no histórico de ${g.group}.`,refs:[g.group,'Histórico']};
+ }
+ if(g&&q.includes('solicit')){
+  const ds=entregas.filter(d=>d.group===g.group&&Array.isArray(d.solicitacoesGeradas)&&d.solicitacoesGeradas.length).slice(0,3);const reqs=ds.flatMap(d=>d.solicitacoesGeradas.map(r=>({d,r}))).slice(0,8);
+  return {text:reqs.length?`Solicitações recentes geradas para ${g.group}:\n${reqs.map(x=>`• ${x.r.titulo||x.r.tipo||'Solicitação'} — entrega ${x.d.faccao||'—'}`).join('\n')}`:`Não encontrei solicitações geradas em entregas do ${g.group}. A Biblioteca de Solicitações continua disponível para modelos manuais.`,refs:[g.group,'Entregas','Biblioteca de Solicitações']};
+ }
+ if(g&&q.includes('entrega')){
+  const ds=entregas.filter(d=>d.group===g.group).slice(0,5);return {text:ds.length?`Entregas registradas para ${g.group}:\n${ds.map(d=>`• ${alvesDateFromDelivery(d)} — ${d.faccao||'—'} — ${d.status||'—'}${d.lider?' — líder: '+d.lider:''}`).join('\n')}`:`Não há entregas registradas para ${g.group}.`,refs:[g.group,'Entregas']};
+ }
+ if(o){
+  const target=faccoes.find(f=>alvesNorm(f.faccao)===alvesNorm(o.nome));return {text:`${o.nome}\nStatus: ${o.status||'—'}\nGroup atual: ${o.groupAtual||target?.group||'SEM GROUP'}\nSegmento: ${o.segmentoAtual||target?.segmento||'—'}\nQG: ${o.qgAtual||target?.qg||'—'}\nLíder: ${o.lider||target?.lider||'—'}${o.contato?`\nContato: ${o.contato}`:''}`,refs:[o.nome,'Facções']};
+ }
+ if(g){return {text:`${g.group} — ${g.qg||'QG sem nome'}\nSegmento: ${g.segmento||'—'}\nStatus: ${g.status==='ATIVA'?'OCUPADO':'VAGO'}\nFacção atual: ${g.faccao||'—'}\nLíder: ${g.lider||'—'}\nInstalações/setagens cadastradas: ${installedCount(g)}.`,refs:[g.group,'Groups/QGs']};}
+ return {text:'Não encontrei um Group ou facção correspondente na base para responder com segurança. Tente informar o Group (ex.: Armas02) ou o nome exato da facção.',refs:['Base High OS']};
+}
+function alvesAddMessage(role,text,refs=[]){
+ const box=$('#alvesMessages');if(!box)return;const div=document.createElement('div');div.className=`alves-msg ${role}`;div.innerHTML=`<div class="alves-bubble"><b>${role==='user'?'VOCÊ':'ALVESINHO'}</b><p>${esc(text)}</p>${refs?.length?`<div class="alves-ref">${refs.filter(Boolean).map(x=>`<span>${esc(x)}</span>`).join('')}</div>`:''}</div>`;box.appendChild(div);box.scrollTop=box.scrollHeight;
+}
+function askAlvesinho(q){if(!q?.trim())return;alvesAddMessage('user',q);const a=alvesAnswer(q);setTimeout(()=>alvesAddMessage('bot',a.text,a.refs||[]),60)}
+$('#alvesForm')?.addEventListener('submit',e=>{e.preventDefault();const input=$('#alvesInput'),q=input.value;input.value='';askAlvesinho(q)});
+document.querySelectorAll('#alvesQuick [data-q]').forEach(b=>b.addEventListener('click',()=>askAlvesinho(b.dataset.q)));
+
+// ===== HIGH OS V5.5 · MÉTRICAS + MERCADO NEGRO + ALVESINHO =====
+let metricas=[],mercadoCatalogo=[],mercadoStatus='CARREGANDO';
+const metricCol=collection(db,'highos','data','metricas');
+const MARKET_CATALOG_URL='https://alvesjardimitalo-oss.github.io/high-mercado-negro/data/catalogo.json';
+
+function metricDateValue(m){
+ const raw=String(m?.data||m?.date||'').trim();
+ const br=raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);if(br){let y=+br[3];if(y<100)y+=2000;return new Date(y,+br[2]-1,+br[1])}
+ const d=new Date(raw);return isNaN(d)?new Date(0):d;
+}
+function metricSlots(m){
+ const s=m?.slots||{};return {'14H':Number(s['14H']??m['14H']??m.h14??0)||0,'16H':Number(s['16H']??m['16H']??m.h16??0)||0,'21H':Number(s['21H']??m['21H']??m.h21??0)||0,'23H':Number(s['23H']??m['23H']??m.h23??0)||0};
+}
+function metricGroupRecords(group){return metricas.filter(m=>alvesNorm(m.group||m.organizacao||m.faccao)===alvesNorm(group)).sort((a,b)=>metricDateValue(a)-metricDateValue(b))}
+function metricAnalysis(group){
+ const rows=metricGroupRecords(group);if(!rows.length)return null;const vals=[],win={'14H':0,'16H':0,'21H':0,'23H':0};let peak={value:-1,hour:'—',date:'—'};
+ rows.forEach(r=>{const s=metricSlots(r),entries=Object.entries(s);entries.forEach(([h,v])=>{vals.push(v);if(v>peak.value)peak={value:v,hour:h,date:r.data||r.date||'—'}});const mx=Math.max(...entries.map(x=>x[1]));entries.filter(x=>x[1]===mx&&mx>0).forEach(x=>win[x[0]]++)});
+ const avg=vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:0;const pred=Object.entries(win).sort((a,b)=>b[1]-a[1])[0];return {rows,avg,peak,predominant:pred&&pred[1]?pred[0]:'—',predCount:pred?.[1]||0};
+}
+async function loadMetrics(){
+ try{const qs=await getDocs(metricCol);metricas=qs.docs.map(d=>({id:d.id,...d.data()}));renderMetrics()}catch(e){metricas=[];renderMetrics(e)}
+}
+function metricSummaryRows(){
+ return faccoes.map(f=>{const a=metricAnalysis(f.group);return a?{f,a}:null}).filter(Boolean).sort((x,y)=>y.a.avg-x.a.avg);
+}
+function renderMetrics(err){
+ const box=$('#metricRanking');if(!box)return;const q=alvesNorm($('#metricSearch')?.value||''),seg=$('#metricSegment')?.value||'';let rows=metricSummaryRows().filter(x=>(!seg||x.f.segmento===seg)&&(!q||alvesNorm([x.f.group,x.f.faccao,x.f.qg].join(' ')).includes(q)));
+ const groupsWith=new Set(metricas.map(m=>alvesNorm(m.group||m.organizacao||m.faccao))).size;const allVals=metricas.flatMap(metricSlots).filter?[]:[];
+ $('#metricStats').innerHTML=`<span><b>${metricas.length}</b> REGISTROS</span><span><b>${groupsWith}</b> GROUPS COM DADOS</span><span><b>${rows.length}</b> EXIBIDOS</span><span><b>14H • 16H • 21H • 23H</b> HORÁRIOS</span>`;
+ if(err){box.innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR</h3><p>${esc(err.message)}</p></div>`;return}
+ if(!rows.length){box.innerHTML='<div class="placeholder"><b>▥</b><h3>SEM MÉTRICAS IMPORTADAS</h3><p>Use “Importar Métricas” para registrar os dados da planilha.</p></div>';return}
+ box.innerHTML=rows.map((x,i)=>`<article class="metric-row"><div class="metric-pos">${i+1}</div><div class="metric-main"><div><strong>${esc(x.f.group)}</strong><span>${esc(x.f.faccao||x.f.qg||'—')}</span></div><div class="metric-kpis"><span>MÉDIA <b>${x.a.avg.toFixed(1)}</b></span><span>PICO <b>${x.a.peak.value}</b><small>${esc(x.a.peak.hour)} • ${esc(x.a.peak.date)}</small></span><span>PREDOMINÂNCIA <b>${esc(x.a.predominant)}</b></span><span>DIAS <b>${x.a.rows.length}</b></span></div></div></article>`).join('');
+}
+function parseMetricImport(text=''){
+ const lines=text.split(/\r?\n/).map(x=>x.trim()).filter(Boolean),out=[];
+ for(const line of lines){const p=line.includes('\t')?line.split('\t'):line.split(';');if(p.length<6)continue;const [group,data,a,b,c,d]=p.map(x=>x.trim());if(!group||alvesNorm(group).includes('organizacao')||alvesNorm(group)==='group')continue;out.push({group,data,slots:{'14H':Number(String(a).replace(',','.'))||0,'16H':Number(String(b).replace(',','.'))||0,'21H':Number(String(c).replace(',','.'))||0,'23H':Number(String(d).replace(',','.'))||0}})}
+ return out;
+}
+async function saveMetricImport(){
+ const rows=parseMetricImport($('#metricImportText')?.value||'');if(!rows.length){alert('Nenhuma linha válida. Use: Group;Data;14H;16H;21H;23H');return}
+ try{const batch=writeBatch(db);rows.forEach(r=>{const id=(r.group+'_'+r.data).replace(/[^a-zA-Z0-9_-]/g,'_');batch.set(doc(db,'highos','data','metricas',id),{...r,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true})});await batch.commit();await addDoc(histCol,{tipo:'IMPORTACAO_METRICAS',descricao:`${rows.length} registro(s) de métricas importado(s)`,usuario:currentUser.email,data:serverTimestamp()});$('#metricImportModal')?.classList.add('hidden');$('#metricImportText').value='';await loadMetrics();alert(`${rows.length} registro(s) importado(s).`)}catch(e){alert('Erro ao importar métricas: '+e.message)}
+}
+$('#metricSearch')?.addEventListener('input',renderMetrics);$('#metricSegment')?.addEventListener('change',renderMetrics);$('#openMetricImportBtn')?.addEventListener('click',()=>$('#metricImportModal')?.classList.remove('hidden'));$('#metricImportClose')?.addEventListener('click',()=>$('#metricImportModal')?.classList.add('hidden'));$('#metricImportModal')?.addEventListener('click',e=>{if(e.target.id==='metricImportModal')e.currentTarget.classList.add('hidden')});$('#metricImportSave')?.addEventListener('click',saveMetricImport);
+
+function marketFlatten(node,path='',out=[]){
+ if(Array.isArray(node)){node.forEach((v,i)=>marketFlatten(v,path,out));return out}
+ if(!node||typeof node!=='object')return out;const name=node.nome||node.item||node.produto||node.name||node.ITEM||node.NOME||node.PRODUTO;
+ if(name){out.push({...node,__name:String(name),__path:path})}
+ Object.entries(node).forEach(([k,v])=>{if(v&&typeof v==='object')marketFlatten(v,path?path+' / '+k:k,out)});return out;
+}
+function marketPriceFields(x){
+ const pick=(...ks)=>{for(const k of ks)if(x[k]!==undefined&&x[k]!==null&&String(x[k]).trim()!=='')return x[k];return ''};
+ return {pista:pick('pista','preco_pista','precoPista','sell','sell_min','venda','VALOR PISTA','PISTA'),parceria:pick('parceria','preco_parceria','precoParceria','buy','buy_min','compra','VALOR PARCERIA','PARCERIA'),categoria:pick('categoria','category','CATEGORIA')||x.__path||''};
+}
+async function loadMarketCatalog(){
+ mercadoStatus='CARREGANDO';renderMarket();try{const r=await fetch(MARKET_CATALOG_URL,{cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status);const json=await r.json();mercadoCatalogo=marketFlatten(json).filter((x,i,a)=>a.findIndex(y=>alvesNorm(y.__name)===alvesNorm(x.__name))===i);mercadoStatus='ONLINE';renderMarket()}catch(e){mercadoCatalogo=[];mercadoStatus='INDISPONÍVEL';renderMarket(e)}
+}
+function fmtMoneyMaybe(v){if(v===''||v==null)return '—';if(typeof v==='number')return '$'+v.toLocaleString('pt-BR');const n=Number(String(v).replace(/[^0-9,.-]/g,'').replace('.','').replace(',','.'));return Number.isFinite(n)&&n?('$'+n.toLocaleString('pt-BR')):String(v)}
+function marketFind(question=''){const n=alvesNorm(question);return mercadoCatalogo.filter(x=>n.includes(alvesNorm(x.__name))||alvesNorm(x.__name).includes(n)).sort((a,b)=>b.__name.length-a.__name.length)[0]||null}
+function renderMarket(err){
+ const st=$('#marketStatus'),box=$('#marketResults');if(!st||!box)return;st.innerHTML=mercadoStatus==='ONLINE'?`<span class="online">● CATÁLOGO ONLINE</span> • ${mercadoCatalogo.length} itens`:(mercadoStatus==='CARREGANDO'?'Carregando catálogo público...':`<span class="danger">● CATÁLOGO INDISPONÍVEL</span>${err?' • '+esc(err.message):''}`);
+ const q=alvesNorm($('#marketSearch')?.value||'');const list=(q?mercadoCatalogo.filter(x=>alvesNorm([x.__name,x.__path].join(' ')).includes(q)):mercadoCatalogo.slice(0,8)).slice(0,20);box.innerHTML=list.map(x=>{const p=marketPriceFields(x);return `<div class="market-item"><div><b>${esc(x.__name)}</b><small>${esc(p.categoria||'Mercado Negro')}</small></div><span>Pista <b>${esc(fmtMoneyMaybe(p.pista))}</b><br>Parceria <b>${esc(fmtMoneyMaybe(p.parceria))}</b></span></div>`}).join('')||'<div class="delivery-no-change">Nenhum item encontrado.</div>';
+}
+$('#marketSearch')?.addEventListener('input',renderMarket);
+
+const _alvesAnswerV54=alvesAnswer;
+alvesAnswer=function(question=''){
+ const q=alvesNorm(question),g=alvesFindGroup(question),o=alvesFindOrg(question);const metricTarget=g?.group||o?.groupAtual||faccoes.find(f=>o&&alvesNorm(f.faccao)===alvesNorm(o.nome))?.group;
+ if(metricTarget&&(q.includes('media')||q.includes('pico')||q.includes('predomin')||q.includes('metrica'))){const a=metricAnalysis(metricTarget);if(!a)return {text:`Não encontrei métricas cadastradas para ${metricTarget}.`,refs:['Métricas',metricTarget]};let parts=[`${metricTarget} — ${a.rows.length} dia(s) com métricas.`,`Média dos quatro horários: ${a.avg.toFixed(1)}.` ,`Pico: ${a.peak.value} às ${a.peak.hour} em ${a.peak.date}.`,`Horário predominante: ${a.predominant}.`];return {text:parts.join('\n'),refs:['Métricas',metricTarget]}}
+ if(q.includes('abaixo da media')||q.includes('ranking')||q.includes('melhor media')){const rows=metricSummaryRows();if(rows.length)return {text:`Ranking atual por média:\n${rows.slice(0,10).map((x,i)=>`${i+1}. ${x.f.group}${x.f.faccao?' — '+x.f.faccao:''}: ${x.a.avg.toFixed(1)}`).join('\n')}`,refs:['Métricas']}}
+ if(q.includes('quanto custa')||q.includes('preco')||q.includes('pista')||q.includes('parceria')){const item=marketFind(question);if(item){const p=marketPriceFields(item);return {text:`${item.__name}\nPreço de pista: ${fmtMoneyMaybe(p.pista)}\nPreço de parceria: ${fmtMoneyMaybe(p.parceria)}${p.categoria?'\nCategoria: '+p.categoria:''}`,refs:['Mercado Negro']}}if(mercadoStatus!=='ONLINE')return {text:'O catálogo público do Mercado Negro não está disponível neste momento, então não vou estimar o preço.',refs:['Mercado Negro']}}
+ return _alvesAnswerV54(question);
+};
