@@ -1136,19 +1136,97 @@ const ITEM_IMG_BASE='assets/itens/';
 const ITEM_META={
  pistolbody:{nome:'Corpo de Pistola',imagem:'pistolbody.png'}, smgbody:{nome:'Corpo de Sub',imagem:'smgbody.png'}, riflebody:{nome:'Corpo de Rifle',imagem:'riflebody.png'},
  sheetmetal:{nome:'Chapa de Metal',imagem:'sheetmetal.png'}, dollar:{nome:'Dólar',imagem:'dollar.png'}, elastic:{nome:'Elástico',imagem:'elastic.png'}, rubber:{nome:'Borracha',imagem:'rubber.png'}, techtrash:{nome:'Lixo Eletrônico',imagem:'techtrash.png'},
- ziplock:{nome:'Ziplock',imagem:'ziplock.png'}, weedbud:{nome:'Bud de Maconha',imagem:'weedbud.png'}
+ ziplock:{nome:'Ziplock',imagem:'ziplock.png'}, weedbud:{nome:'Bud de Maconha',imagem:'weedbud.png'}, projectile:{nome:'Projétil',imagem:'projectile.png'}, gunpowder:{nome:'Frasco de Pólvora',imagem:'gunpowder.png'},
+ plastic:{nome:'Plástico',imagem:'plastic.png'}, explosives:{nome:'Explosivos',imagem:'explosives.png'}, misturaquimica:{nome:'Mistura Química',imagem:'misturaquimica.png'}, electroniccomponents:{nome:'Componentes Eletrônicos',imagem:'electroniccomponents.png'},
+ washbleach:{nome:'Alvejante',imagem:'washbleach.png'}, alcohol:{nome:'Álcool',imagem:'alcohol.png'}, acetone:{nome:'Acetona',imagem:'acetone.png'}, sulfuric:{nome:'Ácido Sulfúrico',imagem:'sulfuric.png'}, acid:{nome:'Ácido',imagem:'acid.png'},
+ tarp:{nome:'Lona',imagem:'tarp.png'}, fibrasin:{nome:'Fibra Sintética',imagem:'fibrasin.png'}, syringe:{nome:'Seringa',imagem:'syringe.png'}, saline:{nome:'Soro Fisiológico',imagem:'saline.png'}, paper:{nome:'Papel',imagem:'paper.png'},
+ woodlog:{nome:'Tora de Madeira',imagem:'woodlog.png'}
 };
 const ARMAS_STANDARD_RECIPES=[
  {id:'ak74n',nome:'AK-74N',spawn:'WEAPON_ASSAULTRIFLE',imagem:'ak74n.png',nivel:5,max:10,insumos:[['riflebody',35],['sheetmetal',30],['dollar',70000]]},
  {id:'ak102',nome:'AK-102',spawn:'WEAPON_ASSAULTRIFLE_MK2',imagem:'ak102.png',nivel:5,max:10,insumos:[['riflebody',40],['sheetmetal',34],['dollar',46000]]},
- {id:'sigsauer556',nome:'Sig Sauer 556',spawn:'WEAPON_SPECIALCARBINE_MK2',imagem:'sigsauer556.png',nivel:5,max:10,insumos:[['riflebody',42],['sheetmetal',29],['dollar',58000]]},
+ {id:'sigsauer556',nome:'Sig Sauer 556',spawn:'WEAPON_SPECIALCARBINE_MK2',imagem:'sigsauer556.png',nivel:5,max:10,insumos:[['riflebody',47],['sheetmetal',33],['dollar',70000]]},
  {id:'t54',nome:'T54',spawn:'WEAPON_PISTOL_MK2',imagem:'t54.png',nivel:5,max:10,insumos:[['pistolbody',22],['sheetmetal',12],['dollar',8500]]},
- {id:'f2000',nome:'F2000',spawn:'WEAPON_ASSAULTSMG',imagem:'f2000.png',nivel:5,max:10,insumos:[['smgbody',27],['sheetmetal',24],['dollar',31000]]},
+ {id:'f2000',nome:'F2000',spawn:'WEAPON_ASSAULTSMG',imagem:'f2000.png',nivel:5,max:10,insumos:[['smgbody',30],['sheetmetal',24],['dollar',31000]]},
  {id:'deagle',nome:'Deagle',spawn:'WEAPON_PISTOL50',imagem:'desert.png',nivel:5,max:10,insumos:[['pistolbody',16],['sheetmetal',13],['dollar',18000]]},
  {id:'m1922',nome:'M1922',spawn:'WEAPON_VINTAGEPISTOL',imagem:'m1922.png',nivel:5,max:10,insumos:[['pistolbody',11],['sheetmetal',9],['dollar',12000]]},
  {id:'tec9',nome:'Tec-9',spawn:'WEAPON_MACHINEPISTOL',imagem:'tec9.png',nivel:5,max:10,insumos:[['smgbody',25],['sheetmetal',19],['dollar',26000]]},
  {id:'fnfal',nome:'FN L1A1 / FN FAL',spawn:'WEAPON_FNFAL',imagem:'fnfal.png',nivel:5,max:10,insumos:[['riflebody',38],['sheetmetal',31],['dollar',70000]]}
 ].map(r=>({...r,origem:'PADRÃO DO SEGMENTO'}));
+const MUNICAO_STANDARD_RECIPES=[
+ {id:'ammo-pistol',nome:'Caixa de Munição de Pistola',spawn:'caixa_m_pistola',imagem:'caixa_m_pistola.png',insumos:[['projectile',12],['gunpowder',10]]},
+ {id:'ammo-smg',nome:'Caixa de Munição de SMG',spawn:'caixa_m_smg',imagem:'caixa_m_smg.png',insumos:[['projectile',18],['gunpowder',17]]},
+ {id:'ammo-rifle',nome:'Caixa de Munição de Rifle',spawn:'caixa_m_rifle',imagem:'caixa_m_rifle.png',insumos:[['projectile',31],['gunpowder',24]]},
+ {id:'c4',nome:'C4',spawn:'c4',imagem:'c4.png',insumos:[['explosives',25],['plastic',10]]}
+].map(r=>({...r,origem:'PADRÃO DO SEGMENTO'}));
+const LAVAGEM_STANDARD_RECIPES=[
+ {id:'pendrive1',nome:'Pendrive 1',spawn:'pendrive1',imagem:'pendrive1.png',insumos:[['electroniccomponents',12],['rubber',8]]},
+ {id:'pendrive2',nome:'Pendrive 2',spawn:'pendrive2',imagem:'pendrive2.png',insumos:[['electroniccomponents',14],['rubber',10]]},
+ {id:'pendrive3',nome:'Pendrive 3',spawn:'pendrive3',imagem:'pendrive3.png',insumos:[['electroniccomponents',19],['rubber',15]]},
+ {id:'pendrive4',nome:'Pendrive 4',spawn:'pendrive4',imagem:'pendrive4.png',insumos:[['electroniccomponents',27],['rubber',23]]},
+ {id:'pendrive5',nome:'Pendrive 5',spawn:'pendrive5',imagem:'pendrive5.png',insumos:[['electroniccomponents',40],['rubber',30]]},
+ {id:'handcuff',nome:'Algema',spawn:'handcuff',imagem:'handcuff.png',insumos:[['sheetmetal',3]]},
+ {id:'lavagem',nome:'Máquina de Lavagem',spawn:'lavagem',imagem:'lavagem.png',insumos:[['plastic',70],['electroniccomponents',50]]}
+].map(r=>({...r,origem:'PADRÃO DO SEGMENTO'}));
+const DESMANCHE_STANDARD_RECIPES=[
+ {id:'blocksignal',nome:'Bloqueador de Sinal',spawn:'blocksignal',imagem:'blocksignal.png',insumos:[['techtrash',12],['elastic',10]]},
+ {id:'lockpick',nome:'Gazua',spawn:'lockpick',imagem:'lockpick.png',insumos:[['elastic',14],['rubber',8]]},
+ {id:'lockpickplus',nome:'Gazua ++',spawn:'lockpickplus',imagem:'lockpickplus.png',insumos:[['elastic',18],['rubber',13]]},
+ {id:'card-illegible',nome:'Cartão Ilegível',spawn:'cardillegible',imagem:'cardillegible.png',insumos:[['elastic',7],['techtrash',8]]},
+ {id:'dismantleplus',nome:'Desmanche ++',spawn:'dismantleplus',imagem:'dismantleplus.png',insumos:[['elastic',14],['techtrash',15]],bloqueado:true}
+].map(r=>({...r,origem:'PADRÃO DO SEGMENTO'}));
+const MEDIC_STANDARD_RECIPES=[
+ {id:'adrenalineclandestine',nome:'Adrenalina Clandestina',spawn:'adrenalineclandestine',imagem:'adrenalina.png',insumos:[['syringe',12],['saline',10]]},
+ {id:'infectedbandage',nome:'Bandagem Infectada',spawn:'infectedbandage',imagem:'infectedbandage.png',insumos:[['saline',20]]},
+ {id:'adrenalineclandestineplus',nome:'Adrenalina Clandestina +',spawn:'adrenalineclandestineplus',imagem:'adrenalineclandestineplus.png',insumos:[['syringe',15],['saline',15]],bloqueado:true}
+].map(r=>({...r,origem:'PADRÃO DO SEGMENTO'}));
+const MECHANIC_STANDARD_RECIPES=[
+ {id:'notebook',nome:'Notebook',spawn:'notebook',imagem:'notebook.png',insumos:[['techtrash',5],['plastic',5]]},
+ {id:'racesticketplus',nome:'Ticket de Corrida +',spawn:'racesticketplus',imagem:'racesticketplus.png',insumos:[['paper',10]],bloqueado:true}
+].map(r=>({...r,origem:'PADRÃO DO SEGMENTO'}));
+const CONTRABANDO_STANDARD_RECIPES=[
+ {id:'attachbox',nome:'Caixa de Attachments',spawn:'attachbox',imagem:'attachbox.png',insumos:[['woodlog',3],['sheetmetal',4]]},
+ {id:'pager',nome:'Pager',spawn:'pager',imagem:'pager.png',insumos:[['plastic',6],['techtrash',4]]}
+].map(r=>({...r,origem:'PADRÃO DO SEGMENTO'}));
+const DRUG_COMMON_RECIPES=[
+ {id:'hood',nome:'Capuz',spawn:'hood',imagem:'hood.png',insumos:[['tarp',5]]},
+ {id:'ballisticplate',nome:'Placa Balística',spawn:'ballisticplate',imagem:'ballisticplate.png',insumos:[['tarp',12],['fibrasin',13]]}
+].map(r=>({...r,origem:'PADRÃO DO SEGMENTO'}));
+const DRUG_GROUP_RECIPES={
+ Drogas01:[{id:'packdrug1',nome:'Pacote Selado de Metadona',spawn:'packdrug1',imagem:'packdrug1.png',insumos:[['alcohol',25],['ziplock',50]]}],
+ Drogas03:[{id:'packdrug2',nome:'Pacote Selado de Heroína',spawn:'packdrug2',imagem:'packdrug2.png',insumos:[['acetone',25],['ziplock',50]]}],
+ Drogas06:[{id:'packdrug3',nome:'Pacote Selado de Anfetamina',spawn:'packdrug3',imagem:'packdrug3.png',insumos:[['sulfuric',25],['ziplock',50]]}],
+ Drogas09:[{id:'packdrug4',nome:'Pacote Selado de Crack',spawn:'packdrug4',imagem:'packdrug4.png',insumos:[['acid',25],['ziplock',50]]}]
+};
+Object.values(DRUG_GROUP_RECIPES).forEach(list=>list.forEach(r=>r.origem='PADRÃO DO GROUP'));
+const GROUP_EXTRA_RECIPES={
+ Municao10:[{id:'extra-t54',nome:'T54',spawn:'WEAPON_PISTOL_MK2',imagem:'t54.png',nivel:5,max:10,origem:'CRAFT ADQUIRIDO',insumos:[['pistolbody',22],['sheetmetal',12],['dollar',8500]]}],
+ Lavagem02:[{id:'extra-paradise-glock',nome:'Paradise Glock',spawn:'WEAPON_PARADISE_GLOCK',imagem:'glock.png',origem:'CRAFT EXTRA DO GROUP',insumos:[['pistolbody',20],['sheetmetal',21],['dollar',35000]]}],
+ Manicomio:[
+  {id:'extra-paradise-glock',nome:'Paradise Glock',spawn:'WEAPON_PARADISE_GLOCK',imagem:'glock.png',origem:'CRAFT EXTRA DO GROUP',insumos:[['pistolbody',20],['sheetmetal',21],['dollar',35000]]},
+  {id:'extra-lockpickplus',nome:'Gazua ++',spawn:'lockpickplus',imagem:'lockpickplus.png',origem:'CRAFT EXTRA DO GROUP',insumos:[['elastic',17],['rubber',13]]},
+  {id:'extra-hood',nome:'Capuz',spawn:'hood',imagem:'hood.png',origem:'CRAFT EXTRA DO GROUP',insumos:[['tarp',5]]}
+ ]
+};
+function segmentKey(v=''){return alvesNorm(String(v)).replace(/[^a-z0-9]/g,'')}
+function standardRecipesForGroup(f={}){
+ if(f.semCraft||GROUP_BASE_CORRECTIONS?.[f.group]?.state==='SEM_CRAFT')return [];
+ const k=segmentKey(f.segmento),g=String(f.group||'');let base=[];
+ if(k==='armas')base=ARMAS_STANDARD_RECIPES;
+ else if(k==='municao')base=MUNICAO_STANDARD_RECIPES;
+ else if(k==='lavagem')base=LAVAGEM_STANDARD_RECIPES;
+ else if(k==='desmanche')base=DESMANCHE_STANDARD_RECIPES;
+ else if(k==='hospitalilegal'||k==='ilegalmedic')base=MEDIC_STANDARD_RECIPES;
+ else if(k==='mecanicaillegal'||k==='ilegalmechanic')base=MECHANIC_STANDARD_RECIPES;
+ else if(k==='contrabando')base=CONTRABANDO_STANDARD_RECIPES;
+ else if(k==='drogas')base=[...DRUG_COMMON_RECIPES,...(DRUG_GROUP_RECIPES[g]||[])];
+ if(g==='Manicomio')base=[...DRUG_COMMON_RECIPES];
+ return [...base,...(GROUP_EXTRA_RECIPES[g]||[])].map(recipeNormalize);
+}
+function mergeRecipeLists(base=[],saved=[]){
+ const out=[],idx=new Map();
+ [...base,...saved].forEach(raw=>{const r=recipeNormalize(raw),key=String(r.spawn||r.id||r.nome).toLowerCase();if(!key)return;if(idx.has(key))out[idx.get(key)]={...out[idx.get(key)],...r,insumos:(r.insumos?.length?r.insumos:out[idx.get(key)].insumos)};else{idx.set(key,out.length);out.push(r)}});return out;
+}
 let techDraft={craft:{cds:'',nome:'',receitas:[]},farm:{cds:'',itens:[]},rota:{nome:'',inicio:'',pontos:''},estruturaExtra:{}};
 function clonePlain(v){return JSON.parse(JSON.stringify(v??null))}
 function itemImg(spawn='',imagem=''){const f=String(imagem||'').trim()||String(spawn||'').trim()+'.png';return ITEM_IMG_BASE+encodeURIComponent(f).replace(/%2F/gi,'/')}
@@ -1171,13 +1249,16 @@ function syncFarmWithCraft(profile=techDraft){
  return profile;
 }
 function defaultTechProfile(f={}){
- const b=f.beneficios||{}, base=(f.segmento==='ARMAS'?ARMAS_STANDARD_RECIPES:[]).map(recipeNormalize);
- const out={craft:{cds:b.craft||'',nome:f.segmento==='ARMAS'?'Armas de Pequeno, Médio e Grande Calibre':'',receitas:base},farm:{cds:b.farm||'',itens:[]},rota:{nome:b.rotaExclusiva?`RotaExclusiva${f.group||''}`:'',inicio:'',pontos:b.rotaBlips||''},estruturaExtra:{}};return syncFarmWithCraft(out);
+ const b=f.beneficios||{},base=standardRecipesForGroup(f);
+ const names={armas:'Armas de Pequeno, Médio e Grande Calibre',municao:'Munições e Explosivos',lavagem:'Lavagem / Pendrives',desmanche:'Desmanche',drogas:'Drogas',hospitalilegal:'Hospital Ilegal',ilegalmedic:'Hospital Ilegal',mecanicaillegal:'Mecânica Ilegal',ilegalmechanic:'Mecânica Ilegal',contrabando:'Contrabando'};
+ const out={craft:{cds:b.craft||'',nome:names[segmentKey(f.segmento)]||'',receitas:base},farm:{cds:b.farm||'',itens:[]},rota:{nome:b.rotaExclusiva?`RotaExclusiva${f.group||''}`:'',inicio:'',pontos:b.rotaBlips||''},estruturaExtra:{}};return syncFarmWithCraft(out);
 }
 function mergedTechProfile(f={}){
  const d=defaultTechProfile(f),p=clonePlain(f.perfilTecnico||{})||{};
- const explicit=Array.isArray(p?.craft?.receitas);
- const out={craft:{cds:p?.craft?.cds??d.craft.cds,nome:p?.craft?.nome??d.craft.nome,receitas:(explicit?p.craft.receitas:d.craft.receitas).map(recipeNormalize)},farm:{cds:p?.farm?.cds??d.farm.cds,itens:Array.isArray(p?.farm?.itens)?p.farm.itens.map(x=>({...x})):[]},rota:{nome:p?.rota?.nome??d.rota.nome,inicio:p?.rota?.inicio??d.rota.inicio,pontos:p?.rota?.pontos??d.rota.pontos},estruturaExtra:{...(d.estruturaExtra||{}),...(p?.estruturaExtra||{})}};return syncFarmWithCraft(out);
+ const semCraft=!!(f.semCraft||GROUP_BASE_CORRECTIONS?.[f.group]?.state==='SEM_CRAFT'||p?.craft?.ativo===false);
+ const saved=Array.isArray(p?.craft?.receitas)?p.craft.receitas:[];
+ const receitas=semCraft?[]:mergeRecipeLists(d.craft.receitas,saved);
+ const out={craft:{cds:p?.craft?.cds??d.craft.cds,nome:p?.craft?.nome??d.craft.nome,ativo:!semCraft,receitas},farm:{cds:p?.farm?.cds??d.farm.cds,itens:Array.isArray(p?.farm?.itens)?p.farm.itens.map(x=>({...x})):[]},rota:{nome:p?.rota?.nome??d.rota.nome,inicio:p?.rota?.inicio??d.rota.inicio,pontos:p?.rota?.pontos??d.rota.pontos,origem:p?.rota?.origem||''},estruturaExtra:{...(d.estruturaExtra||{}),...(p?.estruturaExtra||{})}};return syncFarmWithCraft(out);
 }
 function renderTechProfile(f){
  techDraft=mergedTechProfile(f);$('#fTechCraftCds').value=techDraft.craft.cds||'';$('#fTechCraftNome').value=techDraft.craft.nome||'';$('#fTechFarmCds').value=techDraft.farm.cds||'';$('#fTechRouteName').value=techDraft.rota.nome||'';$('#fTechRouteStart').value=techDraft.rota.inicio||'';$('#fTechRoutePoints').value=techDraft.rota.pontos||'';renderCraftRecipes();renderFarmItems();renderRouteOverview();renderStructureSnapshot(f);renderConnectedRequests();
