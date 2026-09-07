@@ -217,7 +217,7 @@
   </section>
 
   <section class="tech-panel" data-tech-panel="farm">
-    <div class="tech-panel-head route-panel-head"><div><b>Farm / Rota</b><span>Os itens vêm automaticamente dos insumos do Craft. As alterações normais partem do Perfil; a Rota Exclusiva é a exceção e recebe as CDS pela Solicitação.</span></div><button type="button" id="addFarmItemBtn" class="btn-secondary compact admin-only">+ ITEM MANUAL</button></div>
+    <div class="tech-panel-head route-panel-head"><div><div class="eyebrow">LOGÍSTICA DO GROUP</div><b>Farm / Rota</b><span>O Farm mostra os insumos exigidos pelas receitas deste Group. A rota pode ser padrão ou exclusiva; somente as CDS do takefarm entram pela Solicitação.</span></div><button type="button" id="addFarmItemBtn" class="btn-secondary compact admin-only">+ ITEM FORA DO CRAFT</button></div>
 
     <div class="route-overview" id="routeOverview">
       <div class="route-type-card"><span>TIPO DA ROTA</span><strong id="routeTypeLabel">ROTA PADRÃO</strong><small id="routeTypeHelp">Utiliza a rota padrão do segmento.</small></div>
@@ -226,7 +226,7 @@
     </div>
 
     <div class="route-choice admin-only" id="routeChoice">
-      <span>ROTA EXCLUSIVA?</span>
+      <div><span>ROTA EXCLUSIVA?</span><small>Escolha somente o tipo. As CDS exclusivas são cadastradas pela Solicitação.</small></div>
       <button type="button" class="route-choice-btn" data-route-exclusive="0">NÃO · PADRÃO</button>
       <button type="button" class="route-choice-btn" data-route-exclusive="1">SIM · EXCLUSIVA</button>
     </div>
