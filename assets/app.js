@@ -1341,3 +1341,62 @@ $('#updateProfilesBtn')?.addEventListener('click',updateOfficialGroupProfiles);
 // HIGH OS V6.7 · Perfil do Group em página + Rota Padrão/Exclusiva organizada.
 
 // HIGH OS V6.9 · Fluxo correto: Perfil → comparação → Solicitação. Exceção: Rota Exclusiva, em que a Solicitação com CDS do takefarm alimenta o Perfil Técnico.
+
+// HIGH OS V7.1 · Perfil Operacional completo do Group/QG
+const OPERATIONAL_PROFILE_VERSION='07/09/2026 · Perfil Operacional V7.1';
+const OP_KNOWN_EXTRAS={
+ Armas02:{telao:{ativo:true,tipo:'Hall',modelo:'paradise_telao01a',postit:'2685.14,3386.41,61.70',cds:'2684.81,3386.92,58.82,164.41',permissao:'Armas02',sons:['2662.59,3397.22,58.82,286.3','2691.1,3386.87,60.57,331.66','2720.27,3419.87,59.08,107.72','2654.06,3417.68,57.71,187.09']}},
+ Desmanche07:{lojaFac:{cds:'2189.12,4670.27,37.54,325.99'},barbearia:{cds:'2268.74,4607.04,37.59,59.53'},tatuagem:{cds:'2288.37,4562.1,37.66,323.15'},roupas:{cds:'2273.21,4608.11,37.59,130.4'},garagens:[{tipo:'PUBLICA',blip:'2193.82,4616.75,39.38,147.41',spawn:'2192.91,4609.84,38.75,325.99'},{tipo:'PUBLICA_2',blip:'2196.19,4617.57,39.38,136.07',spawn:'2194.11,4610.75,39.38,136.07'},{tipo:'SERVICO',blip:'2222.68,4612.5,37.54,345.83',spawn:'2227.86,4612.09,37.31,56.7'}],helipontos:[{blip:'2199.82,4614.74,39.38,133.23',spawn:'2194.11,4610.75,39.38,136.07'}]},
+ Municao10:{telao:{ativo:false,tipo:'',modelo:'',postit:'',cds:'',permissao:'Municao10',sons:[]}}
+};
+function opPair(v=''){const parts=String(v||'').replace(/\t/g,' ').split(/\s*\/\s*/).map(x=>x.trim()).filter(Boolean);return {blip:parts[0]||'',spawn:parts[1]||''}}
+function opBlank(){return {localizacao:{nome:'',cdsPrincipal:''},lojaFac:{cds:''},bar:{cds:''},barbearia:{cds:''},tatuagem:{cds:''},roupas:{cds:''},uniforme:{local:'',arquivo:''},arena:{cds:''},garagens:[],helipontos:[],blindados:{vagas:'',blip:'',spawn:'',veiculos:''},telao:{ativo:false,tipo:'',modelo:'',postit:'',cds:'',permissao:'',sons:['','','','']}}}
+function opMerge(a={},b={}){const out={...opBlank(),...clonePlain(a||{}),...clonePlain(b||{})};['localizacao','lojaFac','bar','barbearia','tatuagem','roupas','uniforme','arena','blindados','telao'].forEach(k=>out[k]={...(opBlank()[k]||{}),...(a?.[k]||{}),...(b?.[k]||{})});out.garagens=Array.isArray(b?.garagens)&&b.garagens.length?clonePlain(b.garagens):Array.isArray(a?.garagens)?clonePlain(a.garagens):[];out.helipontos=Array.isArray(b?.helipontos)&&b.helipontos.length?clonePlain(b.helipontos):Array.isArray(a?.helipontos)?clonePlain(a.helipontos):[];out.telao.sons=[...(b?.telao?.sons?.length?b.telao.sons:(a?.telao?.sons||[])),'','','',''].slice(0,4);return out}
+function operationalFromExisting(f={}){
+ const o=opBlank(),b=f.beneficios||{},src=f.perfilFonte||GROUP_PROFILE_SOURCE?.[f.group]||{},corr=GROUP_BASE_CORRECTIONS?.[f.group]||{};
+ o.localizacao.nome=f.qg||cleanProfileValue(src.LOCAL||'');o.localizacao.cdsPrincipal=corr.cds||f.perfilBase?.cds||f.cds||cleanProfileValue(src.COORDENADA||'');
+ o.barbearia.cds=b.barbearia||cleanProfileValue(src.BARBEARIA||'');o.tatuagem.cds=b.tatuagem||cleanProfileValue(src.TATUAGEM||'');o.roupas.cds=b.lojaRoupas||cleanProfileValue(src['LOJA DE ROUPAS']||'');o.lojaFac.cds=b.shopExclusivo||cleanProfileValue(src['SHOP EXCLUSIVO']||src['SHOP DELUXE']||'');o.bar.cds=cleanProfileValue(f.perfilTecnico?.estruturaExtra?.bar||src.BAR||'');o.arena.cds=b.arena||cleanProfileValue(src.ARENA||'');
+ const pub=opPair(cleanProfileValue(src['GARAGEM PUBLICA']||'')),vip=opPair(cleanProfileValue(src['GARAGEM VIP FAC']||'')),deluxe=opPair(cleanProfileValue(src['GARAGEM DELUXE']||''));
+ if(b.garagemPublicaBlip||pub.blip)o.garagens.push({tipo:'PUBLICA',blip:b.garagemPublicaBlip||pub.blip,spawn:b.garagemPublicaSpawn||pub.spawn,veiculos:'',vagas:''});
+ if(b.garagemVipBlip||vip.blip)o.garagens.push({tipo:'FACCAO',blip:b.garagemVipBlip||vip.blip,spawn:b.garagemVipSpawn||vip.spawn,veiculos:b.garagemVipVeiculos||'',vagas:''});
+ if(deluxe.blip)o.garagens.push({tipo:'SERVICO',blip:deluxe.blip,spawn:deluxe.spawn,veiculos:'',vagas:''});
+ if(b.helipontoBlip||b.helipontoSpawn)o.helipontos=[{blip:b.helipontoBlip||'',spawn:b.helipontoSpawn||''}];
+ o.telao={ativo:!!b.telao,tipo:b.telao?'Hall':'',modelo:b.telaoNome||'',postit:b.telaoPostit||'',cds:b.telaoCds||'',permissao:f.group||'',sons:Array.isArray(b.telaoSons)?b.telaoSons:['','','','']};
+ return opMerge(o,OP_KNOWN_EXTRAS[f.group]||{});
+}
+const _mergedTechProfileV71=mergedTechProfile;mergedTechProfile=function(f={}){const out=_mergedTechProfileV71(f);out.operacional=opMerge(operationalFromExisting(f),f.perfilTecnico?.operacional||out.operacional||{});return out};
+function opGet(id){return $('#'+id)?.value?.trim?.()||''}
+function operationalFromForm(){
+ const garages=[
+  {tipo:'PUBLICA',blip:opGet('fOpPub1Blip'),spawn:opGet('fOpPub1Spawn'),veiculos:'',vagas:''},
+  {tipo:'PUBLICA_2',blip:opGet('fOpPub2Blip'),spawn:opGet('fOpPub2Spawn'),veiculos:'',vagas:''},
+  {tipo:'FACCAO',blip:opGet('fOpVipBlip'),spawn:opGet('fOpVipSpawn'),veiculos:opGet('fOpVipVehicles'),vagas:''},
+  {tipo:'SERVICO',blip:opGet('fOpServiceBlip'),spawn:opGet('fOpServiceSpawn'),veiculos:opGet('fOpServiceVehicles'),vagas:''}
+ ].filter(x=>x.blip||x.spawn||x.veiculos);
+ return {localizacao:{nome:opGet('fOpQGName'),cdsPrincipal:opGet('fOpMainCds')},lojaFac:{cds:opGet('fOpLojaFac')},bar:{cds:opGet('fOpBar')},barbearia:{cds:opGet('fOpBarbearia')},tatuagem:{cds:opGet('fOpTatuagem')},roupas:{cds:opGet('fOpRoupas')},uniforme:{local:opGet('fOpUniformeLocal'),arquivo:opGet('fOpUniformeArquivo')},arena:{cds:opGet('fOpArena')},garagens,helipontos:(opGet('fOpHeliBlip')||opGet('fOpHeliSpawn'))?[{blip:opGet('fOpHeliBlip'),spawn:opGet('fOpHeliSpawn')}]:[],blindados:{vagas:opGet('fOpArmoredSlots'),blip:opGet('fOpArmoredBlip'),spawn:opGet('fOpArmoredSpawn'),veiculos:opGet('fOpArmoredVehicles')},telao:{ativo:!!(opGet('fOpTelaoModelo')||opGet('fOpTelaoPostit')||opGet('fOpTelaoCds')),tipo:opGet('fOpTelaoTipo'),modelo:opGet('fOpTelaoModelo'),postit:opGet('fOpTelaoPostit'),cds:opGet('fOpTelaoCds'),permissao:opGet('fOpTelaoPermissao'),sons:[1,2,3,4].map(i=>opGet('fOpTelaoSom'+i))}};
+}
+function setOpVal(id,v){const el=$('#'+id);if(el)el.value=v||''}
+function renderOperationalProfile(f={}){
+ const o=mergedTechProfile(f).operacional||opBlank(),g=(type)=>o.garagens?.find(x=>x.tipo===type)||{},h=o.helipontos?.[0]||{},sons=[...(o.telao?.sons||[]),'','','',''];
+ setOpVal('fOpQGName',o.localizacao?.nome);setOpVal('fOpMainCds',o.localizacao?.cdsPrincipal);setOpVal('fOpLojaFac',o.lojaFac?.cds);setOpVal('fOpBar',o.bar?.cds);setOpVal('fOpBarbearia',o.barbearia?.cds);setOpVal('fOpTatuagem',o.tatuagem?.cds);setOpVal('fOpRoupas',o.roupas?.cds);setOpVal('fOpUniformeLocal',o.uniforme?.local);setOpVal('fOpUniformeArquivo',o.uniforme?.arquivo);setOpVal('fOpArena',o.arena?.cds);
+ [['Pub1','PUBLICA'],['Pub2','PUBLICA_2'],['Vip','FACCAO'],['Service','SERVICO']].forEach(([p,t])=>{const x=g(t);setOpVal('fOp'+p+'Blip',x.blip);setOpVal('fOp'+p+'Spawn',x.spawn);if(p==='Vip'||p==='Service')setOpVal('fOp'+p+'Vehicles',x.veiculos)});
+ setOpVal('fOpHeliBlip',h.blip);setOpVal('fOpHeliSpawn',h.spawn);setOpVal('fOpArmoredSlots',o.blindados?.vagas);setOpVal('fOpArmoredBlip',o.blindados?.blip);setOpVal('fOpArmoredSpawn',o.blindados?.spawn);setOpVal('fOpArmoredVehicles',o.blindados?.veiculos);setOpVal('fOpTelaoTipo',o.telao?.tipo);setOpVal('fOpTelaoModelo',o.telao?.modelo);setOpVal('fOpTelaoPostit',o.telao?.postit);setOpVal('fOpTelaoCds',o.telao?.cds);setOpVal('fOpTelaoPermissao',o.telao?.permissao||f.group);[1,2,3,4].forEach(i=>setOpVal('fOpTelaoSom'+i,sons[i-1]));
+}
+const _getTechProfileFromFormV71=getTechProfileFromForm;getTechProfileFromForm=function(){const out=_getTechProfileFromFormV71();if($('#fOpQGName'))out.operacional=operationalFromForm();techDraft=out;return out};
+const _renderTechProfileV71=renderTechProfile;renderTechProfile=function(f){_renderTechProfileV71(f);renderOperationalProfile(f)};
+const _sourceToGroupPatchV71=sourceToGroupPatch;sourceToGroupPatch=function(f,src){const patch=_sourceToGroupPatchV71(f,src),holder={...f,...patch,perfilTecnico:{...(f.perfilTecnico||{}),...(patch.perfilTecnico||{})},perfilFonte:{...src,versao:OPERATIONAL_PROFILE_VERSION}};/* INICIAR ROTA é o blip inicial do farm e não significa Rota Exclusiva. */if(patch.beneficios&&!(f?.beneficios?.rotaExclusiva)){patch.beneficios.rotaExclusiva=false;patch.beneficios.rotaBlips=f?.beneficios?.rotaBlips||'';if(holder.beneficios){holder.beneficios.rotaExclusiva=false;holder.beneficios.rotaBlips=f?.beneficios?.rotaBlips||''}}holder.perfilTecnico.operacional=opMerge(operationalFromExisting(holder),f.perfilTecnico?.operacional||{});patch.perfilTecnico=holder.perfilTecnico;patch.perfilFonte={...src,versao:OPERATIONAL_PROFILE_VERSION};return patch};
+
+// Sincroniza os campos do Perfil Operacional com os campos legados usados pelo gerador de solicitações.
+function syncOperationalLegacy(){
+ if(!$('#fOpQGName'))return;const o=operationalFromForm(),pub=o.garagens.find(x=>x.tipo==='PUBLICA')||{},vip=o.garagens.find(x=>x.tipo==='FACCAO')||{},heli=o.helipontos[0]||{};
+ setOpVal('fQG',o.localizacao.nome);setOpVal('fCds',o.localizacao.cdsPrincipal);setOpVal('fBarbearia',o.barbearia.cds);setOpVal('fTatuagem',o.tatuagem.cds);setOpVal('fLojaRoupas',o.roupas.cds);setOpVal('fArena',o.arena.cds);setOpVal('fShopExclusivo',o.lojaFac.cds);setOpVal('fGaragemPublicaBlip',pub.blip);setOpVal('fGaragemPublicaSpawn',pub.spawn);setOpVal('fGaragemVipBlip',vip.blip);setOpVal('fGaragemVipSpawn',vip.spawn);setOpVal('fGaragemVipVeiculos',vip.veiculos);setOpVal('fHelipontoBlip',heli.blip);setOpVal('fHelipontoSpawn',heli.spawn);setOpVal('fTelaoNome',o.telao.modelo);setOpVal('fTelaoPostit',o.telao.postit);setOpVal('fTelaoCds',o.telao.cds);if($('#fTelao'))$('#fTelao').checked=!!o.telao.ativo;if($('#fGaragemPublica'))$('#fGaragemPublica').checked=!!(pub.blip||pub.spawn);if($('#fHeliponto'))$('#fHeliponto').checked=!!(heli.blip||heli.spawn);
+}
+const OP_INPUT_IDS=['fOpQGName','fOpMainCds','fOpLojaFac','fOpBar','fOpBarbearia','fOpTatuagem','fOpRoupas','fOpUniformeLocal','fOpUniformeArquivo','fOpArena','fOpPub1Blip','fOpPub1Spawn','fOpPub2Blip','fOpPub2Spawn','fOpVipBlip','fOpVipSpawn','fOpVipVehicles','fOpServiceBlip','fOpServiceSpawn','fOpServiceVehicles','fOpHeliBlip','fOpHeliSpawn','fOpArmoredSlots','fOpArmoredBlip','fOpArmoredSpawn','fOpArmoredVehicles','fOpTelaoTipo','fOpTelaoModelo','fOpTelaoPostit','fOpTelaoCds','fOpTelaoPermissao','fOpTelaoSom1','fOpTelaoSom2','fOpTelaoSom3','fOpTelaoSom4'];
+OP_INPUT_IDS.forEach(id=>$('#'+id)?.addEventListener('input',()=>{syncOperationalLegacy();getTechProfileFromForm();try{renderConnectedRequests();renderStructureSnapshot(currentFactionFromForm());updateDeliveryPreview()}catch{}}));
+$('#fOpTelaoTipo')?.addEventListener('change',()=>{syncOperationalLegacy();getTechProfileFromForm();try{renderConnectedRequests();updateDeliveryPreview()}catch{}});
+
+// Perfil operacional também passa a responder no Alvesinho.
+const _alvesAnswerV71=alvesAnswer;alvesAnswer=function(question=''){const q=alvesNorm(question),g=alvesFindGroup(question);if(g){const o=mergedTechProfile(g).operacional||opBlank();if(q.includes('garagem')){const xs=o.garagens||[];return {text:xs.length?`Garagens de ${g.group}:\n${xs.map(x=>`• ${x.tipo}: Blip ${x.blip||'—'} | Spawn ${x.spawn||'—'}${x.veiculos?' | Veículos '+x.veiculos:''}`).join('\n')}`:`${g.group} não possui garagem cadastrada.`,refs:[g.group,'Perfil Operacional','Garagens']};}if(q.includes('telao')||q.includes('telão')){const t=o.telao||{};return {text:t.ativo?`Telão de ${g.group}:\n• Tipo: ${t.tipo||'—'}\n• Modelo: ${t.modelo||'—'}\n• Post-it: ${t.postit||'—'}\n• CDS: ${t.cds||'—'}\n• Sons: ${(t.sons||[]).filter(Boolean).length} ponto(s)\n${(t.sons||[]).filter(Boolean).map((x,i)=>`  Som ${i+1}: ${x}`).join('\n')}`:`${g.group} não possui telão cadastrado.`,refs:[g.group,'Perfil Operacional','Telão']};}if(q.includes('mapa')||q.includes('localizacao')||q.includes('localização')||q.includes('qg')){return {text:`${g.group} — ${o.localizacao?.nome||g.qg||'QG sem nome'}\nCDS principal do mapa: ${o.localizacao?.cdsPrincipal||g.cds||'—'}`,refs:[g.group,'Perfil Operacional','Mapa']};}}
+ return _alvesAnswerV71(question)};
+
+console.info('HIGH OS DEV V7.1 · Perfil Operacional carregado');
