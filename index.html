@@ -162,8 +162,8 @@
             </div>
           </div>
           <div class="settings-page-intro">
-            <div><b>CONFIGURAÇÃO DO GROUP</b><span>Esta área concentra campos administrativos que não precisam ficar abertos no perfil operacional.</span></div>
-            <span class="settings-warning">Alterações são salvas junto com o Perfil Técnico do Group.</span>
+            <div><b>CONFIGURAÇÃO DO GROUP</b><span>Esta área concentra salário, rádio, VIP Org e demais setagens administrativas.</span></div>
+            <div class="settings-page-actions"><span class="settings-warning">Alterações pertencem ao Group/QG.</span><button type="button" id="saveGroupSettingsBtn" class="btn-primary compact">SALVAR SETAGENS</button></div>
           </div>
           <div id="groupSettingsMount" class="group-settings-page-mount"></div>
         </section>
@@ -194,7 +194,7 @@
   </div>
 </section>
 <details id="groupIdentityDetails" class="profile-collapsible profile-identity-editor"><summary><span>CADASTRO E IDENTIFICAÇÃO</span><small>Abra somente para alterar dados cadastrais do Group</small></summary><div class="profile-collapsible-body"><div class="form-grid profile-general-grid"><label>Group<input id="fGroupShow" disabled></label><label>Status<select id="fStatus"><option value="ATIVA">ATIVA</option><option value="INATIVA">INATIVA / VAGA</option></select></label><label>Facção<input id="fFaccao"></label><label>QG / Favela<input id="fQG"></label><label class="wide">Produto<textarea id="fProduto"></textarea></label><label>Líder (ID / Nome / Tel)<input id="fLider"></label><label>Staff responsável<input id="fStaff"></label><label>Data entrega<input id="fData" placeholder="dd/mm/aaaa"></label><label>Anúncio Discord<input id="fAnuncio"></label><label class="wide">CDS principal do QG<input id="fCds"></label><label class="wide">Observações<textarea id="fObs"></textarea></label></div></div></details>
-<details id="groupBenefitsSettings" class="profile-collapsible group-benefits-settings" open><summary><span>BENEFÍCIOS E SETAGENS</span><small>Salário, rádio, baú, VIP Org e configurações permanentes</small></summary><div class="profile-collapsible-body"><div class="benefits-box">
+<details id="groupBenefitsSettings" class="profile-collapsible group-benefits-settings"><summary><span>BENEFÍCIOS E SETAGENS</span><small>Salário, rádio, baú, VIP Org e configurações permanentes</small></summary><div class="profile-collapsible-body"><div class="benefits-box">
   <div class="benefits-head"><div><div class="eyebrow">BASE DO LOCAL / GROUP</div><h3>BENEFÍCIOS E SETAGENS</h3></div><small>Estes dados permanecem no local mesmo após recolhimento.</small></div>
   <div class="benefit-toggles">
     <label><input type="checkbox" id="fVipOrg"> VIP Org</label>
