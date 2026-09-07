@@ -59,13 +59,13 @@
       </aside>
       <div class="content">
         <section class="page active" id="page-dashboard">
-          <div class="page-head"><div><div class="eyebrow">CENTRAL OPERACIONAL</div><h2>DASHBOARD</h2></div><span class="dev-badge">DEV V6.3</span></div>
+          <div class="page-head"><div><div class="eyebrow">CENTRAL OPERACIONAL</div><h2>DASHBOARD</h2></div><span class="dev-badge">DEV V6.4</span></div>
           <div class="welcome"><div><span>Bem-vindo ao</span><strong>HIGH OS</strong><p>Groups/QGs, entregas e Biblioteca de Solicitações compartilham agora a mesma base operacional.</p></div><div class="big-mark">HIGH<br><b>ILEGAL</b></div></div>
           <div class="cards"><article><b>◆</b><strong>Groups / QGs</strong><span class="online">Operacional</span></article><article><b>▤</b><strong>Solicitações</strong><span class="online">Operacional</span></article><article><b>♟</b><strong>Usuários</strong><span class="online">Administração ativa</span></article><article><b>✓</b><strong>Firebase</strong><span class="online">Conectado</span></article></div>
           <div class="info-panel"><div><span>CONTA AUTORIZADA</span><strong id="dashEmail">—</strong></div><div><span>NÍVEL DE ACESSO</span><strong id="dashRole">—</strong></div><div><span>STATUS</span><strong class="online">ATIVO</strong></div></div>
         </section>
         <section class="page" id="page-faccoes">
-<div class="page-head"><div><div class="eyebrow">PATRIMÔNIO PERMANENTE DA CIDADE</div><h2>GROUPS / QGs</h2><p class="page-subtitle">Cada Group guarda seu QG, instalações, coordenadas e pré-configuração. A facção é apenas a ocupante atual.</p></div><button id="seedBtn" class="btn-secondary admin-only">IMPORTAR BASE INICIAL</button></div>
+<div class="page-head"><div><div class="eyebrow">PATRIMÔNIO PERMANENTE DA CIDADE</div><h2>GROUPS / QGs</h2><p class="page-subtitle">Cada Group guarda seu QG, instalações, coordenadas e pré-configuração. A facção é apenas a ocupante atual.</p></div><div class="profile-head-actions"><button id="updateProfilesBtn" class="btn-primary compact admin-only">ATUALIZAR PERFIS DOS GROUPS</button><button id="seedBtn" class="btn-secondary admin-only">IMPORTAR BASE INICIAL</button></div></div>
 <div class="fac-toolbar"><input id="facSearch" placeholder="Buscar Group, facção, QG, líder..."><select id="facSegment"><option value="">TODOS OS SEGMENTOS</option><option>ARMAS</option><option>MUNIÇÃO</option><option>LAVAGEM</option><option>DROGAS</option><option>DESMANCHE</option><option>ESTELIONATÁRIOS</option><option>OUTROS</option></select><select id="facStatus"><option value="">TODOS OS STATUS</option><option value="ATIVA">ATIVAS</option><option value="INATIVA">VAGAS</option></select></div>
 <div id="facOverview" class="ops-overview"></div><div id="facStats" class="fac-stats compact-stats"></div><div id="facList" class="fac-grid"><div class="placeholder"><b>◆</b><h3>CARREGANDO</h3></div></div>
 </section>
@@ -206,7 +206,7 @@
 
   <section class="tech-panel" data-tech-panel="farm">
     <div class="tech-panel-head"><div><b>Farm e Rota Exclusiva</b><span>Itens coletados, imagens e pontos da rota ficam vinculados ao Group.</span></div><button type="button" id="addFarmItemBtn" class="btn-secondary compact admin-only">+ ADICIONAR ITEM DE FARM</button></div>
-    <div class="form-grid tech-meta-grid"><label>CDS do Farm<input id="fTechFarmCds" placeholder="{x,y,z,h}"></label><label>Nome da rota<input id="fTechRouteName" placeholder="Ex.: RotaExclusivaArmas01"></label><label class="wide">Pontos / Blips da rota<textarea id="fTechRoutePoints" placeholder="{x,y,z,h}
+    <div class="form-grid tech-meta-grid"><label>CDS do Farm<input id="fTechFarmCds" placeholder="{x,y,z,h}"></label><label>Nome da rota<input id="fTechRouteName" placeholder="Ex.: RotaExclusivaArmas01"></label><label>Início da rota<input id="fTechRouteStart" placeholder="{x,y,z,h}"></label><label class="wide">Pontos / Blips da rota<textarea id="fTechRoutePoints" placeholder="{x,y,z,h}
 {x,y,z,h}"></textarea></label></div>
     <div id="groupFarmItems" class="group-farm-items"></div>
   </section>
