@@ -137,6 +137,18 @@
             </div>
           </div>
         </section>
+        <section class="page" id="page-group-profile">
+          <div class="group-profile-page-head">
+            <button type="button" id="groupProfileBack" class="profile-back-btn">← GROUPS / QGs</button>
+            <div class="group-profile-page-copy">
+              <div class="eyebrow">PATRIMÔNIO TÉCNICO • CONFIGURAÇÃO PERMANENTE</div>
+              <h2 id="groupProfilePageTitle">GROUP</h2>
+              <p id="groupProfilePageSubtitle">Perfil operacional completo do Group.</p>
+            </div>
+            <div id="groupProfilePageStatus" class="profile-page-status"></div>
+          </div>
+          <div id="groupProfileMount" class="group-profile-page-mount"></div>
+        </section>
         <section class="page" id="page-usuarios">
           <div class="page-head"><div><div class="eyebrow">ADMINISTRAÇÃO</div><h2>USUÁRIOS</h2></div><button id="newUserBtn" class="btn-primary compact">NOVO USUÁRIO</button></div>
           <div class="user-toolbar"><input id="userSearch" placeholder="Buscar nome ou e-mail..."><select id="userRoleFilter"><option value="">TODOS OS NÍVEIS</option><option>ADMIN</option><option>PADRINHO</option><option>STAFF</option><option>CONSULTA</option></select><select id="userStatusFilter"><option value="">TODOS OS STATUS</option><option value="ATIVO">ATIVOS</option><option value="INATIVO">INATIVOS</option></select></div>
@@ -152,7 +164,7 @@
   <div class="benefit-toggles">
     <label><input type="checkbox" id="fVipOrg"> VIP Org</label>
     <label><input type="checkbox" id="fChatFaccao"> Chat da Facção</label>
-    <label><input type="checkbox" id="fRotaExclusiva"> Rota Exclusiva</label>
+    <label class="legacy-route-toggle"><input type="checkbox" id="fRotaExclusiva"> Rota Exclusiva</label>
     <label><input type="checkbox" id="fTelao"> Telão</label>
     <label><input type="checkbox" id="fGaragemPublica"> Garagem Pública</label>
     <label><input type="checkbox" id="fHeliponto"> Heliponto</label>
@@ -177,7 +189,7 @@
     <label>Arena<input id="fArena" placeholder="{x,y,z,h}"></label>
     <label>Farm<input id="fFarm" placeholder="{x,y,z,h}"></label>
     <label>Craft<input id="fCraft" placeholder="{x,y,z,h}"></label>
-    <label class="wide">Blips da Rota Exclusiva<textarea id="fRotaBlips" placeholder="{x,y,z},&#10;{x,y,z},&#10;{x,y,z}"></textarea></label>
+    <label class="wide legacy-route-fields">Blips da Rota Exclusiva<textarea id="fRotaBlips" placeholder="{x,y,z},&#10;{x,y,z},&#10;{x,y,z}"></textarea></label>
     <label>Modelo/Nome do Telão<input id="fTelaoNome" placeholder="Ex.: paradise_telao01a"></label>
     <label>Telão — CDS/postit<input id="fTelaoPostit" placeholder="{x,y,z}"></label>
     <label class="wide">Telão — CDS do jogador<input id="fTelaoCds" placeholder="{x,y,z,h}"></label>
@@ -205,10 +217,47 @@
   </section>
 
   <section class="tech-panel" data-tech-panel="farm">
-    <div class="tech-panel-head"><div><b>Farm e Rota Exclusiva</b><span>Itens coletados, imagens e pontos da rota ficam vinculados ao Group.</span></div><button type="button" id="addFarmItemBtn" class="btn-secondary compact admin-only">+ ADICIONAR ITEM DE FARM</button></div>
-    <div class="form-grid tech-meta-grid"><label>CDS do Farm<input id="fTechFarmCds" placeholder="{x,y,z,h}"></label><label>Nome da rota<input id="fTechRouteName" placeholder="Ex.: RotaExclusivaArmas01"></label><label>Início da rota<input id="fTechRouteStart" placeholder="{x,y,z,h}"></label><label class="wide">Pontos / Blips da rota<textarea id="fTechRoutePoints" placeholder="{x,y,z,h}
-{x,y,z,h}"></textarea></label></div>
-    <div id="groupFarmItems" class="group-farm-items"></div>
+    <div class="tech-panel-head route-panel-head"><div><b>Farm / Rota</b><span>Os itens vêm automaticamente dos insumos do Craft. As alterações normais partem do Perfil; a Rota Exclusiva é a exceção e recebe as CDS pela Solicitação.</span></div><button type="button" id="addFarmItemBtn" class="btn-secondary compact admin-only">+ ITEM MANUAL</button></div>
+
+    <div class="route-overview" id="routeOverview">
+      <div class="route-type-card"><span>TIPO DA ROTA</span><strong id="routeTypeLabel">ROTA PADRÃO</strong><small id="routeTypeHelp">Utiliza a rota padrão do segmento.</small></div>
+      <div class="route-kpi-card"><span>BLIPS EXCLUSIVOS</span><strong id="routePointCount">0</strong><small id="routePointHint">Não se aplica à rota padrão.</small></div>
+      <div class="route-kpi-card route-start-card"><span>INÍCIO / FARM</span><strong id="routeStartDisplay">—</strong><small>Blip inicial cadastrado para este Group.</small></div>
+    </div>
+
+    <div class="route-choice admin-only" id="routeChoice">
+      <span>ROTA EXCLUSIVA?</span>
+      <button type="button" class="route-choice-btn" data-route-exclusive="0">NÃO · PADRÃO</button>
+      <button type="button" class="route-choice-btn" data-route-exclusive="1">SIM · EXCLUSIVA</button>
+    </div>
+
+    <div class="route-admin-meta admin-only">
+      <label>Blip / início do Farm<input id="fTechRouteStart" placeholder="{x,y,z,h}"></label>
+      <input id="fTechFarmCds" type="hidden">
+      <input id="fTechRouteName" type="hidden">
+    </div>
+
+    <div class="route-items-section">
+      <div class="route-section-title"><div><span>ITENS DA ROTA</span><b>Insumos coletados para abastecer o Craft</b></div><small>Sincronizado automaticamente pelas receitas do Group.</small></div>
+      <div id="groupFarmItems" class="group-farm-items route-item-grid"></div>
+    </div>
+
+    <div id="exclusiveRouteBox" class="exclusive-route-box hidden">
+      <div class="exclusive-route-summary">
+        <div><span>ROTA EXCLUSIVA</span><b id="exclusiveRouteSummary">0 CDS cadastradas</b><small>As CDS vêm da solicitação feita com os pontos recebidos pelo takefarm e ficam salvas aqui para consulta.</small></div>
+        <button type="button" id="routePointsToggleBtn" class="btn-secondary compact">VER CDS DA ROTA</button>
+      </div>
+      <div id="routePointsDrawer" class="route-points-drawer hidden">
+        <div id="routePointsList" class="route-points-list"></div>
+        <div class="route-points-editor admin-only">
+          <label>Correção manual das CDS <small>Uso administrativo. O fluxo normal é: takefarm → Solicitação de Rota Exclusiva → Perfil do Group.</small>
+            <textarea id="fTechRoutePoints" placeholder="{x,y,z,h}
+{x,y,z,h}"></textarea>
+          </label>
+        </div>
+      </div>
+    </div>
+    <textarea id="fTechRoutePointsStandard" class="hidden" aria-hidden="true"></textarea>
   </section>
 
   <section class="tech-panel" data-tech-panel="estrutura">
@@ -253,7 +302,7 @@
 <label class="wide">Campos / dados para esta solicitação<textarea id="reqDetalhes" rows="9" placeholder="Preencha apenas os dados que mudam nesta solicitação..."></textarea></label>
 <label>Facção vinculada<input id="reqFaccao" disabled></label><label>Origem<input id="reqOrigem" disabled value="Biblioteca de modelos"></label>
 <label class="wide">Prévia pronta para o Discord<textarea id="reqPreview" rows="14" readonly></textarea></label>
-</div><div class="modal-actions"><button type="button" id="copyReqBtn" class="btn-secondary">COPIAR PARA O DISCORD</button><button type="submit" id="saveModelBtn" class="btn-primary compact">SALVAR MODELO</button></div></form></div></div>
+</div><div id="routeRequestSyncBox" class="route-request-sync hidden"><div><b>EXCEÇÃO · ROTA EXCLUSIVA: SOLICITAÇÃO → PERFIL</b><span>Para Rota Exclusiva, cole aqui as CDS recebidas pelo takefarm. Ao criar a solicitação, o High OS também grava esses pontos no Perfil Técnico do Group.</span></div><button type="button" id="applyRouteRequestBtn" class="btn-primary compact">CRIAR SOLICITAÇÃO + SALVAR NO PERFIL</button></div><div class="modal-actions"><button type="button" id="copyReqBtn" class="btn-secondary">COPIAR PARA O DISCORD</button><button type="submit" id="saveModelBtn" class="btn-primary compact">SALVAR MODELO</button></div></form></div></div>
 
 <div id="userModal" class="modal hidden"><div class="modal-card user-modal-card"><button class="modal-x" id="userModalClose">×</button><div class="eyebrow">ADMINISTRAÇÃO DE ACESSO</div><h2 id="userModalTitle">NOVO USUÁRIO</h2>
 <form id="userForm"><input type="hidden" id="userOriginalEmail"><div class="form-grid">
