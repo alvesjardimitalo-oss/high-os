@@ -49,6 +49,7 @@
           <button class="nav-item" data-page="organizacoes">♜ <span>Facções</span></button>
           <button class="nav-item" data-page="entregas">◇ <span>Entregas</span></button>
           <button class="nav-item" data-page="solicitacoes">▤ <span>Solicitações</span></button>
+          <button class="nav-item" data-page="crafts">⚒ <span>Crafts</span></button>
           <button class="nav-item" data-page="metricas">▥ <span>Métricas</span></button>
           <button class="nav-item" data-page="economia">$ <span>Economia</span></button>
           <button class="nav-item" data-page="historico">◷ <span>Histórico</span></button>
@@ -59,7 +60,7 @@
       </aside>
       <div class="content">
         <section class="page active" id="page-dashboard">
-          <div class="page-head"><div><div class="eyebrow">CENTRAL OPERACIONAL</div><h2>DASHBOARD</h2></div><span class="dev-badge">DEV V6.1</span></div>
+          <div class="page-head"><div><div class="eyebrow">CENTRAL OPERACIONAL</div><h2>DASHBOARD</h2></div><span class="dev-badge">DEV V6.3</span></div>
           <div class="welcome"><div><span>Bem-vindo ao</span><strong>HIGH OS</strong><p>Groups/QGs, entregas e Biblioteca de Solicitações compartilham agora a mesma base operacional.</p></div><div class="big-mark">HIGH<br><b>ILEGAL</b></div></div>
           <div class="cards"><article><b>◆</b><strong>Groups / QGs</strong><span class="online">Operacional</span></article><article><b>▤</b><strong>Solicitações</strong><span class="online">Operacional</span></article><article><b>♟</b><strong>Usuários</strong><span class="online">Administração ativa</span></article><article><b>✓</b><strong>Firebase</strong><span class="online">Conectado</span></article></div>
           <div class="info-panel"><div><span>CONTA AUTORIZADA</span><strong id="dashEmail">—</strong></div><div><span>NÍVEL DE ACESSO</span><strong id="dashRole">—</strong></div><div><span>STATUS</span><strong class="online">ATIVO</strong></div></div>
@@ -84,6 +85,14 @@
           <div class="req-toolbar"><input id="reqSearch" placeholder="Buscar modelo, assunto, categoria, Group..."><select id="reqTypeFilter"><option value="">TODAS AS CATEGORIAS</option></select></div>
           <div id="reqStats" class="fac-stats"></div>
           <div id="reqList" class="req-list"><div class="placeholder"><b>▤</b><h3>CARREGANDO MODELOS</h3></div></div>
+        </section>
+
+        <section class="page" id="page-crafts">
+          <div class="page-head"><div><div class="eyebrow">CATÁLOGO OPERACIONAL • RECEITAS DA CIDADE</div><h2>CRAFTS</h2><p class="page-subtitle">Receitas visuais ligadas aos spawns oficiais dos itens. As imagens são carregadas automaticamente de <b>assets/itens/</b>.</p></div><button id="newCraftBtn" class="btn-primary compact admin-only">NOVA RECEITA</button></div>
+          <div class="craft-toolbar"><input id="craftSearch" placeholder="Buscar produto, spawn, ingrediente ou Group..."><select id="craftSegment"><option value="">TODOS OS SEGMENTOS</option><option>ARMAS</option><option>MUNIÇÃO</option><option>LAVAGEM</option><option>DROGAS</option><option>DESMANCHE</option><option>CONTRABANDO</option><option>HOSPITAL ILEGAL</option><option>MECÂNICA ILEGAL</option><option>OUTROS</option></select><select id="craftStatus"><option value="">TODAS</option><option value="ATIVA">ATIVAS</option><option value="INATIVA">INATIVAS</option></select></div>
+          <div id="craftOverview" class="craft-overview"></div>
+          <div id="craftStats" class="fac-stats compact-stats"></div>
+          <div id="craftGrid" class="craft-grid"><div class="placeholder"><b>⚒</b><h3>CARREGANDO RECEITAS</h3></div></div>
         </section>
         <section class="page" id="page-metricas">
           <div class="page-head"><div><div class="eyebrow">PRESENÇA • 14H / 16H / 21H / 23H</div><h2>MÉTRICAS</h2><p class="page-subtitle">Fonte oficial lida diretamente do Google Sheets com a sua permissão. A planilha original não é alterada; o Firestore funciona como cache e histórico de segurança.</p></div><div class="metric-head-actions"><button id="syncMetricBtn" class="btn-primary compact admin-only">SINCRONIZAR AGORA</button><button id="metricSourceBtn" class="btn-secondary compact admin-only">FONTE</button><button id="openMetricImportBtn" class="btn-secondary compact admin-only">IMPORTAÇÃO MANUAL</button></div></div>
@@ -146,6 +155,28 @@
       </div>
     </section>
   </main>
+
+<div id="craftModal" class="modal hidden"><div class="modal-card craft-modal-card"><button class="modal-x" id="craftModalClose">×</button><div class="eyebrow">RECEITA OPERACIONAL</div><h2 id="craftModalTitle">CRAFT</h2>
+  <form id="craftForm"><input type="hidden" id="craftId">
+    <div class="craft-editor-head"><div class="craft-product-preview"><img id="craftPreviewImg" src="assets/high_logo.png" alt=""><div><b id="craftPreviewName">NOVO ITEM</b><span id="craftPreviewSpawn">spawn</span></div></div><span class="craft-image-hint">Imagem automática: assets/itens/&lt;spawn&gt;.png</span></div>
+    <div class="form-grid">
+      <label>Nome do produto<input id="craftName" required placeholder="Ex.: T54"></label>
+      <label>Spawn do produto<input id="craftSpawn" required placeholder="Ex.: WEAPON_PISTOL_MK2"></label>
+      <label>Arquivo da imagem (opcional)<input id="craftImage" placeholder="Ex.: t54.png"></label>
+      <label>Segmento<select id="craftSeg"><option>ARMAS</option><option>MUNIÇÃO</option><option>LAVAGEM</option><option>DROGAS</option><option>DESMANCHE</option><option>CONTRABANDO</option><option>HOSPITAL ILEGAL</option><option>MECÂNICA ILEGAL</option><option>OUTROS</option></select></label>
+      <label>Quantidade produzida<input id="craftOutputQty" type="number" min="1" value="1"></label>
+      <label>Nível<input id="craftLevel" type="number" min="0" placeholder="Opcional"></label>
+      <label>Máximo / lote<input id="craftMax" type="number" min="0" placeholder="Opcional"></label>
+      <label>Status<select id="craftState"><option value="ATIVA">ATIVA</option><option value="INATIVA">INATIVA</option></select></label>
+      <label class="wide">Groups / permissões<input id="craftGroups" placeholder="Ex.: Armas01, Armas02, Armas04"></label>
+      <label class="wide">Observações<textarea id="craftNotes" placeholder="Origem, regra específica, validade, etc."></textarea></label>
+    </div>
+    <div class="craft-ingredients-head"><div><span>INGREDIENTES / INSUMOS</span><small>Use o spawn exato para carregar a imagem da pasta itens.</small></div><button type="button" id="addIngredientBtn" class="mini-btn">+ INGREDIENTE</button></div>
+    <div id="craftIngredientsEditor" class="craft-ingredients-editor"></div>
+    <div class="modal-actions"><button type="button" class="btn-secondary" id="copyCraftBtn">COPIAR RECEITA</button><button type="submit" class="btn-primary admin-only">SALVAR RECEITA</button></div>
+  </form>
+</div></div>
+
 <div id="facModal" class="modal hidden"><div class="modal-card fac-modal-card-wide"><button class="modal-x" id="facModalClose">×</button><div class="eyebrow">PERFIL TÉCNICO DO GROUP</div><h2 id="facModalTitle">GROUP</h2><div id="groupProfileSummary" class="group-profile-summary"></div><form id="facForm"><input type="hidden" id="fGroup"><div class="form-grid"><label>Group<input id="fGroupShow" disabled></label><label>Status<select id="fStatus"><option value="ATIVA">ATIVA</option><option value="INATIVA">INATIVA / VAGA</option></select></label><label>Facção<input id="fFaccao"></label><label>QG / Favela<input id="fQG"></label><label class="wide">Produto<textarea id="fProduto"></textarea></label><label>Líder (ID / Nome / Tel)<input id="fLider"></label><label>Staff responsável<input id="fStaff"></label><label>Data entrega<input id="fData" placeholder="dd/mm/aaaa"></label><label>Anúncio Discord<input id="fAnuncio"></label><label class="wide">CDS<input id="fCds"></label><label class="wide">Observações<textarea id="fObs"></textarea></label></div>
 <div class="benefits-box">
   <div class="benefits-head"><div><div class="eyebrow">BASE DO LOCAL / GROUP</div><h3>BENEFÍCIOS E SETAGENS</h3></div><small>Estes dados permanecem no local mesmo após recolhimento.</small></div>
