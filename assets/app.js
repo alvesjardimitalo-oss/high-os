@@ -38,6 +38,25 @@ onAuthStateChanged(auth,async user=>{
 
 document.querySelectorAll('.nav-item').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));$('#page-'+btn.dataset.page).classList.add('active')}));
 
+// HIGH OS V6.7 · o perfil do Group passa a abrir como página interna, não como modal.
+function activateAppPage(page){
+ document.querySelectorAll('.page').forEach(x=>x.classList.toggle('active',x.id==='page-'+page));
+ document.querySelectorAll('.nav-item').forEach(x=>x.classList.toggle('active',x.dataset.page===page));
+ try{window.scrollTo({top:0,behavior:'smooth'})}catch{}
+}
+function showGroupProfilePage(f){
+ const card=$('#facModal .fac-modal-card-wide')||$('.fac-modal-card-wide');
+ const mount=$('#groupProfileMount');
+ if(card&&mount&&card.parentElement!==mount){mount.appendChild(card);card.classList.add('profile-page-card')}
+ $('#groupProfilePageTitle').textContent=f?.group||'GROUP';
+ $('#groupProfilePageSubtitle').textContent=[f?.qg||'QG sem nome',f?.faccao?`Ocupante: ${f.faccao}`:'Group vago'].join(' • ');
+ const st=$('#groupProfilePageStatus');if(st)st.innerHTML=`<span class="status-chip ${(f?.status||'INATIVA').toLowerCase()}">${esc(f?.status==='ATIVA'?'OCUPADO':'VAGO')}</span>`;
+ activateAppPage('group-profile');
+}
+function closeGroupProfilePage(){activateAppPage('faccoes')}
+$('#groupProfileBack')?.addEventListener('click',closeGroupProfilePage);
+
+
 async function loadFaccoes(){
  try{const qs=await getDocs(facCol);faccoes=qs.docs.map(d=>({id:d.id,...d.data()}));faccoes.sort((a,b)=>(a.numero||999)-(b.numero||999));renderFaccoes()}catch(e){$('#facList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR</h3><p>${e.message}</p></div>`}
 }
@@ -156,23 +175,23 @@ async function copyDeliveryExtract(){const t=$('#deliveryPreview').value;try{awa
 
 function openFac(id){
  const f=faccoes.find(x=>x.id===id);if(!f)return;
- $('#fGroup').value=f.group;$('#fGroupShow').value=f.group;$('#fStatus').value=f.status||'INATIVA';$('#fFaccao').value=f.faccao||'';$('#fQG').value=f.qg||'';$('#fProduto').value=f.produto||'';$('#fLider').value=f.lider||'';$('#fStaff').value=f.staff||'';$('#fData').value=f.dataEntrega||'';$('#fAnuncio').value=f.anuncio||'';$('#fCds').value=f.cds||'';$('#fObs').value=f.observacoes||'';setFormBenefits(f.beneficios||{});renderDefaultDeliveryProfile(f);renderTechProfile(f);$('#facModalTitle').textContent=f.group;$('#facModal').classList.remove('hidden');updateDeliveryPreview();
+ $('#fGroup').value=f.group;$('#fGroupShow').value=f.group;$('#fStatus').value=f.status||'INATIVA';$('#fFaccao').value=f.faccao||'';$('#fQG').value=f.qg||'';$('#fProduto').value=f.produto||'';$('#fLider').value=f.lider||'';$('#fStaff').value=f.staff||'';$('#fData').value=f.dataEntrega||'';$('#fAnuncio').value=f.anuncio||'';$('#fCds').value=f.cds||'';$('#fObs').value=f.observacoes||'';setFormBenefits(f.beneficios||{});renderDefaultDeliveryProfile(f);renderTechProfile(f);$('#facModalTitle').textContent=f.group;showGroupProfilePage(f);updateDeliveryPreview();
  $('#recolherBtn').style.display=f.status==='ATIVA'?'block':'none';
 }
-$('#facModalClose').onclick=()=>$('#facModal').classList.add('hidden');
-$('#facModal').addEventListener('click',e=>{if(e.target.id==='facModal')$('#facModal').classList.add('hidden')});
+$('#facModalClose').onclick=closeGroupProfilePage;
+
 ['fStatus','fFaccao','fQG','fProduto','fLider','fStaff','fData','fAnuncio','fCds','fObs','fVipOrg','fChatFaccao','fSalario','fSalarioMin','fRadio','fGaragemVipBlip','fGaragemVipSpawn','fGaragemVipVeiculos','fLojaRoupas','fBarbearia','fTatuagem','fShopExclusivo','fBau','fBauCapacidade','fArena','fFarm','fCraft','fRotaExclusiva','fRotaBlips','fTelao','fTelaoNome','fTelaoPostit','fTelaoCds','fGaragemPublica','fGaragemPublicaBlip','fGaragemPublicaSpawn','fHeliponto','fHelipontoBlip','fHelipontoSpawn','fOutrosBeneficios','fPlanoPadrao','fPerfilObs','fTechCraftCds','fTechCraftNome','fTechFarmCds','fTechRouteName','fTechRouteStart','fTechRoutePoints'].forEach(id=>$('#'+id)?.addEventListener('input',updateDeliveryPreview));
 $('#copyDeliveryBtn').onclick=copyDeliveryExtract; $('#copyDeliveryRequestsBtn').onclick=copyDeliveryRequests;
 
 $('#facForm').onsubmit=async e=>{
  e.preventDefault();const group=$('#fGroup').value,old=faccoes.find(x=>x.group===group);const data={...old,status:$('#fStatus').value,faccao:$('#fFaccao').value.trim(),qg:$('#fQG').value.trim(),produto:$('#fProduto').value.trim(),lider:$('#fLider').value.trim(),staff:$('#fStaff').value.trim(),dataEntrega:$('#fData').value.trim(),anuncio:$('#fAnuncio').value.trim(),cds:$('#fCds').value.trim(),observacoes:$('#fObs').value.trim(),beneficios:getFormBenefits(),perfilEntrega:{planoPadrao:$('#fPlanoPadrao')?.value.trim()||'',observacao:$('#fPerfilObs')?.value.trim()||'',beneficiosPadrao:selectedDefaultBenefits()},perfilTecnico:getTechProfileFromForm(),updatedAt:serverTimestamp(),updatedBy:currentUser.email};
  if(data.status==='ATIVA'&&!data.faccao){alert('Informe o nome da facção para marcar como ATIVA.');return}
- try{const generated=autoDeliveryRequests(data);await setDoc(doc(db,'highos','data','faccoes',group),data);await addDoc(histCol,{tipo:old?.status==='INATIVA'&&data.status==='ATIVA'?'ENTREGA':'EDICAO',group,antes:snapshot(old),depois:snapshot(data),solicitacoesGeradas:generated,extratoEntrega:buildDeliveryExtract(data),usuario:currentUser.email,data:serverTimestamp()});$('#facModal').classList.add('hidden');await loadFaccoes()}catch(err){alert('Erro ao salvar: '+err.message)}
+ try{const generated=autoDeliveryRequests(data);await setDoc(doc(db,'highos','data','faccoes',group),data);await addDoc(histCol,{tipo:old?.status==='INATIVA'&&data.status==='ATIVA'?'ENTREGA':'EDICAO',group,antes:snapshot(old),depois:snapshot(data),solicitacoesGeradas:generated,extratoEntrega:buildDeliveryExtract(data),usuario:currentUser.email,data:serverTimestamp()});closeGroupProfilePage();await loadFaccoes()}catch(err){alert('Erro ao salvar: '+err.message)}
 };
 $('#recolherBtn').onclick=async()=>{
  const group=$('#fGroup').value,old=faccoes.find(x=>x.group===group);if(!old||!confirm(`Recolher ${old.faccao||group} e deixar ${group} VAGO? O histórico será preservado.`))return;
  const data={...old,status:'INATIVA',faccao:'',lider:'',staff:'',dataEntrega:'',observacoes:old.observacoes||'',updatedAt:serverTimestamp(),updatedBy:currentUser.email};
- try{await setDoc(doc(db,'highos','data','faccoes',group),data);if(old.faccao){const oid=orgKey(old.faccao);await setDoc(doc(db,'highos','data','organizacoes',oid),{nome:old.faccao,status:'SEM_GROUP',groupAtual:'',segmentoAtual:'',qgAtual:'',updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true})}await addDoc(histCol,{tipo:'RECOLHIMENTO',group,faccao:old.faccao||'',antes:snapshot(old),depois:snapshot(data),usuario:currentUser.email,data:serverTimestamp()});$('#facModal').classList.add('hidden');await loadFaccoes()}catch(err){alert('Erro ao recolher: '+err.message)}
+ try{await setDoc(doc(db,'highos','data','faccoes',group),data);if(old.faccao){const oid=orgKey(old.faccao);await setDoc(doc(db,'highos','data','organizacoes',oid),{nome:old.faccao,status:'SEM_GROUP',groupAtual:'',segmentoAtual:'',qgAtual:'',updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true})}await addDoc(histCol,{tipo:'RECOLHIMENTO',group,faccao:old.faccao||'',antes:snapshot(old),depois:snapshot(data),usuario:currentUser.email,data:serverTimestamp()});closeGroupProfilePage();await loadFaccoes()}catch(err){alert('Erro ao recolher: '+err.message)}
 };
 function snapshot(o){if(!o)return null;const x={...o};delete x.updatedAt;return x}
 
@@ -240,11 +259,11 @@ function initRequestUi(){
       $('#reqAssunto').value=defaultSubject($('#reqTipo').value);
       $('#reqModelName').value=requestTypeName($('#reqTipo').value);
     }
-    updateRequestPreview();
+    updateRequestPreview();syncRouteRequestAction();
   });
-  ['reqGroup','reqAssunto','reqDetalhes','reqModelName'].forEach(id=>$('#'+id).addEventListener('input',()=>{if(id==='reqGroup')syncRequestFaction();updateRequestPreview()}));
+  ['reqGroup','reqAssunto','reqDetalhes','reqModelName'].forEach(id=>$('#'+id).addEventListener('input',()=>{if(id==='reqGroup')syncRequestFaction();updateRequestPreview();syncRouteRequestAction()}));
   $('#reqSearch').addEventListener('input',renderRequests); $('#reqTypeFilter').addEventListener('change',renderRequests);
-  $('#copyReqBtn').onclick=copyRequestText; $('#reqForm').addEventListener('submit',saveRequestModel);
+  $('#copyReqBtn').onclick=copyRequestText; $('#applyRouteRequestBtn')?.addEventListener('click',applyRouteRequestToProfile); $('#reqForm').addEventListener('submit',saveRequestModel);
 }
 function requestTypeName(v){return REQUEST_TYPES.find(x=>x[0]===v)?.[1]||v||'Solicitação Geral'}
 function updateRequestGroupOptions(selected=''){
@@ -390,7 +409,7 @@ function openRequestModal(id='',group=''){
  $('#reqDetalhes').value=model?.detalhes||TYPE_PLACEHOLDERS[$('#reqTipo').value]||'';
  $('#reqOrigem').value=model?.origem||(model?.builtin?'Base padrão High OS':'Biblioteca de modelos');
  $('#reqModalTitle').textContent=model?'GERAR A PARTIR DO MODELO':'NOVO MODELO / SOLICITAÇÃO';
- syncRequestFaction();updateRequestPreview();$('#reqModal').classList.remove('hidden');
+ syncRequestFaction();updateRequestPreview();syncRouteRequestAction();$('#reqModal').classList.remove('hidden');
 }
 async function loadRequests(){
  try{
@@ -412,6 +431,40 @@ function renderRequests(){
  document.querySelectorAll('.generate-model').forEach(b=>b.onclick=e=>{e.stopPropagation();openRequestModal(b.dataset.id)});
  document.querySelectorAll('.model-card').forEach(c=>c.onclick=()=>openRequestModal(c.dataset.id));
 }
+function requestRoutePoints(){
+ const d=$('#reqDetalhes')?.value||'';
+ let pts=getDetailBlock('Blips da rota nova',d);
+ if(!pts.length)pts=String(d).split(/\r?\n/).map(x=>x.trim()).filter(x=>/^\{?\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?(?:\s*,\s*-?\d+(?:\.\d+)?)?\s*\}?,?$/.test(x));
+ return pts.map(x=>x.replace(/,$/,'').trim()).filter(Boolean);
+}
+function syncRouteRequestAction(){
+ const box=$('#routeRequestSyncBox'),btn=$('#applyRouteRequestBtn');if(!box||!btn)return;
+ const isRoute=$('#reqTipo')?.value==='ROTA_FARM',group=$('#reqGroup')?.value||'',pts=isRoute?requestRoutePoints():[];
+ box.classList.toggle('hidden',!isRoute);
+ const note=box.querySelector('span');
+ if(!group){btn.disabled=true;btn.textContent='SELECIONE UM GROUP';if(note)note.textContent='Selecione o Group para conectar esta solicitação ao Perfil Técnico.';return}
+ btn.disabled=!pts.length;btn.textContent=pts.length?`CRIAR SOLICITAÇÃO + SALVAR ${pts.length} CDS`:'ADICIONE AS CDS DO TAKEFARM';
+ if(note)note.textContent=pts.length?`${pts.length} CDS detectadas. Esta é a exceção do fluxo: a Solicitação alimentará o Perfil Técnico e marcará a rota como EXCLUSIVA.`:'Cole abaixo as CDS recebidas pelo takefarm. Para os demais recursos, o fluxo continua Perfil → comparação → Solicitação.';
+}
+async function applyRouteRequestToProfile(){
+ const group=$('#reqGroup')?.value||'',tipo=$('#reqTipo')?.value||'';if(tipo!=='ROTA_FARM')return;
+ if(!group)return alert('Selecione o Group da rota.');
+ const pts=requestRoutePoints();if(!pts.length)return alert('Não encontrei CDS válidas em “Blips da rota nova”.');
+ const f=faccoes.find(x=>x.group===group);if(!f)return alert('Group não encontrado na base atual.');
+ const oldT=mergedTechProfile(f),nextT=clonePlain(oldT);nextT.rota=nextT.rota||{};nextT.rota.nome=`RotaExclusiva${group}`;nextT.rota.pontos=pts.join('\n');nextT.rota.origem='SOLICITACAO_TAKEFARM';nextT.rota.atualizadoPor=currentUser.email;nextT.rota.atualizadoEm=new Date().toISOString();
+ // O início/farm do Group não é substituído pelas 35 CDS: elas são somente os pontos da rota exclusiva.
+ syncFarmWithCraft(nextT);
+ const benefits={...(f.beneficios||{}),rotaExclusiva:true,rotaBlips:pts.join('\n')};
+ try{
+  await setDoc(doc(db,'highos','data','faccoes',group),{perfilTecnico:nextT,beneficios,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true});
+  await addDoc(histCol,{tipo:'ROTA_EXCLUSIVA_SOLICITADA',group,descricao:`Solicitação de rota exclusiva criada e Perfil Técnico alimentado automaticamente • ${pts.length} CDS do takefarm`,rotaPontos:pts,solicitacaoTexto:buildRequestText(),origem:'SOLICITACAO_TAKEFARM',usuario:currentUser.email,data:serverTimestamp()});
+  await loadFaccoes();
+  try{await copyRequestText()}catch{}
+  if(typeof currentGroupProfile!=='undefined'&&currentGroupProfile?.group===group){const fresh=faccoes.find(x=>x.group===group);if(fresh){renderTechProfile(fresh);$('#fRotaExclusiva').checked=true;renderRouteOverview();}}
+  alert(`Solicitação criada para ${group}.\n\n${pts.length} CDS do takefarm foram salvas no Perfil Técnico.\nA rota foi marcada como EXCLUSIVA e o texto foi copiado para o Discord.`);
+ }catch(err){alert('Erro ao salvar a rota no perfil: '+err.message)}
+}
+
 async function saveRequestModel(e){
  e.preventDefault();
  const id=$('#reqId').value;
@@ -1127,24 +1180,48 @@ function mergedTechProfile(f={}){
  const out={craft:{cds:p?.craft?.cds??d.craft.cds,nome:p?.craft?.nome??d.craft.nome,receitas:(explicit?p.craft.receitas:d.craft.receitas).map(recipeNormalize)},farm:{cds:p?.farm?.cds??d.farm.cds,itens:Array.isArray(p?.farm?.itens)?p.farm.itens.map(x=>({...x})):[]},rota:{nome:p?.rota?.nome??d.rota.nome,inicio:p?.rota?.inicio??d.rota.inicio,pontos:p?.rota?.pontos??d.rota.pontos},estruturaExtra:{...(d.estruturaExtra||{}),...(p?.estruturaExtra||{})}};return syncFarmWithCraft(out);
 }
 function renderTechProfile(f){
- techDraft=mergedTechProfile(f);$('#fTechCraftCds').value=techDraft.craft.cds||'';$('#fTechCraftNome').value=techDraft.craft.nome||'';$('#fTechFarmCds').value=techDraft.farm.cds||'';$('#fTechRouteName').value=techDraft.rota.nome||'';$('#fTechRouteStart').value=techDraft.rota.inicio||'';$('#fTechRoutePoints').value=techDraft.rota.pontos||'';renderCraftRecipes();renderFarmItems();renderStructureSnapshot(f);renderConnectedRequests();
+ techDraft=mergedTechProfile(f);$('#fTechCraftCds').value=techDraft.craft.cds||'';$('#fTechCraftNome').value=techDraft.craft.nome||'';$('#fTechFarmCds').value=techDraft.farm.cds||'';$('#fTechRouteName').value=techDraft.rota.nome||'';$('#fTechRouteStart').value=techDraft.rota.inicio||'';$('#fTechRoutePoints').value=techDraft.rota.pontos||'';renderCraftRecipes();renderFarmItems();renderRouteOverview();renderStructureSnapshot(f);renderConnectedRequests();
 }
 function getTechProfileFromForm(){
  if(!techDraft)techDraft={craft:{receitas:[]},farm:{itens:[]},rota:{}};
  techDraft.craft.cds=$('#fTechCraftCds')?.value.trim()||'';techDraft.craft.nome=$('#fTechCraftNome')?.value.trim()||'';techDraft.farm.cds=$('#fTechFarmCds')?.value.trim()||'';techDraft.rota.nome=$('#fTechRouteName')?.value.trim()||'';techDraft.rota.inicio=$('#fTechRouteStart')?.value.trim()||'';techDraft.rota.pontos=$('#fTechRoutePoints')?.value.trim()||'';
  // manter compatibilidade com campos legados da estrutura
- if($('#fCraft'))$('#fCraft').value=techDraft.craft.cds;if($('#fFarm'))$('#fFarm').value=techDraft.farm.cds;if($('#fRotaBlips')&&techDraft.rota.pontos)$('#fRotaBlips').value=techDraft.rota.pontos;
+ if($('#fCraft'))$('#fCraft').value=techDraft.craft.cds;if($('#fFarm'))$('#fFarm').value=techDraft.farm.cds;if($('#fRotaBlips'))$('#fRotaBlips').value=techDraft.rota.pontos;techDraft.rota.nome=$('#fRotaExclusiva')?.checked?`RotaExclusiva${$('#fGroup')?.value||''}`:'';
  syncFarmWithCraft(techDraft);renderFarmItems();return clonePlain(techDraft);
 }
 function recipeCard(r,i){const ins=(r.insumos||[]).map((x,j)=>`<div class="tech-ingredient"><img src="${esc(itemImg(x.spawn,x.imagem))}" onerror="this.style.opacity=.18"><div><b>${esc(x.nome||x.spawn||'Item')}</b><span>${esc(x.spawn||'—')} • x${esc(x.qtd)}</span></div><button type="button" class="tech-remove" data-remove-ing="${i}:${j}" title="Remover">×</button></div>`).join('');return `<article class="tech-recipe-card"><div class="tech-recipe-art"><img src="${esc(itemImg(r.spawn,r.imagem))}" onerror="this.style.opacity=.18"></div><div class="tech-recipe-body"><div class="tech-recipe-title"><div><b>${esc(r.nome||'Receita')}</b><span>${esc(r.spawn||'SEM SPAWN')}</span></div><em>${esc(r.origem||'GROUP')}</em></div><div class="tech-recipe-kpis"><span>NÍVEL <b>${esc(r.nivel||'—')}</b></span><span>MÁX. <b>${esc(r.max||'—')}</b></span><span>INSUMOS <b>${r.insumos?.length||0}</b></span></div><div class="tech-ingredients">${ins||'<small class="muted">Sem insumos cadastrados.</small>'}</div><div class="tech-recipe-actions admin-only"><button type="button" class="mini-btn" data-edit-recipe="${i}">EDITAR</button><button type="button" class="mini-btn danger" data-remove-recipe="${i}">REMOVER DO GROUP</button></div></div></article>`}
 function renderCraftRecipes(){const box=$('#groupCraftRecipes');if(!box)return;const rs=techDraft?.craft?.receitas||[];$('#techCraftSummary').textContent=`${rs.length} receita(s) vinculada(s) a este Group`;box.innerHTML=rs.length?rs.map(recipeCard).join(''):'<div class="delivery-no-change">Nenhuma receita vinculada a este Group.</div>';box.querySelectorAll('[data-remove-recipe]').forEach(b=>b.onclick=()=>{techDraft.craft.receitas.splice(+b.dataset.removeRecipe,1);syncFarmWithCraft();renderCraftRecipes();renderFarmItems();updateDeliveryPreview();renderConnectedRequests()});box.querySelectorAll('[data-edit-recipe]').forEach(b=>b.onclick=()=>editRecipe(+b.dataset.editRecipe));box.querySelectorAll('[data-remove-ing]').forEach(b=>b.onclick=()=>{const [ri,ii]=b.dataset.removeIng.split(':').map(Number);techDraft.craft.receitas[ri].insumos.splice(ii,1);syncFarmWithCraft();renderCraftRecipes();renderFarmItems();updateDeliveryPreview();renderConnectedRequests()});}
 function editRecipe(i){const r=techDraft.craft.receitas[i];if(!r)return;const nome=prompt('Nome do produto:',r.nome);if(nome===null)return;const spawn=prompt('Spawn do produto:',r.spawn);if(spawn===null)return;const nivel=prompt('Nível:',r.nivel||'');if(nivel===null)return;const max=prompt('Máximo / lote:',r.max||'');if(max===null)return;const ing=prompt('Insumos — um por linha: spawn|nome|quantidade\nEx.: pistolbody|Corpo de Pistola|22',(r.insumos||[]).map(x=>`${x.spawn}|${x.nome}|${x.qtd}`).join('\n'));if(ing===null)return;r.nome=nome.trim();r.spawn=spawn.trim();r.nivel=nivel.trim();r.max=max.trim();r.insumos=ing.split(/\r?\n/).map(l=>l.split('|')).filter(a=>a[0]?.trim()).map(a=>{const sp=a[0].trim();return {spawn:sp,nome:(a[1]||ITEM_META[sp]?.nome||sp).trim(),qtd:(a[2]||'').trim(),imagem:ITEM_META[sp]?.imagem||''}});r.origem=r.origem||'EXTRA DO GROUP';syncFarmWithCraft();renderCraftRecipes();renderFarmItems();updateDeliveryPreview();renderConnectedRequests();}
 function addRecipe(){const r=recipeNormalize({origem:'EXTRA DO GROUP'});techDraft.craft.receitas.push(r);editRecipe(techDraft.craft.receitas.length-1);if(!r.nome&&!r.spawn){techDraft.craft.receitas=techDraft.craft.receitas.filter(x=>x!==r)}syncFarmWithCraft();renderCraftRecipes();renderFarmItems();}
-function farmItemCard(x,i){const auto=String(x.origem||'').toUpperCase()==='CRAFT';return `<div class="tech-farm-item"><img src="${esc(itemImg(x.spawn,x.imagem))}" onerror="this.style.opacity=.18"><div><b>${esc(x.nome||x.spawn||'Item')} ${auto?'<em style="font-size:9px;margin-left:6px">DO CRAFT</em>':''}</b><span>${esc(x.spawn||'—')}${x.qtd?' • '+esc(x.qtd):''}${x.detalhe?' • '+esc(x.detalhe):''}</span></div>${auto?'':`<button type="button" class="mini-btn admin-only" data-edit-farm="${i}">EDITAR</button><button type="button" class="tech-remove admin-only" data-remove-farm="${i}">×</button>`}</div>`}
-function renderFarmItems(){const box=$('#groupFarmItems');if(!box)return;const xs=techDraft?.farm?.itens||[];box.innerHTML=xs.length?xs.map(farmItemCard).join(''):'<div class="delivery-no-change">Nenhum item de farm cadastrado neste Group.</div>';box.querySelectorAll('[data-remove-farm]').forEach(b=>b.onclick=()=>{techDraft.farm.itens.splice(+b.dataset.removeFarm,1);renderFarmItems();renderConnectedRequests();updateDeliveryPreview()});box.querySelectorAll('[data-edit-farm]').forEach(b=>b.onclick=()=>editFarmItem(+b.dataset.editFarm));}
+function farmItemCard(x,i){const auto=String(x.origem||'').toUpperCase()==='CRAFT';return `<div class="tech-farm-item route-item-card"><div class="route-item-art"><img src="${esc(itemImg(x.spawn,x.imagem))}" onerror="this.style.opacity=.18"></div><div class="route-item-copy"><b>${esc(x.nome||x.spawn||'Item')}</b><span>${esc(x.spawn||'—')}</span><small>${auto?'VINCULADO AO CRAFT':esc(x.qtd||x.detalhe||'ITEM MANUAL')}</small></div>${auto?'':`<div class="route-item-actions"><button type="button" class="mini-btn admin-only" data-edit-farm="${i}">EDITAR</button><button type="button" class="tech-remove admin-only" data-remove-farm="${i}">×</button></div>`}</div>`}
+function renderFarmItems(){const box=$('#groupFarmItems');if(!box)return;const xs=techDraft?.farm?.itens||[];box.innerHTML=xs.length?xs.map(farmItemCard).join(''):'<div class="route-empty"><b>NENHUM ITEM VINCULADO</b><span>Cadastre receitas no Craft para os insumos aparecerem automaticamente aqui.</span></div>';box.querySelectorAll('[data-remove-farm]').forEach(b=>b.onclick=()=>{techDraft.farm.itens.splice(+b.dataset.removeFarm,1);renderFarmItems();renderConnectedRequests();updateDeliveryPreview()});box.querySelectorAll('[data-edit-farm]').forEach(b=>b.onclick=()=>editFarmItem(+b.dataset.editFarm));}
 function editFarmItem(i){const x=techDraft.farm.itens[i];if(!x)return;const nome=prompt('Nome do item:',x.nome||'');if(nome===null)return;const spawn=prompt('Spawn do item:',x.spawn||'');if(spawn===null)return;const qtd=prompt('Quantidade / observação de coleta:',x.qtd||'');if(qtd===null)return;x.nome=nome.trim();x.spawn=spawn.trim();x.qtd=qtd.trim();x.imagem=ITEM_META[x.spawn]?.imagem||x.imagem||'';renderFarmItems();renderConnectedRequests();updateDeliveryPreview();}
-function addFarmItem(){techDraft.farm.itens.push({nome:'',spawn:'',qtd:'',imagem:''});editFarmItem(techDraft.farm.itens.length-1);techDraft.farm.itens=techDraft.farm.itens.filter(x=>x.nome||x.spawn);renderFarmItems();}
-function renderStructureSnapshot(f=currentFactionFromForm()){const b=f?.beneficios||getFormBenefits(),t=techDraft||mergedTechProfile(f),items=[];const add=(n,v)=>{if(v)items.push([n,v])};add('Craft',t.craft?.cds||b.craft);add('Farm',t.farm?.cds||b.farm);add('Início da Rota',t.rota?.inicio);add('Rota Exclusiva',t.rota?.pontos||b.rotaBlips);add('Garagem Pública',[b.garagemPublicaBlip,b.garagemPublicaSpawn].filter(Boolean).join(' / '));add('Garagem VIP',[b.garagemVipBlip,b.garagemVipSpawn].filter(Boolean).join(' / '));add('Heliponto',[b.helipontoBlip,b.helipontoSpawn].filter(Boolean).join(' / '));add('Rádio',b.radio);add('Baú',b.bau);add('Loja de Roupas',b.lojaRoupas);add('Barbearia',b.barbearia);add('Tatuagem',b.tatuagem);add('Shop Exclusivo',b.shopExclusivo);add('Arena',b.arena);add('Telão',b.telaoCds||b.telaoNome);Object.entries(t.estruturaExtra||{}).forEach(([k,v])=>{if(v&&k!=='fontePerfil')add(({coordenadaBase:'Coordenada Base',garagemDeluxe:'Garagem Deluxe',shopDeluxe:'Shop Deluxe',academia:'Academia',bar:'Bar'}[k]||k),v)});const box=$('#groupStructureSnapshot');if(box)box.innerHTML=items.length?items.map(([n,v])=>`<div class="structure-chip"><span>${esc(n)}</span><b>${esc(v)}</b></div>`).join(''):'<div class="delivery-no-change">Nenhuma estrutura técnica cadastrada.</div>';}
+function addFarmItem(){techDraft.farm.itens.push({nome:'',spawn:'',qtd:'',imagem:'',origem:'MANUAL'});editFarmItem(techDraft.farm.itens.length-1);techDraft.farm.itens=techDraft.farm.itens.filter(x=>x.nome||x.spawn);renderFarmItems();}
+function routePointList(raw=''){
+ const txt=String(raw||'').trim();if(!txt)return [];
+ let pts=txt.split(/\r?\n|·/).map(x=>x.trim()).filter(Boolean);
+ if(pts.length<=1){const found=txt.match(/\{?\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?(?:\s*,\s*-?\d+(?:\.\d+)?)?\s*\}?/g);if(found?.length)pts=found.map(x=>x.trim())}
+ return pts;
+}
+function setRouteExclusive(value){
+ const cb=$('#fRotaExclusiva');if(!cb)return;cb.checked=!!value;
+ if(techDraft?.rota)techDraft.rota.nome=cb.checked?`RotaExclusiva${$('#fGroup')?.value||''}`:'';
+ renderRouteOverview();updateDeliveryPreview();renderConnectedRequests();
+}
+function renderRouteOverview(){
+ const exclusive=!!$('#fRotaExclusiva')?.checked,pts=routePointList(techDraft?.rota?.pontos||$('#fTechRoutePoints')?.value||''),start=techDraft?.rota?.inicio||$('#fTechRouteStart')?.value||'';
+ $('#routeTypeLabel')&&( $('#routeTypeLabel').textContent=exclusive?'ROTA EXCLUSIVA':'ROTA PADRÃO');
+ $('#routeTypeHelp')&&( $('#routeTypeHelp').textContent=exclusive?'Este Group possui uma rota própria de farm.':'Utiliza a rota padrão do segmento.');
+ $('#routePointCount')&&( $('#routePointCount').textContent=exclusive?String(pts.length):'—');
+ $('#routePointHint')&&( $('#routePointHint').textContent=exclusive?(pts.length?`${pts.length} coordenada(s) cadastrada(s).`:'Ainda sem CDS cadastradas.'):'Não se aplica à rota padrão.');
+ $('#routeStartDisplay')&&( $('#routeStartDisplay').textContent=start||'—');
+ document.querySelectorAll('[data-route-exclusive]').forEach(b=>b.classList.toggle('active',String(+exclusive)===b.dataset.routeExclusive));
+ const ex=$('#exclusiveRouteBox');if(ex)ex.classList.toggle('hidden',!exclusive);
+ $('#exclusiveRouteSummary')&&( $('#exclusiveRouteSummary').textContent=`${pts.length} CDS cadastrada${pts.length===1?'':'s'}`);
+ const list=$('#routePointsList');if(list)list.innerHTML=pts.length?pts.map((pt,i)=>`<div class="route-point-row"><span>${String(i+1).padStart(2,'0')}</span><code>${esc(pt)}</code></div>`).join(''):'<div class="route-empty"><b>SEM CDS</b><span>Adicione as coordenadas da rota exclusiva no editor abaixo.</span></div>';
+}
+function toggleRoutePoints(){const drawer=$('#routePointsDrawer'),btn=$('#routePointsToggleBtn');if(!drawer||!btn)return;const willOpen=drawer.classList.contains('hidden');drawer.classList.toggle('hidden',!willOpen);btn.textContent=willOpen?'OCULTAR CDS DA ROTA':'VER CDS DA ROTA';}
+function renderStructureSnapshot(f=currentFactionFromForm()){const b=f?.beneficios||getFormBenefits(),t=techDraft||mergedTechProfile(f),items=[];const add=(n,v)=>{if(v)items.push([n,v])};add('Craft',t.craft?.cds||b.craft);add('Farm / Início',t.rota?.inicio||t.farm?.cds||b.farm);add('Tipo da Rota',b.rotaExclusiva?`Exclusiva • ${routePointList(t.rota?.pontos||b.rotaBlips).length} CDS`:'Padrão');add('Garagem Pública',[b.garagemPublicaBlip,b.garagemPublicaSpawn].filter(Boolean).join(' / '));add('Garagem VIP',[b.garagemVipBlip,b.garagemVipSpawn].filter(Boolean).join(' / '));add('Heliponto',[b.helipontoBlip,b.helipontoSpawn].filter(Boolean).join(' / '));add('Rádio',b.radio);add('Baú',b.bau);add('Loja de Roupas',b.lojaRoupas);add('Barbearia',b.barbearia);add('Tatuagem',b.tatuagem);add('Shop Exclusivo',b.shopExclusivo);add('Arena',b.arena);add('Telão',b.telaoCds||b.telaoNome);Object.entries(t.estruturaExtra||{}).forEach(([k,v])=>{if(v&&k!=='fontePerfil')add(({coordenadaBase:'Coordenada Base',garagemDeluxe:'Garagem Deluxe',shopDeluxe:'Shop Deluxe',academia:'Academia',bar:'Bar'}[k]||k),v)});const box=$('#groupStructureSnapshot');if(box)box.innerHTML=items.length?items.map(([n,v])=>`<div class="structure-chip"><span>${esc(n)}</span><b>${esc(v)}</b></div>`).join(''):'<div class="delivery-no-change">Nenhuma estrutura técnica cadastrada.</div>';}
 function techChanged(oldF,newF){return JSON.stringify(mergedTechProfile(oldF))!==JSON.stringify(newF.perfilTecnico||mergedTechProfile(newF))}
 function techAutoRequests(f=currentFactionFromForm()){
  const old=faccoes.find(x=>x.group===f.group)||{},now=f.perfilTecnico||getTechProfileFromForm(),oldT=mergedTechProfile(old),out=[];
@@ -1161,16 +1238,16 @@ function techAutoRequests(f=currentFactionFromForm()){
 const _autoDeliveryRequestsV62=autoDeliveryRequests;autoDeliveryRequests=function(f=currentFactionFromForm()){return [..._autoDeliveryRequestsV62(f),...techAutoRequests(f)]};
 const _updateDeliveryPreviewV62=updateDeliveryPreview;updateDeliveryPreview=function(){getTechProfileFromForm();_updateDeliveryPreviewV62();try{renderStructureSnapshot(currentFactionFromForm());renderConnectedRequests()}catch{}};
 function renderConnectedRequests(){const box=$('#groupConnectedRequests');if(!box)return;let rs=[];try{rs=autoDeliveryRequests(currentFactionFromForm())}catch{}box.innerHTML=rs.length?rs.map((r,i)=>`<article class="delivery-request-card"><div><b>${i+1}. ${esc(r.titulo)}</b><span>${esc(r.tipo)}</span></div><pre>${esc(r.texto)}</pre></article>`).join(''):'<div class="delivery-no-change">Nenhuma solicitação técnica pendente pelas alterações atuais.</div>';}
-$('#addCraftRecipeBtn')?.addEventListener('click',addRecipe);$('#addFarmItemBtn')?.addEventListener('click',addFarmItem);
-['fTechCraftCds','fTechCraftNome','fTechFarmCds','fTechRouteName','fTechRouteStart','fTechRoutePoints'].forEach(id=>$('#'+id)?.addEventListener('input',()=>{getTechProfileFromForm();renderConnectedRequests();renderStructureSnapshot(currentFactionFromForm());}));
-document.querySelectorAll('.tech-tab').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.tech-tab').forEach(x=>x.classList.toggle('active',x===b));document.querySelectorAll('.tech-panel').forEach(p=>p.classList.toggle('active',p.dataset.techPanel===b.dataset.techTab));if(b.dataset.techTab==='estrutura')renderStructureSnapshot(currentFactionFromForm());if(b.dataset.techTab==='solicitacoes')renderConnectedRequests()}));
+$('#addCraftRecipeBtn')?.addEventListener('click',addRecipe);$('#addFarmItemBtn')?.addEventListener('click',addFarmItem);$('#routePointsToggleBtn')?.addEventListener('click',toggleRoutePoints);document.querySelectorAll('[data-route-exclusive]').forEach(b=>b.addEventListener('click',()=>setRouteExclusive(b.dataset.routeExclusive==='1')));$('#fRotaExclusiva')?.addEventListener('change',renderRouteOverview);
+['fTechCraftCds','fTechCraftNome','fTechFarmCds','fTechRouteName','fTechRouteStart','fTechRoutePoints'].forEach(id=>$('#'+id)?.addEventListener('input',()=>{getTechProfileFromForm();renderRouteOverview();renderConnectedRequests();renderStructureSnapshot(currentFactionFromForm());}));
+document.querySelectorAll('.tech-tab').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.tech-tab').forEach(x=>x.classList.toggle('active',x===b));document.querySelectorAll('.tech-panel').forEach(p=>p.classList.toggle('active',p.dataset.techPanel===b.dataset.techTab));if(b.dataset.techTab==='farm')renderRouteOverview();if(b.dataset.techTab==='estrutura')renderStructureSnapshot(currentFactionFromForm());if(b.dataset.techTab==='solicitacoes')renderConnectedRequests()}));
 
 // Alvesinho usa o mesmo perfil do Group — sem base paralela.
 const _alvesAnswerV63Base=alvesAnswer;alvesAnswer=function(question=''){
  const q=alvesNorm(question),g=alvesFindGroup(question);if(g){const t=mergedTechProfile(g);
   if(q.includes('craft')||q.includes('fabric')||q.includes('receita')){const rs=t.craft?.receitas||[];const hit=rs.find(r=>q.includes(alvesNorm(r.nome))||q.includes(alvesNorm(r.spawn)));if(hit)return {text:`${hit.nome}${hit.spawn?' ('+hit.spawn+')':''}\n${hit.nivel?'Nível: '+hit.nivel+' • ':''}${hit.max?'Máx.: '+hit.max:''}\nReceita / insumos:\n${(hit.insumos||[]).map(x=>`• ${x.nome||x.spawn} x${x.qtd}`).join('\n')||'• Sem insumos cadastrados'}`,refs:[g.group,'Perfil Técnico','Craft']};return {text:rs.length?`Craft de ${g.group} (${rs.length} receita(s)):\n${rs.map(r=>`• ${r.nome}${r.spawn?' ('+r.spawn+')':''}`).join('\n')}`:`${g.group} não possui receitas de Craft cadastradas.`,refs:[g.group,'Perfil Técnico','Craft']};}
   if((q.includes('farm')||q.includes('insumo'))&&!q.includes('receita')){const xs=t.farm?.itens||[];return {text:xs.length?`Farm / Insumos de ${g.group}:\n${xs.map(x=>`• ${x.nome||x.spawn}${x.spawn?' ('+x.spawn+')':''}${x.qtd?' — '+x.qtd:''}${x.detalhe?' — '+x.detalhe:''}`).join('\n')}`:`Nenhum insumo de Craft está disponível na rota de ${g.group}.`,refs:[g.group,'Perfil Técnico','Farm']};}
-  if(q.includes('rota')){const xs=t.farm?.itens||[];return {text:`Rota de ${g.group}:\n${t.rota?.nome?`Nome: ${t.rota.nome}\n`:''}${t.rota?.inicio?`Início: ${t.rota.inicio}\n`:''}${t.rota?.pontos?`Pontos: ${t.rota.pontos}\n`:''}Itens coletados para o Craft:\n${xs.length?xs.map(x=>`• ${x.nome||x.spawn}${x.spawn?' ('+x.spawn+')':''}`).join('\n'):'• Nenhum insumo de Craft vinculado.'}`,refs:[g.group,'Perfil Técnico','Rota','Craft']};}
+  if(q.includes('rota')){const xs=t.farm?.itens||[],exclusive=!!g.beneficios?.rotaExclusiva,pts=routePointList(t.rota?.pontos||g.beneficios?.rotaBlips||'');return {text:`Rota de ${g.group}:\nTipo: ${exclusive?'EXCLUSIVA':'PADRÃO'}\n${t.rota?.inicio?`Início: ${t.rota.inicio}\n`:''}${exclusive?`CDS da rota exclusiva: ${pts.length} ponto(s) cadastrado(s).\n`:''}Itens coletados para o Craft:\n${xs.length?xs.map(x=>`• ${x.nome||x.spawn}${x.spawn?' ('+x.spawn+')':''}`).join('\n'):'• Nenhum insumo de Craft vinculado.'}`,refs:[g.group,'Perfil Técnico','Rota','Craft']};}
  }
  return _alvesAnswerV63Base(question);
 };
@@ -1179,3 +1256,7 @@ const _alvesAnswerV63Base=alvesAnswer;alvesAnswer=function(question=''){
 $('#updateProfilesBtn')?.addEventListener('click',updateOfficialGroupProfiles);
 
 // HIGH OS V6.6 · Farm/Rota sincronizados automaticamente com os insumos do Craft.
+
+// HIGH OS V6.7 · Perfil do Group em página + Rota Padrão/Exclusiva organizada.
+
+// HIGH OS V6.9 · Fluxo correto: Perfil → comparação → Solicitação. Exceção: Rota Exclusiva, em que a Solicitação com CDS do takefarm alimenta o Perfil Técnico.
