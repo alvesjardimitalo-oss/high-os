@@ -50,6 +50,7 @@
           <button class="nav-item" data-page="entregas">◇ <span>Entregas</span></button>
           <button class="nav-item" data-page="solicitacoes">▤ <span>Solicitações</span></button>
           <button class="nav-item" data-page="metricas">▥ <span>Métricas</span></button>
+          <button class="nav-item" data-page="economia">$ <span>Economia</span></button>
           <button class="nav-item" data-page="historico">◷ <span>Histórico</span></button>
           <button class="nav-item" data-page="alvesinho">✦ <span>Alvesinho</span></button>
           <button class="nav-item admin-only" data-page="usuarios">♟ <span>Usuários</span></button>
@@ -58,7 +59,7 @@
       </aside>
       <div class="content">
         <section class="page active" id="page-dashboard">
-          <div class="page-head"><div><div class="eyebrow">CENTRAL OPERACIONAL</div><h2>DASHBOARD</h2></div><span class="dev-badge">DEV V5.8</span></div>
+          <div class="page-head"><div><div class="eyebrow">CENTRAL OPERACIONAL</div><h2>DASHBOARD</h2></div><span class="dev-badge">DEV V5.9</span></div>
           <div class="welcome"><div><span>Bem-vindo ao</span><strong>HIGH OS</strong><p>Groups/QGs, entregas e Biblioteca de Solicitações compartilham agora a mesma base operacional.</p></div><div class="big-mark">HIGH<br><b>ILEGAL</b></div></div>
           <div class="cards"><article><b>◆</b><strong>Groups / QGs</strong><span class="online">Operacional</span></article><article><b>▤</b><strong>Solicitações</strong><span class="online">Operacional</span></article><article><b>♟</b><strong>Usuários</strong><span class="online">Administração ativa</span></article><article><b>✓</b><strong>Firebase</strong><span class="online">Conectado</span></article></div>
           <div class="info-panel"><div><span>CONTA AUTORIZADA</span><strong id="dashEmail">—</strong></div><div><span>NÍVEL DE ACESSO</span><strong id="dashRole">—</strong></div><div><span>STATUS</span><strong class="online">ATIVO</strong></div></div>
@@ -89,7 +90,19 @@
           <div id="metricSourceStatus" class="metric-source-card"><div><span class="metric-source-dot"></span><div><b>FONTE DE MÉTRICAS</b><small>Carregando configuração...</small></div></div><span>—</span></div>
           <div class="metric-toolbar"><input id="metricSearch" placeholder="Buscar Group ou facção..."><select id="metricSegment"><option value="">TODOS OS SEGMENTOS</option><option>ARMAS</option><option>MUNIÇÃO</option><option>LAVAGEM</option><option>DROGAS</option><option>DESMANCHE</option><option>OUTROS</option></select></div>
           <div id="metricStats" class="fac-stats"></div>
-          <div class="metric-layout"><div><div id="metricRanking" class="metric-ranking"><div class="placeholder"><b>▥</b><h3>CARREGANDO MÉTRICAS</h3></div></div></div><aside class="market-panel"><div class="eyebrow">REFERÊNCIA ECONÔMICA</div><h3>MERCADO NEGRO</h3><div id="marketStatus" class="market-status">Carregando catálogo público...</div><input id="marketSearch" placeholder="Buscar item no Mercado Negro..."><div id="marketResults" class="market-results"></div></aside></div>
+          <div class="metric-layout metric-layout-full"><div id="metricRanking" class="metric-ranking"><div class="placeholder"><b>▥</b><h3>CARREGANDO MÉTRICAS</h3></div></div></div>
+        </section>
+        <section class="page" id="page-economia">
+          <div class="page-head"><div><div class="eyebrow">REFERÊNCIA ECONÔMICA • MERCADO NEGRO</div><h2>ECONOMIA</h2><p class="page-subtitle">Consulta separada da tabela pública do Mercado Negro. Preços e referências econômicas ficam aqui; métricas permanecem exclusivamente para presença e desempenho.</p></div><span class="dev-badge">CATÁLOGO PÚBLICO</span></div>
+          <div class="economy-shell">
+            <div class="economy-summary">
+              <div><span>FONTE</span><b>Mercado Negro High</b></div>
+              <div><span>STATUS</span><b id="marketStatus">Carregando catálogo público...</b></div>
+              <div><span>ITENS</span><b id="marketCount">—</b></div>
+            </div>
+            <div class="economy-toolbar"><input id="marketSearch" placeholder="Buscar item, categoria, arma, munição, droga, serviço..."></div>
+            <div id="marketResults" class="market-results economy-results"><div class="placeholder"><b>$</b><h3>CARREGANDO ECONOMIA</h3></div></div>
+          </div>
         </section>
         <section class="page" id="page-historico">
           <div class="page-head"><div><div class="eyebrow">AUDITORIA OPERACIONAL</div><h2>HISTÓRICO</h2><p class="page-subtitle">Linha do tempo de entregas, recolhimentos, alterações de estrutura, usuários e solicitações registradas no High OS.</p></div></div>
