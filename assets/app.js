@@ -777,7 +777,7 @@ function askAlvesinho(q){if(!q?.trim())return;alvesAddMessage('user',q);const a=
 $('#alvesForm')?.addEventListener('submit',e=>{e.preventDefault();const input=$('#alvesInput'),q=input.value;input.value='';askAlvesinho(q)});
 document.querySelectorAll('#alvesQuick [data-q]').forEach(b=>b.addEventListener('click',()=>askAlvesinho(b.dataset.q)));
 
-// ===== HIGH OS V5.7 · GOOGLE SHEETS SOMENTE LEITURA + MÉTRICAS + ALVESINHO =====
+// ===== HIGH OS V5.8 · PARSER DA PLANILHA OFICIAL + GOOGLE SHEETS SOMENTE LEITURA =====
 let metricas=[],metricasCache=[],metricSourceConfig={url:'',sheet:'',autoSync:true},metricSourceState={status:'SEM FONTE',lastSync:null,count:0,error:''},sheetsAccessToken='',mercadoCatalogo=[],mercadoStatus='CARREGANDO';
 const metricCol=collection(db,'highos','data','metricas');
 const metricConfigDoc=doc(db,'highos','metricas_config');
@@ -811,22 +811,64 @@ function normalizeMetricDate(v){
  return '';
 }
 function parseMetricNumber(v){if(v===null||v===undefined||String(v).trim()==='')return null;const n=Number(String(v).replace(/\s/g,'').replace(',','.'));return Number.isFinite(n)?n:null}
+function metricSlotLabel(v){
+ const x=String(v??'').trim().toUpperCase().replace(/\s+/g,'');
+ const m=x.match(/^(14|16|21|23)(?:H|:00)?$/);return m?`${m[1]}H`:'';
+}
+function metricGroupLabel(v){
+ const raw=String(v??'').trim();if(!raw)return '';
+ const n=alvesNorm(raw).replace(/\s+/g,'');
+ const known=(faccoes||[]).find(f=>alvesNorm(f.group).replace(/\s+/g,'')===n);if(known)return known.group;
+ const compact=raw.replace(/\s+/g,'');
+ if(/^(ARMAS|MUNI[CÇ][AÃ]O|MUNICAO|LAVAGEM|DROGAS|DESMANCHE|CONTRABANDO|ESTELIONATARIOS|ILEGALMEDIC|ILEGALMECHANIC)0*\d+$/i.test(compact))return compact.replace(/^MUNI[CÇ][AÃ]O/i,'Municao');
+ if(/^(VANILLA|MANICOMIO)$/i.test(compact))return compact;
+ return '';
+}
 function parseMetricSheet(values=[]){
  if(!Array.isArray(values)||!values.length)return [];
- const slots=['14H','16H','21H','23H'];let headerIndex=-1,best=0;
- values.slice(0,15).forEach((row,i)=>{const count=(row||[]).filter(c=>slots.includes(String(c||'').trim().toUpperCase())).length;if(count>best){best=count;headerIndex=i}});
- if(headerIndex<0||best<4)return [];
- let dateRowIndex=-1,dateBest=0;for(let i=Math.max(0,headerIndex-5);i<headerIndex;i++){const count=(values[i]||[]).filter(c=>normalizeMetricDate(c)).length;if(count>dateBest){dateBest=count;dateRowIndex=i}}
+ // A planilha oficial possui títulos/linhas auxiliares antes do cabeçalho. Procuramos
+ // a linha que mais se parece com os blocos repetidos 14H/16H/21H/23H.
+ let headerIndex=-1,bestScore=-1;
+ const scanLimit=Math.min(values.length,80);
+ for(let i=0;i<scanLimit;i++){
+  const labels=(values[i]||[]).map(metricSlotLabel).filter(Boolean);const distinct=new Set(labels).size;
+  const score=labels.length+(distinct===4?1000:0);
+  if(distinct===4&&score>bestScore){bestScore=score;headerIndex=i}
+ }
+ if(headerIndex<0)return [];
+ const header=values[headerIndex]||[];
+ // Encontra a linha de datas em uma janela larga acima do cabeçalho. Em células mescladas
+ // o Sheets devolve a data somente na primeira coluna do bloco; por isso fazemos forward-fill.
+ let dateRowIndex=-1,dateBest=-1;
+ for(let i=Math.max(0,headerIndex-25);i<headerIndex;i++){
+  const row=values[i]||[];let count=0,last=-99,spacing=0;
+  row.forEach((c,idx)=>{if(normalizeMetricDate(c)){count++;if(last>=0)spacing+=Math.min(10,idx-last);last=idx}});
+  const score=count*100+spacing;if(count&&score>dateBest){dateBest=score;dateRowIndex=i}
+ }
+ // Fallback: algumas planilhas têm a linha de datas logo abaixo de uma linha de título
+ // e o cabeçalho de horários mais distante. Busca qualquer linha anterior com várias datas.
+ if(dateRowIndex<0){for(let i=0;i<headerIndex;i++){const count=(values[i]||[]).filter(c=>normalizeMetricDate(c)).length;if(count>0){dateRowIndex=i;break}}}
  if(dateRowIndex<0)return [];
- const header=values[headerIndex]||[],dateRow=values[dateRowIndex]||[],dateByCol=[];let currentDate='';
- const maxCols=Math.max(header.length,dateRow.length);for(let c=0;c<maxCols;c++){const d=normalizeMetricDate(dateRow[c]);if(d)currentDate=d;dateByCol[c]=currentDate}
- const known=new Map((faccoes||[]).filter(f=>f.group).map(f=>[alvesNorm(f.group),f.group]));const out=[];
+ const dateRow=values[dateRowIndex]||[];const maxCols=Math.max(header.length,dateRow.length);
+ const dateByCol=new Array(maxCols).fill('');let currentDate='';
+ for(let c=0;c<maxCols;c++){const d=normalizeMetricDate(dateRow[c]);if(d)currentDate=d;dateByCol[c]=currentDate}
+ // Se uma célula mesclada começou uma ou duas colunas antes do 14H, o forward-fill acima resolve.
+ // Também cobre separadores/coluna M porque só consumimos colunas reconhecidas como horário.
+ const out=[];const seenKeys=new Set();
  for(let r=headerIndex+1;r<values.length;r++){
-  const row=values[r]||[];let group='';for(const cell of row.slice(0,8)){const n=alvesNorm(cell);if(known.has(n)){group=known.get(n);break}}
-  if(!group){for(const cell of row.slice(0,8)){const raw=String(cell||'').trim();if(/^(ARMAS|MUNI[CÇ][AÃ]O|MUNICAO|LAVAGEM|DROGAS|DESMANCHE|CONTRABANDO|ILEGALMEDIC|ILEGALMECHANIC)\s*0*\d+$/i.test(raw)){group=raw.replace(/\s+/g,'');break}}}
-  if(!group)continue;const byDate={};
-  for(let c=0;c<header.length;c++){const h=String(header[c]||'').trim().toUpperCase();if(!slots.includes(h))continue;const d=dateByCol[c];if(!d)continue;const num=parseMetricNumber(row[c]);if(num===null)continue;if(!byDate[d])byDate[d]={group,data:d,slots:{'14H':0,'16H':0,'21H':0,'23H':0},seen:new Set()};byDate[d].slots[h]=num;byDate[d].seen.add(h)}
-  Object.values(byDate).forEach(x=>{if(x.seen.size){delete x.seen;out.push(x)}});
+  const row=values[r]||[];let group='';
+  // O Group normalmente fica no início, mas ampliamos a janela para suportar colunas auxiliares.
+  for(const cell of row.slice(0,16)){group=metricGroupLabel(cell);if(group)break}
+  if(!group)continue;
+  const byDate={};
+  for(let c=0;c<header.length;c++){
+   const h=metricSlotLabel(header[c]);if(!h)continue;
+   const d=dateByCol[c];if(!d)continue;
+   const num=parseMetricNumber(row[c]);if(num===null)continue;
+   if(!byDate[d])byDate[d]={group,data:d,slots:{'14H':0,'16H':0,'21H':0,'23H':0},seen:new Set()};
+   byDate[d].slots[h]=num;byDate[d].seen.add(h);
+  }
+  Object.values(byDate).forEach(x=>{if(!x.seen.size)return;const key=`${alvesNorm(x.group)}|${x.data}`;if(seenKeys.has(key))return;seenKeys.add(key);delete x.seen;out.push(x)});
  }
  return out;
 }
