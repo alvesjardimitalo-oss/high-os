@@ -862,7 +862,7 @@ $('#alvesForm')?.addEventListener('submit',e=>{e.preventDefault();const input=$(
 document.querySelectorAll('#alvesQuick [data-q]').forEach(b=>b.addEventListener('click',()=>askAlvesinho(b.dataset.q)));
 
 // ===== HIGH OS V5.8 · PARSER DA PLANILHA OFICIAL + GOOGLE SHEETS SOMENTE LEITURA =====
-let metricas=[],metricasCache=[],metricPeriodKey='',metricSourceConfig={url:'',sheet:'',autoSync:true},metricSourceState={status:'SEM FONTE',lastSync:null,count:0,activeCount:0,error:''},sheetsAccessToken='',mercadoCatalogo=[],mercadoStatus='CARREGANDO';
+let metricas=[],metricasCache=[],metricPeriodKey='',metricDateStart='',metricDateEnd='',metricSourceConfig={url:'',sheet:'',autoSync:true},metricSourceState={status:'SEM FONTE',lastSync:null,count:0,activeCount:0,error:''},sheetsAccessToken='',mercadoCatalogo=[],mercadoStatus='CARREGANDO';
 const metricCol=collection(db,'highos','data','metricas');
 const metricConfigDoc=doc(db,'highos','metricas_config');
 const MARKET_CATALOG_URL='https://alvesjardimitalo-oss.github.io/high-mercado-negro/data/catalogo.json';
@@ -873,9 +873,18 @@ function metricDateValue(m){
  const br=raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);if(br){let y=+br[3];if(y<100)y+=2000;return new Date(y,+br[2]-1,+br[1])}
  const d=new Date(raw);return isNaN(d)?new Date(0):d;
 }
-function metricSlots(m){
- const s=m?.slots||{};return {'14H':Number(s['14H']??m['14H']??m.h14??0)||0,'16H':Number(s['16H']??m['16H']??m.h16??0)||0,'21H':Number(s['21H']??m['21H']??m.h21??0)||0,'23H':Number(s['23H']??m['23H']??m.h23??0)||0};
+function normalizeMetricSlotKey(v=''){
+ const x=String(v??'').trim().toUpperCase().replace(/\s+/g,'');
+ let m=x.match(/^(\d{1,2})(?::(\d{2}))?H?$/);if(!m)return '';let h=+m[1],min=m[2]===undefined?0:+m[2];if(h>23||min>59)return '';return min===0?`${String(h).padStart(2,'0')}H`:`${String(h).padStart(2,'0')}:${String(min).padStart(2,'0')}`;
 }
+function metricSlotMinutes(k=''){const x=String(k).toUpperCase();let m=x.match(/^(\d{1,2})H$/);if(m)return +m[1]*60;m=x.match(/^(\d{1,2}):(\d{2})$/);return m?+m[1]*60 + +m[2]:9999}
+function metricSlots(m){
+ const src=m?.slots||{},out={};Object.entries(src).forEach(([k,v])=>{const nk=normalizeMetricSlotKey(k);if(nk&&Number.isFinite(Number(v)))out[nk]=Number(v)});
+ [['14H',m?.['14H']??m?.h14],['16H',m?.['16H']??m?.h16],['21H',m?.['21H']??m?.h21],['23H',m?.['23H']??m?.h23]].forEach(([k,v])=>{if(!(k in out)&&v!==undefined&&v!==null&&v!=='')out[k]=Number(v)||0});
+ return Object.fromEntries(Object.entries(out).sort((a,b)=>metricSlotMinutes(a[0])-metricSlotMinutes(b[0])));
+}
+function metricSlotKeys(rows=activeMetricRows()){return [...new Set(rows.flatMap(r=>Object.keys(metricSlots(r))))].sort((a,b)=>metricSlotMinutes(a)-metricSlotMinutes(b))}
+
 function metricMonthKey(m){
  const d=metricDateValue(m);if(!d||d.getTime()===0)return '';return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
 }
@@ -883,17 +892,25 @@ function currentMetricMonthKey(){const d=new Date();return `${d.getFullYear()}-$
 function metricPeriodLabel(key=''){
  const m=String(key).match(/^(\d{4})-(\d{2})$/);if(!m)return key||'—';const d=new Date(+m[1],+m[2]-1,1);return d.toLocaleDateString('pt-BR',{month:'long',year:'numeric'}).replace(/^./,c=>c.toUpperCase());
 }
-function activeMetricRows(){const key=metricPeriodKey||currentMetricMonthKey();return metricas.filter(m=>metricMonthKey(m)===key)}
+function parseIsoMetricDate(v=''){const m=String(v).match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?new Date(+m[1],+m[2]-1,+m[3]):null}
+function activeMetricRows(){
+ if(metricDateStart||metricDateEnd){const a=parseIsoMetricDate(metricDateStart),b=parseIsoMetricDate(metricDateEnd);return metricas.filter(m=>{const d=metricDateValue(m);return (!a||d>=a)&&(!b||d<=new Date(b.getFullYear(),b.getMonth(),b.getDate(),23,59,59))})}
+ const key=metricPeriodKey||currentMetricMonthKey();return metricas.filter(m=>metricMonthKey(m)===key)
+}
+function metricActivePeriodLabel(){if(metricDateStart||metricDateEnd){const f=x=>{const d=parseIsoMetricDate(x);return d?d.toLocaleDateString('pt-BR'):'…'};return `${f(metricDateStart)} a ${f(metricDateEnd)}`}return metricPeriodLabel(metricPeriodKey)}
+function syncMetricDateInputs(){const a=$('#metricDateStart'),b=$('#metricDateEnd');if(a)a.value=metricDateStart;if(b)b.value=metricDateEnd}
+
 function refreshMetricPeriodOptions(){
  const el=$('#metricPeriod');if(!el)return;const current=currentMetricMonthKey();const keys=[...new Set(metricas.map(metricMonthKey).filter(Boolean))].sort().reverse();if(!keys.includes(current))keys.unshift(current);if(!metricPeriodKey)metricPeriodKey=current;if(!keys.includes(metricPeriodKey))metricPeriodKey=current;
  el.innerHTML=keys.map(k=>`<option value="${esc(k)}"${k===metricPeriodKey?' selected':''}>${esc(metricPeriodLabel(k))}${k===current?' • ATUAL':''}</option>`).join('');
 }
 function metricGroupRecords(group){return activeMetricRows().filter(m=>alvesNorm(m.group||m.organizacao||m.faccao)===alvesNorm(group)).sort((a,b)=>metricDateValue(a)-metricDateValue(b))}
 function metricAnalysis(group){
- const rows=metricGroupRecords(group);if(!rows.length)return null;const vals=[],win={'14H':0,'16H':0,'21H':0,'23H':0};let peak={value:-1,hour:'—',date:'—'};
- rows.forEach(r=>{const s=metricSlots(r),entries=Object.entries(s);entries.forEach(([h,v])=>{vals.push(v);if(v>peak.value)peak={value:v,hour:h,date:r.data||r.date||'—'}});const mx=Math.max(...entries.map(x=>x[1]));entries.filter(x=>x[1]===mx&&mx>0).forEach(x=>win[x[0]]++)});
+ const rows=metricGroupRecords(group);if(!rows.length)return null;const vals=[],win={};let peak={value:-1,hour:'—',date:'—'};
+ rows.forEach(r=>{const entries=Object.entries(metricSlots(r));entries.forEach(([h,v])=>{vals.push(v);if(!(h in win))win[h]=0;if(v>peak.value)peak={value:v,hour:h,date:r.data||r.date||'—'}});if(entries.length){const mx=Math.max(...entries.map(x=>x[1]));entries.filter(x=>x[1]===mx&&mx>0).forEach(x=>win[x[0]]++)}});
  const avg=vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:0;const pred=Object.entries(win).sort((a,b)=>b[1]-a[1])[0];return {rows,avg,peak,predominant:pred&&pred[1]?pred[0]:'—',predCount:pred?.[1]||0};
 }
+
 function extractSpreadsheetId(value=''){
  const v=String(value||'').trim();if(!v)return '';
  const m=v.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);if(m)return m[1];
@@ -907,10 +924,7 @@ function normalizeMetricDate(v){
  return '';
 }
 function parseMetricNumber(v){if(v===null||v===undefined||String(v).trim()==='')return null;const n=Number(String(v).replace(/\s/g,'').replace(',','.'));return Number.isFinite(n)?n:null}
-function metricSlotLabel(v){
- const x=String(v??'').trim().toUpperCase().replace(/\s+/g,'');
- const m=x.match(/^(14|16|21|23)(?:H|:00)?$/);return m?`${m[1]}H`:'';
-}
+function metricSlotLabel(v){return normalizeMetricSlotKey(v)}
 function metricGroupLabel(v){
  const raw=String(v??'').trim();if(!raw)return '';
  const n=alvesNorm(raw).replace(/\s+/g,'');
@@ -1088,9 +1102,9 @@ function renderMetricFactionDetail(group=metricSelectedGroup()){
  const sum=$('#metricFactionSummary'),table=$('#metricFactionTable');if(!sum||!table)return;
  if(!group){sum.innerHTML='';table.innerHTML='<div class="placeholder"><h3>SEM DADOS</h3></div>';return}
  const a=metricAnalysis(group);if(!a){sum.innerHTML='';table.innerHTML='<div class="placeholder"><h3>SEM MÉTRICAS PARA ESTE GROUP</h3></div>';return}
- const id=metricIdentity(group,a.rows[0]);const vals=a.rows.flatMap(r=>Object.values(metricSlots(r)));const low=vals.length?Math.min(...vals):0;const mode=metricModeValue(vals);const expected=a.rows.length*4,filled=a.rows.reduce((n,r)=>n+Object.values(metricSlots(r)).filter(v=>Number.isFinite(v)).length,0);
- sum.innerHTML=`<article><span>FACÇÃO</span><b>${esc(id.faccao||'—')}</b><small>${esc(group)} • ${esc(id.segmento||'—')}</small></article><article><span>MÉDIA MENSAL</span><b>${a.avg.toFixed(2)}</b><small>${esc(metricPeriodLabel(metricPeriodKey))}</small></article><article><span>PICO</span><b>${a.peak.value}</b><small>${esc(a.peak.hour)} • ${esc(a.peak.date)}</small></article><article><span>MENOR REGISTRO</span><b>${low}</b><small>predominância ${esc(mode)}</small></article><article><span>COLETAS</span><b>${filled}/${expected}</b><small>${a.rows.length} dia(s) • ${esc(metricPeriodRange(a.rows))}</small></article>`;
- table.innerHTML=`<div class="metric-date-table-title"><div><b>HISTÓRICO DIÁRIO</b><span>${esc(id.faccao||group)} • ${esc(metricPeriodLabel(metricPeriodKey))}</span></div></div><div class="metric-table-scroll"><table class="metric-date-table"><thead><tr><th>DATA</th><th>14H</th><th>16H</th><th>21H</th><th>23H</th><th>MÉDIA DO DIA</th></tr></thead><tbody>${a.rows.map(r=>{const sl=metricSlots(r);return `<tr><td><b>${esc(metricDateLabel(r))}</b></td><td>${sl['14H']}</td><td>${sl['16H']}</td><td>${sl['21H']}</td><td>${sl['23H']}</td><td><b>${metricDayAverage(r).toFixed(2)}</b></td></tr>`}).join('')}</tbody></table></div>`;
+ const id=metricIdentity(group,a.rows[0]);const vals=a.rows.flatMap(r=>Object.values(metricSlots(r)));const low=vals.length?Math.min(...vals):0;const mode=metricModeValue(vals);const keys=metricSlotKeys(a.rows),expected=a.rows.length*keys.length,filled=a.rows.reduce((n,r)=>n+Object.values(metricSlots(r)).filter(v=>Number.isFinite(v)).length,0);
+ sum.innerHTML=`<article><span>FACÇÃO</span><b>${esc(id.faccao||'—')}</b><small>${esc(group)} • ${esc(id.segmento||'—')}</small></article><article><span>MÉDIA MENSAL</span><b>${a.avg.toFixed(2)}</b><small>${esc(metricActivePeriodLabel())}</small></article><article><span>PICO</span><b>${a.peak.value}</b><small>${esc(a.peak.hour)} • ${esc(a.peak.date)}</small></article><article><span>MENOR REGISTRO</span><b>${low}</b><small>predominância ${esc(mode)}</small></article><article><span>COLETAS</span><b>${filled}/${expected}</b><small>${a.rows.length} dia(s) • ${esc(metricPeriodRange(a.rows))}</small></article>`;
+ table.innerHTML=`<div class="metric-date-table-title"><div><b>HISTÓRICO DIÁRIO</b><span>${esc(id.faccao||group)} • ${esc(metricActivePeriodLabel())}</span></div></div><div class="metric-table-scroll"><table class="metric-date-table"><thead><tr><th>DATA</th>${keys.map(h=>`<th>${esc(h)}</th>`).join('')}<th>MÉDIA DO DIA</th></tr></thead><tbody>${a.rows.map(r=>{const sl=metricSlots(r);return `<tr><td><b>${esc(metricDateLabel(r))}</b></td>${keys.map(h=>`<td>${sl[h]??'—'}</td>`).join('')}<td><b>${metricDayAverage(r).toFixed(2)}</b></td></tr>`}).join('')}</tbody></table></div>`;
 }
 function metricReportData(group,period=metricPeriodKey){
  const prev=metricPeriodKey;metricPeriodKey=period||prev;const a=metricAnalysis(group);metricPeriodKey=prev;if(!a)return null;const id=metricIdentity(group,a.rows[0]);const vals=a.rows.flatMap(r=>Object.values(metricSlots(r)));return {group,id,a,low:vals.length?Math.min(...vals):0,mode:metricModeValue(vals),range:metricPeriodRange(a.rows),period:period||prev};
@@ -1114,19 +1128,19 @@ function renderMetrics(err=null){
  let rows=metricSummaryRows().filter(x=>(!seg||x.f.segmento===seg)&&(!q||alvesNorm([x.f.group,x.f.faccao,x.f.qg].join(' ')).includes(q)));
  const active=activeMetricRows(),groupsWith=new Set(active.map(m=>alvesNorm(m.group||m.organizacao||m.faccao))).size;
  const groupKeys=new Set(rows.map(x=>alvesNorm(x.f.group))),visibleRaw=active.filter(m=>groupKeys.has(alvesNorm(m.group||m.organizacao||m.faccao)));
- const slotTotals={'14H':[], '16H':[], '21H':[], '23H':[]};visibleRaw.forEach(r=>{const sl=metricSlots(r);Object.keys(slotTotals).forEach(h=>slotTotals[h].push(sl[h]))});
+ const slotTotals=Object.fromEntries(metricSlotKeys(visibleRaw).map(h=>[h,[]]));visibleRaw.forEach(r=>{const sl=metricSlots(r);Object.entries(sl).forEach(([h,v])=>{if(!slotTotals[h])slotTotals[h]=[];slotTotals[h].push(v)})});
  const hourAvgs=Object.fromEntries(Object.entries(slotTotals).map(([h,a])=>[h,a.length?a.reduce((x,y)=>x+y,0)/a.length:0]));
  const allValues=visibleRaw.flatMap(r=>Object.values(metricSlots(r))),overall=allValues.length?allValues.reduce((a,b)=>a+b,0)/allValues.length:0;
  const top=rows[0]||null,peak=rows.reduce((best,x)=>!best||x.a.peak.value>best.a.peak.value?x:best,null);const pred=Object.entries(hourAvgs).sort((a,b)=>b[1]-a[1])[0]||['—',0];
  if($('#metricOverview'))$('#metricOverview').innerHTML=`<article class="metric-hero-kpi"><span>MÉDIA GERAL EXIBIDA</span><b>${overall.toFixed(1)}</b><small>${rows.length} Group(s) no recorte atual</small></article><article class="metric-hero-kpi"><span>LÍDER DO RANKING</span><b>${top?esc(top.f.group):'—'}</b><small>${top?`média ${top.a.avg.toFixed(1)} • ${esc(top.f.faccao||top.f.qg||'')}`:'sem dados'}</small></article><article class="metric-hero-kpi"><span>MAIOR PICO</span><b>${peak?peak.a.peak.value:'—'}</b><small>${peak?`${esc(peak.f.group)} • ${esc(peak.a.peak.hour)} • ${esc(peak.a.peak.date)}`:'sem dados'}</small></article><article class="metric-hero-kpi"><span>HORÁRIO MAIS FORTE</span><b>${esc(pred[0])}</b><small>média agregada ${Number(pred[1]).toFixed(1)}</small></article>`;
- $('#metricStats').innerHTML=`<span><b>${esc(metricPeriodLabel(metricPeriodKey))}</b> COMPETÊNCIA</span><span><b>${esc(metricPeriodRange(active))}</b> PERÍODO</span><span><b>${active.length}</b> DIAS / REGISTROS</span><span><b>${groupsWith}</b> GROUPS COM DADOS</span><span><b>${rows.length}</b> EXIBIDOS</span>${seg?`<span>SEGMENTO <b>${esc(seg)}</b></span>`:''}`;
+ $('#metricStats').innerHTML=`<span><b>${esc(metricActivePeriodLabel())}</b> COMPETÊNCIA</span><span><b>${esc(metricPeriodRange(active))}</b> PERÍODO</span><span><b>${active.length}</b> DIAS / REGISTROS</span><span><b>${groupsWith}</b> GROUPS COM DADOS</span><span><b>${rows.length}</b> EXIBIDOS</span>${seg?`<span>SEGMENTO <b>${esc(seg)}</b></span>`:''}`;
  const maxHour=Math.max(1,...Object.values(hourAvgs)),top5=rows.slice(0,5),maxTop=Math.max(1,...top5.map(x=>x.a.avg));
  const advanced=rows.map(x=>({...x,adv:metricAdvancedStats(x.f.group)})).filter(x=>x.adv);
  const rising=[...advanced].filter(x=>x.adv.trend>0).sort((a,b)=>b.adv.trend-a.adv.trend).slice(0,4);
  const falling=[...advanced].filter(x=>x.adv.trend<0).sort((a,b)=>a.adv.trend-b.adv.trend).slice(0,4);
  const attention=[...advanced].filter(x=>x.adv.alerts.length).sort((a,b)=>a.adv.trend-b.adv.trend).slice(0,5);
  const movement=(list,empty)=>list.length?list.map(x=>`<div class="metric-move-row"><div><b>${esc(x.f.faccao||x.f.group)}</b><small>${esc(x.f.group)} • média ${x.a.avg.toFixed(1)}</small></div><strong>${x.adv.trend>=0?'+':''}${x.adv.trend.toFixed(0)}%</strong></div>`).join(''):`<div class="muted">${empty}</div>`;
- if($('#metricVisuals'))$('#metricVisuals').innerHTML=`<section class="metric-chart-card"><div class="metric-chart-head"><b>PRESENÇA MÉDIA POR HORÁRIO</b><span>${esc(metricPeriodLabel(metricPeriodKey))}${seg?' • '+esc(seg):''}</span></div><div class="hour-bars">${Object.entries(hourAvgs).map(([h,v])=>`<div class="hour-col"><b>${v.toFixed(1)}</b><i style="height:${Math.max(4,v/maxHour*120)}px"></i><span>${h}</span></div>`).join('')}</div></section><section class="metric-chart-card"><div class="metric-chart-head"><b>TOP 5 • MÉDIA ONLINE</b><span>RANKING DO RECORTE</span></div><div class="top-bars">${top5.length?top5.map(x=>`<div class="top-bar-item"><span>${esc(x.f.group)}</span><div class="ops-track"><div class="ops-fill" style="width:${Math.max(3,x.a.avg/maxTop*100)}%"></div></div><b>${x.a.avg.toFixed(1)}</b></div>`).join(''):'<div class="muted">Sem dados no recorte.</div>'}</div></section><section class="metric-chart-card metric-movement-card"><div class="metric-chart-head"><b>MAIORES CRESCIMENTOS</b><span>ÚLTIMOS 5 DIAS VS. 5 ANTERIORES</span></div>${movement(rising,'Nenhum crescimento identificado no recorte.')}</section><section class="metric-chart-card metric-movement-card"><div class="metric-chart-head"><b>QUEDAS QUE MERECEM ATENÇÃO</b><span>CONSULTA ESTATÍSTICA</span></div>${movement(falling,'Nenhuma queda identificada no recorte.')}</section><section class="metric-chart-card metric-attention-card"><div class="metric-chart-head"><b>LEITURA RÁPIDA DO PERÍODO</b><span>${attention.length} GROUP(S) COM ALERTA</span></div>${attention.length?attention.map(x=>`<div class="metric-attention-row"><div><b>${esc(x.f.faccao||x.f.group)}</b><small>${esc(x.f.group)} • ${esc(x.f.segmento||'—')}</small></div><span>${esc(x.adv.alerts[0])}</span></div>`).join(''):'<div class="metric-ok-state">Sem alertas estatísticos relevantes para os filtros atuais.</div>'}</section>`;
+ if($('#metricVisuals'))$('#metricVisuals').innerHTML=`<section class="metric-chart-card"><div class="metric-chart-head"><b>PRESENÇA MÉDIA POR HORÁRIO</b><span>${esc(metricActivePeriodLabel())}${seg?' • '+esc(seg):''}</span></div><div class="hour-bars">${Object.entries(hourAvgs).map(([h,v])=>`<div class="hour-col"><b>${v.toFixed(1)}</b><i style="height:${Math.max(4,v/maxHour*120)}px"></i><span>${h}</span></div>`).join('')}</div></section><section class="metric-chart-card"><div class="metric-chart-head"><b>TOP 5 • MÉDIA ONLINE</b><span>RANKING DO RECORTE</span></div><div class="top-bars">${top5.length?top5.map(x=>`<div class="top-bar-item"><span>${esc(x.f.group)}</span><div class="ops-track"><div class="ops-fill" style="width:${Math.max(3,x.a.avg/maxTop*100)}%"></div></div><b>${x.a.avg.toFixed(1)}</b></div>`).join(''):'<div class="muted">Sem dados no recorte.</div>'}</div></section><section class="metric-chart-card metric-movement-card"><div class="metric-chart-head"><b>MAIORES CRESCIMENTOS</b><span>ÚLTIMOS 5 DIAS VS. 5 ANTERIORES</span></div>${movement(rising,'Nenhum crescimento identificado no recorte.')}</section><section class="metric-chart-card metric-movement-card"><div class="metric-chart-head"><b>QUEDAS QUE MERECEM ATENÇÃO</b><span>CONSULTA ESTATÍSTICA</span></div>${movement(falling,'Nenhuma queda identificada no recorte.')}</section><section class="metric-chart-card metric-attention-card"><div class="metric-chart-head"><b>LEITURA RÁPIDA DO PERÍODO</b><span>${attention.length} GROUP(S) COM ALERTA</span></div>${attention.length?attention.map(x=>`<div class="metric-attention-row"><div><b>${esc(x.f.faccao||x.f.group)}</b><small>${esc(x.f.group)} • ${esc(x.f.segmento||'—')}</small></div><span>${esc(x.adv.alerts[0])}</span></div>`).join(''):'<div class="metric-ok-state">Sem alertas estatísticos relevantes para os filtros atuais.</div>'}</section>`;
  if(err){
   if($('#metricOverview'))$('#metricOverview').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR</h3><p>${esc(err.message||String(err))}</p></div>`;
   if($('#metricStats'))$('#metricStats').innerHTML='';
@@ -1144,7 +1158,7 @@ function renderMetrics(err=null){
  syncMetricSelectors();renderMetricFactionDetail();if($('#metricViewRanking')?.classList.contains('active'))renderMetricAdvancedRanking();if($('#metricViewComparatives')?.classList.contains('active')){syncMetricCompareSelectors();renderMetricComparison()}
 }
 function metricAdvancedStats(group){
- const a=metricAnalysis(group);if(!a)return null;const dayAvgs=a.rows.map(metricDayAverage),slots={'14H':[],'16H':[],'21H':[],'23H':[]};a.rows.forEach(r=>{const x=metricSlots(r);Object.keys(slots).forEach(h=>slots[h].push(Number(x[h])||0))});
+ const a=metricAnalysis(group);if(!a)return null;const dayAvgs=a.rows.map(metricDayAverage),slots=Object.fromEntries(metricSlotKeys(a.rows).map(h=>[h,[]]));a.rows.forEach(r=>{const x=metricSlots(r);Object.keys(x).forEach(h=>{if(!slots[h])slots[h]=[];slots[h].push(Number(x[h])||0)})});
  const hourAvg=Object.fromEntries(Object.entries(slots).map(([h,v])=>[h,v.length?v.reduce((x,y)=>x+y,0)/v.length:0]));
  const threshold=a.avg*.8,regularDays=dayAvgs.filter(v=>v>=threshold).length,regularity=dayAvgs.length?regularDays/dayAvgs.length*100:0;
  const recent=dayAvgs.slice(-5),prior=dayAvgs.slice(-10,-5),av=v=>v.length?v.reduce((x,y)=>x+y,0)/v.length:0;const recentAvg=av(recent),priorAvg=av(prior);const trend=priorAvg?((recentAvg-priorAvg)/priorAvg*100):0;
@@ -1161,7 +1175,7 @@ function syncMetricCompareSelectors(){const rows=metricSummaryRows(),opts=rows.m
 function renderMetricComparison(){
  const ga=$('#metricCompareA')?.value,gb=$('#metricCompareB')?.value,box=$('#metricCompareResult');if(!box||!ga||!gb)return;const a=metricAdvancedStats(ga),b=metricAdvancedStats(gb);if(!a||!b){box.innerHTML='<div class="placeholder"><h3>SEM DADOS PARA COMPARAR</h3></div>';return}const ia=metricIdentity(ga,a.rows[0]),ib=metricIdentity(gb,b.rows[0]);
  const rows=[['Média mensal',a.avg.toFixed(2),b.avg.toFixed(2)],['Pico',a.peak.value,b.peak.value],['Regularidade',a.regularity.toFixed(0)+'%',b.regularity.toFixed(0)+'%'],['Tendência últimos dias',(a.trend>=0?'+':'')+a.trend.toFixed(0)+'%',(b.trend>=0?'+':'')+b.trend.toFixed(0)+'%'],...['14H','16H','21H','23H'].map(h=>['Média '+h,a.hourAvg[h].toFixed(2),b.hourAvg[h].toFixed(2)])];
- box.innerHTML=`<div class="rh-grid"><div class="rh-card"><span>FACÇÃO A</span><b>${esc(ia.faccao||ga)}</b><small>${esc(ga)}</small></div><div class="rh-card"><span>FACÇÃO B</span><b>${esc(ib.faccao||gb)}</b><small>${esc(gb)}</small></div><div class="rh-card"><span>DIFERENÇA DE MÉDIA</span><b>${Math.abs(a.avg-b.avg).toFixed(2)}</b><small>${a.avg>=b.avg?esc(ia.faccao||ga):esc(ib.faccao||gb)} à frente</small></div><div class="rh-card"><span>COMPETÊNCIA</span><b>${esc(metricPeriodLabel(metricPeriodKey))}</b></div></div><table class="rh-compare-table"><thead><tr><th>INDICADOR</th><th>${esc(ia.faccao||ga)}</th><th>${esc(ib.faccao||gb)}</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${r[0]}</td><td><b>${r[1]}</b></td><td><b>${r[2]}</b></td></tr>`).join('')}</tbody></table>`;
+ box.innerHTML=`<div class="rh-grid"><div class="rh-card"><span>FACÇÃO A</span><b>${esc(ia.faccao||ga)}</b><small>${esc(ga)}</small></div><div class="rh-card"><span>FACÇÃO B</span><b>${esc(ib.faccao||gb)}</b><small>${esc(gb)}</small></div><div class="rh-card"><span>DIFERENÇA DE MÉDIA</span><b>${Math.abs(a.avg-b.avg).toFixed(2)}</b><small>${a.avg>=b.avg?esc(ia.faccao||ga):esc(ib.faccao||gb)} à frente</small></div><div class="rh-card"><span>COMPETÊNCIA</span><b>${esc(metricActivePeriodLabel())}</b></div></div><table class="rh-compare-table"><thead><tr><th>INDICADOR</th><th>${esc(ia.faccao||ga)}</th><th>${esc(ib.faccao||gb)}</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${r[0]}</td><td><b>${r[1]}</b></td><td><b>${r[2]}</b></td></tr>`).join('')}</tbody></table>`;
 }
 function renderRhFactionInsights(group){const sum=$('#metricFactionSummary');if(!sum||!group)return;const x=metricAdvancedStats(group);if(!x)return;const extra=document.createElement('div');extra.className='rh-insights';extra.innerHTML=`<div class="rh-grid">${Object.entries(x.hourAvg).map(([h,v])=>`<div class="rh-card"><span>MÉDIA ${h}</span><b>${v.toFixed(2)}</b></div>`).join('')}<div class="rh-card"><span>REGULARIDADE</span><b>${x.regularity.toFixed(0)}%</b><small>dias ≥ 80% da média mensal</small></div><div class="rh-card"><span>TENDÊNCIA</span><b>${x.trend>=0?'+':''}${x.trend.toFixed(0)}%</b><small>últimos 5 dias vs. 5 anteriores</small></div></div>${x.alerts.length?`<div>${x.alerts.map(a=>`<div class="rh-alert">${esc(a)}</div>`).join('')}</div>`:'<div class="rh-alert">Sem alertas estatísticos relevantes no período.</div>'}`;sum.after(extra)}
 
@@ -1182,15 +1196,26 @@ $('#metricOpenReportBtn')?.addEventListener('click',()=>{switchMetricCenterView(
 $('#metricReportSegment')?.addEventListener('change',syncMetricSelectors);$('#metricReportPreviewBtn')?.addEventListener('click',renderMetricReport);$('#metricReportPrintBtn')?.addEventListener('click',printMetricReport);$('#metricReportCsvBtn')?.addEventListener('click',downloadMetricCsv);
 
 function parseMetricImport(text=''){
- const lines=text.split(/\r?\n/).map(x=>x.trim()).filter(Boolean),out=[];
- for(const line of lines){const p=line.includes('\t')?line.split('\t'):line.split(';');if(p.length<6)continue;const [group,data,a,b,c,d]=p.map(x=>x.trim());if(!group||alvesNorm(group).includes('organizacao')||alvesNorm(group)==='group')continue;out.push({group,data,slots:{'14H':Number(String(a).replace(',','.'))||0,'16H':Number(String(b).replace(',','.'))||0,'21H':Number(String(c).replace(',','.'))||0,'23H':Number(String(d).replace(',','.'))||0}})}
- return out;
+ const lines=text.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);if(!lines.length)return [];
+ const split=x=>x.includes('\t')?x.split('\t').map(v=>v.trim()):x.split(';').map(v=>v.trim());
+ const first=split(lines[0]),headerIsNamed=alvesNorm(first[0])==='group'&&alvesNorm(first[1])==='data';let slots=[];let start=0;
+ if(headerIsNamed){slots=first.slice(2).map(normalizeMetricSlotKey);start=1}
+ else if(first.length>=6){slots=['14H','16H','21H','23H']}
+ const out=[];
+ for(let i=start;i<lines.length;i++){const p=split(lines[i]);if(p.length<4)continue;const group=p[0],data=normalizeMetricDate(p[1])||p[1];if(!group||!data)continue;
+  if(headerIsNamed||p.length>4){const use=headerIsNamed?slots:(p.length===6?['14H','16H','21H','23H']:p.slice(2,-1).map(normalizeMetricSlotKey));const obj={};use.forEach((h,j)=>{if(!h)return;const n=parseMetricNumber(p[j+2]);if(n!==null)obj[h]=n});if(Object.keys(obj).length)out.push({group,data,slots:obj})}
+  else{const h=normalizeMetricSlotKey(p[2]),n=parseMetricNumber(p[3]);if(h&&n!==null)out.push({group,data,slots:{[h]:n}})}
+ }
+ const merged=new Map();out.forEach(r=>{const k=alvesNorm(r.group).replace(/\s+/g,'')+'|'+r.data;if(!merged.has(k))merged.set(k,{group:r.group,data:r.data,slots:{}});Object.assign(merged.get(k).slots,r.slots)});return [...merged.values()];
 }
 async function saveMetricImport(){
- const rows=parseMetricImport($('#metricImportText')?.value||'');if(!rows.length){alert('Nenhuma linha válida. Use: Group;Data;14H;16H;21H;23H');return}
- try{const batch=writeBatch(db);rows.forEach(r=>{r=metricSnapshot(r);const id=(r.group+'_'+r.data).replace(/[^a-zA-Z0-9_-]/g,'_');batch.set(doc(db,'highos','data','metricas',id),{...r,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true})});await batch.commit();await addDoc(histCol,{tipo:'IMPORTACAO_METRICAS',descricao:`${rows.length} registro(s) de métricas importado(s)`,usuario:currentUser.email,data:serverTimestamp()});$('#metricImportModal')?.classList.add('hidden');$('#metricImportText').value='';await loadMetrics();alert(`${rows.length} registro(s) importado(s).`)}catch(e){alert('Erro ao importar métricas: '+e.message)}
+ const rows=parseMetricImport($('#metricImportText')?.value||'');if(!rows.length){alert('Nenhuma linha válida. Use um cabeçalho como: Group;Data;18:00;18:30;19:00;...');return}
+ try{const batch=writeBatch(db);rows.forEach(r=>{const existing=metricas.find(x=>alvesNorm(x.group||'')===alvesNorm(r.group)&&normalizeMetricDate(x.data||x.date)===normalizeMetricDate(r.data));r={...r,slots:{...metricSlots(existing||{}),...r.slots}};r=metricSnapshot(r);const id=(r.group+'_'+r.data).replace(/[^a-zA-Z0-9_-]/g,'_');batch.set(doc(db,'highos','data','metricas',id),{...r,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true})});await batch.commit();await addDoc(histCol,{tipo:'IMPORTACAO_METRICAS',descricao:`${rows.length} registro(s) importado(s) com horários flexíveis`,usuario:currentUser.email,data:serverTimestamp()});$('#metricImportModal')?.classList.add('hidden');$('#metricImportText').value='';await loadMetrics();alert(`${rows.length} registro(s) importado(s). Os horários adicionais foram preservados.`)}catch(e){alert('Erro ao importar métricas: '+e.message)}
 }
-$('#metricSearch')?.addEventListener('input',()=>renderMetrics());$('#metricPeriod')?.addEventListener('change',e=>{metricPeriodKey=e.target.value||currentMetricMonthKey();renderMetrics();syncMetricSelectors()});$('#metricSegment')?.addEventListener('change',()=>renderMetrics());$('#metricReportPeriod')?.addEventListener('change',()=>{});$('#openMetricImportBtn')?.addEventListener('click',()=>$('#metricImportModal')?.classList.remove('hidden'));$('#metricImportClose')?.addEventListener('click',()=>$('#metricImportModal')?.classList.add('hidden'));$('#metricImportModal')?.addEventListener('click',e=>{if(e.target.id==='metricImportModal')e.currentTarget.classList.add('hidden')});$('#metricImportSave')?.addEventListener('click',saveMetricImport);
+
+$('#metricSearch')?.addEventListener('input',()=>renderMetrics());$('#metricPeriod')?.addEventListener('change',e=>{metricDateStart='';metricDateEnd='';syncMetricDateInputs();metricPeriodKey=e.target.value||currentMetricMonthKey();renderMetrics();syncMetricSelectors()});
+$('#metricApplyRange')?.addEventListener('click',()=>{metricDateStart=$('#metricDateStart')?.value||'';metricDateEnd=$('#metricDateEnd')?.value||'';if(metricDateStart&&metricDateEnd&&metricDateStart>metricDateEnd)return alert('A data inicial não pode ser maior que a data final.');renderMetrics();syncMetricSelectors();renderMetricFactionDetail();});
+document.querySelectorAll('.metric-period-shortcuts button').forEach(btn=>btn.addEventListener('click',()=>{const now=new Date();let a=new Date(now.getFullYear(),now.getMonth(),now.getDate()),b=new Date(a);if(btn.dataset.currentMonth)a=new Date(now.getFullYear(),now.getMonth(),1);else a.setDate(a.getDate()-(Number(btn.dataset.days)||1)+1);const iso=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;metricDateStart=iso(a);metricDateEnd=iso(b);syncMetricDateInputs();renderMetrics();syncMetricSelectors();renderMetricFactionDetail()}));$('#metricSegment')?.addEventListener('change',()=>renderMetrics());$('#metricReportPeriod')?.addEventListener('change',()=>{});$('#openMetricImportBtn')?.addEventListener('click',()=>$('#metricImportModal')?.classList.remove('hidden'));$('#metricImportClose')?.addEventListener('click',()=>$('#metricImportModal')?.classList.add('hidden'));$('#metricImportModal')?.addEventListener('click',e=>{if(e.target.id==='metricImportModal')e.currentTarget.classList.add('hidden')});$('#metricImportSave')?.addEventListener('click',saveMetricImport);
 
 function openMetricSource(){
  const out=$('#metricSourceTestResult');
