@@ -458,11 +458,11 @@
 
 
 <div class="modal hidden" id="metricSourceModal"><div class="modal-card metric-source-modal"><div class="modal-head"><div><div class="eyebrow">GOOGLE SHEETS • INTEGRAÇÃO</div><h2>FONTE DE MÉTRICAS</h2></div><button id="metricSourceClose">×</button></div>
-  <p class="delivery-help">Informe o link da planilha oficial. O High OS usa a sua conta Google com permissão <b>somente leitura</b>; não instala script, não cria abas e não altera nenhuma célula da planilha.</p>
+  <p class="delivery-help">Informe o link da planilha oficial. Depois de configurada, a leitura passa a ser feita automaticamente pelo servidor do High OS em modo <b>somente leitura</b>. O RH não precisa abrir nem autorizar a planilha.</p>
   <div class="form-grid"><label>Link ou ID da planilha<input id="metricSourceUrl" placeholder="https://docs.google.com/spreadsheets/d/.../edit"></label><label>Aba da planilha (opcional)<input id="metricSourceSheet" placeholder="Deixe vazio para detectar automaticamente"></label></div>
-  <label class="toggle-line"><input id="metricAutoSync" type="checkbox" checked><span>Consultar a planilha automaticamente ao entrar no High OS</span></label>
+  <label class="toggle-line"><input id="metricAutoSync" type="checkbox" checked><span>Manter sincronização permanente automática às 14:05, 16:05, 21:05 e 23:05</span></label>
   <div id="metricSourceTestResult" class="metric-test-result">Ainda não testado.</div>
-  <div class="modal-actions"><button id="metricSourceTest" class="btn-secondary">CONECTAR E TESTAR</button><button id="metricSourceSave" class="btn-primary">SALVAR E SINCRONIZAR</button></div>
+  <div class="modal-actions"><button id="metricSourceTest" class="btn-secondary">TESTAR LEITURA</button><button id="metricSourceSave" class="btn-primary">SALVAR CONEXÃO PERMANENTE</button></div>
 </div></div>
 
 <div class="modal hidden" id="metricImportModal"><div class="modal-card metric-import-card"><div class="modal-head"><div><div class="eyebrow">IMPORTAÇÃO MANUAL • MÉTRICAS</div><h2>COLAR DADOS</h2></div><button id="metricImportClose">×</button></div><p class="delivery-help">Formato por linha: <b>Group;Data;14H;16H;21H;23H</b>. Também aceita TAB ao copiar da planilha.</p><textarea id="metricImportText" class="metric-import-text" placeholder="Lavagem03;06/09/2026;8;10;12;9
