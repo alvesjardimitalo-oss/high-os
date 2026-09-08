@@ -6,6 +6,9 @@
   <meta name="theme-color" content="#09070d">
   <title>High OS • Gestão do Ilegal</title>
   <link rel="stylesheet" href="assets/style.css">
+<style>
+.rh-section-head{display:flex;justify-content:space-between;gap:18px;align-items:end;margin:18px 0}.rh-section-head h3{margin:3px 0}.rh-compare-controls{display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:end;margin:16px 0}.rh-compare-controls label{display:grid;gap:6px;font-size:11px;font-weight:800}.rh-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:14px 0}.rh-card{border:1px solid var(--line,#33283b);border-radius:14px;padding:14px;background:rgba(255,255,255,.025)}.rh-card span{display:block;font-size:10px;opacity:.65;font-weight:800}.rh-card b{display:block;font-size:24px;margin-top:5px}.rh-card small{opacity:.7}.rh-alert{padding:10px 12px;border:1px solid var(--line,#33283b);border-radius:10px;margin:7px 0}.rh-ranking-row{display:grid;grid-template-columns:45px 1fr repeat(4,110px);gap:10px;align-items:center;padding:11px;border-bottom:1px solid var(--line,#33283b)}.rh-ranking-row>span{text-align:right}.rh-compare-table{width:100%;border-collapse:collapse;margin-top:14px}.rh-compare-table th,.rh-compare-table td{padding:10px;border-bottom:1px solid var(--line,#33283b);text-align:center}.rh-compare-table th:first-child,.rh-compare-table td:first-child{text-align:left}@media(max-width:900px){.rh-grid{grid-template-columns:1fr 1fr}.rh-ranking-row{grid-template-columns:35px 1fr 80px}.rh-ranking-row .rh-extra{display:none}.rh-compare-controls{grid-template-columns:1fr}}
+</style>
 </head>
 <body>
   <div class="noise"></div>
@@ -88,7 +91,7 @@
         <section class="page" id="page-metricas">
           <div class="page-head"><div><div class="eyebrow">CENTRAL RH • PRESENÇA • 14H / 16H / 21H / 23H</div><h2>CENTRAL DE MÉTRICAS</h2><p class="page-subtitle">Base histórica por data, Group e facção. O RH consulta somente esta central e pode emitir relatórios mensais sem acesso aos demais módulos operacionais.</p></div><div class="metric-head-actions"><button id="syncMetricBtn" class="btn-primary compact admin-only">ATUALIZAR CENTRAL</button><button id="metricSourceBtn" class="btn-secondary compact admin-only">FONTE</button><button id="openMetricImportBtn" class="btn-secondary compact admin-only">IMPORTAÇÃO MANUAL</button></div></div>
           <div id="metricSourceStatus" class="metric-source-card"><div><span class="metric-source-dot"></span><div><b>FONTE DE MÉTRICAS</b><small>Carregando configuração...</small></div></div><span>—</span></div>
-          <div class="metric-center-tabs"><button class="metric-center-tab active" data-metric-view="overview">VISÃO GERAL</button><button class="metric-center-tab" data-metric-view="faction">POR FACÇÃO</button><button class="metric-center-tab" data-metric-view="reports">RELATÓRIOS</button></div>
+          <div class="metric-center-tabs"><button class="metric-center-tab active" data-metric-view="overview">VISÃO GERAL</button><button class="metric-center-tab" data-metric-view="faction">POR FACÇÃO</button><button class="metric-center-tab" data-metric-view="ranking">RANKING</button><button class="metric-center-tab" data-metric-view="comparatives">COMPARATIVOS</button><button class="metric-center-tab" data-metric-view="reports">RELATÓRIOS</button></div>
           <div class="metric-toolbar"><input id="metricSearch" placeholder="Buscar Group ou facção..."><select id="metricPeriod" title="Competência das métricas"></select><select id="metricSegment"><option value="">TODOS OS SEGMENTOS</option><option>ARMAS</option><option>MUNIÇÃO</option><option>LAVAGEM</option><option>DROGAS</option><option>DESMANCHE</option><option>OUTROS</option></select></div>
           <div class="metric-center-view active" id="metricViewOverview">
             <div id="metricOverview" class="metric-overview"></div>
@@ -100,6 +103,15 @@
             <div class="metric-detail-toolbar"><div><span>FACÇÃO / GROUP</span><select id="metricFactionSelect"></select></div><button id="metricOpenReportBtn" class="btn-secondary compact">GERAR RELATÓRIO DESTA FACÇÃO</button></div>
             <div id="metricFactionSummary" class="metric-faction-summary"></div>
             <div id="metricFactionTable" class="metric-date-table-wrap"><div class="placeholder"><b>▥</b><h3>SELECIONE UMA FACÇÃO</h3></div></div>
+          </div>
+          <div class="metric-center-view" id="metricViewRanking">
+            <div class="rh-section-head"><div><div class="eyebrow">RANKING • SOMENTE MÉTRICAS</div><h3>RANKING DE DESEMPENHO</h3><p>Classificação estatística da competência. Não representa Tier.</p></div><select id="metricRankingMode"><option value="avg">MÉDIA</option><option value="peak">PICO</option><option value="regularity">REGULARIDADE</option></select></div>
+            <div id="metricAdvancedRanking"></div>
+          </div>
+          <div class="metric-center-view" id="metricViewComparatives">
+            <div class="rh-section-head"><div><div class="eyebrow">ANÁLISE RH</div><h3>COMPARATIVOS</h3><p>Compare duas facções/Groups dentro da competência selecionada.</p></div></div>
+            <div class="rh-compare-controls"><label>Facção A<select id="metricCompareA"></select></label><label>Facção B<select id="metricCompareB"></select></label><button id="metricCompareBtn" class="btn-primary compact">COMPARAR</button></div>
+            <div id="metricCompareResult"></div>
           </div>
           <div class="metric-center-view" id="metricViewReports">
             <div class="metric-report-builder">
@@ -185,7 +197,7 @@
         </section>
         <section class="page" id="page-usuarios">
           <div class="page-head"><div><div class="eyebrow">ADMINISTRAÇÃO</div><h2>USUÁRIOS</h2></div><button id="newUserBtn" class="btn-primary compact">NOVO USUÁRIO</button></div>
-          <div class="user-toolbar"><input id="userSearch" placeholder="Buscar nome ou e-mail..."><select id="userRoleFilter"><option value="">TODOS OS NÍVEIS</option><option>ADMIN</option><option>PADRINHO</option><option>STAFF</option><option>RH_METRICAS</option><option>CONSULTA</option></select><select id="userStatusFilter"><option value="">TODOS OS STATUS</option><option value="ATIVO">ATIVOS</option><option value="INATIVO">INATIVOS</option></select></div>
+          <div class="user-toolbar"><input id="userSearch" placeholder="Buscar nome ou e-mail..."><select id="userRoleFilter"><option value="">TODOS OS NÍVEIS</option><option>ADMIN</option><option>PADRINHO</option><option>STAFF</option><option>RH_VISUALIZADOR</option><option>RH_ANALISTA</option><option>RH_GESTOR</option><option>RH_METRICAS</option><option>CONSULTA</option></select><select id="userStatusFilter"><option value="">TODOS OS STATUS</option><option value="ATIVO">ATIVOS</option><option value="INATIVO">INATIVOS</option></select></div>
           <div id="userStats" class="fac-stats"></div>
           <div id="userList" class="user-list"><div class="placeholder"><b>♟</b><h3>CARREGANDO</h3></div></div>
         </section>
@@ -431,7 +443,7 @@
 <form id="userForm"><input type="hidden" id="userOriginalEmail"><div class="form-grid">
 <label class="wide">E-mail Google<input id="uEmail" type="email" required placeholder="usuario@gmail.com"></label>
 <label>Nome<input id="uName" required placeholder="Nome de exibição"></label>
-<label>Nível de acesso<select id="uRole"><option>CONSULTA</option><option>RH_METRICAS</option><option>STAFF</option><option>PADRINHO</option><option>ADMIN</option></select></label>
+<label>Nível de acesso<select id="uRole"><option>CONSULTA</option><option>RH_VISUALIZADOR</option><option>RH_ANALISTA</option><option>RH_GESTOR</option><option>RH_METRICAS</option><option>STAFF</option><option>PADRINHO</option><option>ADMIN</option></select></label>
 <label>Status<select id="uActive"><option value="true">ATIVO</option><option value="false">INATIVO</option></select></label>
 <label class="wide">Observação administrativa<textarea id="uNotes" rows="4" placeholder="Opcional"></textarea></label>
 </div><div class="role-help"><b>Níveis:</b> ADMIN gerencia acessos; PADRINHO e STAFF são perfis operacionais; <b>RH_METRICAS</b> acessa somente a Central de Métricas e relatórios; CONSULTA permanece como perfil de leitura geral.</div><div class="modal-actions"><button type="button" id="toggleUserBtn" class="btn-danger">DESATIVAR ACESSO</button><button type="submit" class="btn-primary compact">SALVAR USUÁRIO</button></div></form></div></div>
