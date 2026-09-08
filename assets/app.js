@@ -1,11 +1,9 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js';
 import { getFirestore, doc, getDoc, collection, getDocs, setDoc, addDoc, serverTimestamp, writeBatch } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
-import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-functions.js';
 
 const firebaseConfig={apiKey:'AIzaSyBKtl3rCA9Id1RDMwGch-yi4hxAs83DraU',authDomain:'high-os.firebaseapp.com',projectId:'high-os',storageBucket:'high-os.firebasestorage.app',messagingSenderId:'471862600170',appId:'1:471862600170:web:ff55af6f7e808ff393d293'};
-const app=initializeApp(firebaseConfig), auth=getAuth(app), db=getFirestore(app), functions=getFunctions(app,'southamerica-east1'), provider=new GoogleAuthProvider();
-const syncMetricsServer=httpsCallable(functions,'syncMetricsNow');
+const app=initializeApp(firebaseConfig), auth=getAuth(app), db=getFirestore(app), provider=new GoogleAuthProvider();
 provider.setCustomParameters({prompt:'select_account'});
 const sheetsProvider=new GoogleAuthProvider();
 sheetsProvider.addScope('https://www.googleapis.com/auth/spreadsheets.readonly');
@@ -19,7 +17,7 @@ async function login(){try{await signInWithPopup(auth,provider)}catch(e){alert('
 async function logout(){await signOut(auth)}
 $('#loginBtn').onclick=login;$('#loginBtnCard').onclick=login;$('#logoutBtn').onclick=logout;$('#logoutDenied').onclick=logout;
 
-const METRIC_ONLY_ROLES=new Set(['RH_METRICAS']);
+const METRIC_ONLY_ROLES=new Set(['RH_METRICAS','RH_VISUALIZADOR','RH_ANALISTA','RH_GESTOR']);
 function applyRoleAccess(role='CONSULTA'){
  role=String(role||'CONSULTA').toUpperCase();
  const metricOnly=METRIC_ONLY_ROLES.has(role);
@@ -1026,12 +1024,12 @@ function metricTsToDate(v){
  if(!v)return null;if(v?.toDate)return v.toDate();if(v?.seconds)return new Date(v.seconds*1000);const d=new Date(v);return isNaN(d)?null:d;
 }
 function renderMetricSourceStatus(){
- const el=$('#metricSourceStatus');if(!el)return;const has=!!extractSpreadsheetId(metricSourceConfig.url),srv=metricSourceConfig.serverSync||{};const serverState=String(srv.status||'').toUpperCase();const localState=metricSourceState.status;const online=serverState==='ONLINE'||localState==='ONLINE';const failed=serverState==='ERRO'||localState==='ERRO';el.classList.toggle('online',online);el.classList.toggle('error',failed);
+ const el=$('#metricSourceStatus');if(!el)return;const has=metricSourceConfig.mode==='GOOGLE_APPS_SCRIPT_FREE'||!!extractSpreadsheetId(metricSourceConfig.url),srv=metricSourceConfig.serverSync||{};const serverState=String(srv.status||'').toUpperCase();const localState=metricSourceState.status;const online=serverState==='ONLINE'||localState==='ONLINE';const failed=serverState==='ERRO'||localState==='ERRO';el.classList.toggle('online',online);el.classList.toggle('error',failed);
  const last=metricTsToDate(srv.lastSuccessAt)||metricTsToDate(srv.lastRunAt)||(metricSourceState.lastSync?new Date(metricSourceState.lastSync):null);const when=last?last.toLocaleString('pt-BR'):'—';let desc='Informe o link da planilha oficial';
- if(has)desc=metricSourceConfig.autoSync===false?'Fonte configurada • sincronização automática pausada':'Conexão permanente ativa • sincronização automática 14:05, 16:05, 21:05 e 23:05';
+ if(has)desc=metricSourceConfig.autoSync===false?'Fonte configurada • sincronização automática pausada':'Apps Script permanente • sincronização automática 14:05, 16:05, 21:05 e 23:05 • sem Blaze';
  if(online)desc=`Base sincronizada • ${Number(srv.rows??metricSourceState.count??metricas.length)||0} registros históricos${srv.sheet?' • aba '+srv.sheet:''}`;
  if(failed)desc=srv.error||metricSourceState.error||'Falha na sincronização automática';
- el.innerHTML=`<div><span class="metric-source-dot"></span><div><b>${has?'GOOGLE SHEETS • CONEXÃO PERMANENTE':'FONTE NÃO CONFIGURADA'}</b><small>${esc(desc)}</small></div></div><span>${has?`Última sincronização: ${esc(when)}<br>AGENDA • 14:05 · 16:05 · 21:05 · 23:05`:'CONFIGURAR'}</span>`;
+ el.innerHTML=`<div><span class="metric-source-dot"></span><div><b>${has?'GOOGLE SHEETS • APPS SCRIPT GRATUITO':'FONTE NÃO CONFIGURADA'}</b><small>${esc(desc)}</small></div></div><span>${has?`Última sincronização: ${esc(when)}<br>AGENDA • 14:05 · 16:05 · 21:05 · 23:05`:'CONFIGURAR'}</span>`;
 }
 async function fetchMetricsFromSource({persist=false,quiet=false,authorize=true}={}){
  if(!extractSpreadsheetId(metricSourceConfig.url)){if(!quiet)alert('Configure primeiro o link da planilha em Fonte.');metricSourceState={status:'SEM FONTE',lastSync:null,count:0,activeCount:0,error:''};renderMetricSourceStatus();return false}
@@ -1113,12 +1111,42 @@ function renderMetrics(err=null){
  if(!rows.length){box.innerHTML=`<div class="placeholder"><b>▥</b><h3>SEM MÉTRICAS EM ${esc(metricPeriodLabel(metricPeriodKey).toUpperCase())}</h3><p>Não há dados para os filtros atuais. O High OS não mistura competências.</p></div>`;syncMetricSelectors();renderMetricFactionDetail();return}
  box.innerHTML=rows.map((x,i)=>`<article class="metric-row" data-metric-group="${esc(x.f.group)}"><div class="metric-pos">${i+1}</div><div class="metric-main"><div><strong>${esc(x.f.group)}</strong><span>${esc(x.f.faccao||x.f.qg||'—')}</span></div><div class="metric-kpis"><span>MÉDIA <b>${x.a.avg.toFixed(1)}</b></span><span>PICO <b>${x.a.peak.value}</b><small>${esc(x.a.peak.hour)} • ${esc(x.a.peak.date)}</small></span><span>PREDOMINÂNCIA <b>${esc(x.a.predominant)}</b></span><span>DIAS <b>${x.a.rows.length}</b></span></div></div></article>`).join('');
  box.querySelectorAll('[data-metric-group]').forEach(el=>el.addEventListener('click',()=>{switchMetricCenterView('faction');if($('#metricFactionSelect'))$('#metricFactionSelect').value=el.dataset.metricGroup;renderMetricFactionDetail(el.dataset.metricGroup)}));
- syncMetricSelectors();renderMetricFactionDetail();
+ syncMetricSelectors();renderMetricFactionDetail();if($('#metricViewRanking')?.classList.contains('active'))renderMetricAdvancedRanking();if($('#metricViewComparatives')?.classList.contains('active')){syncMetricCompareSelectors();renderMetricComparison()}
 }
+function metricAdvancedStats(group){
+ const a=metricAnalysis(group);if(!a)return null;const dayAvgs=a.rows.map(metricDayAverage),slots={'14H':[],'16H':[],'21H':[],'23H':[]};a.rows.forEach(r=>{const x=metricSlots(r);Object.keys(slots).forEach(h=>slots[h].push(Number(x[h])||0))});
+ const hourAvg=Object.fromEntries(Object.entries(slots).map(([h,v])=>[h,v.length?v.reduce((x,y)=>x+y,0)/v.length:0]));
+ const threshold=a.avg*.8,regularDays=dayAvgs.filter(v=>v>=threshold).length,regularity=dayAvgs.length?regularDays/dayAvgs.length*100:0;
+ const recent=dayAvgs.slice(-5),prior=dayAvgs.slice(-10,-5),av=v=>v.length?v.reduce((x,y)=>x+y,0)/v.length:0;const recentAvg=av(recent),priorAvg=av(prior);const trend=priorAvg?((recentAvg-priorAvg)/priorAvg*100):0;
+ const alerts=[];if(prior.length>=3&&trend<=-20)alerts.push(`⚠ Queda de ${Math.abs(trend).toFixed(0)}% na média dos últimos dias.`);if(prior.length>=3&&trend>=15)alerts.push(`▲ Crescimento de ${trend.toFixed(0)}% na média dos últimos dias.`);
+ const weak=Object.entries(hourAvg).sort((x,y)=>x[1]-y[1])[0],strong=Object.entries(hourAvg).sort((x,y)=>y[1]-x[1])[0];if(weak&&strong&&strong[1]>0&&weak[1]<strong[1]*.7)alerts.push(`⚠ ${weak[0]} está ${((1-weak[1]/strong[1])*100).toFixed(0)}% abaixo do horário mais forte (${strong[0]}).`);
+ return {...a,hourAvg,regularity,trend,recentAvg,priorAvg,alerts};
+}
+function renderMetricAdvancedRanking(){
+ const box=$('#metricAdvancedRanking');if(!box)return;const mode=$('#metricRankingMode')?.value||'avg',seg=$('#metricSegment')?.value||'';let rows=metricSummaryRows().filter(x=>!seg||x.f.segmento===seg).map(x=>({...x,x:metricAdvancedStats(x.f.group)})).filter(x=>x.x);
+ rows.sort((a,b)=>mode==='peak'?b.x.peak.value-a.x.peak.value:mode==='regularity'?b.x.regularity-a.x.regularity:b.x.avg-a.x.avg);
+ box.innerHTML=rows.length?`<div class="rh-ranking-row"><b>#</b><b>FACÇÃO / GROUP</b><span>MÉDIA</span><span class="rh-extra">PICO</span><span class="rh-extra">REGULAR.</span><span class="rh-extra">TENDÊNCIA</span></div>${rows.map((r,i)=>`<div class="rh-ranking-row"><b>${i+1}</b><div><strong>${esc(r.f.faccao||r.f.group)}</strong><small style="display:block">${esc(r.f.group)} • ${esc(r.f.segmento||'—')}</small></div><span><b>${r.x.avg.toFixed(2)}</b></span><span class="rh-extra">${r.x.peak.value}</span><span class="rh-extra">${r.x.regularity.toFixed(0)}%</span><span class="rh-extra">${r.x.trend>=0?'+':''}${r.x.trend.toFixed(0)}%</span></div>`).join('')}`:'<div class="placeholder"><h3>SEM DADOS</h3></div>';
+}
+function syncMetricCompareSelectors(){const rows=metricSummaryRows(),opts=rows.map(x=>`<option value="${esc(x.f.group)}">${esc(x.f.faccao||x.f.group)} • ${esc(x.f.group)}</option>`).join('');const a=$('#metricCompareA'),b=$('#metricCompareB');if(a&&!a.options.length)a.innerHTML=opts;if(b&&!b.options.length){b.innerHTML=opts;if(b.options.length>1)b.selectedIndex=1}}
+function renderMetricComparison(){
+ const ga=$('#metricCompareA')?.value,gb=$('#metricCompareB')?.value,box=$('#metricCompareResult');if(!box||!ga||!gb)return;const a=metricAdvancedStats(ga),b=metricAdvancedStats(gb);if(!a||!b){box.innerHTML='<div class="placeholder"><h3>SEM DADOS PARA COMPARAR</h3></div>';return}const ia=metricIdentity(ga,a.rows[0]),ib=metricIdentity(gb,b.rows[0]);
+ const rows=[['Média mensal',a.avg.toFixed(2),b.avg.toFixed(2)],['Pico',a.peak.value,b.peak.value],['Regularidade',a.regularity.toFixed(0)+'%',b.regularity.toFixed(0)+'%'],['Tendência últimos dias',(a.trend>=0?'+':'')+a.trend.toFixed(0)+'%',(b.trend>=0?'+':'')+b.trend.toFixed(0)+'%'],...['14H','16H','21H','23H'].map(h=>['Média '+h,a.hourAvg[h].toFixed(2),b.hourAvg[h].toFixed(2)])];
+ box.innerHTML=`<div class="rh-grid"><div class="rh-card"><span>FACÇÃO A</span><b>${esc(ia.faccao||ga)}</b><small>${esc(ga)}</small></div><div class="rh-card"><span>FACÇÃO B</span><b>${esc(ib.faccao||gb)}</b><small>${esc(gb)}</small></div><div class="rh-card"><span>DIFERENÇA DE MÉDIA</span><b>${Math.abs(a.avg-b.avg).toFixed(2)}</b><small>${a.avg>=b.avg?esc(ia.faccao||ga):esc(ib.faccao||gb)} à frente</small></div><div class="rh-card"><span>COMPETÊNCIA</span><b>${esc(metricPeriodLabel(metricPeriodKey))}</b></div></div><table class="rh-compare-table"><thead><tr><th>INDICADOR</th><th>${esc(ia.faccao||ga)}</th><th>${esc(ib.faccao||gb)}</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${r[0]}</td><td><b>${r[1]}</b></td><td><b>${r[2]}</b></td></tr>`).join('')}</tbody></table>`;
+}
+function renderRhFactionInsights(group){const sum=$('#metricFactionSummary');if(!sum||!group)return;const x=metricAdvancedStats(group);if(!x)return;const extra=document.createElement('div');extra.className='rh-insights';extra.innerHTML=`<div class="rh-grid">${Object.entries(x.hourAvg).map(([h,v])=>`<div class="rh-card"><span>MÉDIA ${h}</span><b>${v.toFixed(2)}</b></div>`).join('')}<div class="rh-card"><span>REGULARIDADE</span><b>${x.regularity.toFixed(0)}%</b><small>dias ≥ 80% da média mensal</small></div><div class="rh-card"><span>TENDÊNCIA</span><b>${x.trend>=0?'+':''}${x.trend.toFixed(0)}%</b><small>últimos 5 dias vs. 5 anteriores</small></div></div>${x.alerts.length?`<div>${x.alerts.map(a=>`<div class="rh-alert">${esc(a)}</div>`).join('')}</div>`:'<div class="rh-alert">Sem alertas estatísticos relevantes no período.</div>'}`;sum.after(extra)}
+
+const _renderMetricFactionDetailBase=renderMetricFactionDetail;
+renderMetricFactionDetail=function(group=metricSelectedGroup()){document.querySelector('.rh-insights')?.remove();_renderMetricFactionDetailBase(group);renderRhFactionInsights(group)};
 function switchMetricCenterView(view='overview'){
- document.querySelectorAll('.metric-center-tab').forEach(b=>b.classList.toggle('active',b.dataset.metricView===view));document.querySelectorAll('.metric-center-view').forEach(v=>v.classList.toggle('active',v.id===`metricView${view[0].toUpperCase()+view.slice(1)}`));if(view==='faction')renderMetricFactionDetail();if(view==='reports')syncMetricSelectors();
+ document.querySelectorAll('.metric-center-tab').forEach(b=>b.classList.toggle('active',b.dataset.metricView===view));document.querySelectorAll('.metric-center-view').forEach(v=>v.classList.toggle('active',v.id===`metricView${view[0].toUpperCase()+view.slice(1)}`));if(view==='faction')renderMetricFactionDetail();if(view==='ranking')renderMetricAdvancedRanking();if(view==='comparatives'){syncMetricCompareSelectors();renderMetricComparison()}if(view==='reports')syncMetricSelectors();
 }
 document.querySelectorAll('.metric-center-tab').forEach(b=>b.addEventListener('click',()=>switchMetricCenterView(b.dataset.metricView)));
+
+$('#metricRankingMode')?.addEventListener('change',renderMetricAdvancedRanking);
+$('#metricCompareBtn')?.addEventListener('click',renderMetricComparison);
+$('#metricCompareA')?.addEventListener('change',renderMetricComparison);
+$('#metricCompareB')?.addEventListener('change',renderMetricComparison);
+
 $('#metricFactionSelect')?.addEventListener('change',e=>renderMetricFactionDetail(e.target.value));
 $('#metricOpenReportBtn')?.addEventListener('click',()=>{switchMetricCenterView('reports');if($('#metricReportGroup'))$('#metricReportGroup').value=$('#metricFactionSelect')?.value||'';renderMetricReport()});
 $('#metricReportSegment')?.addEventListener('change',syncMetricSelectors);$('#metricReportPreviewBtn')?.addEventListener('click',renderMetricReport);$('#metricReportPrintBtn')?.addEventListener('click',printMetricReport);$('#metricReportCsvBtn')?.addEventListener('click',downloadMetricCsv);
@@ -1135,24 +1163,27 @@ async function saveMetricImport(){
 $('#metricSearch')?.addEventListener('input',()=>renderMetrics());$('#metricPeriod')?.addEventListener('change',e=>{metricPeriodKey=e.target.value||currentMetricMonthKey();renderMetrics();syncMetricSelectors()});$('#metricSegment')?.addEventListener('change',()=>renderMetrics());$('#metricReportPeriod')?.addEventListener('change',()=>{});$('#openMetricImportBtn')?.addEventListener('click',()=>$('#metricImportModal')?.classList.remove('hidden'));$('#metricImportClose')?.addEventListener('click',()=>$('#metricImportModal')?.classList.add('hidden'));$('#metricImportModal')?.addEventListener('click',e=>{if(e.target.id==='metricImportModal')e.currentTarget.classList.add('hidden')});$('#metricImportSave')?.addEventListener('click',saveMetricImport);
 
 function openMetricSource(){
- $('#metricSourceUrl').value=metricSourceConfig.url||'';$('#metricSourceSheet').value=metricSourceConfig.sheet||'';$('#metricAutoSync').checked=metricSourceConfig.autoSync!==false;$('#metricSourceTestResult').textContent='A conexão permanente é feita pelo servidor. O teste abaixo usa sua conta apenas para validar a planilha antes de salvar.';$('#metricSourceModal')?.classList.remove('hidden');
+ const out=$('#metricSourceTestResult');
+ if($('#metricSourceUrl'))$('#metricSourceUrl').value=metricSourceConfig.url||'';
+ if($('#metricSourceSheet'))$('#metricSourceSheet').value=metricSourceConfig.sheet||'';
+ if($('#metricAutoSync')){$('#metricAutoSync').checked=true;$('#metricAutoSync').disabled=true}
+ if(out)out.innerHTML='<b>SINCRONIZAÇÃO GRATUITA VIA GOOGLE APPS SCRIPT</b><br>A planilha envia as métricas automaticamente ao Firestore às 14:05, 16:05, 21:05 e 23:05. Não usa Cloud Functions nem plano Blaze.';
+ $('#metricSourceModal')?.classList.remove('hidden');
 }
 async function testMetricSource(){
- const out=$('#metricSourceTestResult'),url=$('#metricSourceUrl').value.trim(),sheet=$('#metricSourceSheet').value.trim();if(!extractSpreadsheetId(url)){out.textContent='Informe um link ou ID válido do Google Sheets.';return}out.textContent='Solicitando permissão Google e lendo a planilha...';
- try{const result=await readMetricsDirect({authorize:true,urlOverride:url,sheetOverride:sheet});out.innerHTML=`<b>CONEXÃO OK • SOMENTE LEITURA</b> • ${result.rows.length} registros • aba ${esc(result.sheet)}`
- }catch(e){out.textContent='Falha: '+e.message}
+ const out=$('#metricSourceTestResult');if(out)out.textContent='Atualizando os dados já sincronizados no Firestore...';
+ try{await loadMetrics();if(out)out.innerHTML=`<b>CENTRAL ONLINE</b> • ${metricas.length} registro(s) históricos disponíveis no Firestore.`}catch(e){if(out)out.textContent='Falha: '+e.message}
 }
 async function refreshMetricServerConfig(){
  try{const snap=await getDoc(metricConfigDoc);if(snap.exists())metricSourceConfig={...metricSourceConfig,...snap.data()};renderMetricSourceStatus()}catch(e){}
 }
 async function requestServerMetricSync({quiet=false}={}){
- if(!extractSpreadsheetId(metricSourceConfig.url)){if(!quiet)alert('Configure primeiro o link da planilha em Fonte.');return false}
- const btn=$('#syncMetricBtn'),old=btn?.textContent;if(btn){btn.disabled=true;btn.textContent='SINCRONIZANDO...'}
- try{const res=await syncMetricsServer({force:true});await refreshMetricServerConfig();await loadMetrics();if(!quiet)alert(`Sincronização concluída pelo servidor. ${res.data?.rows||0} registro(s) lidos • ${res.data?.changed||0} alterado(s).`);return true}catch(e){await refreshMetricServerConfig();if(!quiet)alert('Erro na sincronização permanente: '+(e.message||e));return false}finally{if(btn){btn.disabled=false;btn.textContent=old||'SINCRONIZAR AGORA'}}
+ const btn=$('#syncMetricBtn'),old=btn?.textContent;if(btn){btn.disabled=true;btn.textContent='ATUALIZANDO...'}
+ try{await refreshMetricServerConfig();await loadMetrics();if(!quiet)alert(`Central atualizada. ${metricas.length} registro(s) carregado(s) do Firestore. A sincronização da planilha é automática pelo Apps Script.`);return true}catch(e){if(!quiet)alert('Erro ao atualizar a Central: '+(e.message||e));return false}finally{if(btn){btn.disabled=false;btn.textContent=old||'ATUALIZAR CENTRAL'}}
 }
 async function saveMetricSource(){
- const cfg={url:$('#metricSourceUrl').value.trim(),sheet:$('#metricSourceSheet').value.trim(),autoSync:$('#metricAutoSync').checked,mode:'GOOGLE_SHEETS_SERVER_READONLY',schedule:'5 14,16,21,23 * * *',timeZone:'America/Sao_Paulo',updatedAt:serverTimestamp(),updatedBy:currentUser.email};if(!extractSpreadsheetId(cfg.url)){alert('Informe um link ou ID válido do Google Sheets.');return}
- try{await setDoc(metricConfigDoc,cfg,{merge:true});metricSourceConfig={...metricSourceConfig,url:cfg.url,sheet:cfg.sheet,autoSync:cfg.autoSync,mode:cfg.mode,schedule:cfg.schedule,timeZone:cfg.timeZone};$('#metricSourceModal').classList.add('hidden');renderMetricSourceStatus();await requestServerMetricSync({quiet:false})}catch(e){alert('Erro ao salvar a fonte: '+e.message)}
+ const cfg={url:$('#metricSourceUrl')?.value?.trim()||metricSourceConfig.url||'',sheet:$('#metricSourceSheet')?.value?.trim()||metricSourceConfig.sheet||'',autoSync:true,mode:'GOOGLE_APPS_SCRIPT_FREE',schedule:'14:05,16:05,21:05,23:05',timeZone:'America/Sao_Paulo',updatedAt:serverTimestamp(),updatedBy:currentUser.email};
+ try{await setDoc(metricConfigDoc,cfg,{merge:true});metricSourceConfig={...metricSourceConfig,...cfg};$('#metricSourceModal')?.classList.add('hidden');renderMetricSourceStatus();alert('Fonte registrada. A sincronização automática é executada pelo Apps Script da planilha, sem Cloud Functions e sem Blaze.')}catch(e){alert('Erro ao salvar a fonte: '+e.message)}
 }
 $('#metricSourceBtn')?.addEventListener('click',openMetricSource);$('#metricSourceClose')?.addEventListener('click',()=>$('#metricSourceModal')?.classList.add('hidden'));$('#metricSourceModal')?.addEventListener('click',e=>{if(e.target.id==='metricSourceModal')e.currentTarget.classList.add('hidden')});$('#metricSourceTest')?.addEventListener('click',testMetricSource);$('#metricSourceSave')?.addEventListener('click',saveMetricSource);$('#syncMetricBtn')?.addEventListener('click',()=>requestServerMetricSync({quiet:false}));
 
