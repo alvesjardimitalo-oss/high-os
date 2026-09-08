@@ -1109,7 +1109,7 @@ function downloadMetricCsv(){
  const data=renderMetricReport();if(!data)return alert('Selecione uma facção com dados nesta competência.');const lines=[['Data','14H','16H','21H','23H','Media'],...data.a.rows.map(r=>{const s=metricSlots(r);return [metricDateLabel(r),s['14H'],s['16H'],s['21H'],s['23H'],metricDayAverage(r).toFixed(2).replace('.',',')]})];const csv='\ufeff'+lines.map(row=>row.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(';')).join('\r\n');const blob=new Blob([csv],{type:'text/csv;charset=utf-8'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`metricas_${slug(data.group)}_${data.period}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
 function renderMetrics(err=null){
- const box=$('#metricRanking');if(!box)return;if(err instanceof Event)err=null;
+ const box=$('#metricRanking');if(err instanceof Event)err=null;
  const q=alvesNorm($('#metricSearch')?.value||''),seg=$('#metricSegment')?.value||'';
  let rows=metricSummaryRows().filter(x=>(!seg||x.f.segmento===seg)&&(!q||alvesNorm([x.f.group,x.f.faccao,x.f.qg].join(' ')).includes(q)));
  const active=activeMetricRows(),groupsWith=new Set(active.map(m=>alvesNorm(m.group||m.organizacao||m.faccao))).size;
@@ -1122,10 +1122,20 @@ function renderMetrics(err=null){
  $('#metricStats').innerHTML=`<span><b>${esc(metricPeriodLabel(metricPeriodKey))}</b> COMPETÊNCIA</span><span><b>${esc(metricPeriodRange(active))}</b> PERÍODO</span><span><b>${active.length}</b> DIAS / REGISTROS</span><span><b>${groupsWith}</b> GROUPS COM DADOS</span><span><b>${rows.length}</b> EXIBIDOS</span>${seg?`<span>SEGMENTO <b>${esc(seg)}</b></span>`:''}`;
  const maxHour=Math.max(1,...Object.values(hourAvgs)),top5=rows.slice(0,5),maxTop=Math.max(1,...top5.map(x=>x.a.avg));
  if($('#metricVisuals'))$('#metricVisuals').innerHTML=`<section class="metric-chart-card"><div class="metric-chart-head"><b>PRESENÇA MÉDIA POR HORÁRIO</b><span>${esc(metricPeriodLabel(metricPeriodKey))}${seg?' • '+esc(seg):''}</span></div><div class="hour-bars">${Object.entries(hourAvgs).map(([h,v])=>`<div class="hour-col"><b>${v.toFixed(1)}</b><i style="height:${Math.max(4,v/maxHour*120)}px"></i><span>${h}</span></div>`).join('')}</div></section><section class="metric-chart-card"><div class="metric-chart-head"><b>TOP 5 • MÉDIA ONLINE</b><span>RANKING DO RECORTE</span></div><div class="top-bars">${top5.length?top5.map(x=>`<div class="top-bar-item"><span>${esc(x.f.group)}</span><div class="ops-track"><div class="ops-fill" style="width:${Math.max(3,x.a.avg/maxTop*100)}%"></div></div><b>${x.a.avg.toFixed(1)}</b></div>`).join(''):'<div class="muted">Sem dados no recorte.</div>'}</div></section>`;
- if(err){box.innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR</h3><p>${esc(err.message||String(err))}</p></div>`;return}
- if(!rows.length){box.innerHTML=`<div class="placeholder"><b>▥</b><h3>SEM MÉTRICAS EM ${esc(metricPeriodLabel(metricPeriodKey).toUpperCase())}</h3><p>Não há dados para os filtros atuais. O High OS não mistura competências.</p></div>`;syncMetricSelectors();renderMetricFactionDetail();return}
- box.innerHTML=rows.map((x,i)=>`<article class="metric-row" data-metric-group="${esc(x.f.group)}"><div class="metric-pos">${i+1}</div><div class="metric-main"><div><strong>${esc(x.f.group)}</strong><span>${esc(x.f.faccao||x.f.qg||'—')}</span></div><div class="metric-kpis"><span>MÉDIA <b>${x.a.avg.toFixed(1)}</b></span><span>PICO <b>${x.a.peak.value}</b><small>${esc(x.a.peak.hour)} • ${esc(x.a.peak.date)}</small></span><span>PREDOMINÂNCIA <b>${esc(x.a.predominant)}</b></span><span>DIAS <b>${x.a.rows.length}</b></span></div></div></article>`).join('');
- box.querySelectorAll('[data-metric-group]').forEach(el=>el.addEventListener('click',()=>{switchMetricCenterView('faction');if($('#metricFactionSelect'))$('#metricFactionSelect').value=el.dataset.metricGroup;renderMetricFactionDetail(el.dataset.metricGroup)}));
+ if(err){
+  if($('#metricOverview'))$('#metricOverview').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR</h3><p>${esc(err.message||String(err))}</p></div>`;
+  if($('#metricStats'))$('#metricStats').innerHTML='';
+  if($('#metricVisuals'))$('#metricVisuals').innerHTML='';
+  return
+ }
+ if(!rows.length){
+  if($('#metricOverview'))$('#metricOverview').innerHTML=`<div class="placeholder"><b>▥</b><h3>SEM MÉTRICAS EM ${esc(metricPeriodLabel(metricPeriodKey).toUpperCase())}</h3><p>Não há dados para os filtros atuais. O High OS não mistura competências.</p></div>`;
+  if($('#metricStats'))$('#metricStats').innerHTML='';
+  if($('#metricVisuals'))$('#metricVisuals').innerHTML='';
+  syncMetricSelectors();renderMetricFactionDetail();if($('#metricViewRanking')?.classList.contains('active'))renderMetricAdvancedRanking();return
+ }
+ // O ranking antigo da Visão Geral foi removido. A classificação fica apenas na aba RANKING.
+ if(box)box.innerHTML='';
  syncMetricSelectors();renderMetricFactionDetail();if($('#metricViewRanking')?.classList.contains('active'))renderMetricAdvancedRanking();if($('#metricViewComparatives')?.classList.contains('active')){syncMetricCompareSelectors();renderMetricComparison()}
 }
 function metricAdvancedStats(group){
