@@ -17,6 +17,18 @@ async function login(){try{await signInWithPopup(auth,provider)}catch(e){alert('
 async function logout(){await signOut(auth)}
 $('#loginBtn').onclick=login;$('#loginBtnCard').onclick=login;$('#logoutBtn').onclick=logout;$('#logoutDenied').onclick=logout;
 
+const METRIC_ONLY_ROLES=new Set(['RH_METRICAS']);
+function applyRoleAccess(role='CONSULTA'){
+ role=String(role||'CONSULTA').toUpperCase();
+ const metricOnly=METRIC_ONLY_ROLES.has(role);
+ document.body.classList.toggle('metric-only-access',metricOnly);
+ document.querySelectorAll('.nav-item').forEach(btn=>{
+  if(metricOnly)btn.style.display=btn.dataset.page==='metricas'?'flex':'none';
+  else if(!btn.classList.contains('admin-only'))btn.style.display='flex';
+ });
+ if(metricOnly){activateAppPage('metricas');document.querySelector('.nav-item[data-page="metricas"]')?.classList.add('active')}
+}
+
 onAuthStateChanged(auth,async user=>{
  currentUser=user;
  if(!user){show(loginView);sessionArea.innerHTML='<button class="btn-google" id="loginTop">G&nbsp; Entrar com Google</button>';$('#loginTop').onclick=login;return}
@@ -28,10 +40,11 @@ onAuthStateChanged(auth,async user=>{
   $('#userName').textContent=currentProfile.name||user.displayName||email;$('#userRole').textContent=role;$('#dashEmail').textContent=email;$('#dashRole').textContent=role;
   if(user.photoURL)$('#userPhoto').src=user.photoURL;else $('#userPhoto').style.display='none';
   document.querySelectorAll('.admin-only').forEach(el=>el.style.display=role==='ADMIN'?'flex':'none');
+  applyRoleAccess(role);
   sessionArea.innerHTML=`<span class="access-pill">● ${role}</span><span class="top-email">${email}</span>`;
-  await loadFaccoes();
+  if(METRIC_ONLY_ROLES.has(role))faccoes=[];else await loadFaccoes();
   await loadMetrics();
-  loadMarketCatalog();
+  if(!METRIC_ONLY_ROLES.has(role))loadMarketCatalog();
   if(role==='ADMIN') await loadUsers();
  }catch(e){show(deniedView);$('#deniedText').textContent='Falha ao validar seu cadastro no Firestore: '+e.message}
 });
@@ -1013,19 +1026,64 @@ function renderMetricSourceStatus(){
 async function fetchMetricsFromSource({persist=false,quiet=false,authorize=true}={}){
  if(!extractSpreadsheetId(metricSourceConfig.url)){if(!quiet)alert('Configure primeiro o link da planilha em Fonte.');metricSourceState={status:'SEM FONTE',lastSync:null,count:0,activeCount:0,error:''};renderMetricSourceStatus();return false}
  metricSourceState={...metricSourceState,status:'SINCRONIZANDO',error:''};renderMetricSourceStatus();
- try{const result=await readMetricsDirect({authorize});const rows=result.rows;metricas=rows;metricPeriodKey=currentMetricMonthKey();metricSourceState={status:'ONLINE',lastSync:Date.now(),count:rows.length,activeCount:activeMetricRows().length,error:'',sheet:result.sheet};renderMetricSourceStatus();refreshMetricPeriodOptions();renderMetrics();if(persist)await persistMetricRows(rows,result.sheet);if(!quiet)alert(`${rows.length} registro(s) históricos lidos da aba ${result.sheet}. Exibindo ${activeMetricRows().length} registro(s) de ${metricPeriodLabel(metricPeriodKey)}. A planilha não foi alterada.`);return true
+ try{const result=await readMetricsDirect({authorize});const rows=result.rows.map(metricSnapshot);metricas=rows;metricPeriodKey=currentMetricMonthKey();metricSourceState={status:'ONLINE',lastSync:Date.now(),count:rows.length,activeCount:activeMetricRows().length,error:'',sheet:result.sheet};renderMetricSourceStatus();refreshMetricPeriodOptions();renderMetrics();if(persist)await persistMetricRows(rows,result.sheet);if(!quiet)alert(`${rows.length} registro(s) históricos lidos da aba ${result.sheet}. Exibindo ${activeMetricRows().length} registro(s) de ${metricPeriodLabel(metricPeriodKey)}. A planilha não foi alterada.`);return true
  }catch(e){metricas=metricasCache.slice();if(e.message==='AUTORIZAÇÃO NECESSÁRIA'){metricSourceState={...metricSourceState,status:'AGUARDANDO',error:''};renderMetricSourceStatus();return false}metricSourceState={...metricSourceState,status:'ERRO',error:e.message};renderMetricSourceStatus();renderMetrics();if(!quiet)alert('Erro ao sincronizar métricas: '+e.message);return false}
 }
 async function persistMetricRows(rows,sheet=''){
- const chunks=[];for(let i=0;i<rows.length;i+=400)chunks.push(rows.slice(i,i+400));for(const chunk of chunks){const batch=writeBatch(db);chunk.forEach(r=>{const id=(r.group+'_'+r.data).replace(/[^a-zA-Z0-9_-]/g,'_');batch.set(doc(db,'highos','data','metricas',id),{...r,source:'GOOGLE_SHEETS_READONLY',sourceSheet:sheet||metricSourceConfig.sheet||'',updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true})});await batch.commit()}
+ const chunks=[];for(let i=0;i<rows.length;i+=400)chunks.push(rows.slice(i,i+400));for(const chunk of chunks){const batch=writeBatch(db);chunk.forEach(r=>{r=metricSnapshot(r);const id=(r.group+'_'+r.data).replace(/[^a-zA-Z0-9_-]/g,'_');batch.set(doc(db,'highos','data','metricas',id),{...r,source:'GOOGLE_SHEETS_READONLY',sourceSheet:sheet||metricSourceConfig.sheet||'',updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true})});await batch.commit()}
  await addDoc(histCol,{tipo:'SINCRONIZACAO_METRICAS',descricao:`${rows.length} registro(s) lidos em modo somente leitura da planilha oficial${sheet?' • aba '+sheet:''}`,usuario:currentUser.email,data:serverTimestamp()});metricasCache=rows.slice();
 }
 async function loadMetrics(){
  try{const qs=await getDocs(metricCol);metricasCache=qs.docs.map(d=>({id:d.id,...d.data()}));metricas=metricasCache.slice();metricPeriodKey=currentMetricMonthKey()}catch(e){metricasCache=[];metricas=[];metricPeriodKey=currentMetricMonthKey()}
  await loadMetricSourceConfig();refreshMetricPeriodOptions();renderMetrics();if(metricSourceConfig.url&&metricSourceConfig.autoSync!==false&&sheetsAccessToken)await fetchMetricsFromSource({persist:false,quiet:true,authorize:false});
 }
+function metricIdentity(group,row=null){
+ const f=faccoes.find(x=>alvesNorm(x.group)===alvesNorm(group))||SEED.find(x=>alvesNorm(x.group)===alvesNorm(group))||{};
+ return {group:group||f.group||'',faccao:row?.faccaoSnapshot||row?.faccao||f.faccao||'',qg:row?.qgSnapshot||f.qg||'',segmento:row?.segmentoSnapshot||f.segmento||'',lider:row?.liderSnapshot||f.lider||''};
+}
+function metricSnapshot(row={}){
+ const id=metricIdentity(row.group||row.organizacao||row.faccao,row);
+ return {...row,faccaoSnapshot:id.faccao,qgSnapshot:id.qg,segmentoSnapshot:id.segmento,liderSnapshot:id.lider,snapshotVersion:'V7.7'};
+}
 function metricSummaryRows(){
- return faccoes.map(f=>{const a=metricAnalysis(f.group);return a?{f,a}:null}).filter(Boolean).sort((x,y)=>y.a.avg-x.a.avg);
+ const groups=[...new Set(activeMetricRows().map(m=>m.group||m.organizacao||m.faccao).filter(Boolean))];
+ return groups.map(group=>{const f=faccoes.find(x=>alvesNorm(x.group)===alvesNorm(group))||metricIdentity(group,activeMetricRows().find(m=>alvesNorm(m.group||m.organizacao||m.faccao)===alvesNorm(group)));const a=metricAnalysis(group);return a?{f:{...f,group:f.group||group,faccao:f.faccao||metricIdentity(group,a.rows[0]).faccao,segmento:f.segmento||metricIdentity(group,a.rows[0]).segmento,qg:f.qg||metricIdentity(group,a.rows[0]).qg},a}:null}).filter(Boolean).sort((x,y)=>y.a.avg-x.a.avg);
+}
+function metricDateLabel(row){const d=metricDateValue(row);return d&&d.getTime()?d.toLocaleDateString('pt-BR'):(row?.data||row?.date||'—')}
+function metricDayAverage(row){const v=Object.values(metricSlots(row));return v.length?v.reduce((a,b)=>a+b,0)/v.length:0}
+function metricPeriodRange(rows=[]){const dates=rows.map(metricDateValue).filter(d=>d&&d.getTime()).sort((a,b)=>a-b);if(!dates.length)return '—';return `${dates[0].toLocaleDateString('pt-BR')} a ${dates.at(-1).toLocaleDateString('pt-BR')}`}
+function metricModeValue(values=[]){const counts=new Map();values.forEach(v=>counts.set(v,(counts.get(v)||0)+1));return [...counts.entries()].sort((a,b)=>b[1]-a[1]||b[0]-a[0])[0]?.[0]??'—'}
+function metricSelectedGroup(){return $('#metricFactionSelect')?.value||metricSummaryRows()[0]?.f?.group||''}
+function syncMetricSelectors(){
+ const rows=metricSummaryRows();const options=rows.map(x=>`<option value="${esc(x.f.group)}">${esc(x.f.group)}${x.f.faccao?' • '+esc(x.f.faccao):''}</option>`).join('');
+ const fs=$('#metricFactionSelect'),rg=$('#metricReportGroup');const keepF=fs?.value,keepR=rg?.value;
+ if(fs){fs.innerHTML=options||'<option value="">SEM DADOS</option>';if(keepF&&rows.some(x=>x.f.group===keepF))fs.value=keepF}
+ if(rg){const seg=$('#metricReportSegment')?.value||'';const filtered=rows.filter(x=>!seg||x.f.segmento===seg);rg.innerHTML=filtered.map(x=>`<option value="${esc(x.f.group)}">${esc(x.f.group)}${x.f.faccao?' • '+esc(x.f.faccao):''}</option>`).join('')||'<option value="">SEM DADOS</option>';if(keepR&&filtered.some(x=>x.f.group===keepR))rg.value=keepR}
+ const rp=$('#metricReportPeriod');if(rp&&$('#metricPeriod')){const selected=rp.value||metricPeriodKey;rp.innerHTML=$('#metricPeriod').innerHTML;if([...rp.options].some(o=>o.value===selected))rp.value=selected}
+}
+function renderMetricFactionDetail(group=metricSelectedGroup()){
+ const sum=$('#metricFactionSummary'),table=$('#metricFactionTable');if(!sum||!table)return;
+ if(!group){sum.innerHTML='';table.innerHTML='<div class="placeholder"><h3>SEM DADOS</h3></div>';return}
+ const a=metricAnalysis(group);if(!a){sum.innerHTML='';table.innerHTML='<div class="placeholder"><h3>SEM MÉTRICAS PARA ESTE GROUP</h3></div>';return}
+ const id=metricIdentity(group,a.rows[0]);const vals=a.rows.flatMap(r=>Object.values(metricSlots(r)));const low=vals.length?Math.min(...vals):0;const mode=metricModeValue(vals);const expected=a.rows.length*4,filled=a.rows.reduce((n,r)=>n+Object.values(metricSlots(r)).filter(v=>Number.isFinite(v)).length,0);
+ sum.innerHTML=`<article><span>FACÇÃO</span><b>${esc(id.faccao||'—')}</b><small>${esc(group)} • ${esc(id.segmento||'—')}</small></article><article><span>MÉDIA MENSAL</span><b>${a.avg.toFixed(2)}</b><small>${esc(metricPeriodLabel(metricPeriodKey))}</small></article><article><span>PICO</span><b>${a.peak.value}</b><small>${esc(a.peak.hour)} • ${esc(a.peak.date)}</small></article><article><span>MENOR REGISTRO</span><b>${low}</b><small>predominância ${esc(mode)}</small></article><article><span>COLETAS</span><b>${filled}/${expected}</b><small>${a.rows.length} dia(s) • ${esc(metricPeriodRange(a.rows))}</small></article>`;
+ table.innerHTML=`<div class="metric-date-table-title"><div><b>HISTÓRICO DIÁRIO</b><span>${esc(id.faccao||group)} • ${esc(metricPeriodLabel(metricPeriodKey))}</span></div></div><div class="metric-table-scroll"><table class="metric-date-table"><thead><tr><th>DATA</th><th>14H</th><th>16H</th><th>21H</th><th>23H</th><th>MÉDIA DO DIA</th></tr></thead><tbody>${a.rows.map(r=>{const sl=metricSlots(r);return `<tr><td><b>${esc(metricDateLabel(r))}</b></td><td>${sl['14H']}</td><td>${sl['16H']}</td><td>${sl['21H']}</td><td>${sl['23H']}</td><td><b>${metricDayAverage(r).toFixed(2)}</b></td></tr>`}).join('')}</tbody></table></div>`;
+}
+function metricReportData(group,period=metricPeriodKey){
+ const prev=metricPeriodKey;metricPeriodKey=period||prev;const a=metricAnalysis(group);metricPeriodKey=prev;if(!a)return null;const id=metricIdentity(group,a.rows[0]);const vals=a.rows.flatMap(r=>Object.values(metricSlots(r)));return {group,id,a,low:vals.length?Math.min(...vals):0,mode:metricModeValue(vals),range:metricPeriodRange(a.rows),period:period||prev};
+}
+function buildMetricReportHtml(data,printMode=false){
+ if(!data)return '<div class="placeholder"><h3>SEM DADOS PARA O RELATÓRIO</h3></div>';const {group,id,a,low,mode,range,period}=data;
+ return `<article class="monthly-report${printMode?' print-report':''}"><header><div><span>HIGH ROLEPLAY • CENTRAL DE MÉTRICAS</span><h2>RELATÓRIO MENSAL DE DESEMPENHO</h2><p>${esc(metricPeriodLabel(period))} • período ${esc(range)}</p></div><div class="report-badge">RH</div></header><section class="report-ident"><div><span>FACÇÃO</span><b>${esc(id.faccao||'—')}</b></div><div><span>GROUP</span><b>${esc(group)}</b></div><div><span>SEGMENTO</span><b>${esc(id.segmento||'—')}</b></div><div><span>QG</span><b>${esc(id.qg||'—')}</b></div><div><span>LÍDER</span><b>${esc(id.lider||'—')}</b></div></section><section class="report-kpis"><div><span>MÉDIA MENSAL</span><b>${a.avg.toFixed(2)}</b></div><div><span>PICO</span><b>${a.peak.value}</b><small>${esc(a.peak.hour)} • ${esc(a.peak.date)}</small></div><div><span>MENOR</span><b>${low}</b></div><div><span>PREDOMINÂNCIA</span><b>${esc(mode)}</b></div><div><span>DIAS AVALIADOS</span><b>${a.rows.length}</b></div></section><section><h3>REGISTROS DIÁRIOS</h3><table><thead><tr><th>Data</th><th>14H</th><th>16H</th><th>21H</th><th>23H</th><th>Média</th></tr></thead><tbody>${a.rows.map(r=>{const sl=metricSlots(r);return `<tr><td>${esc(metricDateLabel(r))}</td><td>${sl['14H']}</td><td>${sl['16H']}</td><td>${sl['21H']}</td><td>${sl['23H']}</td><td>${metricDayAverage(r).toFixed(2)}</td></tr>`}).join('')}</tbody></table></section><footer>Gerado pelo High OS • ${new Date().toLocaleString('pt-BR')}</footer></article>`;
+}
+function renderMetricReport(){
+ const group=$('#metricReportGroup')?.value||'',period=$('#metricReportPeriod')?.value||metricPeriodKey;const data=metricReportData(group,period);$('#metricReportPreview').innerHTML=buildMetricReportHtml(data);return data;
+}
+function printMetricReport(){
+ const data=renderMetricReport();if(!data)return alert('Selecione uma facção com dados nesta competência.');const w=window.open('','_blank','width=1050,height=760');if(!w)return alert('O navegador bloqueou a janela de impressão.');w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Relatório ${esc(data.group)} - ${esc(metricPeriodLabel(data.period))}</title><style>body{font-family:Arial,sans-serif;color:#17131b;margin:32px}header{display:flex;justify-content:space-between;border-bottom:3px solid #6f25a7;padding-bottom:16px}header span,.report-ident span,.report-kpis span{font-size:10px;text-transform:uppercase;color:#716978}h2{margin:5px 0}.report-badge{font-size:24px;font-weight:900}.report-ident,.report-kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin:20px 0}.report-ident div,.report-kpis div{border:1px solid #ddd;border-radius:8px;padding:10px}.report-ident b,.report-kpis b{display:block;margin-top:5px}.report-kpis b{font-size:22px}table{width:100%;border-collapse:collapse;margin-top:10px}th,td{border:1px solid #ddd;padding:8px;text-align:center}th{background:#f2edf6}footer{margin-top:20px;font-size:10px;color:#777}@media print{body{margin:12mm}.no-print{display:none}}</style></head><body>${buildMetricReportHtml(data,true)}<script>window.onload=()=>window.print()<\/script></body></html>`);w.document.close();
+}
+function downloadMetricCsv(){
+ const data=renderMetricReport();if(!data)return alert('Selecione uma facção com dados nesta competência.');const lines=[['Data','14H','16H','21H','23H','Media'],...data.a.rows.map(r=>{const s=metricSlots(r);return [metricDateLabel(r),s['14H'],s['16H'],s['21H'],s['23H'],metricDayAverage(r).toFixed(2).replace('.',',')]})];const csv='\ufeff'+lines.map(row=>row.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(';')).join('\r\n');const blob=new Blob([csv],{type:'text/csv;charset=utf-8'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`metricas_${slug(data.group)}_${data.period}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
 function renderMetrics(err=null){
  const box=$('#metricRanking');if(!box)return;if(err instanceof Event)err=null;
@@ -1038,13 +1096,22 @@ function renderMetrics(err=null){
  const allValues=visibleRaw.flatMap(r=>Object.values(metricSlots(r))),overall=allValues.length?allValues.reduce((a,b)=>a+b,0)/allValues.length:0;
  const top=rows[0]||null,peak=rows.reduce((best,x)=>!best||x.a.peak.value>best.a.peak.value?x:best,null);const pred=Object.entries(hourAvgs).sort((a,b)=>b[1]-a[1])[0]||['—',0];
  if($('#metricOverview'))$('#metricOverview').innerHTML=`<article class="metric-hero-kpi"><span>MÉDIA GERAL EXIBIDA</span><b>${overall.toFixed(1)}</b><small>${rows.length} Group(s) no recorte atual</small></article><article class="metric-hero-kpi"><span>LÍDER DO RANKING</span><b>${top?esc(top.f.group):'—'}</b><small>${top?`média ${top.a.avg.toFixed(1)} • ${esc(top.f.faccao||top.f.qg||'')}`:'sem dados'}</small></article><article class="metric-hero-kpi"><span>MAIOR PICO</span><b>${peak?peak.a.peak.value:'—'}</b><small>${peak?`${esc(peak.f.group)} • ${esc(peak.a.peak.hour)} • ${esc(peak.a.peak.date)}`:'sem dados'}</small></article><article class="metric-hero-kpi"><span>HORÁRIO MAIS FORTE</span><b>${esc(pred[0])}</b><small>média agregada ${Number(pred[1]).toFixed(1)}</small></article>`;
- $('#metricStats').innerHTML=`<span><b>${esc(metricPeriodLabel(metricPeriodKey))}</b> COMPETÊNCIA</span><span><b>${active.length}</b> REGISTROS</span><span><b>${groupsWith}</b> GROUPS COM DADOS</span><span><b>${rows.length}</b> EXIBIDOS</span>${seg?`<span>SEGMENTO <b>${esc(seg)}</b></span>`:''}`;
+ $('#metricStats').innerHTML=`<span><b>${esc(metricPeriodLabel(metricPeriodKey))}</b> COMPETÊNCIA</span><span><b>${esc(metricPeriodRange(active))}</b> PERÍODO</span><span><b>${active.length}</b> DIAS / REGISTROS</span><span><b>${groupsWith}</b> GROUPS COM DADOS</span><span><b>${rows.length}</b> EXIBIDOS</span>${seg?`<span>SEGMENTO <b>${esc(seg)}</b></span>`:''}`;
  const maxHour=Math.max(1,...Object.values(hourAvgs)),top5=rows.slice(0,5),maxTop=Math.max(1,...top5.map(x=>x.a.avg));
  if($('#metricVisuals'))$('#metricVisuals').innerHTML=`<section class="metric-chart-card"><div class="metric-chart-head"><b>PRESENÇA MÉDIA POR HORÁRIO</b><span>${esc(metricPeriodLabel(metricPeriodKey))}${seg?' • '+esc(seg):''}</span></div><div class="hour-bars">${Object.entries(hourAvgs).map(([h,v])=>`<div class="hour-col"><b>${v.toFixed(1)}</b><i style="height:${Math.max(4,v/maxHour*120)}px"></i><span>${h}</span></div>`).join('')}</div></section><section class="metric-chart-card"><div class="metric-chart-head"><b>TOP 5 • MÉDIA ONLINE</b><span>RANKING DO RECORTE</span></div><div class="top-bars">${top5.length?top5.map(x=>`<div class="top-bar-item"><span>${esc(x.f.group)}</span><div class="ops-track"><div class="ops-fill" style="width:${Math.max(3,x.a.avg/maxTop*100)}%"></div></div><b>${x.a.avg.toFixed(1)}</b></div>`).join(''):'<div class="muted">Sem dados no recorte.</div>'}</div></section>`;
  if(err){box.innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR</h3><p>${esc(err.message||String(err))}</p></div>`;return}
- if(!rows.length){box.innerHTML=`<div class="placeholder"><b>▥</b><h3>SEM MÉTRICAS EM ${esc(metricPeriodLabel(metricPeriodKey).toUpperCase())}</h3><p>Não há dados para os filtros atuais. O High OS não mistura competências.</p></div>`;return}
- box.innerHTML=rows.map((x,i)=>`<article class="metric-row"><div class="metric-pos">${i+1}</div><div class="metric-main"><div><strong>${esc(x.f.group)}</strong><span>${esc(x.f.faccao||x.f.qg||'—')}</span></div><div class="metric-kpis"><span>MÉDIA <b>${x.a.avg.toFixed(1)}</b></span><span>PICO <b>${x.a.peak.value}</b><small>${esc(x.a.peak.hour)} • ${esc(x.a.peak.date)}</small></span><span>PREDOMINÂNCIA <b>${esc(x.a.predominant)}</b></span><span>DIAS <b>${x.a.rows.length}</b></span></div></div></article>`).join('');
+ if(!rows.length){box.innerHTML=`<div class="placeholder"><b>▥</b><h3>SEM MÉTRICAS EM ${esc(metricPeriodLabel(metricPeriodKey).toUpperCase())}</h3><p>Não há dados para os filtros atuais. O High OS não mistura competências.</p></div>`;syncMetricSelectors();renderMetricFactionDetail();return}
+ box.innerHTML=rows.map((x,i)=>`<article class="metric-row" data-metric-group="${esc(x.f.group)}"><div class="metric-pos">${i+1}</div><div class="metric-main"><div><strong>${esc(x.f.group)}</strong><span>${esc(x.f.faccao||x.f.qg||'—')}</span></div><div class="metric-kpis"><span>MÉDIA <b>${x.a.avg.toFixed(1)}</b></span><span>PICO <b>${x.a.peak.value}</b><small>${esc(x.a.peak.hour)} • ${esc(x.a.peak.date)}</small></span><span>PREDOMINÂNCIA <b>${esc(x.a.predominant)}</b></span><span>DIAS <b>${x.a.rows.length}</b></span></div></div></article>`).join('');
+ box.querySelectorAll('[data-metric-group]').forEach(el=>el.addEventListener('click',()=>{switchMetricCenterView('faction');if($('#metricFactionSelect'))$('#metricFactionSelect').value=el.dataset.metricGroup;renderMetricFactionDetail(el.dataset.metricGroup)}));
+ syncMetricSelectors();renderMetricFactionDetail();
 }
+function switchMetricCenterView(view='overview'){
+ document.querySelectorAll('.metric-center-tab').forEach(b=>b.classList.toggle('active',b.dataset.metricView===view));document.querySelectorAll('.metric-center-view').forEach(v=>v.classList.toggle('active',v.id===`metricView${view[0].toUpperCase()+view.slice(1)}`));if(view==='faction')renderMetricFactionDetail();if(view==='reports')syncMetricSelectors();
+}
+document.querySelectorAll('.metric-center-tab').forEach(b=>b.addEventListener('click',()=>switchMetricCenterView(b.dataset.metricView)));
+$('#metricFactionSelect')?.addEventListener('change',e=>renderMetricFactionDetail(e.target.value));
+$('#metricOpenReportBtn')?.addEventListener('click',()=>{switchMetricCenterView('reports');if($('#metricReportGroup'))$('#metricReportGroup').value=$('#metricFactionSelect')?.value||'';renderMetricReport()});
+$('#metricReportSegment')?.addEventListener('change',syncMetricSelectors);$('#metricReportPreviewBtn')?.addEventListener('click',renderMetricReport);$('#metricReportPrintBtn')?.addEventListener('click',printMetricReport);$('#metricReportCsvBtn')?.addEventListener('click',downloadMetricCsv);
 
 function parseMetricImport(text=''){
  const lines=text.split(/\r?\n/).map(x=>x.trim()).filter(Boolean),out=[];
@@ -1053,9 +1120,9 @@ function parseMetricImport(text=''){
 }
 async function saveMetricImport(){
  const rows=parseMetricImport($('#metricImportText')?.value||'');if(!rows.length){alert('Nenhuma linha válida. Use: Group;Data;14H;16H;21H;23H');return}
- try{const batch=writeBatch(db);rows.forEach(r=>{const id=(r.group+'_'+r.data).replace(/[^a-zA-Z0-9_-]/g,'_');batch.set(doc(db,'highos','data','metricas',id),{...r,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true})});await batch.commit();await addDoc(histCol,{tipo:'IMPORTACAO_METRICAS',descricao:`${rows.length} registro(s) de métricas importado(s)`,usuario:currentUser.email,data:serverTimestamp()});$('#metricImportModal')?.classList.add('hidden');$('#metricImportText').value='';await loadMetrics();alert(`${rows.length} registro(s) importado(s).`)}catch(e){alert('Erro ao importar métricas: '+e.message)}
+ try{const batch=writeBatch(db);rows.forEach(r=>{r=metricSnapshot(r);const id=(r.group+'_'+r.data).replace(/[^a-zA-Z0-9_-]/g,'_');batch.set(doc(db,'highos','data','metricas',id),{...r,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true})});await batch.commit();await addDoc(histCol,{tipo:'IMPORTACAO_METRICAS',descricao:`${rows.length} registro(s) de métricas importado(s)`,usuario:currentUser.email,data:serverTimestamp()});$('#metricImportModal')?.classList.add('hidden');$('#metricImportText').value='';await loadMetrics();alert(`${rows.length} registro(s) importado(s).`)}catch(e){alert('Erro ao importar métricas: '+e.message)}
 }
-$('#metricSearch')?.addEventListener('input',()=>renderMetrics());$('#metricPeriod')?.addEventListener('change',e=>{metricPeriodKey=e.target.value||currentMetricMonthKey();renderMetrics()});$('#metricSegment')?.addEventListener('change',()=>renderMetrics());$('#openMetricImportBtn')?.addEventListener('click',()=>$('#metricImportModal')?.classList.remove('hidden'));$('#metricImportClose')?.addEventListener('click',()=>$('#metricImportModal')?.classList.add('hidden'));$('#metricImportModal')?.addEventListener('click',e=>{if(e.target.id==='metricImportModal')e.currentTarget.classList.add('hidden')});$('#metricImportSave')?.addEventListener('click',saveMetricImport);
+$('#metricSearch')?.addEventListener('input',()=>renderMetrics());$('#metricPeriod')?.addEventListener('change',e=>{metricPeriodKey=e.target.value||currentMetricMonthKey();renderMetrics();syncMetricSelectors()});$('#metricSegment')?.addEventListener('change',()=>renderMetrics());$('#metricReportPeriod')?.addEventListener('change',()=>{});$('#openMetricImportBtn')?.addEventListener('click',()=>$('#metricImportModal')?.classList.remove('hidden'));$('#metricImportClose')?.addEventListener('click',()=>$('#metricImportModal')?.classList.add('hidden'));$('#metricImportModal')?.addEventListener('click',e=>{if(e.target.id==='metricImportModal')e.currentTarget.classList.add('hidden')});$('#metricImportSave')?.addEventListener('click',saveMetricImport);
 
 function openMetricSource(){
  $('#metricSourceUrl').value=metricSourceConfig.url||'';$('#metricSourceSheet').value=metricSourceConfig.sheet||'';$('#metricAutoSync').checked=metricSourceConfig.autoSync!==false;$('#metricSourceTestResult').textContent='A planilha será aberta somente para leitura usando a sua conta Google.';$('#metricSourceModal')?.classList.remove('hidden');
@@ -1240,8 +1307,39 @@ function mergeRecipeLists(base=[],saved=[]){
 }
 let techDraft={craft:{cds:'',nome:'',receitas:[]},farm:{cds:'',itens:[]},rota:{nome:'',inicio:'',pontos:''},estruturaExtra:{}};
 function clonePlain(v){return JSON.parse(JSON.stringify(v??null))}
-function itemImg(spawn='',imagem=''){const f=String(imagem||'').trim()||String(spawn||'').trim()+'.png';return ITEM_IMG_BASE+encodeURIComponent(f).replace(/%2F/gi,'/')}
-function recipeNormalize(r={}){return {id:r.id||('r_'+Math.random().toString(36).slice(2,9)),nome:r.nome||'',spawn:r.spawn||'',imagem:r.imagem||'',nivel:r.nivel||'',max:r.max||'',origem:r.origem||'EXTRA DO GROUP',insumos:(r.insumos||[]).map(x=>Array.isArray(x)?{spawn:x[0],qtd:x[1],nome:ITEM_META[x[0]]?.nome||x[0],imagem:ITEM_META[x[0]]?.imagem||''}:{spawn:x.spawn||'',qtd:x.qtd??'',nome:x.nome||ITEM_META[x.spawn]?.nome||x.spawn||'',imagem:x.imagem||ITEM_META[x.spawn]?.imagem||''})};}
+// Imagens oficiais dos produtos conforme a Tabela Mercado Negro.
+// Para estes spawns o arquivo oficial SEMPRE prevalece sobre valores antigos salvos no Firestore.
+const PRODUCT_IMAGE_BY_SPAWN={
+ 'weapon_vintagepistol':'m1922.png',
+ 'weapon_pistol_mk2':'t54.png',
+ 'weapon_pistol50':'desert.png',
+ 'weapon_machinepistol':'tec9.png',
+ 'weapon_assaultsmg':'f2000.png',
+ 'weapon_fnfal':'fnfal.png',
+ 'weapon_specialcarbine_mk2':'sigsauer556.png',
+ 'weapon_assaultrifle_mk2':'ak102.png',
+ 'weapon_assaultrifle':'ak74n.png'
+};
+const PRODUCT_IMAGE_BY_NAME={
+ 'm1922':'m1922.png','pistola m1922':'m1922.png',
+ 't54':'t54.png','pistola t54':'t54.png',
+ 'deagle':'desert.png','desert eagle':'desert.png','pistola desert eagle':'desert.png',
+ 'tec-9':'tec9.png','tec9':'tec9.png',
+ 'f2000':'f2000.png','f2000 - mtar.':'f2000.png','f2000 - mtar':'f2000.png',
+ 'fn l1a1 / fn fal':'fnfal.png','fn l1a1':'fnfal.png','fn fal':'fnfal.png','fal':'fnfal.png','fall':'fnfal.png',
+ 'sig sauer 556':'sigsauer556.png','g3 - sig sauer':'sigsauer556.png',
+ 'ak-102':'ak102.png','ak102':'ak102.png',
+ 'ak-74n':'ak74n.png','ak74n':'ak74n.png'
+};
+function canonicalProductImage(spawn='',nome='',imagem=''){
+ const sp=String(spawn||'').trim().toLowerCase();
+ if(PRODUCT_IMAGE_BY_SPAWN[sp])return PRODUCT_IMAGE_BY_SPAWN[sp];
+ const nm=alvesNorm(String(nome||'')).trim();
+ if(PRODUCT_IMAGE_BY_NAME[nm])return PRODUCT_IMAGE_BY_NAME[nm];
+ return String(imagem||'').trim()||String(spawn||'').trim()+'.png';
+}
+function itemImg(spawn='',imagem='',nome=''){const f=canonicalProductImage(spawn,nome,imagem);return ITEM_IMG_BASE+encodeURIComponent(f).replace(/%2F/gi,'/')}
+function recipeNormalize(r={}){return {id:r.id||('r_'+Math.random().toString(36).slice(2,9)),nome:r.nome||'',spawn:r.spawn||'',imagem:canonicalProductImage(r.spawn,r.nome,r.imagem),nivel:r.nivel||'',max:r.max||'',origem:r.origem||'EXTRA DO GROUP',insumos:(r.insumos||[]).map(x=>Array.isArray(x)?{spawn:x[0],qtd:x[1],nome:ITEM_META[x[0]]?.nome||x[0],imagem:ITEM_META[x[0]]?.imagem||''}:{spawn:x.spawn||'',qtd:x.qtd??'',nome:x.nome||ITEM_META[x.spawn]?.nome||x.spawn||'',imagem:x.imagem||ITEM_META[x.spawn]?.imagem||''})};}
 const NON_ROUTE_CRAFT_ITEMS=new Set(['dollar','money','cash','dirtymoney','black_money']);
 function farmItemsFromCraft(receitas=[]){
  const map=new Map();
@@ -1281,7 +1379,7 @@ function getTechProfileFromForm(){
  if($('#fCraft'))$('#fCraft').value=techDraft.craft.cds;if($('#fFarm'))$('#fFarm').value=techDraft.farm.cds;if($('#fRotaBlips'))$('#fRotaBlips').value=techDraft.rota.pontos;techDraft.rota.nome=$('#fRotaExclusiva')?.checked?`RotaExclusiva${$('#fGroup')?.value||''}`:'';
  syncFarmWithCraft(techDraft);renderFarmItems();return clonePlain(techDraft);
 }
-function recipeCard(r,i){const ins=(r.insumos||[]).map((x,j)=>`<div class="tech-ingredient"><img src="${esc(itemImg(x.spawn,x.imagem))}" onerror="this.style.opacity=.18"><div><b>${esc(x.nome||x.spawn||'Item')}</b><span>${esc(x.spawn||'—')} • x${esc(x.qtd)}</span></div><button type="button" class="tech-remove" data-remove-ing="${i}:${j}" title="Remover">×</button></div>`).join('');return `<article class="tech-recipe-card"><div class="tech-recipe-art"><img src="${esc(itemImg(r.spawn,r.imagem))}" onerror="this.style.opacity=.18"></div><div class="tech-recipe-body"><div class="tech-recipe-title"><div><b>${esc(r.nome||'Receita')}</b><span>${esc(r.spawn||'SEM SPAWN')}</span></div><em>${esc(r.origem||'GROUP')}</em></div><div class="tech-recipe-kpis"><span>NÍVEL <b>${esc(r.nivel||'—')}</b></span><span>MÁX. <b>${esc(r.max||'—')}</b></span><span>INSUMOS <b>${r.insumos?.length||0}</b></span></div><div class="tech-ingredients">${ins||'<small class="muted">Sem insumos cadastrados.</small>'}</div><div class="tech-recipe-actions admin-only"><button type="button" class="mini-btn" data-edit-recipe="${i}">EDITAR</button><button type="button" class="mini-btn danger" data-remove-recipe="${i}">REMOVER DO GROUP</button></div></div></article>`}
+function recipeCard(r,i){const ins=(r.insumos||[]).map((x,j)=>`<div class="tech-ingredient"><img src="${esc(itemImg(x.spawn,x.imagem))}" onerror="this.style.opacity=.18"><div><b>${esc(x.nome||x.spawn||'Item')}</b><span>${esc(x.spawn||'—')} • x${esc(x.qtd)}</span></div><button type="button" class="tech-remove" data-remove-ing="${i}:${j}" title="Remover">×</button></div>`).join('');return `<article class="tech-recipe-card"><div class="tech-recipe-art"><img src="${esc(itemImg(r.spawn,r.imagem,r.nome))}" onerror="this.style.opacity=.18"></div><div class="tech-recipe-body"><div class="tech-recipe-title"><div><b>${esc(r.nome||'Receita')}</b><span>${esc(r.spawn||'SEM SPAWN')}</span></div><em>${esc(r.origem||'GROUP')}</em></div><div class="tech-recipe-kpis"><span>NÍVEL <b>${esc(r.nivel||'—')}</b></span><span>MÁX. <b>${esc(r.max||'—')}</b></span><span>INSUMOS <b>${r.insumos?.length||0}</b></span></div><div class="tech-ingredients">${ins||'<small class="muted">Sem insumos cadastrados.</small>'}</div><div class="tech-recipe-actions admin-only"><button type="button" class="mini-btn" data-edit-recipe="${i}">EDITAR</button><button type="button" class="mini-btn danger" data-remove-recipe="${i}">REMOVER DO GROUP</button></div></div></article>`}
 function renderCraftRecipes(){const box=$('#groupCraftRecipes');if(!box)return;const rs=techDraft?.craft?.receitas||[];$('#techCraftSummary').textContent=`${rs.length} receita(s) vinculada(s) a este Group`;box.innerHTML=rs.length?rs.map(recipeCard).join(''):'<div class="delivery-no-change">Nenhuma receita vinculada a este Group.</div>';box.querySelectorAll('[data-remove-recipe]').forEach(b=>b.onclick=()=>{techDraft.craft.receitas.splice(+b.dataset.removeRecipe,1);syncFarmWithCraft();renderCraftRecipes();renderFarmItems();updateDeliveryPreview();renderConnectedRequests()});box.querySelectorAll('[data-edit-recipe]').forEach(b=>b.onclick=()=>editRecipe(+b.dataset.editRecipe));box.querySelectorAll('[data-remove-ing]').forEach(b=>b.onclick=()=>{const [ri,ii]=b.dataset.removeIng.split(':').map(Number);techDraft.craft.receitas[ri].insumos.splice(ii,1);syncFarmWithCraft();renderCraftRecipes();renderFarmItems();updateDeliveryPreview();renderConnectedRequests()});}
 function editRecipe(i){const r=techDraft.craft.receitas[i];if(!r)return;const nome=prompt('Nome do produto:',r.nome);if(nome===null)return;const spawn=prompt('Spawn do produto:',r.spawn);if(spawn===null)return;const nivel=prompt('Nível:',r.nivel||'');if(nivel===null)return;const max=prompt('Máximo / lote:',r.max||'');if(max===null)return;const ing=prompt('Insumos — um por linha: spawn|nome|quantidade\nEx.: pistolbody|Corpo de Pistola|22',(r.insumos||[]).map(x=>`${x.spawn}|${x.nome}|${x.qtd}`).join('\n'));if(ing===null)return;r.nome=nome.trim();r.spawn=spawn.trim();r.nivel=nivel.trim();r.max=max.trim();r.insumos=ing.split(/\r?\n/).map(l=>l.split('|')).filter(a=>a[0]?.trim()).map(a=>{const sp=a[0].trim();return {spawn:sp,nome:(a[1]||ITEM_META[sp]?.nome||sp).trim(),qtd:(a[2]||'').trim(),imagem:ITEM_META[sp]?.imagem||''}});r.origem=r.origem||'EXTRA DO GROUP';syncFarmWithCraft();renderCraftRecipes();renderFarmItems();updateDeliveryPreview();renderConnectedRequests();}
 function addRecipe(){const r=recipeNormalize({origem:'EXTRA DO GROUP'});techDraft.craft.receitas.push(r);editRecipe(techDraft.craft.receitas.length-1);if(!r.nome&&!r.spawn){techDraft.craft.receitas=techDraft.craft.receitas.filter(x=>x!==r)}syncFarmWithCraft();renderCraftRecipes();renderFarmItems();}
@@ -1467,3 +1565,4 @@ const _openFacV74=openFac;openFac=function(id){_openFacV74(id);const raw=faccoes
 console.info('HIGH OS DEV V7.4 · Perfil clean carregado');
 
 console.info('HIGH OS DEV V7.5 · Perfil clean + setagens isoladas + liderança restaurada');
+console.info('HIGH OS DEV V7.7 · Central de Métricas RH carregada');
