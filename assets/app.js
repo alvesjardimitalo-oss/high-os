@@ -1130,16 +1130,43 @@ function metricTimeline(rows=[]){
  rows.forEach(r=>{const d=metricDateValue(r);if(!d||!d.getTime())return;const day=d.toISOString().slice(0,10);Object.entries(metricSlots(r)).forEach(([hour,val])=>{val=Number(val);if(!Number.isFinite(val))return;const key=day+'|'+hour;const cur=map.get(key)||{day,date:new Date(d),hour,total:0,count:0};cur.total+=val;cur.count++;map.set(key,cur)})});
  return [...map.values()].sort((a,b)=>a.date-b.date||metricTimeMinutes(a.hour)-metricTimeMinutes(b.hour));
 }
-function metricSvgTimeline(points=[]){
- if(!points.length)return '<div class="metric-empty-chart">Sem dados suficientes para montar a curva.</div>';
- const W=1100,H=300,L=52,R=18,T=24,B=46,vals=points.map(p=>p.total),max=Math.max(1,...vals),min=Math.min(0,...vals),span=Math.max(1,max-min),x=i=>L+(W-L-R)*(points.length===1?.5:i/(points.length-1)),y=v=>T+(H-T-B)*(1-(v-min)/span);
- const poly=points.map((p,i)=>`${x(i).toFixed(1)},${y(p.total).toFixed(1)}`).join(' ');
- const dayStarts=[];let last='';points.forEach((p,i)=>{if(p.day!==last){dayStarts.push([i,p]);last=p.day}});
- const grid=[0,.25,.5,.75,1].map(q=>{const v=min+span*q,yy=y(v);return `<line x1="${L}" y1="${yy}" x2="${W-R}" y2="${yy}" class="metric-svg-grid"/><text x="${L-9}" y="${yy+4}" text-anchor="end" class="metric-svg-axis">${Math.round(v)}</text>`}).join('');
- const divs=dayStarts.slice(1).map(([i])=>`<line x1="${x(i)}" y1="${T}" x2="${x(i)}" y2="${H-B}" class="metric-svg-dayline"/>`).join('');
- const labels=dayStarts.map(([i,p],n)=>{const next=dayStarts[n+1]?.[0]??points.length-1,mid=(x(i)+x(next))/2;return `<text x="${mid}" y="${H-15}" text-anchor="middle" class="metric-svg-day">${p.date.toLocaleDateString('pt-BR',{weekday:'short'}).replace('.','').toUpperCase()} ${p.date.getDate().toString().padStart(2,'0')}</text>`}).join('');
- const dots=points.map((p,i)=>`<circle cx="${x(i)}" cy="${y(p.total)}" r="3.2" class="metric-svg-dot"><title>${p.date.toLocaleDateString('pt-BR')} • ${p.hour} • ${p.total} online</title></circle>`).join('');
- return `<div class="metric-week-chart"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${grid}${divs}<polyline points="${poly}" class="metric-svg-line"/>${dots}${labels}</svg></div>`;
+function metricCalendarRange31(daily=[]){
+ let start=null,end=null;
+ if(metricDateStart||metricDateEnd){
+  start=parseIsoMetricDate(metricDateStart)||daily[0]?.date||null;
+  end=parseIsoMetricDate(metricDateEnd)||daily.at(-1)?.date||start;
+ }else{
+  const m=String(metricPeriodKey||currentMetricMonthKey()).match(/^(\d{4})-(\d{2})$/);
+  if(m){start=new Date(+m[1],+m[2]-1,1);end=new Date(+m[1],+m[2],0)}
+ }
+ if(!start&&daily.length)start=new Date(daily[0].date);
+ if(!end&&daily.length)end=new Date(daily.at(-1).date);
+ if(!start||!end)return [];
+ start=new Date(start.getFullYear(),start.getMonth(),start.getDate());
+ end=new Date(end.getFullYear(),end.getMonth(),end.getDate());
+ const by=new Map(daily.map(d=>[`${d.date.getFullYear()}-${String(d.date.getMonth()+1).padStart(2,'0')}-${String(d.date.getDate()).padStart(2,'0')}`,d]));
+ const out=[];
+ for(let d=new Date(start);d<=end&&out.length<31;d.setDate(d.getDate()+1)){
+  const dd=new Date(d),key=`${dd.getFullYear()}-${String(dd.getMonth()+1).padStart(2,'0')}-${String(dd.getDate()).padStart(2,'0')}`;
+  out.push({date:dd,data:by.get(key)||null});
+ }
+ // Em competência mensal, preserva sempre 31 posições para manter a leitura visual estável.
+ if(!(metricDateStart||metricDateEnd)){
+  while(out.length<31){
+   const dd=new Date(start.getFullYear(),start.getMonth(),out.length+1);
+   if(dd.getMonth()!==start.getMonth())out.push({date:null,data:null});else out.push({date:dd,data:by.get(`${dd.getFullYear()}-${String(dd.getMonth()+1).padStart(2,'0')}-${String(dd.getDate()).padStart(2,'0')}`)||null});
+  }
+ }
+ return out;
+}
+function metricDailyBars(daily=[]){
+ const cols=metricCalendarRange31(daily);if(!cols.length)return '<div class="metric-empty-chart">Sem dados suficientes para montar o gráfico.</div>';
+ const values=cols.map(c=>c.data?.avg||0),max=Math.max(1,...values);
+ return `<div class="metric-month-bars" role="img" aria-label="Contingente diário do período">${cols.map(c=>{
+  if(!c.date)return `<div class="metric-month-col metric-month-empty"><div class="metric-month-value">—</div><div class="metric-month-track"><i style="height:0%"></i></div><b>—</b><span>—</span></div>`;
+  const d=c.data,v=d?.avg||0,pct=d?Math.max(4,Math.min(100,v/max*100)):0,week=c.date.toLocaleDateString('pt-BR',{weekday:'short'}).replace('.','').toUpperCase(),day=String(c.date.getDate()).padStart(2,'0'),tip=d?`${c.date.toLocaleDateString('pt-BR')} • média ${v.toFixed(1)} • pico ${d.peak.total} às ${d.peak.hour}`:`${c.date.toLocaleDateString('pt-BR')} • sem coleta`;
+  return `<div class="metric-month-col${d?'':' metric-month-no-data'}" title="${esc(tip)}"><div class="metric-month-value">${d?v.toFixed(0):'—'}</div><div class="metric-month-track"><i style="height:${pct}%"></i></div><b>${day}</b><span>${week}</span></div>`;
+ }).join('')}</div>`;
 }
 function metricDailySummary(points=[]){
  const days=new Map();points.forEach(p=>{const a=days.get(p.day)||{date:p.date,vals:[],peak:p};a.vals.push(p.total);if(p.total>a.peak.total)a.peak=p;days.set(p.day,a)});
@@ -1152,8 +1179,7 @@ function metricSegmentSummary(active=[]){
 function renderMetricExecutiveVisuals(rows,visibleRaw,seg){
  const box=$('#metricVisuals');if(!box)return;const pts=metricTimeline(visibleRaw),daily=metricDailySummary(pts),segs=metricSegmentSummary(activeMetricRows()),peak=pts.reduce((a,p)=>!a||p.total>a.total?p:a,null),avg=pts.length?pts.reduce((a,p)=>a+p.total,0)/pts.length:0;
  const maxSeg=Math.max(1,...segs.map(x=>x.avg));
- box.innerHTML=`<section class="metric-exec-chart metric-chart-card"><div class="metric-chart-head"><div><b>CONTINGENTE ${seg?'DO SEGMENTO '+esc(seg):'GERAL DO ILEGAL'}</b><span>CURVA COMPLETA DO PERÍODO • SOMA DAS ORGANIZAÇÕES POR HORÁRIO</span></div><div class="metric-chart-mini"><strong>${avg.toFixed(1)}</strong><small>MÉDIA</small><strong>${peak?peak.total:'—'}</strong><small>PICO${peak?' • '+esc(peak.hour):''}</small></div></div>${metricSvgTimeline(pts)}<div class="metric-chart-hint">Passe o mouse sobre os pontos para ver data, horário e contingente.</div></section>
- <section class="metric-day-strip">${daily.map(d=>`<article><span>${d.date.toLocaleDateString('pt-BR',{weekday:'short'}).replace('.','').toUpperCase()}</span><b>${d.avg.toFixed(0)}</b><small>média</small><em>Pico ${d.peak.total} • ${esc(d.peak.hour)}</em></article>`).join('')||'<div class="muted">Sem dias no período.</div>'}</section>
+ box.innerHTML=`<section class="metric-exec-chart metric-chart-card"><div class="metric-chart-head"><div><b>CONTINGENTE ${seg?'DO SEGMENTO '+esc(seg):'GERAL DO ILEGAL'}</b><span>MÉDIA DIÁRIA DO PERÍODO • 31 COLUNAS • ALTURA PROPORCIONAL AO CONTINGENTE</span></div><div class="metric-chart-mini"><strong>${avg.toFixed(1)}</strong><small>MÉDIA</small><strong>${peak?peak.total:'—'}</strong><small>PICO${peak?' • '+esc(peak.hour):''}</small></div></div>${metricDailyBars(daily)}<div class="metric-chart-hint">Cada coluna representa um dia. Passe o mouse para ver média, pico e horário do pico.</div></section>
  <section class="metric-chart-card metric-segment-card"><div class="metric-chart-head"><b>CONTINGENTE POR SEGMENTO</b><span>MÉDIA CONSOLIDADA DO PERÍODO</span></div><div class="metric-segment-bars">${segs.map(x=>`<div class="metric-segment-row"><span>${esc(x.segmento)}</span><div><i style="width:${Math.max(3,x.avg/maxSeg*100)}%"></i></div><b>${x.avg.toFixed(1)}</b><small>pico ${x.peak}</small></div>`).join('')}</div></section>
  <section class="metric-chart-card"><div class="metric-chart-head"><b>LEITURA DO RECORTE</b><span>${esc(metricActivePeriodLabel())}</span></div><div class="metric-quick-grid"><div><span>COLETAS</span><b>${pts.length}</b></div><div><span>DIAS</span><b>${daily.length}</b></div><div><span>GROUPS</span><b>${rows.length}</b></div><div><span>PICO GERAL</span><b>${peak?peak.total:'—'}</b><small>${peak?peak.date.toLocaleDateString('pt-BR')+' • '+peak.hour:'—'}</small></div></div></section>`;
 }
