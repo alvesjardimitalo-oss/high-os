@@ -1054,8 +1054,23 @@ function metricSnapshot(row={}){
  return {...row,faccaoSnapshot:id.faccao,qgSnapshot:id.qg,segmentoSnapshot:id.segmento,liderSnapshot:id.lider,snapshotVersion:'V7.7'};
 }
 function metricSummaryRows(){
- const groups=[...new Set(activeMetricRows().map(m=>m.group||m.organizacao||m.faccao).filter(Boolean))];
- return groups.map(group=>{const f=faccoes.find(x=>alvesNorm(x.group)===alvesNorm(group))||metricIdentity(group,activeMetricRows().find(m=>alvesNorm(m.group||m.organizacao||m.faccao)===alvesNorm(group)));const a=metricAnalysis(group);return a?{f:{...f,group:f.group||group,faccao:f.faccao||metricIdentity(group,a.rows[0]).faccao,segmento:f.segmento||metricIdentity(group,a.rows[0]).segmento,qg:f.qg||metricIdentity(group,a.rows[0]).qg},a}:null}).filter(Boolean).sort((x,y)=>y.a.avg-x.a.avg);
+ const active=activeMetricRows();
+ // Deduplica o Group pela chave normalizada. A planilha/histórico pode conter o mesmo
+ // Group com caixa, acento ou espaços diferentes (ex.: Armas09 / ARMAS09 / Armas09 ).
+ const groupMap=new Map();
+ active.forEach(m=>{
+  const raw=String(m.group||m.organizacao||m.faccao||'').trim();
+  if(!raw)return;
+  const key=alvesNorm(raw).replace(/\s+/g,'');
+  if(!groupMap.has(key))groupMap.set(key,raw);
+ });
+ return [...groupMap.values()].map(group=>{
+  const first=active.find(m=>alvesNorm(String(m.group||m.organizacao||m.faccao||'')).replace(/\s+/g,'')===alvesNorm(group).replace(/\s+/g,''));
+  const ident=metricIdentity(group,first);
+  const f=faccoes.find(x=>alvesNorm(String(x.group||'')).replace(/\s+/g,'')===alvesNorm(group).replace(/\s+/g,''))||ident;
+  const a=metricAnalysis(group);
+  return a?{f:{...f,group:String(f.group||group).trim(),faccao:f.faccao||metricIdentity(group,a.rows[0]).faccao,segmento:f.segmento||metricIdentity(group,a.rows[0]).segmento,qg:f.qg||metricIdentity(group,a.rows[0]).qg},a}:null;
+ }).filter(Boolean).sort((x,y)=>y.a.avg-x.a.avg);
 }
 function metricDateLabel(row){const d=metricDateValue(row);return d&&d.getTime()?d.toLocaleDateString('pt-BR'):(row?.data||row?.date||'—')}
 function metricDayAverage(row){const v=Object.values(metricSlots(row));return v.length?v.reduce((a,b)=>a+b,0)/v.length:0}
