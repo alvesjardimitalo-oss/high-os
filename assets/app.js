@@ -1763,3 +1763,5 @@ function initAdminManagementV715(){
 }
 initAdminManagementV715();
 console.info('HIGH OS DEV V7.15 · RH Explorer + Gestão Administrativa completa carregada');
+
+console.info('HIGH OS DEV V7.17 · JS validado e cache renovado');
