@@ -1731,4 +1731,193 @@ console.info('HIGH OS DEV V7.4 · Perfil clean carregado');
 
 console.info('HIGH OS DEV V7.5 · Perfil clean + setagens isoladas + liderança restaurada');
 console.info('HIGH OS DEV V7.7 · Central de Métricas RH carregada');
-\n\n// ===== HIGH OS V7.0 · TRANSFERÊNCIA DE PAINEL, TROCA DE QG E ADMINISTRAÇÃO =====\nlet movementMode='',movementSourceGroup='';\nconst OCCUPANT_FIELDS=['faccao','lider','staff','dataEntrega','status','observacoes'];\nconst PHYSICAL_FIELDS=['qg','cds','beneficios','perfilEntrega','perfilTecnico','produto','anuncio','semCraft','removido'];\nfunction isAdmin(){return String(currentProfile?.role||'').toUpperCase()==='ADMIN'}\nfunction cleanSnapshot(o){return snapshot(o)}\nfunction movementOpen(mode){\n if(!isAdmin())return alert('Apenas ADMIN pode executar transferências e trocas de QG.');\n const group=$('#fGroup')?.value,src=faccoes.find(x=>x.group===group);if(!src)return;movementMode=mode;movementSourceGroup=group;\n const dst=$('#movementDestination');dst.innerHTML=faccoes.filter(x=>x.group!==group).map(x=>`<option value="${esc(x.group)}">${esc(x.group)} • ${esc(x.qg||'SEM LOCAL')} • ${esc(x.faccao||'VAGO')}</option>`).join('');\n $('#movementOrigin').textContent=`${src.group} • ${src.qg||'SEM LOCAL'} • ${src.faccao||'VAGO'}`;\n $('#movementTitle').textContent=mode==='TRANSFER_PANEL'?'TRANSFERIR PAINEL / FACÇÃO':'TROCAR QG / LOCAL FÍSICO';\n $('#movementHelp').textContent=mode==='TRANSFER_PANEL'?'Move a ocupação, líder e facção para outro Group. A estrutura técnica física do QG de destino é preservada. Se o destino estiver ocupado, as ocupações são trocadas.':'Troca o patrimônio físico dos dois QGs (local, CDS, benefícios e perfil técnico) sem trocar as facções/Groups.';\n $('#movementReason').value='';show($('#movementModal'));movementPreview();\n}\nfunction movementPreview(){const src=faccoes.find(x=>x.group===movementSourceGroup),dst=faccoes.find(x=>x.group===$('#movementDestination')?.value);if(!src||!dst)return;$('#movementPreview').innerHTML=movementMode==='TRANSFER_PANEL'?`<b>PRÉVIA</b><span>${esc(src.faccao||'VAGO')} : ${esc(src.group)} → ${esc(dst.group)}</span>${dst.faccao?`<span>${esc(dst.faccao)} : ${esc(dst.group)} → ${esc(src.group)}</span>`:''}`:`<b>PRÉVIA DO LOCAL</b><span>${esc(src.group)}: ${esc(src.qg||'SEM LOCAL')} → ${esc(dst.qg||'SEM LOCAL')}</span><span>${esc(dst.group)}: ${esc(dst.qg||'SEM LOCAL')} → ${esc(src.qg||'SEM LOCAL')}</span>`}\n$('#transferPanelBtn')?.addEventListener('click',()=>movementOpen('TRANSFER_PANEL'));\n$('#swapQGBtn')?.addEventListener('click',()=>movementOpen('SWAP_QG'));\n$('#movementDestination')?.addEventListener('change',movementPreview);\n$('#movementClose')?.addEventListener('click',()=>$('#movementModal').classList.add('hidden'));$('#movementCancel')?.addEventListener('click',()=>$('#movementModal').classList.add('hidden'));\n$('#movementConfirm')?.addEventListener('click',async()=>{\n if(!isAdmin())return;const src=faccoes.find(x=>x.group===movementSourceGroup),dst=faccoes.find(x=>x.group===$('#movementDestination').value),reason=$('#movementReason').value.trim();if(!src||!dst)return;if(!reason)return alert('Informe o motivo da operação.');\n if(!confirm(`Confirmar operação entre ${src.group} e ${dst.group}? Esta ação será registrada no histórico.`))return;\n try{const a={...src},b={...dst};if(movementMode==='TRANSFER_PANEL'){for(const k of OCCUPANT_FIELDS){a[k]=dst[k]??(k==='status'?'INATIVA':'');b[k]=src[k]??(k==='status'?'INATIVA':'')}a.status=a.faccao?'ATIVA':'INATIVA';b.status=b.faccao?'ATIVA':'INATIVA';}else{for(const k of PHYSICAL_FIELDS){const v=a[k];a[k]=b[k];b[k]=v}}a.updatedAt=serverTimestamp();a.updatedBy=currentUser.email;b.updatedAt=serverTimestamp();b.updatedBy=currentUser.email;const batch=writeBatch(db);batch.set(doc(db,'highos','data','faccoes',src.group),a);batch.set(doc(db,'highos','data','faccoes',dst.group),b);await batch.commit();\n await addDoc(histCol,{tipo:movementMode==='TRANSFER_PANEL'?'TRANSFERENCIA_PAINEL':'TROCA_QG',group:src.group,groupDestino:dst.group,faccao:src.faccao||'',qg:src.qg||'',motivo:reason,antes:{origem:cleanSnapshot(src),destino:cleanSnapshot(dst)},depois:{origem:cleanSnapshot(a),destino:cleanSnapshot(b)},usuario:currentUser.email,data:serverTimestamp()});\n // sincroniza cadastro das organizações afetadas\n for(const rec of [a,b])if(rec.faccao)await setDoc(doc(db,'highos','data','organizacoes',orgKey(rec.faccao)),{nome:rec.faccao,status:'ATIVA',groupAtual:rec.group,segmentoAtual:rec.segmento||'',qgAtual:rec.qg||'',lider:rec.lider||'',updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true});\n $('#movementModal').classList.add('hidden');closeGroupProfilePage();await loadFaccoes();alert('Operação concluída e registrada no histórico.');\n }catch(e){alert('Falha na operação. Nenhuma nova tentativa deve ser feita antes de conferir o banco: '+e.message)}\n});\nasync function wipeCollection(name){const c=collection(db,'highos','data',name),qs=await getDocs(c);for(let i=0;i<qs.docs.length;i+=400){const batch=writeBatch(db);qs.docs.slice(i,i+400).forEach(d=>batch.delete(d.ref));await batch.commit()}return qs.size}\nasync function adminWipe(target){if(!isAdmin())return;const phrase=`APAGAR ${target.toUpperCase()}`;const typed=prompt(`AÇÃO IRREVERSÍVEL. Para apagar ${target}, digite exatamente:\n${phrase}`);if(typed!==phrase)return alert('Confirmação incorreta. Nada foi apagado.');try{await addDoc(histCol,{tipo:'ADM_LIMPEZA',alvo:target,descricao:`Administrador confirmou limpeza de ${target}`,usuario:currentUser.email,data:serverTimestamp()});const n=await wipeCollection(target);alert(`${n} registro(s) apagado(s) de ${target}. O log de auditoria foi preservado.`);if(target==='faccoes')await loadFaccoes()}catch(e){alert('Erro na limpeza: '+e.message)}}\ndocument.querySelectorAll('.admin-wipe').forEach(b=>b.addEventListener('click',()=>adminWipe(b.dataset.target)));\n$('#adminResetAll')?.addEventListener('click',async()=>{if(!isAdmin())return;const typed=prompt('RESET OPERACIONAL COMPLETO. O histórico de auditoria será PRESERVADO.\n\nDigite exatamente: RESETAR HIGH OS');if(typed!=='RESETAR HIGH OS')return alert('Confirmação incorreta. Nada foi apagado.');if(!confirm('Última confirmação: apagar Groups/QGs, organizações, solicitações, entregas e métricas?'))return;try{await addDoc(histCol,{tipo:'ADM_RESET_COMPLETO',descricao:'Reset operacional completo confirmado. Histórico preservado.',usuario:currentUser.email,data:serverTimestamp()});let total=0;for(const c of ['faccoes','organizacoes','solicitacoes','entregas','metricas'])total+=await wipeCollection(c);await loadFaccoes();alert(`Reset concluído. ${total} registro(s) operacionais removidos. Histórico preservado.`)}catch(e){alert('Erro no reset: '+e.message)}});\n
+
+
+// ===== HIGH OS · TRANSFERÊNCIA DE PAINEL, TROCA DE QG E ADMINISTRAÇÃO =====
+let movementMode = '';
+let movementSourceGroup = '';
+
+const OCCUPANT_FIELDS = ['faccao','lider','staff','dataEntrega','status','observacoes'];
+const PHYSICAL_FIELDS = ['qg','cds','beneficios','perfilEntrega','perfilTecnico','produto','anuncio','semCraft','removido'];
+
+function isAdmin(){
+  return String(currentProfile?.role || '').toUpperCase() === 'ADMIN';
+}
+
+function cleanSnapshot(o){
+  return snapshot(o);
+}
+
+function movementOpen(mode){
+  if(!isAdmin()) return alert('Apenas ADMIN pode executar transferências e trocas de QG.');
+  const group = $('#fGroup')?.value;
+  const src = faccoes.find(x => x.group === group);
+  if(!src) return;
+
+  movementMode = mode;
+  movementSourceGroup = group;
+
+  const dst = $('#movementDestination');
+  if(!dst) return;
+  dst.innerHTML = faccoes
+    .filter(x => x.group !== group)
+    .map(x => `<option value="${esc(x.group)}">${esc(x.group)} • ${esc(x.qg || 'SEM LOCAL')} • ${esc(x.faccao || 'VAGO')}</option>`)
+    .join('');
+
+  $('#movementOrigin').textContent = `${src.group} • ${src.qg || 'SEM LOCAL'} • ${src.faccao || 'VAGO'}`;
+  $('#movementTitle').textContent = mode === 'TRANSFER_PANEL' ? 'TRANSFERIR PAINEL / FACÇÃO' : 'TROCAR QG / LOCAL FÍSICO';
+  $('#movementHelp').textContent = mode === 'TRANSFER_PANEL'
+    ? 'Move a ocupação, líder e facção para outro Group. A estrutura física do QG de destino é preservada. Se o destino estiver ocupado, as ocupações são trocadas.'
+    : 'Troca o patrimônio físico dos dois QGs sem trocar as facções ou os Groups.';
+  $('#movementReason').value = '';
+  show($('#movementModal'));
+  movementPreview();
+}
+
+function movementPreview(){
+  const src = faccoes.find(x => x.group === movementSourceGroup);
+  const dst = faccoes.find(x => x.group === $('#movementDestination')?.value);
+  if(!src || !dst) return;
+
+  $('#movementPreview').innerHTML = movementMode === 'TRANSFER_PANEL'
+    ? `<b>PRÉVIA</b><span>${esc(src.faccao || 'VAGO')} : ${esc(src.group)} → ${esc(dst.group)}</span>${dst.faccao ? `<span>${esc(dst.faccao)} : ${esc(dst.group)} → ${esc(src.group)}</span>` : ''}`
+    : `<b>PRÉVIA DO LOCAL</b><span>${esc(src.group)}: ${esc(src.qg || 'SEM LOCAL')} → ${esc(dst.qg || 'SEM LOCAL')}</span><span>${esc(dst.group)}: ${esc(dst.qg || 'SEM LOCAL')} → ${esc(src.qg || 'SEM LOCAL')}</span>`;
+}
+
+$('#transferPanelBtn')?.addEventListener('click', () => movementOpen('TRANSFER_PANEL'));
+$('#swapQGBtn')?.addEventListener('click', () => movementOpen('SWAP_QG'));
+$('#movementDestination')?.addEventListener('change', movementPreview);
+$('#movementClose')?.addEventListener('click', () => $('#movementModal')?.classList.add('hidden'));
+$('#movementCancel')?.addEventListener('click', () => $('#movementModal')?.classList.add('hidden'));
+
+$('#movementConfirm')?.addEventListener('click', async () => {
+  if(!isAdmin()) return;
+  const src = faccoes.find(x => x.group === movementSourceGroup);
+  const dst = faccoes.find(x => x.group === $('#movementDestination')?.value);
+  const reason = $('#movementReason')?.value.trim() || '';
+  if(!src || !dst) return;
+  if(!reason) return alert('Informe o motivo da operação.');
+  if(!confirm(`Confirmar operação entre ${src.group} e ${dst.group}? Esta ação será registrada no histórico.`)) return;
+
+  try{
+    const a = {...src};
+    const b = {...dst};
+
+    if(movementMode === 'TRANSFER_PANEL'){
+      for(const k of OCCUPANT_FIELDS){
+        a[k] = dst[k] ?? (k === 'status' ? 'INATIVA' : '');
+        b[k] = src[k] ?? (k === 'status' ? 'INATIVA' : '');
+      }
+      a.status = a.faccao ? 'ATIVA' : 'INATIVA';
+      b.status = b.faccao ? 'ATIVA' : 'INATIVA';
+    }else{
+      for(const k of PHYSICAL_FIELDS){
+        const v = a[k];
+        a[k] = b[k];
+        b[k] = v;
+      }
+    }
+
+    a.updatedAt = serverTimestamp();
+    a.updatedBy = currentUser.email;
+    b.updatedAt = serverTimestamp();
+    b.updatedBy = currentUser.email;
+
+    const batch = writeBatch(db);
+    batch.set(doc(db,'highos','data','faccoes',src.group), a);
+    batch.set(doc(db,'highos','data','faccoes',dst.group), b);
+    await batch.commit();
+
+    await addDoc(histCol, {
+      tipo: movementMode === 'TRANSFER_PANEL' ? 'TRANSFERENCIA_PAINEL' : 'TROCA_QG',
+      group: src.group,
+      groupDestino: dst.group,
+      faccao: src.faccao || '',
+      qg: src.qg || '',
+      motivo: reason,
+      antes: {origem: cleanSnapshot(src), destino: cleanSnapshot(dst)},
+      depois: {origem: cleanSnapshot(a), destino: cleanSnapshot(b)},
+      usuario: currentUser.email,
+      data: serverTimestamp()
+    });
+
+    for(const rec of [a,b]){
+      if(rec.faccao){
+        await setDoc(doc(db,'highos','data','organizacoes',orgKey(rec.faccao)), {
+          nome: rec.faccao,
+          status: 'ATIVA',
+          groupAtual: rec.group,
+          segmentoAtual: rec.segmento || '',
+          qgAtual: rec.qg || '',
+          lider: rec.lider || '',
+          updatedAt: serverTimestamp(),
+          updatedBy: currentUser.email
+        }, {merge:true});
+      }
+    }
+
+    $('#movementModal')?.classList.add('hidden');
+    closeGroupProfilePage();
+    await loadFaccoes();
+    alert('Operação concluída e registrada no histórico.');
+  }catch(e){
+    alert('Falha na operação: ' + e.message);
+  }
+});
+
+async function wipeCollection(name){
+  const c = collection(db,'highos','data',name);
+  const qs = await getDocs(c);
+  for(let i=0;i<qs.docs.length;i+=400){
+    const batch = writeBatch(db);
+    qs.docs.slice(i,i+400).forEach(d => batch.delete(d.ref));
+    await batch.commit();
+  }
+  return qs.size;
+}
+
+async function adminWipe(target){
+  if(!isAdmin()) return;
+  const phrase = `APAGAR ${target.toUpperCase()}`;
+  const typed = prompt(`AÇÃO IRREVERSÍVEL. Para apagar ${target}, digite exatamente:\n${phrase}`);
+  if(typed !== phrase) return alert('Confirmação incorreta. Nada foi apagado.');
+
+  try{
+    await addDoc(histCol, {
+      tipo:'ADM_LIMPEZA',
+      alvo:target,
+      descricao:`Administrador confirmou limpeza de ${target}`,
+      usuario:currentUser.email,
+      data:serverTimestamp()
+    });
+    const n = await wipeCollection(target);
+    alert(`${n} registro(s) apagado(s) de ${target}. O log de auditoria foi preservado.`);
+    if(target === 'faccoes') await loadFaccoes();
+  }catch(e){
+    alert('Erro na limpeza: ' + e.message);
+  }
+}
+
+document.querySelectorAll('.admin-wipe').forEach(b => b.addEventListener('click', () => adminWipe(b.dataset.target)));
+
+$('#adminResetAll')?.addEventListener('click', async () => {
+  if(!isAdmin()) return;
+  const typed = prompt('RESET OPERACIONAL COMPLETO. O histórico de auditoria será PRESERVADO.\n\nDigite exatamente: RESETAR HIGH OS');
+  if(typed !== 'RESETAR HIGH OS') return alert('Confirmação incorreta. Nada foi apagado.');
+  if(!confirm('Última confirmação: apagar Groups/QGs, organizações, solicitações, entregas e métricas?')) return;
+
+  try{
+    await addDoc(histCol, {
+      tipo:'ADM_RESET_COMPLETO',
+      descricao:'Reset operacional completo confirmado. Histórico preservado.',
+      usuario:currentUser.email,
+      data:serverTimestamp()
+    });
+    let total = 0;
+    for(const c of ['faccoes','organizacoes','solicitacoes','entregas','metricas']) total += await wipeCollection(c);
+    await loadFaccoes();
+    alert(`Reset concluído. ${total} registro(s) operacionais removidos. Histórico preservado.`);
+  }catch(e){
+    alert('Erro no reset: ' + e.message);
+  }
+});
