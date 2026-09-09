@@ -426,6 +426,24 @@
 </div></div></details>
 <div class="group-admin-actions"><button type="button" id="transferPanelBtn" class="btn-secondary">⇄ TRANSFERIR PAINEL</button><button type="button" id="swapQGBtn" class="btn-secondary">⌖ TROCAR QG / LOCAL</button></div><div class="modal-actions"><button type="button" id="recolherBtn" class="btn-danger">RECOLHER FACÇÃO</button><button type="submit" class="btn-primary">SALVAR ALTERAÇÕES</button></div></form></div></div>
 
+<div id="recollectModal" class="modal hidden"><div class="modal-card recollect-modal-card"><button class="modal-x" id="recollectModalClose">×</button><div class="eyebrow">ENCERRAMENTO DE OCUPAÇÃO</div><h2>RECOLHER FACÇÃO</h2>
+<form id="recollectForm"><input type="hidden" id="rGroup"><div id="recollectSummary" class="org-profile-summary"></div>
+<div class="recollect-guide"><b>O High OS vai registrar o recolhimento e gerar o extrato automaticamente.</b><span>Escolha o motivo. Campos adicionais aparecem somente quando forem necessários.</span></div>
+<div class="form-grid">
+<label>Motivo do recolhimento<select id="rReason" required><option value="">SELECIONE O MOTIVO</option><option value="BAIXO_CONTINGENTE">BAIXO CONTINGENTE</option><option value="INATIVIDADE">INATIVIDADE</option><option value="ABANDONO">ABANDONO DA FACÇÃO</option><option value="QUEBRA_REGRAS">QUEBRA DE REGRAS / DESCUMPRIMENTO</option><option value="DECISAO_CUPULA">DECISÃO DA CÚPULA</option><option value="SOLICITACAO_LIDERANCA">SOLICITAÇÃO DA LIDERANÇA</option><option value="OUTRO">OUTRO</option></select></label>
+<label>Responsável<input id="rResponsible" required></label>
+<label>Data<input id="rDate" placeholder="dd/mm/aaaa" required></label><label>Hora<input id="rTime" placeholder="hh:mm" required></label>
+<label class="wide">Descrição / justificativa<textarea id="rDetails" rows="4" placeholder="Descreva de forma objetiva o motivo do recolhimento." required></textarea></label>
+</div>
+<div id="lowContingentBox" class="recollect-contingent hidden"><div class="benefits-head"><div><div class="eyebrow">EVIDÊNCIA OBRIGATÓRIA</div><h3>BAIXO CONTINGENTE</h3></div><small>O print do painel será anexado ao registro.</small></div>
+<div class="form-grid"><label>Contingente observado<input id="rContingentObserved" type="number" min="0" placeholder="Ex.: 8"></label><label>Meta / mínimo esperado<input id="rContingentMin" type="number" min="0" value="15"></label><label>Período / referência<input id="rContingentPeriod" placeholder="Ex.: últimos 5 dias"></label><label>Horário / métrica de referência<input id="rContingentMetric" placeholder="Ex.: 21H / média diária"></label></div>
+<label class="recollect-upload" for="rPanelPrint"><span>PRINT DO PAINEL</span><strong id="rPanelPrintLabel">CLIQUE, ARRASTE OU COLE O PRINT AQUI</strong><small>PNG/JPG. O High OS reduz a imagem para caber no registro.</small><input id="rPanelPrint" type="file" accept="image/png,image/jpeg,image/webp" hidden></label>
+<div id="rPanelPreviewWrap" class="recollect-preview hidden"><img id="rPanelPreview" alt="Print do painel"><button type="button" id="rRemovePrint" class="mini-btn">REMOVER PRINT</button></div></div>
+<div class="delivery-box recollect-extract-box"><div class="benefits-head"><div><div class="eyebrow">EXTRATO AUTOMÁTICO</div><h3>PRÉVIA DO RECOLHIMENTO</h3></div><button type="button" id="copyRecollectExtract" class="btn-secondary compact">COPIAR EXTRATO</button></div><textarea id="rExtract" readonly></textarea></div>
+<div class="modal-actions"><button type="button" id="cancelRecollectBtn" class="btn-secondary">CANCELAR</button><button type="submit" class="btn-danger">CONFIRMAR RECOLHIMENTO</button></div></form></div></div>
+
+<div id="recollectEvidenceModal" class="modal hidden"><div class="modal-card recollect-evidence-card"><button class="modal-x" id="recollectEvidenceClose">×</button><div class="eyebrow">EVIDÊNCIA DO RECOLHIMENTO</div><h2>PRINT DO PAINEL</h2><div id="recollectEvidenceMeta" class="recollect-evidence-meta"></div><div class="recollect-evidence-image"><img id="recollectEvidenceImage" alt="Evidência do painel"></div></div></div>
+
 <div id="orgModal" class="modal hidden"><div class="modal-card org-modal-card"><button class="modal-x" id="orgModalClose">×</button><div class="eyebrow">PERFIL DA ORGANIZAÇÃO</div><h2 id="orgModalTitle">FACÇÃO</h2>
 <form id="orgForm"><input type="hidden" id="orgId"><div class="org-profile-summary" id="orgProfileSummary"></div><div class="form-grid">
 <label>Nome da facção<input id="oNome" required></label><label>Status<select id="oStatus"><option value="ATIVA">ATIVA</option><option value="SEM_GROUP">SEM GROUP</option><option value="INATIVA">INATIVA</option></select></label>
