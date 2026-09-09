@@ -63,10 +63,9 @@
       </aside>
       <div class="content">
         <section class="page active" id="page-dashboard">
-          <div class="page-head"><div><div class="eyebrow">CENTRAL OPERACIONAL</div><h2>DASHBOARD</h2></div><span class="dev-badge">DEV V7.7</span></div>
-          <div class="welcome"><div><span>Bem-vindo ao</span><strong>HIGH OS</strong><p>Groups/QGs, entregas e Biblioteca de Solicitações compartilham agora a mesma base operacional.</p></div><div class="big-mark">HIGH<br><b>ILEGAL</b></div></div>
-          <div class="cards"><article><b>◆</b><strong>Groups / QGs</strong><span class="online">Operacional</span></article><article><b>▤</b><strong>Solicitações</strong><span class="online">Operacional</span></article><article><b>♟</b><strong>Usuários</strong><span class="online">Administração ativa</span></article><article><b>✓</b><strong>Firebase</strong><span class="online">Conectado</span></article></div>
-          <div class="info-panel"><div><span>CONTA AUTORIZADA</span><strong id="dashEmail">—</strong></div><div><span>NÍVEL DE ACESSO</span><strong id="dashRole">—</strong></div><div><span>STATUS</span><strong class="online">ATIVO</strong></div></div>
+          <div class="page-head"><div><div class="eyebrow">CENTRAL DE COMANDO DO ILEGAL</div><h2>DASHBOARD</h2><p class="page-subtitle">Visão operacional para identificar rapidamente ocupação, contingente, pendências e movimentações da Staff.</p></div><span class="dev-badge">DEV V7.8</span></div>
+          <div id="commandDashboard" class="command-dashboard"><div class="placeholder"><b>◆</b><h3>CARREGANDO CENTRAL DE COMANDO</h3></div></div>
+          <span id="dashEmail" class="hidden">—</span><span id="dashRole" class="hidden">—</span>
         </section>
         <section class="page" id="page-faccoes">
 <div class="page-head"><div><div class="eyebrow">PATRIMÔNIO PERMANENTE DA CIDADE</div><h2>GROUPS / QGs</h2><p class="page-subtitle">Cada Group guarda seu QG, instalações, coordenadas e pré-configuração. A facção é apenas a ocupante atual.</p></div><div class="profile-head-actions"><button id="updateProfilesBtn" class="btn-primary compact admin-only">ATUALIZAR PERFIS DOS GROUPS</button><button id="seedBtn" class="btn-secondary admin-only">IMPORTAR BASE INICIAL</button></div></div>
@@ -77,6 +76,14 @@
           <div class="page-head"><div><div class="eyebrow">ORGANIZAÇÕES • OCUPANTES DOS GROUPS</div><h2>FACÇÕES</h2><p class="page-subtitle">Cadastro próprio das organizações. A facção mantém liderança, status e histórico mesmo quando troca de Group.</p></div><button id="newOrgBtn" class="btn-primary compact">NOVA FACÇÃO</button></div>
           <div class="org-toolbar"><input id="orgSearch" placeholder="Buscar facção, líder, Group ou segmento..."><select id="orgStatus"><option value="">TODOS OS STATUS</option><option value="ATIVA">ATIVAS</option><option value="SEM_GROUP">SEM GROUP</option><option value="INATIVA">INATIVAS</option></select></div>
           <div id="orgOverview" class="ops-overview"></div><div id="orgStats" class="fac-stats compact-stats"></div><div id="orgList" class="org-grid"><div class="placeholder"><b>♜</b><h3>CARREGANDO FACÇÕES</h3></div></div>
+        </section>
+        <section class="page" id="page-org-profile">
+          <div class="org-profile-page-head">
+            <button type="button" id="orgProfileBack" class="profile-back-btn">← FACÇÕES</button>
+            <div class="org-profile-identity"><div class="eyebrow">PERFIL COMPLETO DA ORGANIZAÇÃO</div><h2 id="orgProfilePageTitle">FACÇÃO</h2><p id="orgProfilePageSubtitle">Liderança, ocupação, dados administrativos e histórico em uma única tela.</p></div>
+            <div id="orgProfilePageStatus"></div>
+          </div>
+          <div id="orgProfilePageMount" class="org-profile-page-mount"></div>
         </section>
         <section class="page" id="page-entregas">
           <div class="page-head"><div><div class="eyebrow">VÍNCULO GROUP → FACÇÃO</div><h2>ENTREGAS</h2><p class="page-subtitle">Escolha um Group pré-configurado, personalize a ocupação e gere as solicitações técnicas e o extrato para o Discord.</p></div><button id="newDeliveryBtn" class="btn-primary compact">NOVA ENTREGA</button></div>
@@ -471,7 +478,12 @@
 <label>Status<select id="uActive"><option value="true">ATIVO</option><option value="false">INATIVO</option></select></label>
 <label class="wide">Observação administrativa<textarea id="uNotes" rows="4" placeholder="Opcional"></textarea></label>
 </div><div class="role-help"><b>Níveis:</b> ADMIN gerencia acessos; PADRINHO e STAFF são perfis operacionais; <b>RH_METRICAS</b> acessa somente a Central de Métricas e relatórios; CONSULTA permanece como perfil de leitura geral.</div><div class="modal-actions"><button type="button" id="toggleUserBtn" class="btn-danger">DESATIVAR ACESSO</button><button type="submit" class="btn-primary compact">SALVAR USUÁRIO</button></div></form></div></div>
-  <script type="module" src="assets/app.js?v=7.18"></script>
+
+<div id="recipeEditorModal" class="modal hidden"><div class="modal-card tech-editor-modal"><button class="modal-x" id="recipeEditorClose">×</button><div class="eyebrow">PERFIL TÉCNICO • CRAFT</div><h2 id="recipeEditorTitle">RECEITA DO GROUP</h2><p class="tech-editor-help">Visualize e edite a receita completa sem sair do perfil do Group.</p><form id="recipeEditorForm"><input type="hidden" id="recipeEditorIndex"><div class="tech-editor-product"><div class="tech-editor-image"><img id="recipeEditorImage" alt="Item da receita"></div><div class="form-grid"><label>Nome do produto<input id="recipeEditorName" required></label><label>Spawn do produto<input id="recipeEditorSpawn" required></label><label>Nível<input id="recipeEditorLevel" placeholder="Ex.: 3"></label><label>Máximo / lote<input id="recipeEditorMax" placeholder="Ex.: 1"></label></div></div><div class="tech-editor-section"><div class="tech-editor-section-head"><div><span>INSUMOS DA RECEITA</span><b>Itens necessários para fabricar o produto</b></div><button type="button" id="recipeAddIngredient" class="btn-secondary compact">+ ADICIONAR INSUMO</button></div><div id="recipeIngredientRows" class="ingredient-editor-list"></div></div><div class="modal-actions"><button type="button" id="recipeEditorCancel" class="btn-secondary">CANCELAR</button><button type="submit" class="btn-primary">SALVAR RECEITA</button></div></form></div></div>
+
+<div id="farmEditorModal" class="modal hidden"><div class="modal-card tech-editor-modal farm-editor-modal"><button class="modal-x" id="farmEditorClose">×</button><div class="eyebrow">PERFIL TÉCNICO • FARM / ROTA</div><h2 id="farmEditorTitle">ITEM DO FARM</h2><p class="tech-editor-help" id="farmEditorHelp">Visualize os dados do item coletado na rota.</p><form id="farmEditorForm"><input type="hidden" id="farmEditorIndex"><div class="tech-editor-product"><div class="tech-editor-image"><img id="farmEditorImage" alt="Item do farm"></div><div class="form-grid"><label>Nome do item<input id="farmEditorName" required></label><label>Spawn do item<input id="farmEditorSpawn" required></label><label class="wide">Quantidade / observação de coleta<textarea id="farmEditorQty" rows="5" placeholder="Ex.: x20 por coleta / observação da rota"></textarea></label></div></div><div id="farmLinkedInfo" class="farm-linked-info hidden"></div><div class="modal-actions"><button type="button" id="farmEditorCancel" class="btn-secondary">FECHAR</button><button type="submit" id="farmEditorSave" class="btn-primary">SALVAR ITEM</button></div></form></div></div>
+
+  <script type="module" src="assets/app.js?v=7.8"></script>
 
 <div id="newDeliveryModal" class="modal hidden"><div class="modal-card delivery-modal-v5"><button class="modal-x" id="newDeliveryClose">×</button>
   <div class="eyebrow">NOVA OCUPAÇÃO</div><h2>ENTREGA DE GROUP</h2><p class="delivery-help">O Group traz sua estrutura instalada. Personalize apenas o que será ativado para a nova facção.</p>
