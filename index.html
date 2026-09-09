@@ -57,6 +57,7 @@
           <button class="nav-item" data-page="historico">◷ <span>Histórico</span></button>
           <button class="nav-item" data-page="alvesinho">✦ <span>Alvesinho</span></button>
           <button class="nav-item admin-only" data-page="usuarios">♟ <span>Usuários</span></button>
+          <button class="nav-item admin-only" data-page="administracao">⚠ <span>Administração</span></button>
         </nav>
         <button class="logout" id="logoutBtn">↪ Sair</button>
       </aside>
@@ -194,6 +195,11 @@
             <div class="settings-page-actions"><span class="settings-warning">Alterações pertencem ao Group/QG.</span><button type="button" id="saveGroupSettingsBtn" class="btn-primary compact">SALVAR SETAGENS</button></div>
           </div>
           <div id="groupSettingsMount" class="group-settings-page-mount"></div>
+        </section>
+
+        <section class="page" id="page-administracao">
+          <div class="page-head"><div><div class="eyebrow">SUPER ADMINISTRAÇÃO • MANUTENÇÃO</div><h2>ADMINISTRAÇÃO</h2><p class="page-subtitle">Ferramentas críticas do High OS. Exclusões geram registro de auditoria antes da limpeza.</p></div><span class="dev-badge">ADMIN</span></div>
+          <div class="danger-zone"><div><h3>ZONA DE MANUTENÇÃO</h3><p>Apague módulos individualmente ou faça o reset operacional. O histórico de auditoria é preservado no reset comum.</p></div><div class="admin-clean-grid"><button class="btn-danger admin-wipe" data-target="faccoes">APAGAR GROUPS / QGs</button><button class="btn-danger admin-wipe" data-target="organizacoes">APAGAR ORGANIZAÇÕES</button><button class="btn-danger admin-wipe" data-target="solicitacoes">APAGAR SOLICITAÇÕES</button><button class="btn-danger admin-wipe" data-target="entregas">APAGAR ENTREGAS</button><button class="btn-danger admin-wipe" data-target="metricas">APAGAR MÉTRICAS</button><button class="btn-danger" id="adminResetAll">RESET OPERACIONAL COMPLETO</button></div></div>
         </section>
         <section class="page" id="page-usuarios">
           <div class="page-head"><div><div class="eyebrow">ADMINISTRAÇÃO</div><h2>USUÁRIOS</h2></div><button id="newUserBtn" class="btn-primary compact">NOVO USUÁRIO</button></div>
@@ -418,7 +424,7 @@
   <div class="benefits-head"><div><div class="eyebrow">DISCORD DO ILEGAL</div><h3>EXTRATO DA ENTREGA</h3></div><button type="button" id="copyDeliveryBtn" class="btn-secondary compact">COPIAR EXTRATO</button></div>
   <textarea id="deliveryPreview" readonly></textarea>
 </div></div></details>
-<div class="modal-actions"><button type="button" id="recolherBtn" class="btn-danger">RECOLHER FACÇÃO</button><button type="submit" class="btn-primary">SALVAR ALTERAÇÕES</button></div></form></div></div>
+<div class="group-admin-actions"><button type="button" id="transferPanelBtn" class="btn-secondary">⇄ TRANSFERIR PAINEL</button><button type="button" id="swapQGBtn" class="btn-secondary">⌖ TROCAR QG / LOCAL</button></div><div class="modal-actions"><button type="button" id="recolherBtn" class="btn-danger">RECOLHER FACÇÃO</button><button type="submit" class="btn-primary">SALVAR ALTERAÇÕES</button></div></form></div></div>
 
 <div id="orgModal" class="modal hidden"><div class="modal-card org-modal-card"><button class="modal-x" id="orgModalClose">×</button><div class="eyebrow">PERFIL DA ORGANIZAÇÃO</div><h2 id="orgModalTitle">FACÇÃO</h2>
 <form id="orgForm"><input type="hidden" id="orgId"><div class="org-profile-summary" id="orgProfileSummary"></div><div class="form-grid">
@@ -480,5 +486,7 @@
 <div class="modal hidden" id="metricImportModal"><div class="modal-card metric-import-card"><div class="modal-head"><div><div class="eyebrow">IMPORTAÇÃO MANUAL • MÉTRICAS</div><h2>COLAR DADOS</h2></div><button id="metricImportClose">×</button></div><p class="delivery-help"><b>Importador flexível de horários.</b><br>Formato recomendado: primeira linha com os horários e depois os dados.<br><b>Group;Data;18:00;18:30;19:00;20:00;21:00;22:00;23:00;23:50</b><br>Também aceita o formato antigo Group;Data;14H;16H;21H;23H e TAB ao copiar da planilha. Os novos horários são somados ao mesmo dia sem apagar horários já registrados.</p><textarea id="metricImportText" class="metric-import-text" placeholder="Group;Data;18:00;18:30;19:00;20:00;21:00;22:00;23:00;23:50
 Lavagem03;08/09/2026;8;9;10;11;12;13;11;9
 Armas02;08/09/2026;7;8;9;10;11;12;10;8"></textarea><div class="modal-actions"><button id="metricImportSave" class="btn-primary">IMPORTAR PARA A BASE</button></div></div></div>
+
+<div id="movementModal" class="modal hidden"><div class="modal-card movement-card"><button class="modal-x" id="movementClose">×</button><div class="eyebrow">GESTÃO DE GROUPS • OPERAÇÃO AUDITADA</div><h2 id="movementTitle">TRANSFERÊNCIA</h2><p id="movementHelp" class="page-subtitle"></p><div class="movement-grid"><div class="movement-side"><span>ORIGEM</span><b id="movementOrigin">—</b></div><div class="movement-arrow">→</div><label class="movement-side">DESTINO<select id="movementDestination"></select></label></div><label>Motivo / observação<textarea id="movementReason" rows="3" placeholder="Informe o motivo administrativo da operação..."></textarea></label><div id="movementPreview" class="movement-preview"></div><div class="modal-actions"><button type="button" class="btn-secondary" id="movementCancel">CANCELAR</button><button type="button" class="btn-primary" id="movementConfirm">CONFIRMAR OPERAÇÃO</button></div></div></div>
 </body>
 </html>
