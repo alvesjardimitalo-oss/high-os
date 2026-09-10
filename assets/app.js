@@ -104,8 +104,9 @@ onAuthStateChanged(auth,async user=>{
   const snap=await getDoc(doc(db,'users',email));
   if(!snap.exists()||snap.data().active!==true){show(deniedView);$('#deniedText').textContent=`${email} foi autenticado, mas não possui cadastro ativo no High OS.`;sessionArea.innerHTML=`<span class="top-email">${email}</span><button class="mini-btn" id="logoutTop">Sair</button>`;$('#logoutTop').onclick=logout;return}
   currentProfile=snap.data();const role=String(currentProfile.role||'CONSULTA').toUpperCase();await startOrResumeSession(user,currentProfile);if(Date.now()-currentSessionStart>=SESSION_MAX_MS)return;show(appView);
-  $('#userName').textContent=currentProfile.name||user.displayName||email;$('#userRole').textContent=currentProfile.cargo||role;$('#userAccessLevel').textContent='ACESSO: '+role;$('#dashEmail').textContent=email;$('#dashRole').textContent=role;
-  if(user.photoURL)$('#userPhoto').src=user.photoURL;else $('#userPhoto').style.display='none';
+  const userNameEl=$('#userName'),userRoleEl=$('#userRole'),userAccessEl=$('#userAccessLevel'),dashEmailEl=$('#dashEmail'),dashRoleEl=$('#dashRole'),userPhotoEl=$('#userPhoto');
+  if(userNameEl)userNameEl.textContent=currentProfile.name||user.displayName||email;if(userRoleEl)userRoleEl.textContent=currentProfile.cargo||role;if(userAccessEl)userAccessEl.textContent='ACESSO: '+role;if(dashEmailEl)dashEmailEl.textContent=email;if(dashRoleEl)dashRoleEl.textContent=role;
+  if(userPhotoEl){if(user.photoURL){userPhotoEl.src=user.photoURL;userPhotoEl.style.display=''}else userPhotoEl.style.display='none';}
   document.querySelectorAll('.admin-only').forEach(el=>el.style.display=role==='ADMIN'?'flex':'none');
   applyRoleAccess(role);
   renderSessionClock(email);
@@ -688,7 +689,7 @@ async function saveUser(e){
  try{
   await setDoc(doc(db,'users',email),payload,{merge:true});
   await addDoc(histCol,{sessionId:currentSessionId||'',tipo:old?'USUARIO_EDITADO':'USUARIO_CRIADO',usuarioAlvo:email,antes:snapshot(old),depois:snapshot(payload),usuario:currentUser.email,data:serverTimestamp()});
-  $('#userModal').classList.add('hidden'); if(email===String(currentUser?.email||'').toLowerCase()){currentProfile={...currentProfile,...payload};$('#userName').textContent=payload.name||currentUser?.displayName||email;$('#userRole').textContent=payload.cargo||payload.role;$('#userAccessLevel').textContent='ACESSO: '+String(payload.role||'CONSULTA').toUpperCase();renderSessionClock(email);} await loadUsers();
+  $('#userModal').classList.add('hidden'); if(email===String(currentUser?.email||'').toLowerCase()){currentProfile={...currentProfile,...payload};if($('#userName'))$('#userName').textContent=payload.name||currentUser?.displayName||email;if($('#userRole'))$('#userRole').textContent=payload.cargo||payload.role;if($('#userAccessLevel'))$('#userAccessLevel').textContent='ACESSO: '+String(payload.role||'CONSULTA').toUpperCase();renderSessionClock(email);} await loadUsers();
  }catch(err){alert('Erro ao salvar usuário: '+err.message)}
 }
 async function toggleUserAccess(){
