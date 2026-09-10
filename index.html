@@ -56,6 +56,8 @@
           <button class="nav-item" data-page="metricas">▥ <span>Métricas</span></button>
           <button class="nav-item" data-page="economia">$ <span>Economia</span></button>
           <button class="nav-item" data-page="historico">◷ <span>Histórico</span></button>
+          <button class="nav-item" data-page="chat">✉ <span>Chat da Equipe</span></button>
+          <button class="nav-item" data-page="spotify">♫ <span>Spotify</span></button>
           <button class="nav-item" data-page="alvesinho">✦ <span>Alvesinho</span></button>
           <button class="nav-item admin-only" data-page="usuarios">♟ <span>Usuários</span></button>
           <button class="nav-item admin-only" data-page="administracao">⚠ <span>Administração</span></button>
@@ -63,7 +65,7 @@
       </aside>
       <div class="content">
         <section class="page active" id="page-dashboard">
-          <div class="page-head"><div><div class="eyebrow">CENTRAL DE COMANDO DO ILEGAL</div><h2>DASHBOARD</h2><p class="page-subtitle">Visão operacional para identificar rapidamente ocupação, contingente, pendências e movimentações da Staff.</p></div><span class="dev-badge">V8.21</span></div>
+          <div class="page-head"><div><div class="eyebrow">CENTRAL DE COMANDO DO ILEGAL</div><h2>DASHBOARD</h2><p class="page-subtitle">Visão operacional para identificar rapidamente ocupação, contingente, pendências e movimentações da Staff.</p></div><span class="dev-badge">V8.23</span></div>
           <div id="commandDashboard" class="command-dashboard"><div class="placeholder"><b>◆</b><h3>CARREGANDO CENTRAL DE COMANDO</h3></div></div>
           <span id="dashEmail" class="hidden">—</span><span id="dashRole" class="hidden">—</span>
         </section>
@@ -161,6 +163,19 @@
           <div class="history-toolbar"><input id="historySearch" placeholder="Buscar Group, facção, usuário ou evento..."><select id="historyType"><option value="">TODOS OS EVENTOS</option><option value="ENTREGA_GROUP">ENTREGAS</option><option value="RECOLHIMENTO">RECOLHIMENTOS</option><option value="EDICAO">ALTERAÇÕES DE GROUP</option><option value="ENTREGA">ENTREGAS LEGADAS</option><option value="MODELO_SOLICITACAO">MODELOS / SOLICITAÇÕES</option><option value="USUARIO">USUÁRIOS</option></select></div>
           <div id="historyStats" class="fac-stats"></div><div id="historyList" class="history-list"><div class="placeholder"><b>◷</b><h3>CARREGANDO HISTÓRICO</h3></div></div>
         </section>
+        <section class="page" id="page-chat">
+          <div class="page-head"><div><div class="eyebrow">COMUNICAÇÃO INTERNA • USUÁRIOS LOGADOS</div><h2>CHAT DA EQUIPE</h2><p class="page-subtitle">Messenger interno do High OS para conversa rápida entre os usuários conectados ao sistema.</p></div><span class="dev-badge">ONLINE</span></div>
+          <div class="team-chat-shell">
+            <div class="team-chat-head"><div><b>HIGH OS • EQUIPE</b><span>Mensagens compartilhadas em tempo real</span></div><small>Somente usuários autenticados</small></div>
+            <div id="chatMessages" class="team-chat-messages"><div class="chat-empty">Carregando conversa...</div></div>
+            <div class="chat-emoji-row"><button type="button" data-chat-emoji="👍">👍</button><button type="button" data-chat-emoji="✅">✅</button><button type="button" data-chat-emoji="🔥">🔥</button><button type="button" data-chat-emoji="👀">👀</button><button type="button" data-chat-emoji="📌">📌</button><button type="button" data-chat-emoji="🚨">🚨</button><button type="button" data-chat-emoji="😂">😂</button><button type="button" data-chat-emoji="💜">💜</button></div>
+            <div class="team-chat-compose"><textarea id="chatInput" maxlength="1000" rows="2" placeholder="Escreva uma mensagem para a equipe..."></textarea><button type="button" id="chatSendBtn" class="btn-primary">ENVIAR</button></div>
+          </div>
+        </section>
+        <section class="page" id="page-spotify">
+          <div class="page-head"><div><div class="eyebrow">EXTENSÃO • MÚSICA</div><h2>SPOTIFY</h2><p class="page-subtitle">Player integrado ao High OS. Use um link público do Spotify para manter a equipe com música sem sair do sistema.</p></div><span class="dev-badge">PLAYER</span></div>
+          <div class="spotify-shell"><div class="spotify-config"><label><span>LINK DO SPOTIFY</span><input id="spotifyUrl" type="url" placeholder="https://open.spotify.com/playlist/..."></label><button type="button" id="spotifySaveBtn" class="btn-primary compact">CARREGAR / SALVAR PLAYER</button></div><div id="spotifyPlayer" class="spotify-player"><div class="spotify-empty"><b>♫</b><h3>CARREGANDO PLAYER</h3></div></div><small class="spotify-note">Aceita playlist, álbum, artista, faixa e podcast públicos do Spotify. O conteúdo é reproduzido pelo player oficial incorporado.</small></div>
+        </section>
         <section class="page" id="page-alvesinho">
           <div class="page-head"><div><div class="eyebrow">INTELIGÊNCIA OPERACIONAL • BASE HIGH OS</div><h2>ALVESINHO</h2><p class="page-subtitle">Consulta Groups, facções, entregas e histórico usando somente os dados registrados no sistema.</p></div><span class="dev-badge">BASE OPERACIONAL</span></div>
           <div class="alves-layout">
@@ -222,6 +237,7 @@
           <div class="page-head admin-page-head"><div><div class="eyebrow">CENTRAL ADMINISTRATIVA</div><h2>ADMINISTRAÇÃO</h2><p class="page-subtitle">Controle do sistema organizado por área: acessos, integrações, estrutura, auditoria e manutenção.</p></div><span class="dev-badge">ADMIN</span></div>
           <div class="admin-summary-grid">
             <button type="button" class="admin-summary-card active" data-admin-tab="acessos"><span>♟</span><div><b>ACESSOS</b><small>Usuários e permissões por módulo</small></div></button>
+            <button type="button" class="admin-summary-card" data-admin-tab="dashboard"><span>⌁</span><div><b>DASHBOARD</b><small>Parâmetros de saúde e contingente</small></div></button>
             <button type="button" class="admin-summary-card" data-admin-tab="integracoes"><span>↔</span><div><b>INTEGRAÇÕES</b><small>Google Sheets e sincronizações</small></div></button>
             <button type="button" class="admin-summary-card" data-admin-tab="estrutura"><span>◇</span><div><b>ESTRUTURA</b><small>Segmentos e vínculos</small></div></button>
             <button type="button" class="admin-summary-card" data-admin-tab="auditoria"><span>◷</span><div><b>AUDITORIA</b><small>Sessões e ações dos usuários</small></div></button>
@@ -234,6 +250,20 @@
               <div class="admin-access-actions"><button type="button" id="adminOpenUsersBtn" class="btn-primary compact">GERENCIAR USUÁRIOS E PERMISSÕES</button></div>
               <div class="permission-legend"><span class="perm-none">SEM ACESSO</span><span class="perm-view">VISUALIZAR</span><span class="perm-edit">EDITAR</span></div>
               <div class="sheet-sync-note">ADMIN sempre possui acesso total. As permissões individuais têm prioridade sobre o perfil/cargo do usuário e podem ser alteradas somente por ADMIN.</div>
+            </div>
+          </div>
+
+          <div class="admin-tab-panel" data-admin-panel="dashboard">
+            <div class="dashboard-config-card">
+              <div class="sheet-sync-head"><div><div class="eyebrow">CENTRAL DE COMANDO • PARÂMETROS</div><h3>ALERTA SEMANAL INTELIGENTE</h3><p>O parâmetro de referência é sempre a semana anterior. O sistema compara os mesmos dias e horários já coletados da semana atual para evitar falso alerta.</p></div><span class="sheet-sync-badge online">SEMANA × SEMANA</span></div>
+              <div class="dashboard-config-grid">
+                <label><span>QUEDA PARA ATENÇÃO (%)</span><input id="dashCfgAtencao" type="number" min="1" max="90" step="1"><small>Percentual de queda em relação à semana anterior.</small></label>
+                <label><span>QUEDA PARA CRÍTICO (%)</span><input id="dashCfgCritico" type="number" min="2" max="100" step="1"><small>Queda que transforma o alerta em CRÍTICO.</small></label>
+                <label><span>MÍNIMO DE COLETAS COMPARÁVEIS</span><input id="dashCfgMinComparacoes" type="number" min="1" max="50" step="1"><small>Evita concluir com pouca informação.</small></label>
+              </div>
+              <div id="dashCfgPreview" class="dashboard-config-preview"></div>
+              <div class="dashboard-config-actions"><button type="button" id="dashCfgSave" class="btn-primary compact">SALVAR PARÂMETROS</button></div>
+              <div class="sheet-sync-note">Somente facções ATIVAS e com ocupação entram no cálculo. Group vago nunca entra em alerta ou relatório global. Cada alerta pode ser marcado ✓ CONCLUÍDO ou ✕ PENDENTE e abre direto a métrica que o justificou.</div>
             </div>
           </div>
 
@@ -552,7 +582,7 @@
 <div id="craftRequestModal" class="modal hidden"><div class="modal-card craft-request-modal"><button class="modal-x" id="craftRequestClose">×</button><div class="eyebrow">SOLICITAÇÃO GERADA AUTOMATICAMENTE</div><h2>ADIÇÃO DE CRAFT NO GROUP</h2><p class="tech-editor-help">A receita foi salva no High OS. Confira a solicitação abaixo e copie no padrão do Discord da cidade.</p><div class="craft-request-summary" id="craftRequestSummary"></div><label class="wide craft-request-text-label">Solicitação pronta para o Discord<textarea id="craftRequestText" rows="18" readonly></textarea></label><div class="modal-actions"><button type="button" id="craftRequestLater" class="btn-secondary">FECHAR</button><button type="button" id="copyCraftRequestBtn" class="btn-primary">COPIAR SOLICITAÇÃO</button></div></div></div>
 <div id="farmEditorModal" class="modal hidden"><div class="modal-card tech-editor-modal farm-editor-modal"><button class="modal-x" id="farmEditorClose">×</button><div class="eyebrow">PERFIL TÉCNICO • FARM / ROTA</div><h2 id="farmEditorTitle">ITEM DO FARM</h2><p class="tech-editor-help" id="farmEditorHelp">Visualize os dados do item coletado na rota.</p><form id="farmEditorForm"><input type="hidden" id="farmEditorIndex"><div class="tech-editor-product"><div class="tech-editor-image"><img id="farmEditorImage" alt="Item do farm"></div><div class="form-grid"><label>Nome do item<input id="farmEditorName" required></label><label>Spawn do item<input id="farmEditorSpawn" required></label><label class="wide">Quantidade / observação de coleta<textarea id="farmEditorQty" rows="5" placeholder="Ex.: x20 por coleta / observação da rota"></textarea></label></div></div><div id="farmLinkedInfo" class="farm-linked-info hidden"></div><div class="modal-actions"><button type="button" id="farmEditorCancel" class="btn-secondary">FECHAR</button><button type="submit" id="farmEditorSave" class="btn-primary">SALVAR ITEM</button></div></form></div></div>
 
-  <script type="module" src="assets/app.js?v=8.21"></script>
+  <script type="module" src="assets/app.js?v=8.23"></script>
 
 <div id="newDeliveryModal" class="modal hidden"><div class="modal-card delivery-modal-v5"><button class="modal-x" id="newDeliveryClose">×</button>
   <div class="eyebrow">NOVA OCUPAÇÃO</div><h2>ENTREGA DE GROUP</h2><p class="delivery-help">O Group traz sua estrutura instalada. Personalize apenas o que será ativado para a nova facção.</p>
