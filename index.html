@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#09070d">
   <title>High OS • Gestão do Ilegal</title>
-  <link rel="stylesheet" href="assets/style.css?v=8.24">
+  <link rel="stylesheet" href="assets/style.css?v=8.25">
 <style>
 .rh-section-head{display:flex;justify-content:space-between;gap:18px;align-items:end;margin:18px 0}.rh-section-head h3{margin:3px 0}.rh-compare-controls{display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:end;margin:16px 0}.rh-compare-controls label{display:grid;gap:6px;font-size:11px;font-weight:800}.rh-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:14px 0}.rh-card{border:1px solid var(--line,#33283b);border-radius:14px;padding:14px;background:rgba(255,255,255,.025)}.rh-card span{display:block;font-size:10px;opacity:.65;font-weight:800}.rh-card b{display:block;font-size:24px;margin-top:5px}.rh-card small{opacity:.7}.rh-alert{padding:10px 12px;border:1px solid var(--line,#33283b);border-radius:10px;margin:7px 0}.rh-ranking-row{display:grid;grid-template-columns:45px 1fr repeat(4,110px);gap:10px;align-items:center;padding:11px;border-bottom:1px solid var(--line,#33283b)}.rh-ranking-row>span{text-align:right}.rh-compare-table{width:100%;border-collapse:collapse;margin-top:14px}.rh-compare-table th,.rh-compare-table td{padding:10px;border-bottom:1px solid var(--line,#33283b);text-align:center}.rh-compare-table th:first-child,.rh-compare-table td:first-child{text-align:left}@media(max-width:900px){.rh-grid{grid-template-columns:1fr 1fr}.rh-ranking-row{grid-template-columns:35px 1fr 80px}.rh-ranking-row .rh-extra{display:none}.rh-compare-controls{grid-template-columns:1fr}}
 </style>
@@ -15,6 +15,16 @@
   <header class="topbar">
     <div class="wrap topbar-inner">
       <a class="brand" href="index.html"><img src="assets/high_logo.png" alt="High"><div class="brand-copy"><strong>HIGH OS</strong><span>GESTÃO DO ILEGAL • DEV</span></div></a>
+      <div id="spotifyTopDock" class="spotify-top-dock hidden" aria-label="Spotify High OS">
+        <button type="button" id="spotifyDockMain" class="spotify-dock-main" title="Abrir Spotify"><span class="spotify-note-icon">♫</span><span class="spotify-now"><b id="spotifyNowTitle">Spotify</b><small id="spotifyNowArtist">Conectar conta</small></span><span id="spotifyPlayGlyph">▶</span></button>
+        <div class="spotify-dock-popover">
+          <div class="spotify-dock-head"><strong>SPOTIFY • HIGH OS</strong><button type="button" id="spotifyDockOpenPage">ABRIR MÓDULO</button></div>
+          <div id="spotifyDockAuth" class="spotify-dock-auth"></div>
+          <div class="spotify-dock-controls"><button type="button" id="spotifyPrevBtn">⏮</button><button type="button" id="spotifyPlayBtn">▶ / ❚❚</button><button type="button" id="spotifyNextBtn">⏭</button></div>
+          <div class="spotify-dock-search"><input id="spotifySearchInput" placeholder="Buscar música no Spotify..."><button type="button" id="spotifySearchBtn">BUSCAR</button></div>
+          <div id="spotifySearchResults" class="spotify-search-results"></div>
+        </div>
+      </div>
       <div class="session" id="sessionArea">
         <button class="btn-google" id="loginBtn">G&nbsp; Entrar com Google</button>
       </div>
@@ -65,7 +75,7 @@
       </aside>
       <div class="content">
         <section class="page active" id="page-dashboard">
-          <div class="page-head"><div><div class="eyebrow">CENTRAL DE COMANDO DO ILEGAL</div><h2>DASHBOARD</h2><p class="page-subtitle">Visão operacional para identificar rapidamente ocupação, contingente, pendências e movimentações da Staff.</p></div><span class="dev-badge">V8.24</span></div>
+          <div class="page-head"><div><div class="eyebrow">CENTRAL DE COMANDO DO ILEGAL</div><h2>DASHBOARD</h2><p class="page-subtitle">Visão operacional para identificar rapidamente ocupação, contingente, pendências e movimentações da Staff.</p></div><span class="dev-badge">V8.25</span></div>
           <div id="commandDashboard" class="command-dashboard"><div class="placeholder"><b>◆</b><h3>CARREGANDO CENTRAL DE COMANDO</h3></div></div>
           <span id="dashEmail" class="hidden">—</span><span id="dashRole" class="hidden">—</span>
         </section>
@@ -120,6 +130,9 @@
           <div class="metric-center-view active" id="metricViewOverview">
             <div id="metricOverview" class="metric-overview"></div>
             <div id="metricStats" class="fac-stats compact-stats"></div>
+            <div class="metric-intel-actions"><button type="button" id="metricTodayBtn">HOJE</button><button type="button" id="metricWeekBtn">SEMANA ATUAL</button><button type="button" id="metricDailyReportBtn">RELATÓRIO DIÁRIO</button></div>
+            <div id="metricDailyIntel" class="metric-daily-intel"></div>
+            <div id="metricWeeklyIntel" class="metric-weekly-intel"></div>
             <div id="metricVisuals" class="metric-visuals"></div>
             <div id="metricQuickRanking" class="metric-quick-ranking"></div>
           </div>
@@ -164,17 +177,18 @@
           <div id="historyStats" class="fac-stats"></div><div id="historyList" class="history-list"><div class="placeholder"><b>◷</b><h3>CARREGANDO HISTÓRICO</h3></div></div>
         </section>
         <section class="page" id="page-chat">
-          <div class="page-head"><div><div class="eyebrow">COMUNICAÇÃO INTERNA • USUÁRIOS LOGADOS</div><h2>CHAT DA EQUIPE</h2><p class="page-subtitle">Messenger interno do High OS para conversa rápida entre os usuários conectados ao sistema.</p></div><span class="dev-badge">ONLINE</span></div>
-          <div class="team-chat-shell">
-            <div class="team-chat-head"><div><b>HIGH OS • EQUIPE</b><span>Mensagens compartilhadas em tempo real</span></div><small>Somente usuários autenticados</small></div>
-            <div id="chatMessages" class="team-chat-messages"><div class="chat-empty">Carregando conversa...</div></div>
-            <div class="chat-emoji-row"><button type="button" data-chat-emoji="👍">👍</button><button type="button" data-chat-emoji="✅">✅</button><button type="button" data-chat-emoji="🔥">🔥</button><button type="button" data-chat-emoji="👀">👀</button><button type="button" data-chat-emoji="📌">📌</button><button type="button" data-chat-emoji="🚨">🚨</button><button type="button" data-chat-emoji="😂">😂</button><button type="button" data-chat-emoji="💜">💜</button></div>
-            <div class="team-chat-compose"><textarea id="chatInput" maxlength="1000" rows="2" placeholder="Escreva uma mensagem para a equipe..."></textarea><button type="button" id="chatSendBtn" class="btn-primary">ENVIAR</button></div>
-          </div>
+          <div class="page-head"><div><div class="eyebrow">COMUNICAÇÃO INTERNA • HIGH OS</div><h2>CHAT DA EQUIPE</h2><p class="page-subtitle">O Messenger agora fica disponível em qualquer tela pelo botão flutuante no canto inferior direito. Mensagens, emojis, anexos e sala de reunião integrada.</p></div><span class="dev-badge">MESSENGER</span></div>
+          <div class="chat-feature-grid"><article><b>✉ CHAT EM TEMPO REAL</b><p>Converse sem sair do módulo em que está trabalhando.</p></article><article><b>📎 ANEXOS</b><p>Envie imagens e arquivos pequenos diretamente na conversa.</p></article><article><b>🎙 REUNIÃO</b><p>Crie uma sala para áudio, vídeo e compartilhamento de tela.</p></article><article><b>🔔 CONTEXTO</b><p>Convites de reunião aparecem dentro do próprio chat.</p></article></div>
+          <button type="button" id="chatPageOpenFloat" class="btn-primary">ABRIR CHAT FLUTUANTE</button>
+          <div id="chatMessages" class="team-chat-messages chat-page-history"><div class="chat-empty">Carregando conversa...</div></div>
         </section>
         <section class="page" id="page-spotify">
-          <div class="page-head"><div><div class="eyebrow">EXTENSÃO • MÚSICA</div><h2>SPOTIFY</h2><p class="page-subtitle">Player integrado ao High OS. Use um link público do Spotify para manter a equipe com música sem sair do sistema.</p></div><span class="dev-badge">PLAYER</span></div>
-          <div class="spotify-shell"><div class="spotify-config"><label><span>LINK DO SPOTIFY</span><input id="spotifyUrl" type="url" placeholder="https://open.spotify.com/playlist/..."></label><button type="button" id="spotifySaveBtn" class="btn-primary compact">CARREGAR / SALVAR PLAYER</button></div><div id="spotifyPlayer" class="spotify-player"><div class="spotify-empty"><b>♫</b><h3>CARREGANDO PLAYER</h3></div></div><small class="spotify-note">Aceita playlist, álbum, artista, faixa e podcast públicos do Spotify. O conteúdo é reproduzido pelo player oficial incorporado.</small></div>
+          <div class="page-head"><div><div class="eyebrow">EXTENSÃO • SPOTIFY CONNECT</div><h2>SPOTIFY</h2><p class="page-subtitle">Player real integrado ao topo do High OS. Conecte sua conta Spotify e controle a reprodução sem sair do sistema.</p></div><span class="dev-badge">CONNECT</span></div>
+          <div class="spotify-real-shell">
+            <section class="spotify-real-card"><div class="spotify-real-head"><div><span>CONTA SPOTIFY</span><h3 id="spotifyAccountName">Não conectada</h3></div><button type="button" id="spotifyLoginBtn" class="btn-primary compact">CONECTAR SPOTIFY</button></div><div id="spotifyRealStatus" class="spotify-real-status">Configure o Client ID abaixo e conecte sua conta.</div></section>
+            <section class="spotify-real-card admin-only"><h3>CONFIGURAÇÃO DO APP SPOTIFY</h3><p>Cadastre um app em Spotify for Developers e registre exatamente a URL exibida abaixo como Redirect URI.</p><label><span>CLIENT ID</span><input id="spotifyClientId" placeholder="Client ID do aplicativo Spotify"></label><label><span>REDIRECT URI</span><input id="spotifyRedirectUri" readonly></label><button type="button" id="spotifySaveClientBtn" class="btn-secondary compact">SALVAR CONFIGURAÇÃO</button></section>
+            <section class="spotify-real-card"><h3>PLAYER PÚBLICO / FALLBACK</h3><div class="spotify-config"><label><span>LINK DO SPOTIFY</span><input id="spotifyUrl" type="url" placeholder="https://open.spotify.com/playlist/..."></label><button type="button" id="spotifySaveBtn" class="btn-secondary compact">SALVAR LINK</button></div><div id="spotifyPlayer" class="spotify-player"></div></section>
+          </div>
         </section>
         <section class="page" id="page-alvesinho">
           <div class="page-head"><div><div class="eyebrow">INTELIGÊNCIA OPERACIONAL • BASE HIGH OS</div><h2>ALVESINHO</h2><p class="page-subtitle">Consulta Groups, facções, entregas e histórico usando somente os dados registrados no sistema.</p></div><span class="dev-badge">BASE OPERACIONAL</span></div>
@@ -593,7 +607,7 @@
 <div id="craftRequestModal" class="modal hidden"><div class="modal-card craft-request-modal"><button class="modal-x" id="craftRequestClose">×</button><div class="eyebrow">SOLICITAÇÃO GERADA AUTOMATICAMENTE</div><h2>ADIÇÃO DE CRAFT NO GROUP</h2><p class="tech-editor-help">A receita foi salva no High OS. Confira a solicitação abaixo e copie no padrão do Discord da cidade.</p><div class="craft-request-summary" id="craftRequestSummary"></div><label class="wide craft-request-text-label">Solicitação pronta para o Discord<textarea id="craftRequestText" rows="18" readonly></textarea></label><div class="modal-actions"><button type="button" id="craftRequestLater" class="btn-secondary">FECHAR</button><button type="button" id="copyCraftRequestBtn" class="btn-primary">COPIAR SOLICITAÇÃO</button></div></div></div>
 <div id="farmEditorModal" class="modal hidden"><div class="modal-card tech-editor-modal farm-editor-modal"><button class="modal-x" id="farmEditorClose">×</button><div class="eyebrow">PERFIL TÉCNICO • FARM / ROTA</div><h2 id="farmEditorTitle">ITEM DO FARM</h2><p class="tech-editor-help" id="farmEditorHelp">Visualize os dados do item coletado na rota.</p><form id="farmEditorForm"><input type="hidden" id="farmEditorIndex"><div class="tech-editor-product"><div class="tech-editor-image"><img id="farmEditorImage" alt="Item do farm"></div><div class="form-grid"><label>Nome do item<input id="farmEditorName" required></label><label>Spawn do item<input id="farmEditorSpawn" required></label><label class="wide">Quantidade / observação de coleta<textarea id="farmEditorQty" rows="5" placeholder="Ex.: x20 por coleta / observação da rota"></textarea></label></div></div><div id="farmLinkedInfo" class="farm-linked-info hidden"></div><div class="modal-actions"><button type="button" id="farmEditorCancel" class="btn-secondary">FECHAR</button><button type="submit" id="farmEditorSave" class="btn-primary">SALVAR ITEM</button></div></form></div></div>
 
-  <script type="module" src="assets/app.js?v=8.24"></script>
+  <script type="module" src="assets/app.js?v=8.25"></script>
 
 <div id="newDeliveryModal" class="modal hidden"><div class="modal-card delivery-modal-v5"><button class="modal-x" id="newDeliveryClose">×</button>
   <div class="eyebrow">NOVA OCUPAÇÃO</div><h2>ENTREGA DE GROUP</h2><p class="delivery-help">O Group traz sua estrutura instalada. Personalize apenas o que será ativado para a nova facção.</p>
@@ -635,6 +649,19 @@ Armas02;08/09/2026;7;8;9;10;11;12;10;8"></textarea><div class="modal-actions"><b
   <div id="facSheetDiffList" class="sheet-diff-list"></div>
   <div class="modal-actions"><button type="button" id="facSheetDiffCancel" class="btn-secondary">CANCELAR</button><button type="button" id="facSheetDiffConfirm" class="btn-primary">CONFIRMAR E ATUALIZAR HIGH OS</button></div>
 </div></div>
+
+
+  <button type="button" id="teamChatLauncher" class="team-chat-launcher hidden" title="Chat da Equipe"><span>✉</span><i id="teamChatUnread" class="hidden">0</i></button>
+  <aside id="teamChatFloat" class="team-chat-float hidden" aria-label="Chat da Equipe">
+    <header><div><b>HIGH OS • EQUIPE</b><small id="teamChatPresence">mensagens em tempo real</small></div><div><button type="button" id="chatMeetingBtn" title="Iniciar reunião">🎙</button><button type="button" id="chatFloatMin" title="Minimizar">—</button></div></header>
+    <div id="floatingChatMessages" class="team-chat-messages"><div class="chat-empty">Carregando conversa...</div></div>
+    <div class="chat-emoji-row chat-float-emojis"><button type="button" data-chat-emoji="👍">👍</button><button type="button" data-chat-emoji="✅">✅</button><button type="button" data-chat-emoji="🔥">🔥</button><button type="button" data-chat-emoji="👀">👀</button><button type="button" data-chat-emoji="📌">📌</button><button type="button" data-chat-emoji="🚨">🚨</button><button type="button" data-chat-emoji="😂">😂</button><button type="button" data-chat-emoji="💜">💜</button></div>
+    <div id="chatAttachmentPreview" class="chat-attachment-preview hidden"></div>
+    <div class="team-chat-compose chat-float-compose"><label class="chat-attach-btn" title="Anexar arquivo">📎<input id="chatAttachInput" type="file" hidden></label><textarea id="floatingChatInput" maxlength="1000" rows="2" placeholder="Mensagem..."></textarea><button type="button" id="floatingChatSendBtn" class="btn-primary">➤</button></div>
+  </aside>
+  <div id="teamMeetingOverlay" class="team-meeting-overlay hidden">
+    <div class="team-meeting-card"><header><div><b>REUNIÃO HIGH OS</b><small id="teamMeetingRoomLabel">Áudio • vídeo • compartilhar tela</small></div><button type="button" id="teamMeetingClose">×</button></header><iframe id="teamMeetingFrame" allow="camera; microphone; fullscreen; display-capture; autoplay" referrerpolicy="no-referrer"></iframe></div>
+  </div>
 
 </body>
 </html>
