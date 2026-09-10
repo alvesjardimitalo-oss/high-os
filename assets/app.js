@@ -210,9 +210,9 @@ $('#facModalClose').onclick=closeGroupProfilePage;
 $('#copyDeliveryBtn').onclick=copyDeliveryExtract; $('#copyDeliveryRequestsBtn').onclick=copyDeliveryRequests;
 
 $('#facForm').onsubmit=async e=>{
- e.preventDefault();const group=$('#fGroup').value,old=faccoes.find(x=>x.group===group);const data={...old,status:$('#fStatus').value,faccao:$('#fFaccao').value.trim(),qg:$('#fQG').value.trim(),produto:$('#fProduto').value.trim(),lider:$('#fLider').value.trim(),staff:$('#fStaff').value.trim(),dataEntrega:$('#fData').value.trim(),anuncio:$('#fAnuncio').value.trim(),imagemAnuncio:$('#fImagemAnuncio')?.value.trim()||'',cds:$('#fCds').value.trim(),observacoes:$('#fObs').value.trim(),beneficios:getFormBenefits(),perfilEntrega:{planoPadrao:$('#fPlanoPadrao')?.value.trim()||'',observacao:$('#fPerfilObs')?.value.trim()||'',beneficiosPadrao:selectedDefaultBenefits()},perfilTecnico:getTechProfileFromForm(),updatedAt:serverTimestamp(),updatedBy:currentUser.email};
+ e.preventDefault();const group=$('#fGroup').value,old=faccoes.find(x=>x.group===group);getTechProfileFromForm();const data={...old,status:$('#fStatus').value,faccao:$('#fFaccao').value.trim(),qg:$('#fQG').value.trim(),produto:$('#fProduto').value.trim(),lider:$('#fLider').value.trim(),staff:$('#fStaff').value.trim(),dataEntrega:$('#fData').value.trim(),anuncio:$('#fAnuncio').value.trim(),imagemAnuncio:$('#fImagemAnuncio')?.value.trim()||'',cds:$('#fCds').value.trim(),observacoes:$('#fObs').value.trim(),beneficios:getFormBenefits(),perfilEntrega:{planoPadrao:$('#fPlanoPadrao')?.value.trim()||'',observacao:$('#fPerfilObs')?.value.trim()||'',beneficiosPadrao:selectedDefaultBenefits()},perfilTecnico:getTechProfileFromForm(),updatedAt:serverTimestamp(),updatedBy:currentUser.email};
  if(data.status==='ATIVA'&&!data.faccao){alert('Informe o nome da facção para marcar como ATIVA.');return}
- try{const generated=autoDeliveryRequests(data);await setDoc(doc(db,'highos','data','faccoes',group),data);await addDoc(histCol,{tipo:(old?.qg!==data.qg||old?.cds!==data.cds||JSON.stringify(old?.beneficios||{})!==JSON.stringify(data.beneficios||{}))?'QG_ALTERADO':(old?.status==='INATIVA'&&data.status==='ATIVA'?'ENTREGA':'EDICAO'),group,faccao:data.faccao||old?.faccao||'',qg:data.qg||'',antes:snapshot(old),depois:snapshot(data),solicitacoesGeradas:generated,extratoEntrega:buildDeliveryExtract(data),usuario:currentUser.email,data:serverTimestamp()});await syncGroupsToOfficialSheet([data],{quiet:true});closeGroupProfilePage();await loadFaccoes()}catch(err){alert('Erro ao salvar: '+err.message)}
+ try{const generated=autoDeliveryRequests(data);await setDoc(doc(db,'highos','data','faccoes',group),data);const localIndex=faccoes.findIndex(x=>x.group===group);if(localIndex>=0)faccoes[localIndex]={...faccoes[localIndex],...clonePlain(data)};await addDoc(histCol,{tipo:(old?.qg!==data.qg||old?.cds!==data.cds||JSON.stringify(old?.beneficios||{})!==JSON.stringify(data.beneficios||{}))?'QG_ALTERADO':(old?.status==='INATIVA'&&data.status==='ATIVA'?'ENTREGA':'EDICAO'),group,faccao:data.faccao||old?.faccao||'',qg:data.qg||'',antes:snapshot(old),depois:snapshot(data),solicitacoesGeradas:generated,extratoEntrega:buildDeliveryExtract(data),usuario:currentUser.email,data:serverTimestamp()});await syncGroupsToOfficialSheet([data],{quiet:true});closeGroupProfilePage();await loadFaccoes()}catch(err){alert('Erro ao salvar: '+err.message)}
 };
 let recollectPanelImage='';
 function recollectReasonLabel(v){return ({BAIXO_CONTINGENTE:'Baixo contingente',INATIVIDADE:'Inatividade',ABANDONO:'Abandono da facção',QUEBRA_REGRAS:'Quebra de regras / descumprimento',DECISAO_CUPULA:'Decisão da cúpula',SOLICITACAO_LIDERANCA:'Solicitação da liderança',OUTRO:'Outro'})[v]||v||'—'}
@@ -2144,6 +2144,28 @@ $('#copyCraftRequestBtn')?.addEventListener('click',async()=>{
  setTimeout(()=>{if(b)b.textContent=old},1400);
 });
 
+// HIGH OS V8.7 — persistência forte de Craft/Farm.
+// Salva diretamente no documento do Group e relê o Firestore para impedir que
+// um rascunho antigo da tela sobrescreva receitas recém-cadastradas.
+async function persistCurrentTechProfile(group, {reload=true}={}){
+ if(!group)throw new Error('Group não identificado.');
+ const ref=doc(db,'highos','data','faccoes',group);
+ const perfilTecnico=getTechProfileFromForm();
+ await setDoc(ref,{perfilTecnico,updatedAt:serverTimestamp(),updatedBy:currentUser?.email||''},{merge:true});
+ const local=faccoes.find(x=>x.group===group);
+ if(local)local.perfilTecnico=clonePlain(perfilTecnico);
+ if(reload){
+   const snap=await getDoc(ref);
+   if(snap.exists()){
+     const fresh={id:snap.id,...snap.data()};
+     const pos=faccoes.findIndex(x=>x.group===group);
+     if(pos>=0)faccoes[pos]={...faccoes[pos],...fresh};
+     techDraft=mergedTechProfile(faccoes[pos>=0?pos:faccoes.findIndex(x=>x.group===group)]||fresh);
+   }
+ }
+ return clonePlain(perfilTecnico);
+}
+
 // HIGH OS V7.9 — editores visuais de Receita e Farm (sem prompt do navegador)
 $('#recipeEditorClose')?.addEventListener('click',closeRecipeEditor);
 $('#recipeEditorCancel')?.addEventListener('click',()=>{const i=+($('#recipeEditorIndex')?.value||-1),r=techDraft?.craft?.receitas?.[i];if(r&&!r.nome&&!r.spawn){techDraft.craft.receitas.splice(i,1);renderCraftRecipes();renderFarmItems()}closeRecipeEditor()});
@@ -2168,8 +2190,7 @@ $('#recipeEditorForm')?.addEventListener('submit',async e=>{
    const oldPerfil=clonePlain(mergedTechProfile(local||{}));
    const perfilTecnico=getTechProfileFromForm();
    const oldRecipe=(oldPerfil?.craft?.receitas||[]).find(x=>craftRecipeKey(x)===craftRecipeKey(r));
-   await setDoc(doc(db,'highos','data','faccoes',group),{perfilTecnico,updatedAt:serverTimestamp(),updatedBy:currentUser?.email||''},{merge:true});
-   if(local)local.perfilTecnico=clonePlain(perfilTecnico);
+   await persistCurrentTechProfile(group,{reload:true});
    const shouldGenerate=String(r.origem||'').toUpperCase()!=='PADRÃO DO SEGMENTO';
    let generatedRequest=null,requestRef=null;
    if(shouldGenerate){
@@ -2235,3 +2256,5 @@ async function toggleAvailablePosted(group){
  try{await setDoc(doc(db,'highos','data','faccoes',group),{anuncioDiscordStatus:status,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true});await addDoc(histCol,{tipo:was?'ANUNCIO_DISCORD_DESMARCADO':'ANUNCIO_DISCORD_POSTADO',group,qg:f.qg||'',segmento:f.segmento||'',texto:availableAnnouncementText(f),imagemUrl:f.imagemAnuncio||'',usuario:currentUser.email,data:serverTimestamp()});await loadFaccoes()}catch(e){alert('Erro ao atualizar status do anúncio: '+e.message)}
 }
 ['availableSearch','availableSegment','availableDiscord'].forEach(id=>$('#'+id)?.addEventListener(id==='availableSearch'?'input':'change',renderAvailableFaccoes));
+
+console.info('HIGH OS V8.7 · Persistência de Craft/Farm corrigida');
