@@ -5,7 +5,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#09070d">
   <title>High OS • Gestão do Ilegal</title>
-  <link rel="stylesheet" href="assets/style.css?v=8.29">
+  <link rel="stylesheet" href="assets/style.css?v=8.30">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="assets/mission-planner.css?v=8.30">
 <style>
 .rh-section-head{display:flex;justify-content:space-between;gap:18px;align-items:end;margin:18px 0}.rh-section-head h3{margin:3px 0}.rh-compare-controls{display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:end;margin:16px 0}.rh-compare-controls label{display:grid;gap:6px;font-size:11px;font-weight:800}.rh-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:14px 0}.rh-card{border:1px solid var(--line,#33283b);border-radius:14px;padding:14px;background:rgba(255,255,255,.025)}.rh-card span{display:block;font-size:10px;opacity:.65;font-weight:800}.rh-card b{display:block;font-size:24px;margin-top:5px}.rh-card small{opacity:.7}.rh-alert{padding:10px 12px;border:1px solid var(--line,#33283b);border-radius:10px;margin:7px 0}.rh-ranking-row{display:grid;grid-template-columns:45px 1fr repeat(4,110px);gap:10px;align-items:center;padding:11px;border-bottom:1px solid var(--line,#33283b)}.rh-ranking-row>span{text-align:right}.rh-compare-table{width:100%;border-collapse:collapse;margin-top:14px}.rh-compare-table th,.rh-compare-table td{padding:10px;border-bottom:1px solid var(--line,#33283b);text-align:center}.rh-compare-table th:first-child,.rh-compare-table td:first-child{text-align:left}@media(max-width:900px){.rh-grid{grid-template-columns:1fr 1fr}.rh-ranking-row{grid-template-columns:35px 1fr 80px}.rh-ranking-row .rh-extra{display:none}.rh-compare-controls{grid-template-columns:1fr}}
 </style>
@@ -66,6 +68,7 @@
           <button class="nav-item" data-page="metricas">▥ <span>Métricas</span></button>
           <button class="nav-item" data-page="economia">$ <span>Economia</span></button>
           <button class="nav-item" data-page="historico">◷ <span>Histórico</span></button>
+          <button class="nav-item" data-page="planejador">◎ <span>Planejador de Missões</span></button>
           <button class="nav-item" data-page="chat">✉ <span>Chat da Equipe</span></button>
           <button class="nav-item" data-page="spotify" class="hidden">♫ <span>Spotify</span></button>
           <button class="nav-item" data-page="alvesinho">✦ <span>Alvesinho</span></button>
@@ -75,7 +78,7 @@
       </aside>
       <div class="content">
         <section class="page active" id="page-dashboard">
-          <div class="page-head"><div><div class="eyebrow">CENTRAL DE COMANDO DO ILEGAL</div><h2>DASHBOARD</h2><p class="page-subtitle">Visão operacional para identificar rapidamente ocupação, contingente, pendências e movimentações da Staff.</p></div><span class="dev-badge">V8.29</span></div>
+          <div class="page-head"><div><div class="eyebrow">CENTRAL DE COMANDO DO ILEGAL</div><h2>DASHBOARD</h2><p class="page-subtitle">Visão operacional para identificar rapidamente ocupação, contingente, pendências e movimentações da Staff.</p></div><span class="dev-badge">V8.30</span></div>
           <div id="commandDashboard" class="command-dashboard"><div class="placeholder"><b>◆</b><h3>CARREGANDO CENTRAL DE COMANDO</h3></div></div>
           <span id="dashEmail" class="hidden">—</span><span id="dashRole" class="hidden">—</span>
         </section>
@@ -169,6 +172,79 @@
             </div>
             <div class="economy-toolbar"><input id="marketSearch" placeholder="Buscar item, categoria, arma, munição, droga, serviço..."></div>
             <div id="marketResults" class="market-results economy-results"><div class="placeholder"><b>$</b><h3>CARREGANDO ECONOMIA</h3></div></div>
+          </div>
+        </section>
+        <section class="page" id="page-planejador">
+          <div class="page-head"><div><div class="eyebrow">MAPA GTA V • EVENTOS • MISSÕES</div><h2>PLANEJADOR DE MISSÕES</h2><p class="page-subtitle">Marque pontos diretamente no mapa do GTA V, visualize áreas de spawn, importe coordenadas e distribua equipes em círculo.</p></div><span class="dev-badge">V8.30</span></div>
+          <div class="mission-planner-shell">
+            <aside class="mission-planner-side">
+              <div class="mp-card">
+                <h3>MARCAR DIRETO NO MAPA</h3>
+                <div id="mpCursor" class="mp-readout">Passe o mouse sobre o mapa para ver X/Y.</div>
+                <div style="height:6px"></div>
+                <div id="mpClicked" class="mp-readout">Clique no mapa para capturar uma posição.</div>
+                <div class="mp-actions"><button type="button" id="mpPlaceBtn" class="primary">MARCAR NO MAPA</button><button type="button" id="mpFit">ENQUADRAR PONTOS</button></div>
+                <p class="mp-note">Ao clicar, o sistema calcula X/Y. O Z precisa ser confirmado no FiveM quando houver ponte, túnel, prédio ou diferença de altura.</p>
+              </div>
+
+              <div class="mp-card">
+                <h3>ADICIONAR CDS MANUAL</h3>
+                <div class="mp-grid">
+                  <label>X<input id="mpX" inputmode="decimal" placeholder="998.81"></label>
+                  <label>Y<input id="mpY" inputmode="decimal" placeholder="-436.32"></label>
+                  <label>Z<input id="mpZ" inputmode="decimal" placeholder="64.08"></label>
+                  <label>Heading<input id="mpH" inputmode="decimal" placeholder="232.45"></label>
+                </div>
+                <div class="mp-actions"><button type="button" id="mpAddCoord" class="primary">ADICIONAR PONTO</button></div>
+              </div>
+
+              <div class="mp-card">
+                <h3>ÁREA DE SPAWN</h3>
+                <label>Raio visual <b id="mpRadiusValue">100 m</b><input id="mpRadius" type="range" min="10" max="1000" step="10" value="100"></label>
+                <div class="mp-kpis" style="margin-top:9px">
+                  <div class="mp-kpi"><span>PONTOS</span><b id="mpCount">0</b></div>
+                  <div class="mp-kpi"><span>SOBREPOSIÇÕES</span><b id="mpOverlap">0</b></div>
+                </div>
+                <div class="mp-kpi" style="margin-top:7px"><span>MENOR DISTÂNCIA</span><b id="mpNearest">—</b></div>
+              </div>
+
+              <div class="mp-card">
+                <h3>DISTRIBUIR EQUIPES EM CÍRCULO</h3>
+                <p class="mp-note">Clique no mapa para preencher o centro automaticamente. O sistema calcula todos os X/Y ao redor do círculo.</p>
+                <div class="mp-grid">
+                  <label>Centro X<input id="mpCenterX" inputmode="decimal"></label>
+                  <label>Centro Y<input id="mpCenterY" inputmode="decimal"></label>
+                  <label>Quantidade<input id="mpQty" type="number" min="2" max="100" value="25"></label>
+                  <label>Raio do círculo (m)<input id="mpCircleRadius" type="number" min="1" value="350"></label>
+                </div>
+                <label style="margin-top:8px">Ângulo inicial<input id="mpStartAngle" type="number" value="0"></label>
+                <div class="mp-actions"><button type="button" id="mpGenerateCircle" class="primary">GERAR CDS DO CÍRCULO</button></div>
+              </div>
+
+              <div class="mp-card">
+                <h3>IMPORTAÇÃO EM LOTE</h3>
+                <textarea id="mpBulk" rows="7" placeholder="1 - 998.81,-436.32,64.08,232.45
+2 - 728.29,-348.61,43.88,243.78"></textarea>
+                <div class="mp-actions"><button type="button" id="mpImport">IMPORTAR CDS</button><button type="button" id="mpDefault25">CARREGAR 25 CDS TESTE</button></div>
+              </div>
+
+              <div class="mp-card">
+                <h3>PONTOS DA MISSÃO</h3>
+                <div id="mpPointList" class="mp-point-list"></div>
+                <div class="mp-actions"><button type="button" id="mpClear" class="danger">LIMPAR TUDO</button></div>
+              </div>
+
+              <div class="mp-card">
+                <h3>EXPORTAR COORDENADAS</h3>
+                <textarea id="mpExport" rows="7" readonly></textarea>
+                <div class="mp-actions"><button type="button" id="mpExportBtn" class="primary">COPIAR COORDENADAS</button></div>
+              </div>
+            </aside>
+
+            <div class="mission-planner-mapwrap">
+              <div class="mp-map-status"><b>PLANEJADOR DE MISSÕES</b><span id="mpTileStatus" class="warn">Carregando mapa GTA V…</span></div>
+              <div id="missionPlannerMap"></div>
+            </div>
           </div>
         </section>
         <section class="page" id="page-historico">
@@ -607,7 +683,9 @@
 <div id="craftRequestModal" class="modal hidden"><div class="modal-card craft-request-modal"><button class="modal-x" id="craftRequestClose">×</button><div class="eyebrow">SOLICITAÇÃO GERADA AUTOMATICAMENTE</div><h2>ADIÇÃO DE CRAFT NO GROUP</h2><p class="tech-editor-help">A receita foi salva no High OS. Confira a solicitação abaixo e copie no padrão do Discord da cidade.</p><div class="craft-request-summary" id="craftRequestSummary"></div><label class="wide craft-request-text-label">Solicitação pronta para o Discord<textarea id="craftRequestText" rows="18" readonly></textarea></label><div class="modal-actions"><button type="button" id="craftRequestLater" class="btn-secondary">FECHAR</button><button type="button" id="copyCraftRequestBtn" class="btn-primary">COPIAR SOLICITAÇÃO</button></div></div></div>
 <div id="farmEditorModal" class="modal hidden"><div class="modal-card tech-editor-modal farm-editor-modal"><button class="modal-x" id="farmEditorClose">×</button><div class="eyebrow">PERFIL TÉCNICO • FARM / ROTA</div><h2 id="farmEditorTitle">ITEM DO FARM</h2><p class="tech-editor-help" id="farmEditorHelp">Visualize os dados do item coletado na rota.</p><form id="farmEditorForm"><input type="hidden" id="farmEditorIndex"><div class="tech-editor-product"><div class="tech-editor-image"><img id="farmEditorImage" alt="Item do farm"></div><div class="form-grid"><label>Nome do item<input id="farmEditorName" required></label><label>Spawn do item<input id="farmEditorSpawn" required></label><label class="wide">Quantidade / observação de coleta<textarea id="farmEditorQty" rows="5" placeholder="Ex.: x20 por coleta / observação da rota"></textarea></label></div></div><div id="farmLinkedInfo" class="farm-linked-info hidden"></div><div class="modal-actions"><button type="button" id="farmEditorCancel" class="btn-secondary">FECHAR</button><button type="submit" id="farmEditorSave" class="btn-primary">SALVAR ITEM</button></div></form></div></div>
 
-  <script type="module" src="assets/app.js?v=8.29"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="assets/mission-planner.js?v=8.30"></script>
+  <script type="module" src="assets/app.js?v=8.30"></script>
 
 <div id="newDeliveryModal" class="modal hidden"><div class="modal-card delivery-modal-v5"><button class="modal-x" id="newDeliveryClose">×</button>
   <div class="eyebrow">NOVA OCUPAÇÃO</div><h2>ENTREGA DE GROUP</h2><p class="delivery-help">O Group traz sua estrutura instalada. Personalize apenas o que será ativado para a nova facção.</p>
