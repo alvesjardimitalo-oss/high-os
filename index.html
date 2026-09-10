@@ -63,7 +63,7 @@
       </aside>
       <div class="content">
         <section class="page active" id="page-dashboard">
-          <div class="page-head"><div><div class="eyebrow">CENTRAL DE COMANDO DO ILEGAL</div><h2>DASHBOARD</h2><p class="page-subtitle">Visão operacional para identificar rapidamente ocupação, contingente, pendências e movimentações da Staff.</p></div><span class="dev-badge">V8.17</span></div>
+          <div class="page-head"><div><div class="eyebrow">CENTRAL DE COMANDO DO ILEGAL</div><h2>DASHBOARD</h2><p class="page-subtitle">Visão operacional para identificar rapidamente ocupação, contingente, pendências e movimentações da Staff.</p></div><span class="dev-badge">V8.20</span></div>
           <div id="commandDashboard" class="command-dashboard"><div class="placeholder"><b>◆</b><h3>CARREGANDO CENTRAL DE COMANDO</h3></div></div>
           <span id="dashEmail" class="hidden">—</span><span id="dashRole" class="hidden">—</span>
         </section>
@@ -86,11 +86,13 @@
           <div id="orgProfilePageMount" class="org-profile-page-mount"></div>
         </section>
         <section class="page" id="page-disponiveis">
-          <div class="page-head"><div><div class="eyebrow">DIVULGAÇÃO • DISCORD DO ILEGAL</div><h2>FACÇÕES DISPONÍVEIS</h2><p class="page-subtitle">Mostra somente os Groups vagos. Gere o texto, copie o anúncio, copie o link da imagem e marque o que já foi publicado no Discord.</p></div><span class="dev-badge">ANÚNCIOS</span></div>
+          <div class="page-head"><div><div class="eyebrow">DIVULGAÇÃO • DISCORD DO ILEGAL</div><h2>FACÇÕES DISPONÍVEIS</h2><p class="page-subtitle">Mostra somente os Groups sem ocupação. Todo Group livre deve ter o status de divulgação confirmado no HIGH FACS LIVRES. Gere anúncios e relatórios de postadas, não postadas ou todas as facções livres.</p></div><span class="dev-badge">ANÚNCIOS</span></div>
           <div class="available-toolbar">
             <input id="availableSearch" placeholder="Buscar Group, QG, produto...">
             <select id="availableSegment" class="filter-native-hidden"><option value="">TODOS OS SEGMENTOS</option></select>
-            <select id="availableDiscord"><option value="">TODOS NO DISCORD</option><option value="PENDENTE">NÃO POSTADOS</option><option value="POSTADO">POSTADOS</option></select>
+            <select id="availableDiscord"><option value="">TODOS NO DISCORD</option><option value="NAO_INFORMADO">NÃO INFORMADO</option><option value="NAO_POSTADO">NÃO POSTADOS</option><option value="POSTADO">POSTADOS</option></select>
+            <select id="availableReportType"><option value="TODAS">RELATÓRIO: TODAS LIVRES</option><option value="POSTADO">RELATÓRIO: POSTADAS</option><option value="NAO_POSTADO">RELATÓRIO: NÃO POSTADAS</option><option value="NAO_INFORMADO">RELATÓRIO: NÃO INFORMADO</option></select>
+            <button id="availableReportBtn" class="mini-btn">GERAR RELATÓRIO</button>
           </div>
           <div id="availableSegmentChips" class="segment-visual-grid" aria-label="Filtrar disponíveis por segmento"></div>
           <div id="availableStats" class="fac-stats compact-stats"></div>
@@ -217,29 +219,56 @@
         </section>
 
         <section class="page" id="page-administracao">
-          <div class="page-head"><div><div class="eyebrow">SUPER ADMINISTRAÇÃO • MANUTENÇÃO</div><h2>ADMINISTRAÇÃO</h2><p class="page-subtitle">Ferramentas críticas do High OS. Exclusões geram registro de auditoria antes da limpeza.</p></div><span class="dev-badge">ADMIN</span></div>
-          <div class="sheet-sync-admin-card">
-            <div class="sheet-sync-head"><div><div class="eyebrow">GOOGLE SHEETS • DOCUMENTO DAS FACÇÕES</div><h3>SINCRONIZAÇÃO BIDIRECIONAL</h3><p>Planilha oficial ↔ High OS. Alterações vindas da planilha entram somente após sua confirmação; alterações feitas no High OS são enviadas diretamente à linha do Group quando o Google está conectado.</p></div><div id="facSheetSyncBadge" class="sheet-sync-badge offline">DESCONECTADO</div></div>
-            <div class="sheet-sync-meta"><div><span>PLANILHA</span><b>DOCUMENTO DAS FACÇÕES</b><small id="facSheetName">ID 1MBVzWMFrAzIhYlT7-ZgWZEAoJLjPn3JeZdmHyRcZf2A • gid 1572584288</small></div><div><span>ÚLTIMA VERIFICAÇÃO</span><b id="facSheetLastCheck">—</b><small id="facSheetStatusText">Conecte sua conta Google com permissão de edição.</small></div></div>
-            <div class="sheet-sync-actions"><button type="button" id="facSheetConnectBtn" class="btn-primary compact">CONECTAR GOOGLE SHEETS</button><button type="button" id="facSheetCheckBtn" class="btn-secondary compact">VERIFICAR ALTERAÇÕES DA PLANILHA</button><button type="button" id="facSheetPushAllBtn" class="btn-secondary compact">ENVIAR HIGH OS → PLANILHA</button></div>
-            <div class="sheet-sync-note">Campos sincronizados: nº, CDS, anúncio, nome do QG, Group, produto, facção, status, líder, staff responsável, data de entrega e observações. Benefícios, craft, farm, métricas e histórico continuam somente no High OS.</div>
-          </div>
-          <div class="segment-admin-card">
-            <div class="sheet-sync-head"><div><div class="eyebrow">ESTRUTURA OPERACIONAL</div><h3>GERENCIAR SEGMENTOS</h3><p>Crie, renomeie, vincule Groups/facções e exclua segmentos. Os filtros das telas usam este cadastro automaticamente.</p></div><span class="sheet-sync-badge online">DINÂMICO</span></div>
-            <div class="segment-admin-create"><input id="segmentNewName" placeholder="NOME DO SEGMENTO"><input id="segmentNewIcon" placeholder="ÍCONE / EMOJI" maxlength="4"><input id="segmentNewDesc" placeholder="Descrição curta"><button type="button" id="segmentCreateBtn" class="btn-primary compact">CRIAR SEGMENTO</button></div>
-            <div class="segment-link-panel"><select id="segmentAssignType"><option value="GROUP">VINCULAR GROUP / QG</option><option value="FACCAO">VINCULAR FACÇÃO</option></select><select id="segmentAssignEntity"></select><select id="segmentAssignTarget"></select><button type="button" id="segmentAssignBtn" class="btn-secondary compact">VINCULAR AO SEGMENTO</button></div>
-            <div id="segmentAdminList" class="segment-admin-list"></div>
-            <div class="sheet-sync-note">Padrão atual: Manicomio → DROGAS; Contrabando01/02 → CONTRABANDO; IlegalMedic e IlegalMecanic → APOIO. Ao apagar um segmento em uso, escolha antes para qual segmento seus vínculos serão transferidos.</div>
+          <div class="page-head admin-page-head"><div><div class="eyebrow">CENTRAL ADMINISTRATIVA</div><h2>ADMINISTRAÇÃO</h2><p class="page-subtitle">Controle do sistema organizado por área: acessos, integrações, estrutura, auditoria e manutenção.</p></div><span class="dev-badge">ADMIN</span></div>
+          <div class="admin-summary-grid">
+            <button type="button" class="admin-summary-card active" data-admin-tab="acessos"><span>♟</span><div><b>ACESSOS</b><small>Usuários e permissões por módulo</small></div></button>
+            <button type="button" class="admin-summary-card" data-admin-tab="integracoes"><span>↔</span><div><b>INTEGRAÇÕES</b><small>Google Sheets e sincronizações</small></div></button>
+            <button type="button" class="admin-summary-card" data-admin-tab="estrutura"><span>◇</span><div><b>ESTRUTURA</b><small>Segmentos e vínculos</small></div></button>
+            <button type="button" class="admin-summary-card" data-admin-tab="auditoria"><span>◷</span><div><b>AUDITORIA</b><small>Sessões e ações dos usuários</small></div></button>
+            <button type="button" class="admin-summary-card danger-card" data-admin-tab="manutencao"><span>⚠</span><div><b>MANUTENÇÃO</b><small>Limpeza e reset operacional</small></div></button>
           </div>
 
-          <div class="audit-admin-card">
-            <div class="sheet-sync-head"><div><div class="eyebrow">SEGURANÇA • AUDITORIA</div><h3>SESSÕES DE USUÁRIOS</h3><p>Cada login gera uma sessão independente. Consulte quando o usuário entrou, quanto tempo permaneceu conectado e todas as alterações realizadas durante aquela sessão.</p></div><span class="sheet-sync-badge online">MÁX. 8 HORAS</span></div>
-            <div class="audit-toolbar"><input id="adminAuditSearch" placeholder="Buscar ação, Group, facção..."><select id="adminAuditUser"><option value="">TODOS OS USUÁRIOS</option></select><select id="adminAuditStatus"><option value="">TODAS AS SESSÕES</option><option value="ATIVA">EM ANDAMENTO</option><option value="ENCERRADA">ENCERRADAS</option></select><input id="adminAuditDate" type="date"><button type="button" id="adminAuditRefresh" class="btn-secondary compact">ATUALIZAR</button></div>
-            <div id="adminAuditStats" class="fac-stats"></div>
-            <div id="adminSessionList" class="audit-session-list"><div class="placeholder"><b>◷</b><h3>AUDITORIA</h3><p>Abra esta área para carregar as sessões.</p></div></div>
-            <div class="sheet-sync-note">Uma sessão expira automaticamente ao completar 8 horas. Um novo login gera um novo identificador de sessão e reinicia o relógio.</div>
+          <div class="admin-tab-panel active" data-admin-panel="acessos">
+            <div class="admin-access-card">
+              <div class="sheet-sync-head"><div><div class="eyebrow">SEGURANÇA • CONTROLE GRANULAR</div><h3>ACESSO POR USUÁRIO E POR MÓDULO</h3><p>Defina individualmente se cada usuário pode não acessar, apenas visualizar ou visualizar e editar cada módulo do High OS.</p></div><span class="sheet-sync-badge online">3 NÍVEIS</span></div>
+              <div class="admin-access-actions"><button type="button" id="adminOpenUsersBtn" class="btn-primary compact">GERENCIAR USUÁRIOS E PERMISSÕES</button></div>
+              <div class="permission-legend"><span class="perm-none">SEM ACESSO</span><span class="perm-view">VISUALIZAR</span><span class="perm-edit">EDITAR</span></div>
+              <div class="sheet-sync-note">ADMIN sempre possui acesso total. As permissões individuais têm prioridade sobre o perfil/cargo do usuário e podem ser alteradas somente por ADMIN.</div>
+            </div>
           </div>
-          <div class="danger-zone"><div><h3>ZONA DE MANUTENÇÃO</h3><p>Apague módulos individualmente ou faça o reset operacional. O histórico de auditoria é preservado no reset comum.</p></div><div class="admin-clean-grid"><button class="btn-danger admin-wipe" data-target="faccoes">APAGAR GROUPS / QGs</button><button class="btn-danger admin-wipe" data-target="organizacoes">APAGAR ORGANIZAÇÕES</button><button class="btn-danger admin-wipe" data-target="solicitacoes">APAGAR SOLICITAÇÕES</button><button class="btn-danger admin-wipe" data-target="entregas">APAGAR ENTREGAS</button><button class="btn-danger admin-wipe" data-target="metricas">APAGAR MÉTRICAS</button><button class="btn-danger" id="adminResetAll">RESET OPERACIONAL COMPLETO</button></div></div>
+
+          <div class="admin-tab-panel" data-admin-panel="integracoes">
+            <div class="sheet-sync-admin-card">
+              <div class="sheet-sync-head"><div><div class="eyebrow">GOOGLE SHEETS • DOCUMENTO DAS FACÇÕES</div><h3>SINCRONIZAÇÃO BIDIRECIONAL</h3><p>Planilha oficial ↔ High OS. Alterações vindas da planilha entram somente após sua confirmação; alterações feitas no High OS são enviadas diretamente à linha do Group quando o Google está conectado.</p></div><div id="facSheetSyncBadge" class="sheet-sync-badge offline">DESCONECTADO</div></div>
+              <div class="sheet-sync-meta"><div><span>PLANILHA</span><b>DOCUMENTO DAS FACÇÕES</b><small id="facSheetName">ID 1MBVzWMFrAzIhYlT7-ZgWZEAoJLjPn3JeZdmHyRcZf2A • gid 1572584288</small></div><div><span>ÚLTIMA VERIFICAÇÃO</span><b id="facSheetLastCheck">—</b><small id="facSheetStatusText">Conecte sua conta Google com permissão de edição.</small></div></div>
+              <div class="sheet-sync-actions"><button type="button" id="facSheetConnectBtn" class="btn-primary compact">CONECTAR GOOGLE SHEETS</button><button type="button" id="facSheetCheckBtn" class="btn-secondary compact">VERIFICAR ALTERAÇÕES DA PLANILHA</button><button type="button" id="facSheetPushAllBtn" class="btn-secondary compact">ENVIAR HIGH OS → PLANILHA</button></div>
+              <div class="sheet-sync-note">Campos sincronizados: nº, CDS, anúncio, nome do QG, Group, produto, facção, status, líder, staff responsável, data de entrega e observações. Benefícios, craft, farm, métricas e histórico continuam somente no High OS.</div>
+            </div>
+          </div>
+
+          <div class="admin-tab-panel" data-admin-panel="estrutura">
+            <div class="segment-admin-card">
+              <div class="sheet-sync-head"><div><div class="eyebrow">ESTRUTURA OPERACIONAL</div><h3>GERENCIAR SEGMENTOS</h3><p>Crie, renomeie, vincule Groups/facções e exclua segmentos. Os filtros das telas usam este cadastro automaticamente.</p></div><span class="sheet-sync-badge online">DINÂMICO</span></div>
+              <div class="segment-admin-create"><input id="segmentNewName" placeholder="NOME DO SEGMENTO"><input id="segmentNewIcon" placeholder="ÍCONE / EMOJI" maxlength="4"><input id="segmentNewDesc" placeholder="Descrição curta"><button type="button" id="segmentCreateBtn" class="btn-primary compact">CRIAR SEGMENTO</button></div>
+              <div class="segment-link-panel"><select id="segmentAssignType"><option value="GROUP">VINCULAR GROUP / QG</option><option value="FACCAO">VINCULAR FACÇÃO</option></select><select id="segmentAssignEntity"></select><select id="segmentAssignTarget"></select><button type="button" id="segmentAssignBtn" class="btn-secondary compact">VINCULAR AO SEGMENTO</button></div>
+              <div id="segmentAdminList" class="segment-admin-list"></div>
+              <div class="sheet-sync-note">Padrão atual: Manicomio → DROGAS; Contrabando01/02 → CONTRABANDO; IlegalMedic e IlegalMecanic → APOIO. Ao apagar um segmento em uso, escolha antes para qual segmento seus vínculos serão transferidos.</div>
+            </div>
+          </div>
+
+          <div class="admin-tab-panel" data-admin-panel="auditoria">
+            <div class="audit-admin-card">
+              <div class="sheet-sync-head"><div><div class="eyebrow">SEGURANÇA • AUDITORIA</div><h3>SESSÕES DE USUÁRIOS</h3><p>Cada login gera uma sessão independente. Consulte quando o usuário entrou, quanto tempo permaneceu conectado e todas as alterações realizadas durante aquela sessão.</p></div><span class="sheet-sync-badge online">MÁX. 8 HORAS</span></div>
+              <div class="audit-toolbar"><input id="adminAuditSearch" placeholder="Buscar ação, Group, facção..."><select id="adminAuditUser"><option value="">TODOS OS USUÁRIOS</option></select><select id="adminAuditStatus"><option value="">TODAS AS SESSÕES</option><option value="ATIVA">EM ANDAMENTO</option><option value="ENCERRADA">ENCERRADAS</option></select><input id="adminAuditDate" type="date"><button type="button" id="adminAuditRefresh" class="btn-secondary compact">ATUALIZAR</button></div>
+              <div id="adminAuditStats" class="fac-stats"></div>
+              <div id="adminSessionList" class="audit-session-list"><div class="placeholder"><b>◷</b><h3>AUDITORIA</h3><p>Abra esta área para carregar as sessões.</p></div></div>
+              <div class="sheet-sync-note">Uma sessão expira automaticamente ao completar 8 horas. Um novo login gera um novo identificador de sessão e reinicia o relógio.</div>
+            </div>
+          </div>
+
+          <div class="admin-tab-panel" data-admin-panel="manutencao">
+            <div class="danger-zone"><div><h3>ZONA DE MANUTENÇÃO</h3><p>Apague módulos individualmente ou faça o reset operacional. O histórico de auditoria é preservado no reset comum.</p></div><div class="admin-clean-grid"><button class="btn-danger admin-wipe" data-target="faccoes">APAGAR GROUPS / QGs</button><button class="btn-danger admin-wipe" data-target="organizacoes">APAGAR ORGANIZAÇÕES</button><button class="btn-danger admin-wipe" data-target="solicitacoes">APAGAR SOLICITAÇÕES</button><button class="btn-danger admin-wipe" data-target="entregas">APAGAR ENTREGAS</button><button class="btn-danger admin-wipe" data-target="metricas">APAGAR MÉTRICAS</button><button class="btn-danger" id="adminResetAll">RESET OPERACIONAL COMPLETO</button></div></div>
+          </div>
         </section>
         <section class="page" id="page-usuarios">
           <div class="page-head"><div><div class="eyebrow">ADMINISTRAÇÃO</div><h2>USUÁRIOS</h2></div><button id="newUserBtn" class="btn-primary compact">NOVO USUÁRIO</button></div>
@@ -513,7 +542,9 @@
 <label>Nível de acesso<select id="uRole"><option>CONSULTA</option><option>RH_VISUALIZADOR</option><option>RH_ANALISTA</option><option>RH_GESTOR</option><option>RH_METRICAS</option><option>STAFF</option><option>PADRINHO</option><option>ADMIN</option></select></label>
 <label>Status<select id="uActive"><option value="true">ATIVO</option><option value="false">INATIVO</option></select></label>
 <label class="wide">Observação administrativa<textarea id="uNotes" rows="4" placeholder="Opcional"></textarea></label>
-</div><div class="role-help"><b>Perfil:</b> Nome e cargo só podem ser alterados por ADMIN. A foto do usuário é carregada diretamente da conta Google usada no login.<br><br><b>Níveis:</b> ADMIN gerencia acessos; PADRINHO e STAFF são perfis operacionais; <b>RH_METRICAS</b> acessa somente a Central de Métricas e relatórios; CONSULTA permanece como perfil de leitura geral.</div><div class="modal-actions"><button type="button" id="toggleUserBtn" class="btn-danger">DESATIVAR ACESSO</button><button type="submit" class="btn-primary compact">SALVAR USUÁRIO</button></div></form></div></div>
+</div>
+<div class="user-permissions-box"><div class="user-permissions-head"><div><span>PERMISSÕES POR MÓDULO</span><b>O que este usuário pode acessar?</b></div><small>SEM ACESSO · VISUALIZAR · EDITAR</small></div><div id="userPermissionMatrix" class="permission-matrix"></div><div class="permission-actions"><button type="button" id="permPresetView" class="btn-secondary compact">SOMENTE LEITURA</button><button type="button" id="permPresetOperational" class="btn-secondary compact">OPERACIONAL</button><button type="button" id="permPresetNone" class="btn-secondary compact">ZERAR ACESSOS</button></div></div>
+<div class="role-help"><b>Perfil:</b> Nome e cargo só podem ser alterados por ADMIN. A foto do usuário é carregada diretamente da conta Google usada no login.<br><br><b>Níveis:</b> ADMIN gerencia acessos; PADRINHO e STAFF são perfis operacionais; <b>RH_METRICAS</b> acessa somente a Central de Métricas e relatórios; CONSULTA permanece como perfil de leitura geral.</div><div class="modal-actions"><button type="button" id="toggleUserBtn" class="btn-danger">DESATIVAR ACESSO</button><button type="submit" class="btn-primary compact">SALVAR USUÁRIO</button></div></form></div></div>
 
 <div id="recipeEditorModal" class="modal hidden"><div class="modal-card tech-editor-modal"><button class="modal-x" id="recipeEditorClose">×</button><div class="eyebrow">PERFIL TÉCNICO • CRAFT</div><h2 id="recipeEditorTitle">RECEITA DO GROUP</h2><p class="tech-editor-help">Visualize e edite a receita completa sem sair do perfil do Group.</p><form id="recipeEditorForm"><input type="hidden" id="recipeEditorIndex"><div class="tech-editor-product"><div class="tech-editor-image"><img id="recipeEditorImage" alt="Item da receita"></div><div class="form-grid"><label>Nome do produto<input id="recipeEditorName" required></label><label>Spawn do produto<input id="recipeEditorSpawn" required></label><label>Nível<input id="recipeEditorLevel" placeholder="Ex.: 3"></label><label>Máximo / lote<input id="recipeEditorMax" placeholder="Ex.: 1"></label><label>Tipo da receita<select id="recipeEditorOrigin"><option value="PADRÃO DO SEGMENTO">PADRÃO DO SEGMENTO</option><option value="ADQUIRIDO EM LOJA">ADQUIRIDO EM LOJA</option><option value="EXCLUSIVO">EXCLUSIVO</option><option value="EXTRA DO GROUP">EXTRA DO GROUP</option></select></label></div></div><div class="tech-editor-section"><div class="tech-editor-section-head"><div><span>INSUMOS DA RECEITA</span><b>Itens necessários para fabricar o produto</b></div><button type="button" id="recipeAddIngredient" class="btn-secondary compact">+ ADICIONAR INSUMO</button></div><div id="recipeIngredientRows" class="ingredient-editor-list"></div></div><div class="modal-actions"><button type="button" id="recipeEditorCancel" class="btn-secondary">CANCELAR</button><button type="submit" id="recipeEditorSave" class="btn-primary">SALVAR RECEITA</button></div></form></div></div>
 
@@ -521,7 +552,7 @@
 <div id="craftRequestModal" class="modal hidden"><div class="modal-card craft-request-modal"><button class="modal-x" id="craftRequestClose">×</button><div class="eyebrow">SOLICITAÇÃO GERADA AUTOMATICAMENTE</div><h2>ADIÇÃO DE CRAFT NO GROUP</h2><p class="tech-editor-help">A receita foi salva no High OS. Confira a solicitação abaixo e copie no padrão do Discord da cidade.</p><div class="craft-request-summary" id="craftRequestSummary"></div><label class="wide craft-request-text-label">Solicitação pronta para o Discord<textarea id="craftRequestText" rows="18" readonly></textarea></label><div class="modal-actions"><button type="button" id="craftRequestLater" class="btn-secondary">FECHAR</button><button type="button" id="copyCraftRequestBtn" class="btn-primary">COPIAR SOLICITAÇÃO</button></div></div></div>
 <div id="farmEditorModal" class="modal hidden"><div class="modal-card tech-editor-modal farm-editor-modal"><button class="modal-x" id="farmEditorClose">×</button><div class="eyebrow">PERFIL TÉCNICO • FARM / ROTA</div><h2 id="farmEditorTitle">ITEM DO FARM</h2><p class="tech-editor-help" id="farmEditorHelp">Visualize os dados do item coletado na rota.</p><form id="farmEditorForm"><input type="hidden" id="farmEditorIndex"><div class="tech-editor-product"><div class="tech-editor-image"><img id="farmEditorImage" alt="Item do farm"></div><div class="form-grid"><label>Nome do item<input id="farmEditorName" required></label><label>Spawn do item<input id="farmEditorSpawn" required></label><label class="wide">Quantidade / observação de coleta<textarea id="farmEditorQty" rows="5" placeholder="Ex.: x20 por coleta / observação da rota"></textarea></label></div></div><div id="farmLinkedInfo" class="farm-linked-info hidden"></div><div class="modal-actions"><button type="button" id="farmEditorCancel" class="btn-secondary">FECHAR</button><button type="submit" id="farmEditorSave" class="btn-primary">SALVAR ITEM</button></div></form></div></div>
 
-  <script type="module" src="assets/app.js?v=8.17"></script>
+  <script type="module" src="assets/app.js?v=8.20"></script>
 
 <div id="newDeliveryModal" class="modal hidden"><div class="modal-card delivery-modal-v5"><button class="modal-x" id="newDeliveryClose">×</button>
   <div class="eyebrow">NOVA OCUPAÇÃO</div><h2>ENTREGA DE GROUP</h2><p class="delivery-help">O Group traz sua estrutura instalada. Personalize apenas o que será ativado para a nova facção.</p>
