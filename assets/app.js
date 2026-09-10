@@ -652,8 +652,23 @@ async function loadOrganizations(){
  try{const qs=await getDocs(orgCol);organizacoes=qs.docs.map(d=>({id:d.id,...d.data()}));renderOrganizations();syncOrgOptions()}catch(e){if($('#orgList'))$('#orgList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR</h3><p>${esc(e.message)}</p></div>`}
 }
 function syncOrgOptions(){const dl=$('#orgOptions');if(!dl)return;dl.innerHTML=derivedOrganizations().filter(o=>o.status!=='INATIVA').map(o=>`<option value="${esc(o.nome)}">${esc(o.groupAtual||'SEM GROUP')}</option>`).join('')}
+function orgSegmentsAvailable(all=[]){
+ const preferred=['ARMAS','MUNIÇÃO','LAVAGEM','DROGAS','DESMANCHE','ESTELIONATÁRIOS','OUTROS'];
+ const found=[...new Set((all||[]).map(o=>String(o.segmentoAtual||'').trim()).filter(Boolean))];
+ return [...preferred.filter(x=>found.includes(x)),...found.filter(x=>!preferred.includes(x)).sort((a,b)=>a.localeCompare(b))];
+}
+function renderOrgSegmentChips(all=[]){
+ const sel=$('#orgSegment'),box=$('#orgSegmentChips');if(!sel||!box)return;
+ const current=sel.value||'',segments=orgSegmentsAvailable(all);
+ sel.innerHTML=`<option value="">TODOS OS SEGMENTOS</option>${segments.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('')}`;
+ if(current&&segments.includes(current))sel.value=current;else sel.value='';
+ const active=sel.value||'';
+ const counts={};(all||[]).forEach(o=>{const k=String(o.segmentoAtual||'').trim();if(k)counts[k]=(counts[k]||0)+1});
+ box.innerHTML=`<button type="button" class="org-segment-chip ${!active?'active':''}" data-segment=""><span>TODOS</span><b>${all.length}</b></button>${segments.map(x=>`<button type="button" class="org-segment-chip ${active===x?'active':''}" data-segment="${esc(x)}"><span>${esc(x)}</span><b>${counts[x]||0}</b></button>`).join('')}`;
+ box.querySelectorAll('.org-segment-chip').forEach(btn=>btn.onclick=()=>{sel.value=btn.dataset.segment||'';renderOrganizations()});
+}
 function renderOrganizations(){
- if(!$('#orgList'))return;const all=derivedOrganizations(),q=($('#orgSearch')?.value||'').toLowerCase(),st=$('#orgStatus')?.value||'',seg=$('#orgSegment')?.value||'';
+ if(!$('#orgList'))return;const all=derivedOrganizations();renderOrgSegmentChips(all);const q=($('#orgSearch')?.value||'').toLowerCase(),st=$('#orgStatus')?.value||'',seg=$('#orgSegment')?.value||'';
  const list=all.filter(o=>(!seg||o.segmentoAtual===seg)&&(!st||o.status===st)&&(!q||[o.nome,o.lider,o.groupAtual,o.qgAtual,o.segmentoAtual,o.contato,o.discord].join(' ').toLowerCase().includes(q)));
  const active=all.filter(o=>o.groupAtual&&o.status!=='INATIVA').length,sem=all.filter(o=>!o.groupAtual&&o.status!=='INATIVA').length,inativas=all.filter(o=>o.status==='INATIVA').length;
  const segCounts={};all.filter(o=>o.groupAtual).forEach(o=>{const k=o.segmentoAtual||'OUTROS';segCounts[k]=(segCounts[k]||0)+1});const maxSeg=Math.max(1,...Object.values(segCounts));
@@ -1777,6 +1792,7 @@ console.info('HIGH OS DEV V7.4 · Perfil clean carregado');
 
 console.info('HIGH OS DEV V7.5 · Perfil clean + setagens isoladas + liderança restaurada');
 console.info('HIGH OS V8.4 · Métricas objetivas carregadas');
+console.info('HIGH OS V8.9 · Filtro clicável de todos os segmentos em Facções carregado');
 
 
 // ===== HIGH OS · TRANSFERÊNCIA DE PAINEL, TROCA DE QG E ADMINISTRAÇÃO =====
