@@ -614,8 +614,26 @@ function installedValue(b,k){
 function isInstalled(b,k){return !!installedValue(b||{},k)}
 function installedCount(f){return INSTALLATIONS.filter(([k])=>isInstalled(f.beneficios||{},k)).length}
 
+// HIGH OS V8.10 · segmentos clicáveis também em Groups / QGs
+function facSegmentsAvailable(all=[]){
+ const preferred=['ARMAS','MUNIÇÃO','LAVAGEM','DROGAS','DESMANCHE','ESTELIONATÁRIOS','OUTROS'];
+ const found=[...new Set((all||[]).filter(f=>!f.removido).map(f=>String(f.segmento||'').trim()).filter(Boolean))];
+ return [...preferred.filter(x=>found.includes(x)),...found.filter(x=>!preferred.includes(x)).sort((a,b)=>a.localeCompare(b))];
+}
+function renderFacSegmentChips(all=[]){
+ const sel=$('#facSegment'),box=$('#facSegmentChips');if(!sel||!box)return;
+ const current=sel.value||'',segments=facSegmentsAvailable(all);
+ sel.innerHTML=`<option value="">TODOS OS SEGMENTOS</option>${segments.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('')}`;
+ if(current&&segments.includes(current))sel.value=current;else sel.value='';
+ const active=sel.value||'',base=(all||[]).filter(f=>!f.removido),counts={};
+ base.forEach(f=>{const k=String(f.segmento||'OUTROS').trim()||'OUTROS';counts[k]=(counts[k]||0)+1});
+ box.innerHTML=`<button type="button" class="fac-segment-chip ${!active?'active':''}" data-segment=""><span>TODOS</span><b>${base.length}</b></button>${segments.map(x=>`<button type="button" class="fac-segment-chip ${active===x?'active':''}" data-segment="${esc(x)}"><span>${esc(x)}</span><b>${counts[x]||0}</b></button>`).join('')}`;
+ box.querySelectorAll('.fac-segment-chip').forEach(btn=>btn.onclick=()=>{sel.value=btn.dataset.segment||'';renderFaccoes()});
+}
+
 // V5 substitui a leitura visual de "Facções" por "Groups / QGs" sem quebrar a coleção legada.
 renderFaccoes=function(){
+ renderFacSegmentChips(faccoes);
  const q=($('#facSearch')?.value||'').toLowerCase(),seg=$('#facSegment')?.value||'',st=$('#facStatus')?.value||'',operacionais=faccoes.filter(f=>!f.removido);
  const filtered=operacionais.filter(f=>(!seg||f.segmento===seg)&&(!st||f.status===st)&&(!q||[f.group,f.faccao,f.qg,f.lider,f.staff,f.produto].join(' ').toLowerCase().includes(q)));
  const ocup=operacionais.filter(f=>f.status==='ATIVA').length,vagos=operacionais.length-ocup,inst=operacionais.reduce((n,f)=>n+installedCount(f),0);
@@ -1792,7 +1810,7 @@ console.info('HIGH OS DEV V7.4 · Perfil clean carregado');
 
 console.info('HIGH OS DEV V7.5 · Perfil clean + setagens isoladas + liderança restaurada');
 console.info('HIGH OS V8.4 · Métricas objetivas carregadas');
-console.info('HIGH OS V8.9 · Filtro clicável de todos os segmentos em Facções carregado');
+console.info('HIGH OS V8.10 · Filtros clicáveis de segmentos em Groups/QGs e Facções carregados');
 
 
 // ===== HIGH OS · TRANSFERÊNCIA DE PAINEL, TROCA DE QG E ADMINISTRAÇÃO =====
