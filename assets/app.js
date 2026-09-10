@@ -633,9 +633,9 @@ function renderFacSegmentChips(all=[]){
 
 // V5 substitui a leitura visual de "Facções" por "Groups / QGs" sem quebrar a coleção legada.
 renderFaccoes=function(){
- renderFacSegmentChips(faccoes);
+ renderFacSegmentChips(faccoes);renderFacActivityButtons();
  const q=($('#facSearch')?.value||'').toLowerCase(),seg=$('#facSegment')?.value||'',st=$('#facStatus')?.value||'',operacionais=faccoes.filter(f=>!f.removido);
- const filtered=operacionais.filter(f=>(!seg||f.segmento===seg)&&(!st||f.status===st)&&(!q||[f.group,f.faccao,f.qg,f.lider,f.staff,f.produto].join(' ').toLowerCase().includes(q)));
+ const filtered=operacionais.filter(f=>(!seg||segmentKey(f.segmento)===segmentKey(seg))&&(!st||f.status===st)&&(!q||[f.group,f.faccao,f.qg,f.lider,f.staff,f.produto].join(' ').toLowerCase().includes(q)));
  const ocup=operacionais.filter(f=>f.status==='ATIVA').length,vagos=operacionais.length-ocup,inst=operacionais.reduce((n,f)=>n+installedCount(f),0);
  const segCounts={};operacionais.forEach(f=>{const k=f.segmento||'OUTROS';segCounts[k]=(segCounts[k]||0)+1});
  const maxSeg=Math.max(1,...Object.values(segCounts));
@@ -686,13 +686,13 @@ function renderOrgSegmentChips(all=[]){
  box.querySelectorAll('.org-segment-chip').forEach(btn=>btn.onclick=()=>{sel.value=btn.dataset.segment||'';renderOrganizations()});
 }
 function renderOrganizations(){
- if(!$('#orgList'))return;const all=derivedOrganizations();renderOrgSegmentChips(all);const q=($('#orgSearch')?.value||'').toLowerCase(),st=$('#orgStatus')?.value||'',seg=$('#orgSegment')?.value||'';
- const list=all.filter(o=>(!seg||o.segmentoAtual===seg)&&(!st||o.status===st)&&(!q||[o.nome,o.lider,o.groupAtual,o.qgAtual,o.segmentoAtual,o.contato,o.discord].join(' ').toLowerCase().includes(q)));
+ if(!$('#orgList'))return;const all=derivedOrganizations();renderOrgSegmentChips(all);renderOrgActivityButtons();const q=($('#orgSearch')?.value||'').toLowerCase(),st=$('#orgStatus')?.value||'',seg=$('#orgSegment')?.value||'';
+ const list=all.filter(o=>(!seg||segmentKey(o.segmentoAtual)===segmentKey(seg))&&(!st||(st==='ACTIVE'?o.status!=='INATIVA':o.status===st))&&(!q||[o.nome,o.lider,o.groupAtual,o.qgAtual,o.segmentoAtual,o.contato,o.discord].join(' ').toLowerCase().includes(q)));
  const active=all.filter(o=>o.groupAtual&&o.status!=='INATIVA').length,sem=all.filter(o=>!o.groupAtual&&o.status!=='INATIVA').length,inativas=all.filter(o=>o.status==='INATIVA').length;
  const segCounts={};all.filter(o=>o.groupAtual).forEach(o=>{const k=o.segmentoAtual||'OUTROS';segCounts[k]=(segCounts[k]||0)+1});const maxSeg=Math.max(1,...Object.values(segCounts));
  if($('#orgOverview'))$('#orgOverview').innerHTML=`<div class="ops-kpis"><article class="ops-kpi purple"><span>FACÇÕES</span><b>${all.length}</b><small>organizações registradas</small></article><article class="ops-kpi good"><span>COM GROUP</span><b>${active}</b><small>ocupando patrimônio da cidade</small></article><article class="ops-kpi warn"><span>SEM GROUP</span><b>${sem}</b><small>ativas aguardando ocupação</small></article><article class="ops-kpi"><span>INATIVAS</span><b>${inativas}</b><small>mantidas apenas no histórico</small></article></div><section class="ops-distribution"><div class="ops-distribution-head"><b>OCUPAÇÃO POR SEGMENTO</b><span>FACÇÕES COM GROUP</span></div><div class="ops-bars">${Object.keys(segCounts).length?Object.entries(segCounts).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="ops-bar-row"><span>${esc(k)}</span><div class="ops-track"><div class="ops-fill" style="width:${Math.max(4,v/maxSeg*100)}%"></div></div><b>${v}</b></div>`).join(''):'<div class="muted">Nenhuma ocupação ativa.</div>'}</div></section>`;
  $('#orgStats').innerHTML=`<span><b>${list.length}</b> EXIBIDAS</span>${seg?`<span>SEGMENTO <b>${esc(seg)}</b></span>`:''}${st?`<span>STATUS <b>${esc(st.replace('_',' '))}</b></span>`:''}`;
- $('#orgList').innerHTML=list.length?list.map(o=>`<article class="org-card" data-org="${esc(o.id||orgKey(o.nome))}"><div class="org-card-head"><div><div class="group-kicker">${esc(o.segmentoAtual||'ORGANIZAÇÃO')}</div><h3>${esc(o.nome||'SEM NOME')}</h3></div><span class="status-chip ${o.groupAtual?'ativa':'inativa'}">${o.groupAtual?'OCUPANDO':'SEM GROUP'}</span></div><div class="org-group-link"><span>GROUP ATUAL</span><b>${esc(o.groupAtual||'—')}</b><small>${esc(o.qgAtual||'')}</small></div><div class="muted">${o.lider?'Líder: '+esc(o.lider):'Liderança não cadastrada'}${o.contato?'<br>Contato: '+esc(o.contato):''}</div><button class="mini-btn open-org" data-name="${esc(o.nome)}">PERFIL DA FACÇÃO</button></article>`).join(''):'<div class="placeholder"><b>♜</b><h3>NENHUMA FACÇÃO ENCONTRADA</h3><p>Ajuste a busca ou os filtros.</p></div>';
+ $('#orgList').innerHTML=list.length?list.map(o=>`<article class="org-card" data-org="${esc(o.id||orgKey(o.nome))}"><div class="org-card-head"><div><div class="group-kicker">${esc(o.segmentoAtual||'ORGANIZAÇÃO')}</div><h3>${esc(o.nome||'SEM NOME')}</h3></div><span class="status-chip ${o.status==='INATIVA'?'inativa':'ativa'}">${o.status==='INATIVA'?'INATIVA':(o.groupAtual?'OCUPANDO':'ATIVA • SEM GROUP')}</span></div><div class="org-group-link"><span>GROUP ATUAL</span><b>${esc(o.groupAtual||'—')}</b><small>${esc(o.qgAtual||'')}</small></div><div class="muted">${o.lider?'Líder: '+esc(o.lider):'Liderança não cadastrada'}${o.contato?'<br>Contato: '+esc(o.contato):''}</div><button class="mini-btn open-org" data-name="${esc(o.nome)}">PERFIL DA FACÇÃO</button></article>`).join(''):'<div class="placeholder"><b>♜</b><h3>NENHUMA FACÇÃO ENCONTRADA</h3><p>Ajuste a busca ou os filtros.</p></div>';
  document.querySelectorAll('.open-org').forEach(b=>b.onclick=e=>{e.stopPropagation();openOrganizationByName(b.dataset.name)});
 }
 
@@ -1810,7 +1810,7 @@ console.info('HIGH OS DEV V7.4 · Perfil clean carregado');
 
 console.info('HIGH OS DEV V7.5 · Perfil clean + setagens isoladas + liderança restaurada');
 console.info('HIGH OS V8.4 · Métricas objetivas carregadas');
-console.info('HIGH OS V8.10 · Filtros clicáveis de segmentos em Groups/QGs e Facções carregados');
+console.info('HIGH OS V8.12 · Filtros visuais por segmento + ativas/inativas carregados');
 
 
 // ===== HIGH OS · TRANSFERÊNCIA DE PAINEL, TROCA DE QG E ADMINISTRAÇÃO =====
@@ -2260,10 +2260,10 @@ function availableAnnouncementText(f){
 }
 function availablePosted(f){return !!f?.anuncioDiscordStatus?.postado}
 function renderAvailableFaccoes(){
- const box=$('#availableList');if(!box)return;
+ const box=$('#availableList');if(!box)return;renderAvailableSegmentCards();
  const q=($('#availableSearch')?.value||'').toLowerCase(),seg=$('#availableSegment')?.value||'',dc=$('#availableDiscord')?.value||'';
  const all=faccoes.filter(f=>f.status!=='ATIVA'||!String(f.faccao||'').trim());
- const list=all.filter(f=>(!seg||f.segmento===seg)&&(!q||[f.group,f.qg,f.produto,f.segmento].join(' ').toLowerCase().includes(q))&&(!dc||(dc==='POSTADO'?availablePosted(f):!availablePosted(f))));
+ const list=all.filter(f=>(!seg||segmentKey(f.segmento)===segmentKey(seg))&&(!q||[f.group,f.qg,f.produto,f.segmento].join(' ').toLowerCase().includes(q))&&(!dc||(dc==='POSTADO'?availablePosted(f):!availablePosted(f))));
  const posted=all.filter(availablePosted).length,pending=all.length-posted;
  if($('#availableStats'))$('#availableStats').innerHTML=`<span><b>${all.length}</b> DISPONÍVEIS</span><span><b>${pending}</b> NÃO POSTADAS</span><span><b>${posted}</b> POSTADAS</span><span><b>${list.length}</b> EXIBIDAS</span>`;
  if(!list.length){box.innerHTML='<div class="placeholder"><b>◈</b><h3>NENHUMA FACÇÃO DISPONÍVEL NESTE FILTRO</h3><p>Ajuste os filtros ou aguarde um Group ficar vago.</p></div>';return}
@@ -2294,3 +2294,48 @@ async function toggleAvailablePosted(group){
 console.info('HIGH OS V8.7 · Persistência de Craft/Farm corrigida');
 
 console.info('HIGH OS V8.8 · Correção Perfil Operacional/garagens + persistência de Craft carregada');
+
+
+// HIGH OS V8.12 · FILTROS VISUAIS UNIVERSAIS
+const SEGMENT_VISUALS={
+ 'ARMAS':['🔫','Arsenal'],
+ 'MUNIÇÃO':['🎯','Munições'],
+ 'DROGAS':['🧪','Drogas'],
+ 'LAVAGEM':['💵','Lavagem'],
+ 'DESMANCHE':['🔧','Desmanche'],
+ 'ESTELIONATÁRIOS':['💳','Estelionatários'],
+ 'OUTROS':['◆','Outros']
+};
+function allSegmentNames(rows=[],field='segmento'){
+ const preferred=['ARMAS','MUNIÇÃO','DROGAS','LAVAGEM','DESMANCHE','ESTELIONATÁRIOS','OUTROS'];
+ const extras=[...new Set(rows.map(x=>String(x?.[field]||'').trim()).filter(Boolean))].filter(x=>!preferred.some(p=>segmentKey(p)===segmentKey(x)));
+ return [...preferred,...extras.sort((a,b)=>a.localeCompare(b))];
+}
+function segmentCardMarkup(seg,count,active){
+ const v=SEGMENT_VISUALS[seg]||['◇',seg];
+ return `<button type="button" class="segment-visual-card ${active?'active':''}" data-segment="${esc(seg)}"><span class="segment-icon">${v[0]}</span><span class="segment-copy"><strong>${esc(seg)}</strong><small>${esc(v[1])}</small></span><b>${count||0}</b></button>`;
+}
+function renderVisualSegmentFilter({rows=[],field='segmento',selectId,boxId,onChange}){
+ const sel=$('#'+selectId),box=$('#'+boxId);if(!sel||!box)return;
+ const segments=allSegmentNames(rows,field),current=sel.value||'',counts={};
+ rows.forEach(x=>{let raw=String(x?.[field]||'').trim();if(!raw)return;let canonical=segments.find(p=>segmentKey(p)===segmentKey(raw))||raw;counts[canonical]=(counts[canonical]||0)+1});
+ sel.innerHTML=`<option value="">TODOS</option>${segments.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('')}`;
+ const canonicalCurrent=segments.find(x=>segmentKey(x)===segmentKey(current))||'';sel.value=canonicalCurrent;
+ box.innerHTML=`<button type="button" class="segment-visual-card ${!sel.value?'active':''}" data-segment=""><span class="segment-icon">◈</span><span class="segment-copy"><strong>TODOS</strong><small>Todos os segmentos</small></span><b>${rows.length}</b></button>${segments.map(x=>segmentCardMarkup(x,counts[x]||0,segmentKey(sel.value)===segmentKey(x))).join('')}`;
+ box.querySelectorAll('.segment-visual-card').forEach(btn=>btn.onclick=()=>{sel.value=btn.dataset.segment||'';onChange()});
+}
+renderFacSegmentChips=function(all=[]){renderVisualSegmentFilter({rows:(all||[]).filter(f=>!f.removido),field:'segmento',selectId:'facSegment',boxId:'facSegmentChips',onChange:renderFaccoes})};
+renderOrgSegmentChips=function(all=[]){renderVisualSegmentFilter({rows:all||[],field:'segmentoAtual',selectId:'orgSegment',boxId:'orgSegmentChips',onChange:renderOrganizations})};
+function renderAvailableSegmentCards(){
+ const rows=faccoes.filter(f=>!f.removido&&(f.status!=='ATIVA'||!String(f.faccao||'').trim()));
+ renderVisualSegmentFilter({rows,field:'segmento',selectId:'availableSegment',boxId:'availableSegmentChips',onChange:renderAvailableFaccoes});
+}
+function activityButtons(boxId,selectId,items,onChange){
+ const box=$('#'+boxId),sel=$('#'+selectId);if(!box||!sel)return;
+ const active=sel.value||'';box.innerHTML=items.map(([value,label,icon])=>`<button type="button" class="${active===value?'active':''}" data-value="${value}">${icon} ${label}</button>`).join('');
+ box.querySelectorAll('button').forEach(b=>b.onclick=()=>{sel.value=b.dataset.value||'';onChange()});
+}
+function renderFacActivityButtons(){activityButtons('facStatusButtons','facStatus',[['','AMBOS','◉'],['ATIVA','OCUPADOS','●'],['INATIVA','VAGOS','○']],renderFaccoes)}
+function renderOrgActivityButtons(){activityButtons('orgStatusButtons','orgStatus',[['','AMBAS','◉'],['ACTIVE','ATIVAS','●'],['INATIVA','INATIVAS','○']],renderOrganizations)}
+
+console.info('HIGH OS V8.12 · Interface de filtros por segmentos pronta');
