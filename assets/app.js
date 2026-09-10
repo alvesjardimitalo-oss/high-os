@@ -85,16 +85,44 @@ window.addEventListener('beforeunload',()=>{try{if(currentUser&&currentSessionId
 $('#loginBtn').onclick=login;$('#loginBtnCard').onclick=login;$('#logoutBtn')?.addEventListener('click',()=>logout('LOGOUT'));$('#logoutDenied').onclick=logout;
 
 const METRIC_ONLY_ROLES=new Set(['RH_METRICAS','RH_VISUALIZADOR','RH_ANALISTA','RH_GESTOR']);
-function applyRoleAccess(role='CONSULTA'){
- role=String(role||'CONSULTA').toUpperCase();
- const metricOnly=METRIC_ONLY_ROLES.has(role);
- document.body.classList.toggle('metric-only-access',metricOnly);
- document.querySelectorAll('.nav-item').forEach(btn=>{
-  if(metricOnly)btn.style.display=btn.dataset.page==='metricas'?'flex':'none';
-  else if(!btn.classList.contains('admin-only'))btn.style.display='flex';
- });
- if(metricOnly){activateAppPage('metricas');document.querySelector('.nav-item[data-page="metricas"]')?.classList.add('active')}
+// ===== HIGH OS V8.18 · PERMISSÕES GRANULARES POR MÓDULO =====
+const SYSTEM_MODULES=[
+ {id:'dashboard',label:'Dashboard',desc:'Visão geral e indicadores'},
+ {id:'faccoes',label:'Groups / QGs',desc:'Patrimônio, perfil técnico, craft, farm e estrutura'},
+ {id:'organizacoes',label:'Facções',desc:'Cadastros e perfis das organizações'},
+ {id:'disponiveis',label:'Facções Disponíveis',desc:'Vagas, anúncios e disponibilidade'},
+ {id:'entregas',label:'Entregas',desc:'Nova ocupação e entrega de Group'},
+ {id:'solicitacoes',label:'Solicitações',desc:'Modelos e solicitações técnicas'},
+ {id:'metricas',label:'Métricas',desc:'Central de métricas e relatórios'},
+ {id:'economia',label:'Economia',desc:'Tabela, pista e referências econômicas'},
+ {id:'historico',label:'Histórico',desc:'Movimentações e auditoria operacional'},
+ {id:'alvesinho',label:'Alvesinho',desc:'Assistente do High OS'}
+];
+const INTERNAL_MODULE_PARENT={'group-profile':'faccoes','group-settings':'faccoes'};
+function normalizePermission(v){v=String(v||'').toUpperCase();return ['NONE','VIEW','EDIT'].includes(v)?v:'NONE'}
+function defaultPermissionsForRole(role='CONSULTA'){
+ role=String(role||'CONSULTA').toUpperCase();const out={};
+ if(role==='ADMIN'){SYSTEM_MODULES.forEach(m=>out[m.id]='EDIT');return out}
+ if(METRIC_ONLY_ROLES.has(role)){SYSTEM_MODULES.forEach(m=>out[m.id]=m.id==='metricas'?'VIEW':'NONE');out.dashboard='VIEW';return out}
+ if(role==='CONSULTA'){SYSTEM_MODULES.forEach(m=>out[m.id]='VIEW');return out}
+ SYSTEM_MODULES.forEach(m=>out[m.id]=m.id==='historico'?'VIEW':'EDIT');return out
 }
+function effectivePermissions(profile=currentProfile){const role=String(profile?.role||'CONSULTA').toUpperCase();if(role==='ADMIN')return defaultPermissionsForRole('ADMIN');const base=defaultPermissionsForRole(role),custom=profile?.permissions||{};SYSTEM_MODULES.forEach(m=>{if(Object.prototype.hasOwnProperty.call(custom,m.id))base[m.id]=normalizePermission(custom[m.id])});return base}
+function pageModule(page=''){return INTERNAL_MODULE_PARENT[page]||page}
+function canViewModule(module){if(isAdmin())return true;return ['VIEW','EDIT'].includes(effectivePermissions()[pageModule(module)]||'NONE')}
+function canEditModule(module){if(isAdmin())return true;return (effectivePermissions()[pageModule(module)]||'NONE')==='EDIT'}
+function firstAllowedModule(){return SYSTEM_MODULES.find(m=>canViewModule(m.id))?.id||''}
+function applyModuleAccess(role='CONSULTA'){
+ const perms=effectivePermissions();document.body.classList.toggle('metric-only-access',false);
+ document.querySelectorAll('.nav-item').forEach(btn=>{const page=btn.dataset.page;if(btn.classList.contains('admin-only')){btn.style.display=isAdmin()?'flex':'none';return}btn.style.display=canViewModule(page)?'flex':'none';});
+ const active=document.querySelector('.page.active')?.id?.replace('page-','')||'dashboard';if(!isAdmin()&&!canViewModule(active)){const first=firstAllowedModule();if(first)activateAppPage(first)}
+ document.body.dataset.accessMode='custom';
+}
+function mutationButton(btn){if(!btn)return false;const txt=String(btn.textContent||'').trim().toUpperCase();if(btn.matches('[type="submit"],.btn-danger,.admin-wipe,.tech-remove'))return true;return /(^|\s)(SALVAR|NOVO|NOVA|CRIAR|EDITAR|APAGAR|REMOVER|RECOLHER|TRANSFERIR|TROCAR|IMPORTAR|CONCLUIR|VINCULAR|RESET|ADICIONAR|ALTERAR|ATIVAR|DESATIVAR|REATIVAR)(\s|$)/.test(txt)}
+function moduleForElement(el){const page=el?.closest?.('.page');if(page)return pageModule(page.id.replace('page-',''));const modal=el?.closest?.('.modal')?.id||'';const map={facModal:'faccoes',recipeEditorModal:'faccoes',farmEditorModal:'faccoes',movementModal:'faccoes',newDeliveryModal:'entregas',reqModal:'solicitacoes',craftRequestModal:'faccoes',metricSourceModal:'metricas',metricImportModal:'metricas',orgModal:'organizacoes',userModal:'administracao',auditSessionModal:'administracao',facSheetDiffModal:'administracao'};return map[modal]||pageModule(document.querySelector('.page.active')?.id?.replace('page-','')||'dashboard')}
+function permissionDeniedMessage(module,edit=false){const label=SYSTEM_MODULES.find(m=>m.id===pageModule(module))?.label||module;alert(edit?`Seu acesso a ${label} é somente para visualização.\n\nSolicite a um ADMIN permissão de edição.`:`Você não possui acesso ao módulo ${label}.`)}
+document.addEventListener('click',e=>{const nav=e.target.closest?.('.nav-item[data-page]');if(nav&&!nav.classList.contains('admin-only')&&!canViewModule(nav.dataset.page)){e.preventDefault();e.stopImmediatePropagation();permissionDeniedMessage(nav.dataset.page,false);return}const b=e.target.closest?.('button');if(!b||isAdmin())return;const mod=moduleForElement(b);if(mutationButton(b)&&!canEditModule(mod)){e.preventDefault();e.stopImmediatePropagation();permissionDeniedMessage(mod,true)}},true);
+document.addEventListener('submit',e=>{if(isAdmin())return;const mod=moduleForElement(e.target);if(!canEditModule(mod)){e.preventDefault();e.stopImmediatePropagation();permissionDeniedMessage(mod,true)}},true);
 
 onAuthStateChanged(auth,async user=>{
  currentUser=user;
@@ -108,12 +136,12 @@ onAuthStateChanged(auth,async user=>{
   if(userNameEl)userNameEl.textContent=currentProfile.name||user.displayName||email;if(userRoleEl)userRoleEl.textContent=currentProfile.cargo||role;if(userAccessEl)userAccessEl.textContent='ACESSO: '+role;if(dashEmailEl)dashEmailEl.textContent=email;if(dashRoleEl)dashRoleEl.textContent=role;
   if(userPhotoEl){if(user.photoURL){userPhotoEl.src=user.photoURL;userPhotoEl.style.display=''}else userPhotoEl.style.display='none';}
   document.querySelectorAll('.admin-only').forEach(el=>el.style.display=role==='ADMIN'?'flex':'none');
-  applyRoleAccess(role);
+  applyModuleAccess(role);
   renderSessionClock(email);
   await loadSegmentConfig();
-  if(METRIC_ONLY_ROLES.has(role))faccoes=[];else await loadFaccoes();
+  await loadFaccoes();
   await loadMetrics();
-  if(!METRIC_ONLY_ROLES.has(role))loadMarketCatalog();
+  if(canViewModule('economia'))loadMarketCatalog();
   if(role==='ADMIN') await loadUsers();
  }catch(e){show(deniedView);$('#deniedText').textContent='Falha ao validar seu cadastro no Firestore: '+e.message}
 });
@@ -122,6 +150,7 @@ document.querySelectorAll('.nav-item').forEach(btn=>btn.addEventListener('click'
 
 // HIGH OS V6.7 · o perfil do Group passa a abrir como página interna, não como modal.
 function activateAppPage(page){
+ if(page!=='administracao'&&page!=='usuarios'&&!isAdmin()&&!canViewModule(page)){permissionDeniedMessage(page,false);const fallback=firstAllowedModule();if(!fallback||fallback===page)return;page=fallback}
  if(page==='administracao'&&isAdmin())setTimeout(()=>loadUserAudit(),0);
  document.querySelectorAll('.page').forEach(x=>x.classList.toggle('active',x.id==='page-'+page));
  document.querySelectorAll('.nav-item').forEach(x=>x.classList.toggle('active',x.dataset.page===page));
@@ -637,6 +666,12 @@ loadFaccoes=async function(){await _loadFaccoesV3();updateRequestGroupOptions($(
 
 
 // ===== HIGH OS V4 · GESTÃO DE USUÁRIOS =====
+function renderUserPermissionMatrix(values={}){
+ const box=$('#userPermissionMatrix');if(!box)return;const role=$('#uRole')?.value||'CONSULTA';const base=defaultPermissionsForRole(role);
+ box.innerHTML=SYSTEM_MODULES.map(m=>{const val=normalizePermission(Object.prototype.hasOwnProperty.call(values||{},m.id)?values[m.id]:base[m.id]);return `<div class="permission-row"><div><b>${esc(m.label)}</b><small>${esc(m.desc)}</small></div><select class="module-permission-select" data-module="${esc(m.id)}"><option value="NONE" ${val==='NONE'?'selected':''}>SEM ACESSO</option><option value="VIEW" ${val==='VIEW'?'selected':''}>VISUALIZAR</option><option value="EDIT" ${val==='EDIT'?'selected':''}>EDITAR</option></select></div>`}).join('');
+}
+function readUserPermissions(){const out={};document.querySelectorAll('#userPermissionMatrix .module-permission-select').forEach(el=>out[el.dataset.module]=normalizePermission(el.value));return out}
+function applyPermissionPreset(type){const role=$('#uRole')?.value||'CONSULTA';const values={};if(type==='NONE')SYSTEM_MODULES.forEach(m=>values[m.id]='NONE');else if(type==='VIEW')SYSTEM_MODULES.forEach(m=>values[m.id]='VIEW');else if(type==='OPERATIONAL')SYSTEM_MODULES.forEach(m=>values[m.id]=m.id==='historico'?'VIEW':'EDIT');else Object.assign(values,defaultPermissionsForRole(role));renderUserPermissionMatrix(values)}
 function initUsersUi(){
  const nb=$('#newUserBtn'); if(!nb)return;
  nb.onclick=()=>openUserModal();
@@ -647,6 +682,10 @@ function initUsersUi(){
  $('#userStatusFilter').addEventListener('change',renderUsers);
  $('#userForm').addEventListener('submit',saveUser);
  $('#toggleUserBtn').onclick=toggleUserAccess;
+ $('#uRole')?.addEventListener('change',()=>{const original=$('#userOriginalEmail')?.value||'';const u=original?usuarios.find(x=>x.email===original):null;if(!u?.permissions)renderUserPermissionMatrix(defaultPermissionsForRole($('#uRole').value))});
+ $('#permPresetView')?.addEventListener('click',()=>applyPermissionPreset('VIEW'));
+ $('#permPresetOperational')?.addEventListener('click',()=>applyPermissionPreset('OPERATIONAL'));
+ $('#permPresetNone')?.addEventListener('click',()=>applyPermissionPreset('NONE'));
 }
 function assertAdmin(){if(String(currentProfile?.role||'').toUpperCase()!=='ADMIN'){alert('Apenas ADMIN pode gerenciar usuários.');return false}return true}
 async function loadUsers(){
@@ -664,7 +703,7 @@ function renderUsers(){
  const ativos=usuarios.filter(u=>u.active===true).length, admins=usuarios.filter(u=>String(u.role||'').toUpperCase()==='ADMIN'&&u.active===true).length;
  $('#userStats').innerHTML=`<span><b>${usuarios.length}</b> CADASTRADOS</span><span><b>${ativos}</b> ATIVOS</span><span><b>${usuarios.length-ativos}</b> INATIVOS</span><span><b>${admins}</b> ADMINS</span><span><b>${list.length}</b> EXIBIDOS</span>`;
  if(!usuarios.length){$('#userList').innerHTML='<div class="placeholder"><b>♟</b><h3>NENHUM USUÁRIO</h3><p>Cadastre a primeira conta autorizada.</p></div>';return}
- $('#userList').innerHTML=list.map(u=>`<article class="user-row" data-email="${esc(u.email)}"><div class="user-avatar">${esc((u.name||u.email||'?').slice(0,1).toUpperCase())}</div><div class="user-main"><strong>${esc(u.name||'Sem nome')}</strong><span>${esc(u.email)}</span><small class="user-cargo-line">${esc(u.cargo||String(u.role||'CONSULTA').toUpperCase())}</small>${u.notes?`<small>${esc(u.notes)}</small>`:''}</div><div class="user-tags"><span class="role-chip r-${slug(u.role)}">${esc(String(u.role||'CONSULTA').toUpperCase())}</span><span class="status-chip ${u.active===true?'ativa':'inativa'}">${u.active===true?'ATIVO':'INATIVO'}</span></div><div class="user-row-actions"><button type="button" class="mini-btn user-activity-btn" data-activity="${esc(u.email)}">ATIVIDADE</button><button type="button" class="mini-btn user-edit-btn">EDITAR</button></div></article>`).join('');
+ $('#userList').innerHTML=list.map(u=>`<article class="user-row" data-email="${esc(u.email)}"><div class="user-avatar">${esc((u.name||u.email||'?').slice(0,1).toUpperCase())}</div><div class="user-main"><strong>${esc(u.name||'Sem nome')}</strong><span>${esc(u.email)}</span><small class="user-cargo-line">${esc(u.cargo||String(u.role||'CONSULTA').toUpperCase())}</small>${u.notes?`<small>${esc(u.notes)}</small>`:''}</div><div class="user-tags"><span class="role-chip r-${slug(u.role)}">${esc(String(u.role||'CONSULTA').toUpperCase())}</span><span class="status-chip ${u.active===true?'ativa':'inativa'}">${u.active===true?'ATIVO':'INATIVO'}</span><small class="perm-summary">${(()=>{const p={...defaultPermissionsForRole(u.role),...(u.permissions||{})};const v=SYSTEM_MODULES.filter(m=>['VIEW','EDIT'].includes(normalizePermission(p[m.id]))).length,e=SYSTEM_MODULES.filter(m=>normalizePermission(p[m.id])==='EDIT').length;return `${v}/${SYSTEM_MODULES.length} módulos • ${e} editáveis`})()}</small></div><div class="user-row-actions"><button type="button" class="mini-btn user-activity-btn" data-activity="${esc(u.email)}">ATIVIDADE</button><button type="button" class="mini-btn user-edit-btn">EDITAR</button></div></article>`).join('');
  document.querySelectorAll('.user-row').forEach(r=>{r.querySelector('.user-edit-btn')?.addEventListener('click',e=>{e.stopPropagation();openUserModal(r.dataset.email)});r.querySelector('.user-activity-btn')?.addEventListener('click',e=>{e.stopPropagation();openUserActivity(e.currentTarget.dataset.activity)});r.addEventListener('click',()=>openUserModal(r.dataset.email));});
 }
 function openUserModal(email=''){
@@ -673,6 +712,7 @@ function openUserModal(email=''){
  $('#userOriginalEmail').value=u?.email||'';
  $('#uEmail').value=u?.email||''; $('#uEmail').disabled=!!u;
  $('#uName').value=u?.name||''; $('#uCargo').value=u?.cargo||''; $('#uRole').value=String(u?.role||'CONSULTA').toUpperCase(); $('#uActive').value=u?.active===false?'false':'true'; $('#uNotes').value=u?.notes||'';
+ renderUserPermissionMatrix(u?.permissions||defaultPermissionsForRole(String(u?.role||'CONSULTA').toUpperCase()));
  $('#userModalTitle').textContent=u?'EDITAR USUÁRIO':'NOVO USUÁRIO';
  $('#toggleUserBtn').style.display=u?'block':'none';
  $('#toggleUserBtn').textContent=u?.active===true?'DESATIVAR ACESSO':'REATIVAR ACESSO';
@@ -684,12 +724,12 @@ async function saveUser(e){
  const original=$('#userOriginalEmail').value.trim().toLowerCase(), email=$('#uEmail').value.trim().toLowerCase();
  if(!email){alert('Informe o e-mail Google.');return}
  const old=original?usuarios.find(x=>x.email===original):null;
- const payload={email,name:$('#uName').value.trim(),cargo:$('#uCargo').value.trim(),role:$('#uRole').value,active:$('#uActive').value==='true',notes:$('#uNotes').value.trim(),updatedAt:serverTimestamp(),updatedBy:currentUser.email};
+ const payload={email,name:$('#uName').value.trim(),cargo:$('#uCargo').value.trim(),role:$('#uRole').value,active:$('#uActive').value==='true',notes:$('#uNotes').value.trim(),permissions:readUserPermissions(),updatedAt:serverTimestamp(),updatedBy:currentUser.email};
  if(email===String(currentUser.email||'').toLowerCase() && payload.active!==true){alert('Você não pode desativar sua própria conta enquanto está logado.');return}
  try{
   await setDoc(doc(db,'users',email),payload,{merge:true});
   await addDoc(histCol,{sessionId:currentSessionId||'',tipo:old?'USUARIO_EDITADO':'USUARIO_CRIADO',usuarioAlvo:email,antes:snapshot(old),depois:snapshot(payload),usuario:currentUser.email,data:serverTimestamp()});
-  $('#userModal').classList.add('hidden'); if(email===String(currentUser?.email||'').toLowerCase()){currentProfile={...currentProfile,...payload};if($('#userName'))$('#userName').textContent=payload.name||currentUser?.displayName||email;if($('#userRole'))$('#userRole').textContent=payload.cargo||payload.role;if($('#userAccessLevel'))$('#userAccessLevel').textContent='ACESSO: '+String(payload.role||'CONSULTA').toUpperCase();renderSessionClock(email);} await loadUsers();
+  $('#userModal').classList.add('hidden'); if(email===String(currentUser?.email||'').toLowerCase()){currentProfile={...currentProfile,...payload};if($('#userName'))$('#userName').textContent=payload.name||currentUser?.displayName||email;if($('#userRole'))$('#userRole').textContent=payload.cargo||payload.role;if($('#userAccessLevel'))$('#userAccessLevel').textContent='ACESSO: '+String(payload.role||'CONSULTA').toUpperCase();renderSessionClock(email);applyModuleAccess(payload.role);} await loadUsers();
  }catch(err){alert('Erro ao salvar usuário: '+err.message)}
 }
 async function toggleUserAccess(){
@@ -2555,3 +2595,9 @@ const _loadFaccoesV813=loadFaccoes;loadFaccoes=async function(){await _loadFacco
 console.info('HIGH OS V8.13 · Segmentos gerenciáveis + filtros visuais carregados');
 
 console.info('HIGH OS V8.14 · Solicitações bidirecionais + arquivo por Group carregado');
+
+
+// ===== HIGH OS V8.18 · ADMINISTRAÇÃO ORGANIZADA =====
+function openAdminTab(tab='acessos'){document.querySelectorAll('[data-admin-tab]').forEach(b=>b.classList.toggle('active',b.dataset.adminTab===tab));document.querySelectorAll('[data-admin-panel]').forEach(p=>p.classList.toggle('active',p.dataset.adminPanel===tab));if(tab==='auditoria'&&isAdmin())loadUserAudit()}
+document.querySelectorAll('[data-admin-tab]').forEach(b=>b.addEventListener('click',()=>openAdminTab(b.dataset.adminTab)));
+$('#adminOpenUsersBtn')?.addEventListener('click',()=>activateAppPage('usuarios'));
