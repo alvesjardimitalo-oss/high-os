@@ -1693,7 +1693,7 @@ function operationalFromForm(){
   {tipo:'FACCAO',blip:opGet('fOpVipBlip'),spawn:opGet('fOpVipSpawn'),veiculos:opGet('fOpVipVehicles'),vagas:''},
   {tipo:'SERVICO',blip:opGet('fOpServiceBlip'),spawn:opGet('fOpServiceSpawn'),veiculos:opGet('fOpServiceVehicles'),vagas:''}
  ].filter(x=>x.blip||x.spawn||x.veiculos);
- return {localizacao:{nome:opGet('fOpQGName'),cdsPrincipal:opGet('fOpMainCds')},lojaFac:{cds:opGet('fOpLojaFac')},bar:{cds:opGet('fOpBar')},barbearia:{cds:opGet('fOpBarbearia')},tatuagem:{cds:opGet('fOpTatuagem')},roupas:{cds:opGet('fOpRoupas')},uniforme:{local:opGet('fOpUniformeLocal'),arquivo:opGet('fOpUniformeArquivo')},arena:{cds:opGet('fOpArena')},garagens,helipontos:(opGet('fOpHeliBlip')||opGet('fOpHeliSpawn'))?[{blip:opGet('fOpHeliBlip'),spawn:opGet('fOpHeliSpawn')}]:[],blindados:{vagas:opGet('fOpArmoredSlots'),blip:opGet('fOpArmoredBlip'),spawn:opGet('fOpArmoredSpawn'),veiculos:opGet('fOpArmoredVehicles')},telao:{ativo:!!(opGet('fOpTelaoModelo')||opGet('fOpTelaoPostit')||opGet('fOpTelaoCds')),tipo:opGet('fOpTelaoTipo'),modelo:opGet('fOpTelaoModelo'),postit:opGet('fOpTelaoPostit'),cds:opGet('fOpTelaoCds'),permissao:opGet('fOpTelaoPermissao'),sons:[1,2,3,4].map(i=>opGet('fOpTelaoSom'+i))}};
+ return {localizacao:{nome:opGet('fOpQGName'),cdsPrincipal:opGet('fOpMainCds')},lojaFac:{cds:opGet('fOpLojaFac')},bar:{cds:opGet('fOpBar')},barbearia:{cds:opGet('fOpBarbearia')},tatuagem:{cds:opGet('fOpTatuagem')},roupas:{cds:opGet('fOpRoupas')},uniforme:{local:opGet('fOpUniformeLocal'),arquivo:opGet('fOpUniformeArquivo')},arena:{cds:opGet('fOpArena')},garagens:garages,helipontos:(opGet('fOpHeliBlip')||opGet('fOpHeliSpawn'))?[{blip:opGet('fOpHeliBlip'),spawn:opGet('fOpHeliSpawn')}]:[],blindados:{vagas:opGet('fOpArmoredSlots'),blip:opGet('fOpArmoredBlip'),spawn:opGet('fOpArmoredSpawn'),veiculos:opGet('fOpArmoredVehicles')},telao:{ativo:!!(opGet('fOpTelaoModelo')||opGet('fOpTelaoPostit')||opGet('fOpTelaoCds')),tipo:opGet('fOpTelaoTipo'),modelo:opGet('fOpTelaoModelo'),postit:opGet('fOpTelaoPostit'),cds:opGet('fOpTelaoCds'),permissao:opGet('fOpTelaoPermissao'),sons:[1,2,3,4].map(i=>opGet('fOpTelaoSom'+i))}};
 }
 function setOpVal(id,v){const el=$('#'+id);if(el)el.value=v||''}
 function renderOperationalProfile(f={}){
@@ -2258,3 +2258,5 @@ async function toggleAvailablePosted(group){
 ['availableSearch','availableSegment','availableDiscord'].forEach(id=>$('#'+id)?.addEventListener(id==='availableSearch'?'input':'change',renderAvailableFaccoes));
 
 console.info('HIGH OS V8.7 · Persistência de Craft/Farm corrigida');
+
+console.info('HIGH OS V8.8 · Correção Perfil Operacional/garagens + persistência de Craft carregada');
