@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#09070d">
   <title>High OS • Gestão do Ilegal</title>
-  <link rel="stylesheet" href="assets/style.css">
+  <link rel="stylesheet" href="assets/style.css?v=8.24">
 <style>
 .rh-section-head{display:flex;justify-content:space-between;gap:18px;align-items:end;margin:18px 0}.rh-section-head h3{margin:3px 0}.rh-compare-controls{display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:end;margin:16px 0}.rh-compare-controls label{display:grid;gap:6px;font-size:11px;font-weight:800}.rh-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:14px 0}.rh-card{border:1px solid var(--line,#33283b);border-radius:14px;padding:14px;background:rgba(255,255,255,.025)}.rh-card span{display:block;font-size:10px;opacity:.65;font-weight:800}.rh-card b{display:block;font-size:24px;margin-top:5px}.rh-card small{opacity:.7}.rh-alert{padding:10px 12px;border:1px solid var(--line,#33283b);border-radius:10px;margin:7px 0}.rh-ranking-row{display:grid;grid-template-columns:45px 1fr repeat(4,110px);gap:10px;align-items:center;padding:11px;border-bottom:1px solid var(--line,#33283b)}.rh-ranking-row>span{text-align:right}.rh-compare-table{width:100%;border-collapse:collapse;margin-top:14px}.rh-compare-table th,.rh-compare-table td{padding:10px;border-bottom:1px solid var(--line,#33283b);text-align:center}.rh-compare-table th:first-child,.rh-compare-table td:first-child{text-align:left}@media(max-width:900px){.rh-grid{grid-template-columns:1fr 1fr}.rh-ranking-row{grid-template-columns:35px 1fr 80px}.rh-ranking-row .rh-extra{display:none}.rh-compare-controls{grid-template-columns:1fr}}
 </style>
@@ -65,7 +65,7 @@
       </aside>
       <div class="content">
         <section class="page active" id="page-dashboard">
-          <div class="page-head"><div><div class="eyebrow">CENTRAL DE COMANDO DO ILEGAL</div><h2>DASHBOARD</h2><p class="page-subtitle">Visão operacional para identificar rapidamente ocupação, contingente, pendências e movimentações da Staff.</p></div><span class="dev-badge">V8.23</span></div>
+          <div class="page-head"><div><div class="eyebrow">CENTRAL DE COMANDO DO ILEGAL</div><h2>DASHBOARD</h2><p class="page-subtitle">Visão operacional para identificar rapidamente ocupação, contingente, pendências e movimentações da Staff.</p></div><span class="dev-badge">V8.24</span></div>
           <div id="commandDashboard" class="command-dashboard"><div class="placeholder"><b>◆</b><h3>CARREGANDO CENTRAL DE COMANDO</h3></div></div>
           <span id="dashEmail" class="hidden">—</span><span id="dashRole" class="hidden">—</span>
         </section>
@@ -234,9 +234,10 @@
         </section>
 
         <section class="page" id="page-administracao">
-          <div class="page-head admin-page-head"><div><div class="eyebrow">CENTRAL ADMINISTRATIVA</div><h2>ADMINISTRAÇÃO</h2><p class="page-subtitle">Controle do sistema organizado por área: acessos, integrações, estrutura, auditoria e manutenção.</p></div><span class="dev-badge">ADMIN</span></div>
+          <div class="page-head admin-page-head"><div><div class="eyebrow">CENTRAL ADMINISTRATIVA</div><h2>ADMINISTRAÇÃO</h2><p class="page-subtitle">Controle do sistema organizado por área: acessos, Groups, dashboard, integrações, estrutura, auditoria e manutenção.</p></div><span class="dev-badge">ADMIN</span></div>
           <div class="admin-summary-grid">
             <button type="button" class="admin-summary-card active" data-admin-tab="acessos"><span>♟</span><div><b>ACESSOS</b><small>Usuários e permissões por módulo</small></div></button>
+            <button type="button" class="admin-summary-card" data-admin-tab="groups"><span>◆</span><div><b>GROUPS</b><small>Cadastro, nome, vínculo e estrutura</small></div></button>
             <button type="button" class="admin-summary-card" data-admin-tab="dashboard"><span>⌁</span><div><b>DASHBOARD</b><small>Parâmetros de saúde e contingente</small></div></button>
             <button type="button" class="admin-summary-card" data-admin-tab="integracoes"><span>↔</span><div><b>INTEGRAÇÕES</b><small>Google Sheets e sincronizações</small></div></button>
             <button type="button" class="admin-summary-card" data-admin-tab="estrutura"><span>◇</span><div><b>ESTRUTURA</b><small>Segmentos e vínculos</small></div></button>
@@ -250,6 +251,16 @@
               <div class="admin-access-actions"><button type="button" id="adminOpenUsersBtn" class="btn-primary compact">GERENCIAR USUÁRIOS E PERMISSÕES</button></div>
               <div class="permission-legend"><span class="perm-none">SEM ACESSO</span><span class="perm-view">VISUALIZAR</span><span class="perm-edit">EDITAR</span></div>
               <div class="sheet-sync-note">ADMIN sempre possui acesso total. As permissões individuais têm prioridade sobre o perfil/cargo do usuário e podem ser alteradas somente por ADMIN.</div>
+            </div>
+          </div>
+
+          <div class="admin-tab-panel" data-admin-panel="groups">
+            <div class="admin-group-card">
+              <div class="sheet-sync-head"><div><div class="eyebrow">PATRIMÔNIO • CADASTRO MESTRE</div><h3>GERENCIAR GROUPS / QGs</h3><p>Administre o cadastro permanente dos Groups: nome, segmento, QG, produto, ocupação, liderança, staff, coordenadas, anúncio e toda a estrutura técnica pelo editor completo.</p></div><span class="sheet-sync-badge online">ADMIN</span></div>
+              <div class="admin-group-toolbar"><input id="adminGroupSearch" placeholder="Buscar Group, QG, segmento ou facção..."><select id="adminGroupStatus"><option value="">TODOS</option><option value="ATIVA">OCUPADOS</option><option value="INATIVA">VAGOS</option></select></div>
+              <div id="adminGroupStats" class="fac-stats compact-stats"></div>
+              <div id="adminGroupList" class="admin-group-list"><div class="placeholder"><b>◆</b><h3>CARREGANDO GROUPS</h3></div></div>
+              <div class="sheet-sync-note">EDITAR COMPLETO abre o perfil técnico existente do Group. RENOMEAR altera o identificador mestre do Group e atualiza o vínculo da facção ocupante. Use renomeação apenas quando o Group realmente mudou de nome na cidade.</div>
             </div>
           </div>
 
@@ -582,7 +593,7 @@
 <div id="craftRequestModal" class="modal hidden"><div class="modal-card craft-request-modal"><button class="modal-x" id="craftRequestClose">×</button><div class="eyebrow">SOLICITAÇÃO GERADA AUTOMATICAMENTE</div><h2>ADIÇÃO DE CRAFT NO GROUP</h2><p class="tech-editor-help">A receita foi salva no High OS. Confira a solicitação abaixo e copie no padrão do Discord da cidade.</p><div class="craft-request-summary" id="craftRequestSummary"></div><label class="wide craft-request-text-label">Solicitação pronta para o Discord<textarea id="craftRequestText" rows="18" readonly></textarea></label><div class="modal-actions"><button type="button" id="craftRequestLater" class="btn-secondary">FECHAR</button><button type="button" id="copyCraftRequestBtn" class="btn-primary">COPIAR SOLICITAÇÃO</button></div></div></div>
 <div id="farmEditorModal" class="modal hidden"><div class="modal-card tech-editor-modal farm-editor-modal"><button class="modal-x" id="farmEditorClose">×</button><div class="eyebrow">PERFIL TÉCNICO • FARM / ROTA</div><h2 id="farmEditorTitle">ITEM DO FARM</h2><p class="tech-editor-help" id="farmEditorHelp">Visualize os dados do item coletado na rota.</p><form id="farmEditorForm"><input type="hidden" id="farmEditorIndex"><div class="tech-editor-product"><div class="tech-editor-image"><img id="farmEditorImage" alt="Item do farm"></div><div class="form-grid"><label>Nome do item<input id="farmEditorName" required></label><label>Spawn do item<input id="farmEditorSpawn" required></label><label class="wide">Quantidade / observação de coleta<textarea id="farmEditorQty" rows="5" placeholder="Ex.: x20 por coleta / observação da rota"></textarea></label></div></div><div id="farmLinkedInfo" class="farm-linked-info hidden"></div><div class="modal-actions"><button type="button" id="farmEditorCancel" class="btn-secondary">FECHAR</button><button type="submit" id="farmEditorSave" class="btn-primary">SALVAR ITEM</button></div></form></div></div>
 
-  <script type="module" src="assets/app.js?v=8.23"></script>
+  <script type="module" src="assets/app.js?v=8.24"></script>
 
 <div id="newDeliveryModal" class="modal hidden"><div class="modal-card delivery-modal-v5"><button class="modal-x" id="newDeliveryClose">×</button>
   <div class="eyebrow">NOVA OCUPAÇÃO</div><h2>ENTREGA DE GROUP</h2><p class="delivery-help">O Group traz sua estrutura instalada. Personalize apenas o que será ativado para a nova facção.</p>
