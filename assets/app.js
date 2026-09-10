@@ -1,6 +1,6 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js';
-import { getFirestore, doc, getDoc, collection, getDocs, setDoc, addDoc, serverTimestamp, writeBatch, deleteDoc } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
+import { getFirestore, doc, getDoc, collection, getDocs, setDoc, addDoc, serverTimestamp, writeBatch, deleteDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
 
 const firebaseConfig={apiKey:'AIzaSyBKtl3rCA9Id1RDMwGch-yi4hxAs83DraU',authDomain:'high-os.firebaseapp.com',projectId:'high-os',storageBucket:'high-os.firebasestorage.app',messagingSenderId:'471862600170',appId:'1:471862600170:web:ff55af6f7e808ff393d293'};
 const app=initializeApp(firebaseConfig), auth=getAuth(app), db=getFirestore(app), provider=new GoogleAuthProvider();
@@ -14,6 +14,48 @@ let currentUser=null,currentProfile=null,faccoes=[],solicitacoes=[],requestRecor
 const facCol=collection(db,'highos','data','faccoes'), histCol=collection(db,'highos','data','historico'), reqCol=collection(db,'highos','data','solicitacoes'), deliveryCol=collection(db,'highos','data','entregas'), orgCol=collection(db,'highos','data','organizacoes'), sessionCol=collection(db,'highos','data','sessoes_usuario'), usersCol=collection(db,'users');
 let currentSessionId='',currentSessionStart=0,sessionTimer=null,sessionWarningShown=false;
 const segmentConfigDoc=doc(db,'highos','data','config','segmentos');
+const dashboardConfigDoc=doc(db,'highos','data','config','dashboard');
+const spotifyConfigDoc=doc(db,'highos','data','config','spotify');
+const dashboardAlertCol=collection(db,'highos','data','alertas_dashboard');
+const chatCol=collection(db,'highos','data','chat_mensagens');
+const DEFAULT_DASHBOARD_CONFIG={quedaAtencaoPct:15,quedaCriticaPct:30,minComparacoes:4};
+let dashboardConfig={...DEFAULT_DASHBOARD_CONFIG},dashboardAlertStates=[],spotifyConfig={url:''},chatUnsubscribe=null;
+function sanitizeDashboardConfig(v={}){
+ const legacyBase=Number(v.contingenteAlerta)||0;
+ const atencao=Math.max(1,Math.min(90,Number(v.quedaAtencaoPct)|| (legacyBase?15:DEFAULT_DASHBOARD_CONFIG.quedaAtencaoPct)));
+ const critico=Math.max(atencao+1,Math.min(100,Number(v.quedaCriticaPct)||DEFAULT_DASHBOARD_CONFIG.quedaCriticaPct));
+ const minComparacoes=Math.max(1,Math.min(50,Number(v.minComparacoes)||DEFAULT_DASHBOARD_CONFIG.minComparacoes));
+ return {quedaAtencaoPct:atencao,quedaCriticaPct:critico,minComparacoes};
+}
+async function loadDashboardConfig(){
+ try{const snap=await getDoc(dashboardConfigDoc);dashboardConfig=sanitizeDashboardConfig(snap.exists()?snap.data():DEFAULT_DASHBOARD_CONFIG);if(!snap.exists()&&isAdmin())await setDoc(dashboardConfigDoc,{...dashboardConfig,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true});await loadDashboardAlertStates();renderDashboardConfigAdmin();renderCommandDashboard();}
+ catch(e){console.warn('Falha ao carregar parâmetros do dashboard',e);dashboardConfig={...DEFAULT_DASHBOARD_CONFIG};renderDashboardConfigAdmin();renderCommandDashboard();}
+}
+function dashboardHealth(alerts=[]){const open=alerts.filter(x=>(x.state||'PENDENTE')!=='CONCLUIDO');if(open.some(x=>x.level==='CRÍTICO'))return 'CRÍTICO';if(open.length)return 'ATENÇÃO';return 'NORMAL'}
+function renderDashboardConfigAdmin(){
+ const c=dashboardConfig||DEFAULT_DASHBOARD_CONFIG;
+ const a=$('#dashCfgAtencao'),cr=$('#dashCfgCritico'),mc=$('#dashCfgMinComparacoes'),preview=$('#dashCfgPreview');
+ if(a)a.value=c.quedaAtencaoPct;if(cr)cr.value=c.quedaCriticaPct;if(mc)mc.value=c.minComparacoes;
+ if(preview)preview.innerHTML=`<div><span>NORMAL</span><b>sem queda relevante</b></div><div><span>ATENÇÃO</span><b>queda ≥ ${c.quedaAtencaoPct}%</b></div><div><span>CRÍTICO</span><b>queda ≥ ${c.quedaCriticaPct}%</b></div><small>A referência é sempre a <b>semana anterior</b>. A semana atual é comparada somente com os mesmos dias/horários já coletados, evitando alerta por semana incompleta. Mínimo de <b>${c.minComparacoes}</b> coletas comparáveis.</small>`;
+}
+async function saveDashboardConfig(){
+ if(!isAdmin())return;
+ const raw={quedaAtencaoPct:Number($('#dashCfgAtencao')?.value),quedaCriticaPct:Number($('#dashCfgCritico')?.value),minComparacoes:Number($('#dashCfgMinComparacoes')?.value)};
+ if(!Number.isFinite(raw.quedaAtencaoPct)||raw.quedaAtencaoPct<1)return alert('Informe a queda percentual para ATENÇÃO.');
+ if(!Number.isFinite(raw.quedaCriticaPct)||raw.quedaCriticaPct<=raw.quedaAtencaoPct)return alert('A queda CRÍTICA precisa ser maior que a queda de ATENÇÃO.');
+ if(!Number.isFinite(raw.minComparacoes)||raw.minComparacoes<1)return alert('Informe o mínimo de coletas comparáveis.');
+ const before={...dashboardConfig};dashboardConfig=sanitizeDashboardConfig(raw);
+ try{await setDoc(dashboardConfigDoc,{...dashboardConfig,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true});await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'DASHBOARD_PARAMETROS',descricao:'Parâmetros semanais NORMAL / ATENÇÃO / CRÍTICO alterados',antes:before,depois:dashboardConfig,usuario:currentUser.email,data:serverTimestamp()});renderDashboardConfigAdmin();renderCommandDashboard();alert('Parâmetros semanais do Dashboard salvos.');}
+ catch(e){dashboardConfig=before;alert('Não foi possível salvar os parâmetros: '+e.message)}
+}
+async function loadDashboardAlertStates(){try{const qs=await getDocs(dashboardAlertCol);dashboardAlertStates=qs.docs.map(d=>({id:d.id,...d.data()}))}catch(e){dashboardAlertStates=[];console.warn('Falha ao carregar status dos alertas',e)}}
+function alertStateId(group,weekKey){return `CONTINGENTE_${String(group||'').replace(/[^a-zA-Z0-9_-]/g,'_')}_${weekKey}`}
+function findDashboardAlertState(group,weekKey){return dashboardAlertStates.find(x=>x.id===alertStateId(group,weekKey))||null}
+async function setDashboardAlertState(group,weekKey,status){
+ if(!canEditModule('dashboard'))return permissionDeniedMessage('dashboard',true);
+ const id=alertStateId(group,weekKey),before=findDashboardAlertState(group,weekKey),data={tipo:'CONTINGENTE_SEMANAL',group,weekKey,status,updatedAt:serverTimestamp(),updatedBy:currentUser.email};
+ try{await setDoc(doc(db,'highos','data','alertas_dashboard',id),data,{merge:true});await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'ALERTA_DASHBOARD',group,descricao:`Alerta semanal marcado como ${status}`,antes:before||null,depois:{group,weekKey,status},usuario:currentUser.email,data:serverTimestamp()});await loadDashboardAlertStates();renderCommandDashboard()}catch(e){alert('Erro ao atualizar o alerta: '+e.message)}
+}
 const DEFAULT_SEGMENTS=[
  {nome:'ARMAS',icone:'🔫',descricao:'Arsenal'},
  {nome:'MUNIÇÃO',icone:'🎯',descricao:'Munições'},
@@ -96,7 +138,9 @@ const SYSTEM_MODULES=[
  {id:'metricas',label:'Métricas',desc:'Central de métricas e relatórios'},
  {id:'economia',label:'Economia',desc:'Tabela, pista e referências econômicas'},
  {id:'historico',label:'Histórico',desc:'Movimentações e auditoria operacional'},
- {id:'alvesinho',label:'Alvesinho',desc:'Assistente do High OS'}
+ {id:'alvesinho',label:'Alvesinho',desc:'Assistente do High OS'},
+ {id:'chat',label:'Chat da Equipe',desc:'Mensagens internas entre usuários logados'},
+ {id:'spotify',label:'Spotify',desc:'Player de música integrado ao High OS'}
 ];
 const INTERNAL_MODULE_PARENT={'group-profile':'faccoes','group-settings':'faccoes'};
 function normalizePermission(v){v=String(v||'').toUpperCase();return ['NONE','VIEW','EDIT'].includes(v)?v:'NONE'}
@@ -139,8 +183,11 @@ onAuthStateChanged(auth,async user=>{
   applyModuleAccess(role);
   renderSessionClock(email);
   await loadSegmentConfig();
+  await loadDashboardConfig();
   await loadFaccoes();
   await loadMetrics();
+  if(canViewModule('spotify'))await loadSpotifyConfig();
+  if(canViewModule('chat'))startChat();
   if(canViewModule('economia'))loadMarketCatalog();
   if(role==='ADMIN') await loadUsers();
  }catch(e){show(deniedView);$('#deniedText').textContent='Falha ao validar seu cadastro no Firestore: '+e.message}
@@ -151,7 +198,7 @@ document.querySelectorAll('.nav-item').forEach(btn=>btn.addEventListener('click'
 // HIGH OS V6.7 · o perfil do Group passa a abrir como página interna, não como modal.
 function activateAppPage(page){
  if(page!=='administracao'&&page!=='usuarios'&&!isAdmin()&&!canViewModule(page)){permissionDeniedMessage(page,false);const fallback=firstAllowedModule();if(!fallback||fallback===page)return;page=fallback}
- if(page==='administracao'&&isAdmin())setTimeout(()=>loadUserAudit(),0);
+ if(page==='administracao'&&isAdmin())setTimeout(()=>loadUserAudit(),0);if(page==='spotify')setTimeout(()=>loadSpotifyConfig(),0);if(page==='chat')setTimeout(()=>startChat(),0);
  document.querySelectorAll('.page').forEach(x=>x.classList.toggle('active',x.id==='page-'+page));
  document.querySelectorAll('.nav-item').forEach(x=>x.classList.toggle('active',x.dataset.page===page));
  try{window.scrollTo({top:0,behavior:'smooth'})}catch{}
@@ -1143,9 +1190,11 @@ function metricPeriodLabel(key=''){
  const m=String(key).match(/^(\d{4})-(\d{2})$/);if(!m)return key||'—';const d=new Date(+m[1],+m[2]-1,1);return d.toLocaleDateString('pt-BR',{month:'long',year:'numeric'}).replace(/^./,c=>c.toUpperCase());
 }
 function parseIsoMetricDate(v=''){const m=String(v).match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?new Date(+m[1],+m[2]-1,+m[3]):null}
+function metricGroupOccupied(group){return faccoes.some(f=>alvesNorm(f.group)===alvesNorm(group)&&f.status==='ATIVA'&&String(f.faccao||'').trim())}
 function activeMetricRows(){
- if(metricDateStart||metricDateEnd){const a=parseIsoMetricDate(metricDateStart),b=parseIsoMetricDate(metricDateEnd);return metricas.filter(m=>{const d=metricDateValue(m);return (!a||d>=a)&&(!b||d<=new Date(b.getFullYear(),b.getMonth(),b.getDate(),23,59,59))})}
- const key=metricPeriodKey||currentMetricMonthKey();return metricas.filter(m=>metricMonthKey(m)===key)
+ const occupied=m=>metricGroupOccupied(m.group||m.organizacao||m.faccao);
+ if(metricDateStart||metricDateEnd){const a=parseIsoMetricDate(metricDateStart),b=parseIsoMetricDate(metricDateEnd);return metricas.filter(m=>{const d=metricDateValue(m);return occupied(m)&&(!a||d>=a)&&(!b||d<=new Date(b.getFullYear(),b.getMonth(),b.getDate(),23,59,59))})}
+ const key=metricPeriodKey||currentMetricMonthKey();return metricas.filter(m=>occupied(m)&&metricMonthKey(m)===key)
 }
 function metricActivePeriodLabel(){if(metricDateStart||metricDateEnd){const f=x=>{const d=parseIsoMetricDate(x);return d?d.toLocaleDateString('pt-BR'):'…'};return `${f(metricDateStart)} a ${f(metricDateEnd)}`}return metricPeriodLabel(metricPeriodKey)}
 function syncMetricDateInputs(){const a=$('#metricDateStart'),b=$('#metricDateEnd');if(a)a.value=metricDateStart;if(b)b.value=metricDateEnd}
@@ -2302,41 +2351,54 @@ function showOrganizationProfilePage(o={},current=null){
 function closeOrganizationProfilePage(){activateAppPage('organizacoes')}
 $('#orgProfileBack')?.addEventListener('click',closeOrganizationProfilePage);
 
-function dashboardLatestMetricRows(){
- if(!metricasCache?.length)return [];
- let max=0;metricasCache.forEach(r=>{const d=metricDateValue(r);if(d)max=Math.max(max,d.getTime())});
- return metricasCache.filter(r=>metricDateValue(r)?.getTime()===max);
+function startOfWeekMonday(d=new Date()){
+ const x=new Date(d.getFullYear(),d.getMonth(),d.getDate());const day=(x.getDay()+6)%7;x.setDate(x.getDate()-day);x.setHours(0,0,0,0);return x;
 }
-function dashboardMetricValue(row){const vals=Object.values(metricSlots(row)).filter(Number.isFinite);return vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:0}
+function isoDay(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
+function weeklyContingentAlerts(){
+ const now=new Date(),curStart=startOfWeekMonday(now),prevStart=new Date(curStart);prevStart.setDate(prevStart.getDate()-7);const prevEnd=new Date(curStart.getTime()-1);
+ const currentRows=metricasCache.filter(r=>{const d=metricDateValue(r);return d&&d>=curStart&&d<=now});
+ const previousRows=metricasCache.filter(r=>{const d=metricDateValue(r);return d&&d>=prevStart&&d<=prevEnd});
+ const cfg=dashboardConfig||DEFAULT_DASHBOARD_CONFIG,weekKey=isoDay(curStart),out=[];
+ faccoes.filter(f=>f.status==='ATIVA'&&String(f.faccao||'').trim()).forEach(f=>{
+  const same=r=>alvesNorm(r.group||r.organizacao||r.faccao)===alvesNorm(f.group),cur=currentRows.filter(same),prev=previousRows.filter(same);if(!cur.length||!prev.length)return;
+  const prevMap=new Map();prev.forEach(r=>{const d=metricDateValue(r),wd=(d.getDay()+6)%7;Object.entries(metricSlots(r)).forEach(([h,v])=>{v=Number(v);if(Number.isFinite(v))prevMap.set(`${wd}|${h}`,v)})});
+  const pairs=[];cur.forEach(r=>{const d=metricDateValue(r),wd=(d.getDay()+6)%7;Object.entries(metricSlots(r)).forEach(([h,v])=>{v=Number(v);const pv=prevMap.get(`${wd}|${h}`);if(Number.isFinite(v)&&Number.isFinite(pv))pairs.push([v,pv])})});
+  if(pairs.length<cfg.minComparacoes)return;const currentAvg=pairs.reduce((a,x)=>a+x[0],0)/pairs.length,previousAvg=pairs.reduce((a,x)=>a+x[1],0)/pairs.length;if(previousAvg<=0)return;
+  const drop=(previousAvg-currentAvg)/previousAvg*100;if(drop<cfg.quedaAtencaoPct)return;const level=drop>=cfg.quedaCriticaPct?'CRÍTICO':'ATENÇÃO',state=findDashboardAlertState(f.group,weekKey)?.status||'PENDENTE';
+  out.push({group:f.group,faccao:f.faccao,segmento:f.segmento,currentAvg,previousAvg,drop,level,state,pairs:pairs.length,weekKey,currentStart:curStart,previousStart:prevStart});
+ });return out.sort((a,b)=>(a.state==='CONCLUIDO')-(b.state==='CONCLUIDO')||b.drop-a.drop);
+}
+function vacantMetricAnomalies(){
+ const cutoff=new Date();cutoff.setDate(cutoff.getDate()-7);const by=new Map();metricasCache.forEach(r=>{const g=String(r.group||r.organizacao||r.faccao||'').trim(),d=metricDateValue(r);if(!g||!d||d<cutoff||metricGroupOccupied(g))return;const vals=Object.values(metricSlots(r)).map(Number).filter(Number.isFinite),mx=vals.length?Math.max(...vals):0;if(mx<=0)return;const cur=by.get(alvesNorm(g));if(!cur||d>cur.date)by.set(alvesNorm(g),{group:g,date:d,value:mx,row:r})});
+ return [...by.values()].map(x=>{const f=faccoes.find(z=>alvesNorm(z.group)===alvesNorm(x.group));const lastDelivery=historico.filter(h=>h.tipo==='ENTREGA_GROUP'&&alvesNorm(h.group)===alvesNorm(x.group)).sort((a,b)=>historyMillis(b)-historyMillis(a))[0];return {...x,qg:f?.qg||'',staff:f?.staff||'',hasExtract:!!lastDelivery};}).sort((a,b)=>b.date-a.date);
+}
 function dashboardGo(page){activateAppPage(page)}
+function openMetricForGroup(group){
+ activateAppPage('metricas');const cur=startOfWeekMonday(new Date());metricDateStart=isoDay(cur);metricDateEnd=isoDay(new Date());syncMetricDateInputs();renderMetrics();if($('#metricScopeSelect'))$('#metricScopeSelect').value=group;if($('#metricFactionSelect'))$('#metricFactionSelect').value=group;switchMetricCenterView('faction');renderMetricFactionDetail(group);
+}
 function renderCommandDashboard(){
  const box=$('#commandDashboard');if(!box)return;
- const active=faccoes.filter(f=>f.status==='ATIVA'&&f.faccao),vacant=faccoes.filter(f=>f.status!=='ATIVA'||!f.faccao);
- const latest=dashboardLatestMetricRows();
- const metricRank=latest.map(r=>{const id=metricIdentity(r.group||r.organizacao||r.faccao,r);return {...id,value:dashboardMetricValue(r)}}).filter(x=>x.group).sort((a,b)=>b.value-a.value);
- const low=metricRank.filter(x=>x.value>0&&x.value<15).sort((a,b)=>a.value-b.value);
- const pending=solicitacoes.filter(x=>String(x.status||'').toUpperCase()==='PENDENTE').length;
- const alerts=low.length;
- const health=alerts>=5?'CRÍTICO':alerts?'ATENÇÃO':'NORMAL';
+ const active=faccoes.filter(f=>f.status==='ATIVA'&&f.faccao),vacant=faccoes.filter(f=>f.status!=='ATIVA'||!f.faccao),weekly=weeklyContingentAlerts(),openAlerts=weekly.filter(x=>x.state!=='CONCLUIDO'),critical=openAlerts.filter(x=>x.level==='CRÍTICO').length;
+ const pending=solicitacoes.filter(x=>String(x.status||'').toUpperCase()==='PENDENTE').length,health=dashboardHealth(weekly),anomalies=vacantMetricAnomalies();
  const segs={};faccoes.forEach(f=>{const k=f.segmento||'OUTROS';if(!segs[k])segs[k]={all:0,on:0};segs[k].all++;if(f.status==='ATIVA'&&f.faccao)segs[k].on++});
- const movements=historico.slice(0,6);
- const rec30=historico.filter(h=>historyFamily(h.tipo)==='RECOLHIMENTO').length,ent30=historico.filter(h=>historyFamily(h.tipo)==='ENTREGA').length;
+ const movements=historico.slice(0,6),rec30=historico.filter(h=>historyFamily(h.tipo)==='RECOLHIMENTO').length,ent30=historico.filter(h=>historyFamily(h.tipo)==='ENTREGA').length;
  const bars=Object.entries(segs).map(([k,v])=>`<div class="dash-seg-row"><span>${esc(k)}</span><div><i style="width:${v.all?Math.max(3,v.on/v.all*100):0}%"></i></div><b>${v.on}/${v.all}</b></div>`).join('');
- const top=metricRank.slice(0,5).map((x,i)=>`<button class="dash-rank-row" data-group="${esc(x.group)}"><em>${i+1}</em><span><b>${esc(x.faccao||x.group)}</b><small>${esc(x.group)}</small></span><strong>${x.value.toFixed(1)}</strong></button>`).join('')||'<div class="dash-empty">Sem métricas para a data mais recente.</div>';
- const attention=low.slice(0,5).map(x=>`<button class="dash-attention-row" data-group="${esc(x.group)}"><i></i><span><b>${esc(x.faccao||x.group)}</b><small>${esc(x.group)} • abaixo de 15 na média do dia</small></span><strong>${x.value.toFixed(1)}</strong></button>`).join('')||'<div class="dash-empty good-text">Nenhuma facção abaixo da referência nas métricas mais recentes.</div>';
+ const attention=weekly.length?weekly.map(x=>`<article class="dash-week-alert ${x.level==='CRÍTICO'?'critical':''} ${x.state==='CONCLUIDO'?'done':''}"><button type="button" class="dash-alert-main" data-alert-group="${esc(x.group)}"><i></i><span><b>${esc(x.faccao)} • ${esc(x.group)}</b><small>${x.level} • queda ${x.drop.toFixed(1)}% • semana atual ${x.currentAvg.toFixed(1)} vs anterior ${x.previousAvg.toFixed(1)} • ${x.pairs} coletas comparáveis</small></span><strong>${x.state==='CONCLUIDO'?'CONCLUÍDO':x.level}</strong></button><div class="dash-alert-actions"><button type="button" title="Marcar como concluído" data-alert-state="CONCLUIDO" data-group="${esc(x.group)}" data-week="${esc(x.weekKey)}">✓</button><button type="button" title="Marcar como pendente" data-alert-state="PENDENTE" data-group="${esc(x.group)}" data-week="${esc(x.weekKey)}">✕</button></div></article>`).join(''):'<div class="dash-empty good-text">Nenhuma queda semanal relevante entre as facções ocupadas.</div>';
+ const anomalyHtml=anomalies.length?anomalies.map(x=>`<button class="dash-anomaly-row" data-anomaly-group="${esc(x.group)}"><span><b>⚠ ${esc(x.group)} SEM OCUPAÇÃO COM MÉTRICA ${x.value}</b><small>${esc(x.qg||'QG')} • ${x.date.toLocaleString('pt-BR')} • ${x.hasExtract?'há histórico de entrega, mas o Group está vago':'não consta extrato de entrega/assunção compatível'}</small><em>Confirme a ocupação. Se não houve assunção, peça ao staff/player que estiver neste Group para sair ou remova-o.</em></span><strong>VER →</strong></button>`).join(''):'<div class="dash-empty good-text">Nenhuma presença indevida detectada em Groups vagos nos últimos 7 dias.</div>';
  const activity=movements.map(h=>`<div class="dash-activity-row"><i></i><div><b>${esc(historyTitle(h))}</b><span>${esc([h.group,h.faccao].filter(Boolean).join(' • ')||h.descricao||'Operação administrativa')}</span><small>${esc(formatHistoryDate(h))}${h.usuario?' • '+esc(h.usuario):''}</small></div></div>`).join('')||'<div class="dash-empty">Nenhuma movimentação registrada.</div>';
- box.innerHTML=`<div class="dash-kpis"><button data-go="organizacoes"><span>FACÇÕES ATIVAS</span><b>${active.length}</b><small>ocupando Groups</small></button><button data-go="faccoes"><span>QGs VAGOS</span><b>${vacant.length}</b><small>disponíveis</small></button><button data-go="metricas" class="${alerts?'warn':''}"><span>EM ATENÇÃO</span><b>${alerts}</b><small>contingente abaixo de 15</small></button><button data-go="solicitacoes"><span>SOLICITAÇÕES</span><b>${pending||solicitacoes.length}</b><small>${pending?'pendentes':'modelos cadastrados'}</small></button><article class="health ${health.toLowerCase()}"><span>SAÚDE DO ILEGAL</span><b>${health}</b><small>${alerts?alerts+' alerta(s) de contingente':'operação estável'}</small></article></div>
- <div class="dash-grid"><section class="dash-panel dash-wide"><header><div><span>MÉTRICAS MAIS RECENTES</span><h3>CONTINGENTE DO ILEGAL</h3></div><button data-go="metricas">ABRIR CENTRAL →</button></header><div class="dash-contingent"><div><h4>MAIORES CONTINGENTES</h4>${top}</div><div><h4>ATENÇÃO DA STAFF</h4>${attention}</div></div></section>
+ box.innerHTML=`<div class="dash-kpis"><button data-go="organizacoes"><span>FACÇÕES ATIVAS</span><b>${active.length}</b><small>somente ocupadas</small></button><button data-go="faccoes"><span>QGs VAGOS</span><b>${vacant.length}</b><small>fora de métricas globais</small></button><button data-go="metricas" class="${openAlerts.length?'warn':''}"><span>ALERTAS SEMANAIS</span><b>${openAlerts.length}</b><small>${critical?critical+' crítico(s)':'comparação com semana anterior'}</small></button><button data-go="solicitacoes"><span>SOLICITAÇÕES</span><b>${pending||solicitacoes.length}</b><small>${pending?'pendentes':'modelos cadastrados'}</small></button><article class="health ${health.toLowerCase()}"><span>SAÚDE DO ILEGAL</span><b>${health}</b><small>${openAlerts.length?openAlerts.length+' alerta(s) pendente(s)':'sem alertas pendentes'}</small></article></div>
+ <div class="dash-grid"><section class="dash-panel dash-wide"><header><div><span>COMPARAÇÃO SEMANAL</span><h3>ALERTAS OBJETIVOS DE CONTINGENTE</h3></div><button data-go="metricas">ABRIR CENTRAL →</button></header><p class="dash-rule-note">A semana atual é comparada com os mesmos dias e horários da semana anterior. Facções sem ocupação nunca geram alerta.</p><div class="dash-week-alerts">${attention}</div></section>
  <section class="dash-panel"><header><div><span>PATRIMÔNIO</span><h3>OCUPAÇÃO POR SEGMENTO</h3></div><button data-go="faccoes">VER QGs →</button></header><div class="dash-segments">${bars}</div></section>
+ <section class="dash-panel dash-wide"><header><div><span>VALIDAÇÃO AUTOMÁTICA</span><h3>INCONSISTÊNCIAS • GROUP VAGO COM PLAYER</h3></div></header><div class="dash-anomalies">${anomalyHtml}</div></section>
  <section class="dash-panel"><header><div><span>30 DIAS / HISTÓRICO</span><h3>MOVIMENTAÇÃO DE FACÇÕES</h3></div><button data-go="entregas">VER ENTREGAS →</button></header><div class="dash-move-kpis"><div><b>${ent30}</b><span>ENTREGAS</span></div><div><b>${rec30}</b><span>RECOLHIMENTOS</span></div><div><b>${historico.length}</b><span>EVENTOS</span></div></div></section>
  <section class="dash-panel dash-wide"><header><div><span>AUDITORIA</span><h3>ATIVIDADE RECENTE</h3></div><button data-go="historico">ABRIR HISTÓRICO →</button></header><div class="dash-activity">${activity}</div></section></div>`;
- box.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>dashboardGo(b.dataset.go));
- box.querySelectorAll('[data-group]').forEach(b=>b.onclick=()=>{const f=faccoes.find(x=>x.group===b.dataset.group);if(f)openFac(f.id)});
+ box.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>dashboardGo(b.dataset.go));box.querySelectorAll('[data-alert-group]').forEach(b=>b.onclick=()=>openMetricForGroup(b.dataset.alertGroup));box.querySelectorAll('[data-alert-state]').forEach(b=>b.onclick=e=>{e.stopPropagation();setDashboardAlertState(b.dataset.group,b.dataset.week,b.dataset.alertState)});box.querySelectorAll('[data-anomaly-group]').forEach(b=>b.onclick=()=>{activateAppPage('faccoes');const f=faccoes.find(x=>alvesNorm(x.group)===alvesNorm(b.dataset.anomalyGroup));if(f)openFac(f.id)});
 }
 const _loadMetricsV78=loadMetrics;loadMetrics=async function(){await _loadMetricsV78();renderCommandDashboard()};
 const _renderHistoryV78=renderHistory;renderHistory=function(){_renderHistoryV78();renderCommandDashboard()};
 const _renderOrganizationsV78=renderOrganizations;renderOrganizations=function(){_renderOrganizationsV78();renderCommandDashboard()};
-console.info('HIGH OS DEV V7.8 · Central de Comando + Perfil de Facção em página');
+console.info('HIGH OS V8.23 · Alertas semanais + métricas ocupadas + Chat + Spotify');
 
 // HIGH OS V8.6 — solicitação automática ao salvar Craft adquirido/extra
 function craftRecipeKey(r={}){return String(r.spawn||r.id||r.nome||'').trim().toLowerCase()}
@@ -2666,6 +2728,8 @@ console.info('HIGH OS V8.14 · Solicitações bidirecionais + arquivo por Group 
 // ===== HIGH OS V8.18 · ADMINISTRAÇÃO ORGANIZADA =====
 function openAdminTab(tab='acessos'){document.querySelectorAll('[data-admin-tab]').forEach(b=>b.classList.toggle('active',b.dataset.adminTab===tab));document.querySelectorAll('[data-admin-panel]').forEach(p=>p.classList.toggle('active',p.dataset.adminPanel===tab));if(tab==='auditoria'&&isAdmin())loadUserAudit()}
 document.querySelectorAll('[data-admin-tab]').forEach(b=>b.addEventListener('click',()=>openAdminTab(b.dataset.adminTab)));
+$('#dashCfgSave')?.addEventListener('click',saveDashboardConfig);
+['dashCfgAtencao','dashCfgCritico','dashCfgMinComparacoes'].forEach(id=>$('#'+id)?.addEventListener('input',()=>{const raw={quedaAtencaoPct:Number($('#dashCfgAtencao')?.value)||15,quedaCriticaPct:Number($('#dashCfgCritico')?.value)||30,minComparacoes:Number($('#dashCfgMinComparacoes')?.value)||4};const old=dashboardConfig;dashboardConfig=sanitizeDashboardConfig(raw);renderDashboardConfigAdmin();dashboardConfig=old;}));
 $('#adminOpenUsersBtn')?.addEventListener('click',()=>activateAppPage('usuarios'));
 
 console.info('HIGH OS V8.20 · Facções livres: status obrigatório Discord + relatórios + status ativo por ocupação');
@@ -2683,3 +2747,19 @@ async function normalizeOccupationStatusV820(){
 }
 const _loadFaccoesV820=loadFaccoes;
 loadFaccoes=async function(){await _loadFaccoesV820();await normalizeOccupationStatusV820()};
+
+
+// ===== HIGH OS V8.23 · CHAT INTERNO + SPOTIFY =====
+function spotifyEmbedUrl(value=''){
+ const v=String(value||'').trim();if(!v)return '';
+ const m=v.match(/open\.spotify\.com\/(?:intl-[^/]+\/)?(track|playlist|album|artist|episode|show)\/([A-Za-z0-9]+)/i);return m?`https://open.spotify.com/embed/${m[1]}/${m[2]}?utm_source=generator`:'';
+}
+async function loadSpotifyConfig(){try{const s=await getDoc(spotifyConfigDoc);spotifyConfig=s.exists()?{...spotifyConfig,...s.data()}:spotifyConfig}catch(e){console.warn('Spotify config',e)}renderSpotify()}
+function renderSpotify(){const box=$('#spotifyPlayer'),input=$('#spotifyUrl');if(input&&!input.matches(':focus'))input.value=spotifyConfig.url||'';if(!box)return;const src=spotifyEmbedUrl(spotifyConfig.url);box.innerHTML=src?`<iframe src="${esc(src)}" width="100%" height="352" frameborder="0" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy" title="Spotify Player"></iframe>`:'<div class="spotify-empty"><b>♫</b><h3>PLAYER NÃO CONFIGURADO</h3><p>Cole um link público do Spotify: playlist, álbum, artista, faixa ou podcast.</p></div>'}
+async function saveSpotifyConfig(){if(!canEditModule('spotify'))return permissionDeniedMessage('spotify',true);const url=$('#spotifyUrl')?.value.trim()||'';if(url&&!spotifyEmbedUrl(url))return alert('Informe um link válido do open.spotify.com.');const before={...spotifyConfig};try{spotifyConfig={url};await setDoc(spotifyConfigDoc,{url,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true});await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'SPOTIFY_CONFIG',descricao:'Player Spotify atualizado',antes:before,depois:{url},usuario:currentUser.email,data:serverTimestamp()});renderSpotify()}catch(e){spotifyConfig=before;alert('Erro ao salvar Spotify: '+e.message)}}
+function chatTime(v){const d=v?.toDate?v.toDate():v?.seconds?new Date(v.seconds*1000):v?.createdAtText?new Date(v.createdAtText):null;return d&&!isNaN(d)?d.toLocaleString('pt-BR'):'agora'}
+function renderChatMessages(items=[]){const box=$('#chatMessages');if(!box)return;const me=(currentUser?.email||'').toLowerCase();box.innerHTML=items.length?items.map(m=>`<article class="chat-message ${String(m.email||'').toLowerCase()===me?'mine':''}"><img src="${esc(m.photoURL||'')}" alt="" onerror="this.style.display='none'"><div><header><b>${esc(m.nome||m.email||'Usuário')}</b><small>${esc(m.cargo||'')} • ${esc(chatTime(m.createdAt||m))}</small></header><p>${esc(m.texto||'')}</p>${isAdmin()?`<button type="button" class="chat-delete" data-chat-delete="${esc(m.id)}" title="Excluir mensagem">×</button>`:''}</div></article>`).join(''):'<div class="chat-empty">Nenhuma mensagem ainda. Inicie a conversa com a equipe.</div>';box.scrollTop=box.scrollHeight;box.querySelectorAll('[data-chat-delete]').forEach(b=>b.onclick=()=>deleteChatMessage(b.dataset.chatDelete))}
+function startChat(){if(chatUnsubscribe||!currentUser||!canViewModule('chat'))return;try{chatUnsubscribe=onSnapshot(chatCol,qs=>{const items=qs.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>{const ta=a.createdAt?.seconds||new Date(a.createdAtText||0).getTime()/1000,tb=b.createdAt?.seconds||new Date(b.createdAtText||0).getTime()/1000;return ta-tb}).slice(-150);renderChatMessages(items)},e=>{const box=$('#chatMessages');if(box)box.innerHTML=`<div class="chat-empty">Não foi possível carregar o chat: ${esc(e.message)}</div>`})}catch(e){console.warn(e)}}
+async function sendChatMessage(){if(!canEditModule('chat'))return permissionDeniedMessage('chat',true);const input=$('#chatInput'),texto=input?.value.trim();if(!texto)return;if(texto.length>1000)return alert('Mensagem muito longa. Limite: 1000 caracteres.');try{await addDoc(chatCol,{texto,email:currentUser.email||'',nome:currentProfile?.name||currentUser.displayName||currentUser.email,cargo:currentProfile?.cargo||currentProfile?.role||'',photoURL:currentUser.photoURL||'',sessionId:currentSessionId||'',createdAt:serverTimestamp(),createdAtText:new Date().toISOString()});input.value=''}catch(e){alert('Erro ao enviar mensagem: '+e.message)}}
+async function deleteChatMessage(id){if(!isAdmin())return;try{await deleteDoc(doc(db,'highos','data','chat_mensagens',id));await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'CHAT_EXCLUSAO',descricao:'Mensagem removida do chat interno',usuario:currentUser.email,data:serverTimestamp()})}catch(e){alert('Erro ao excluir mensagem: '+e.message)}}
+$('#spotifySaveBtn')?.addEventListener('click',saveSpotifyConfig);$('#chatSendBtn')?.addEventListener('click',sendChatMessage);$('#chatInput')?.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChatMessage()}});document.querySelectorAll('[data-chat-emoji]').forEach(b=>b.addEventListener('click',()=>{const i=$('#chatInput');if(i){i.value+=b.dataset.chatEmoji;i.focus()}}));
