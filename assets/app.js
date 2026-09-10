@@ -10,8 +10,9 @@ sheetsProvider.addScope('https://www.googleapis.com/auth/spreadsheets.readonly')
 const facSheetProvider=new GoogleAuthProvider();
 facSheetProvider.addScope('https://www.googleapis.com/auth/spreadsheets');
 const $=s=>document.querySelector(s), loginView=$('#loginView'),deniedView=$('#deniedView'),appView=$('#appView'),sessionArea=$('#sessionArea');
-let currentUser=null,currentProfile=null,faccoes=[],solicitacoes=[],usuarios=[],organizacoes=[];
-const facCol=collection(db,'highos','data','faccoes'), histCol=collection(db,'highos','data','historico'), reqCol=collection(db,'highos','data','solicitacoes'), deliveryCol=collection(db,'highos','data','entregas'), orgCol=collection(db,'highos','data','organizacoes'), usersCol=collection(db,'users');
+let currentUser=null,currentProfile=null,faccoes=[],solicitacoes=[],requestRecords=[],usuarios=[],organizacoes=[];
+const facCol=collection(db,'highos','data','faccoes'), histCol=collection(db,'highos','data','historico'), reqCol=collection(db,'highos','data','solicitacoes'), deliveryCol=collection(db,'highos','data','entregas'), orgCol=collection(db,'highos','data','organizacoes'), sessionCol=collection(db,'highos','data','sessoes_usuario'), usersCol=collection(db,'users');
+let currentSessionId='',currentSessionStart=0,sessionTimer=null,sessionWarningShown=false;
 const segmentConfigDoc=doc(db,'highos','data','config','segmentos');
 const DEFAULT_SEGMENTS=[
  {nome:'ARMAS',icone:'🔫',descricao:'Arsenal'},
@@ -41,8 +42,47 @@ const SEED=[{"numero": 1, "cds": "{1286.34,-266.43,99.7,303.31}", "anuncio": "",
 
 function show(el){[loginView,deniedView,appView].forEach(x=>x.classList.add('hidden'));el.classList.remove('hidden')}
 async function login(){try{await signInWithPopup(auth,provider)}catch(e){alert('Não foi possível entrar com Google: '+e.message)}}
-async function logout(){await signOut(auth)}
-$('#loginBtn').onclick=login;$('#loginBtnCard').onclick=login;$('#logoutBtn').onclick=logout;$('#logoutDenied').onclick=logout;
+const SESSION_MAX_MS=8*60*60*1000;
+function sessionStorageKey(email=''){return 'highos_session_'+String(email||'').toLowerCase()}
+function makeSessionId(email=''){return `${Date.now()}_${String(email||'user').replace(/[^a-z0-9]/gi,'_')}_${Math.random().toString(36).slice(2,8)}`}
+function fmtDuration(ms=0){ms=Math.max(0,Number(ms)||0);const total=Math.floor(ms/1000),h=Math.floor(total/3600),m=Math.floor((total%3600)/60),sec=total%60;return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`}
+function sessionMeta(){return {sessionId:currentSessionId,sessionStart:currentSessionStart||0}}
+async function closeCurrentSession(reason='LOGOUT'){
+ if(!currentUser||!currentSessionId)return;
+ const now=Date.now(),duration=Math.max(0,now-currentSessionStart);
+ try{await setDoc(doc(db,'highos','data','sessoes_usuario',currentSessionId),{status:'ENCERRADA',endAt:serverTimestamp(),endAtText:new Date(now).toISOString(),lastActivityAt:serverTimestamp(),lastActivityText:new Date(now).toISOString(),durationMs:duration,endReason:reason,updatedBy:currentUser.email},{merge:true});
+ await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'SESSION_END',descricao:reason==='TIMEOUT_8H'?'Sessão encerrada automaticamente ao atingir 8 horas':'Sessão encerrada pelo usuário',duracaoMs:duration,usuario:currentUser.email,data:serverTimestamp()});}catch(e){console.warn('Falha ao encerrar sessão no log',e)}
+ try{localStorage.removeItem(sessionStorageKey(currentUser.email))}catch(e){}
+ currentSessionId='';currentSessionStart=0;if(sessionTimer){clearInterval(sessionTimer);sessionTimer=null}
+}
+async function logout(reason='LOGOUT'){await closeCurrentSession(reason);await signOut(auth)}
+async function startOrResumeSession(user,profile){
+ const email=String(user.email||'').toLowerCase(),key=sessionStorageKey(email),now=Date.now();let saved=null;
+ try{saved=JSON.parse(localStorage.getItem(key)||'null')}catch(e){}
+ if(saved?.id&&saved?.start&&now-saved.start<SESSION_MAX_MS){currentSessionId=saved.id;currentSessionStart=Number(saved.start)||now;}
+ else{
+  if(saved?.id&&saved?.start&&now-saved.start>=SESSION_MAX_MS){try{await setDoc(doc(db,'highos','data','sessoes_usuario',saved.id),{status:'ENCERRADA',endAtText:new Date(saved.start+SESSION_MAX_MS).toISOString(),durationMs:SESSION_MAX_MS,endReason:'TIMEOUT_8H'},{merge:true})}catch(e){}}
+  currentSessionId=makeSessionId(email);currentSessionStart=now;sessionWarningShown=false;
+  try{localStorage.setItem(key,JSON.stringify({id:currentSessionId,start:currentSessionStart,email}))}catch(e){}
+  try{await setDoc(doc(db,'highos','data','sessoes_usuario',currentSessionId),{sessionId:currentSessionId,email,nome:profile?.name||user.displayName||'',role:String(profile?.role||'CONSULTA').toUpperCase(),cargo:profile?.cargo||String(profile?.role||'CONSULTA').toUpperCase(),status:'EM_ANDAMENTO',startAt:serverTimestamp(),startAtText:new Date(now).toISOString(),lastActivityAt:serverTimestamp(),lastActivityText:new Date(now).toISOString(),createdBy:email});
+  await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'SESSION_START',descricao:'Login no High OS',role:String(profile?.role||'CONSULTA').toUpperCase(),usuario:email,data:serverTimestamp()});}catch(e){console.warn('Falha ao registrar início da sessão',e)}
+ }
+ startSessionClock(email);
+}
+function renderSessionClock(email=''){
+ if(!currentSessionStart||!currentSessionId)return;const elapsed=Date.now()-currentSessionStart,remaining=SESSION_MAX_MS-elapsed;
+ const displayName=currentProfile?.name||currentUser?.displayName||email;
+ const cargo=currentProfile?.cargo||String(currentProfile?.role||'CONSULTA').toUpperCase();
+ const photo=currentUser?.photoURL||'';
+ if(sessionArea){sessionArea.innerHTML=`<div class="bank-session-shell"><div class="bank-user-identity">${photo?`<img src="${esc(photo)}" alt="Foto Google">`:`<span class="bank-user-fallback">${esc(String(displayName||'?').slice(0,1).toUpperCase())}</span>`}<div><small>USUÁRIO CONECTADO</small><strong>${esc(displayName)}</strong><span>${esc(cargo)}</span></div></div><div class="bank-session-divider"></div><div class="session-clock-box"><span>BEM-VINDO, ${esc(email)}</span><b>TEMPO DE SESSÃO</b><small><strong>${fmtDuration(elapsed)}</strong><em>/ 08:00:00</em></small></div><button type="button" class="bank-logout-btn" id="logoutTopSession" title="Encerrar sessão"><span>↪</span><b>SAIR</b></button></div>`;$('#logoutTopSession')?.addEventListener('click',()=>logout('LOGOUT'));}
+ if(remaining<=10*60*1000&&remaining>0&&!sessionWarningShown){sessionWarningShown=true;alert('Sua sessão expira em 10 minutos. Salve suas alterações.');}
+ if(elapsed>=SESSION_MAX_MS){alert('Sua sessão atingiu o limite máximo de 8 horas e será encerrada. Faça login novamente para iniciar uma nova sessão.');logout('TIMEOUT_8H');}
+}
+function startSessionClock(email=''){if(sessionTimer)clearInterval(sessionTimer);renderSessionClock(email);sessionTimer=setInterval(()=>renderSessionClock(email),1000)}
+async function touchSession(){if(!currentUser||!currentSessionId)return;try{await setDoc(doc(db,'highos','data','sessoes_usuario',currentSessionId),{lastActivityAt:serverTimestamp(),lastActivityText:new Date().toISOString()},{merge:true})}catch(e){}}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')touchSession()});
+window.addEventListener('beforeunload',()=>{try{if(currentUser&&currentSessionId)localStorage.setItem(sessionStorageKey(currentUser.email),JSON.stringify({id:currentSessionId,start:currentSessionStart,email:currentUser.email}))}catch(e){}});
+$('#loginBtn').onclick=login;$('#loginBtnCard').onclick=login;$('#logoutBtn')?.addEventListener('click',()=>logout('LOGOUT'));$('#logoutDenied').onclick=logout;
 
 const METRIC_ONLY_ROLES=new Set(['RH_METRICAS','RH_VISUALIZADOR','RH_ANALISTA','RH_GESTOR']);
 function applyRoleAccess(role='CONSULTA'){
@@ -63,12 +103,12 @@ onAuthStateChanged(auth,async user=>{
  try{
   const snap=await getDoc(doc(db,'users',email));
   if(!snap.exists()||snap.data().active!==true){show(deniedView);$('#deniedText').textContent=`${email} foi autenticado, mas não possui cadastro ativo no High OS.`;sessionArea.innerHTML=`<span class="top-email">${email}</span><button class="mini-btn" id="logoutTop">Sair</button>`;$('#logoutTop').onclick=logout;return}
-  currentProfile=snap.data();const role=String(currentProfile.role||'CONSULTA').toUpperCase();show(appView);
-  $('#userName').textContent=currentProfile.name||user.displayName||email;$('#userRole').textContent=role;$('#dashEmail').textContent=email;$('#dashRole').textContent=role;
+  currentProfile=snap.data();const role=String(currentProfile.role||'CONSULTA').toUpperCase();await startOrResumeSession(user,currentProfile);if(Date.now()-currentSessionStart>=SESSION_MAX_MS)return;show(appView);
+  $('#userName').textContent=currentProfile.name||user.displayName||email;$('#userRole').textContent=currentProfile.cargo||role;$('#userAccessLevel').textContent='ACESSO: '+role;$('#dashEmail').textContent=email;$('#dashRole').textContent=role;
   if(user.photoURL)$('#userPhoto').src=user.photoURL;else $('#userPhoto').style.display='none';
   document.querySelectorAll('.admin-only').forEach(el=>el.style.display=role==='ADMIN'?'flex':'none');
   applyRoleAccess(role);
-  sessionArea.innerHTML=`<span class="access-pill">● ${role}</span><span class="top-email">${email}</span>`;
+  renderSessionClock(email);
   await loadSegmentConfig();
   if(METRIC_ONLY_ROLES.has(role))faccoes=[];else await loadFaccoes();
   await loadMetrics();
@@ -77,10 +117,11 @@ onAuthStateChanged(auth,async user=>{
  }catch(e){show(deniedView);$('#deniedText').textContent='Falha ao validar seu cadastro no Firestore: '+e.message}
 });
 
-document.querySelectorAll('.nav-item').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));$('#page-'+btn.dataset.page).classList.add('active')}));
+document.querySelectorAll('.nav-item').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));$('#page-'+btn.dataset.page).classList.add('active');if(btn.dataset.page==='administracao'&&isAdmin())loadUserAudit()}));
 
 // HIGH OS V6.7 · o perfil do Group passa a abrir como página interna, não como modal.
 function activateAppPage(page){
+ if(page==='administracao'&&isAdmin())setTimeout(()=>loadUserAudit(),0);
  document.querySelectorAll('.page').forEach(x=>x.classList.toggle('active',x.id==='page-'+page));
  document.querySelectorAll('.nav-item').forEach(x=>x.classList.toggle('active',x.dataset.page===page));
  try{window.scrollTo({top:0,behavior:'smooth'})}catch{}
@@ -117,7 +158,7 @@ $('#seedBtn').onclick=async()=>{
  if(currentProfile?.role!=='ADMIN')return;
  if(faccoes.length){alert('A base já possui registros. A importação inicial foi bloqueada para evitar duplicidade.');return}
  if(!confirm(`Importar as ${SEED.length} posições do Documento das Facções para o Firestore?`))return;
- try{const batch=writeBatch(db);SEED.forEach(f=>batch.set(doc(db,'highos','data','faccoes',f.group),{...f,updatedAt:serverTimestamp(),updatedBy:currentUser.email}));await batch.commit();await addDoc(histCol,{tipo:'IMPORTACAO_INICIAL',descricao:`Base inicial importada: ${SEED.length} posições`,usuario:currentUser.email,data:serverTimestamp()});await loadFaccoes();alert('Base inicial importada com sucesso.')}catch(e){alert('Erro na importação: '+e.message)}
+ try{const batch=writeBatch(db);SEED.forEach(f=>batch.set(doc(db,'highos','data','faccoes',f.group),{...f,updatedAt:serverTimestamp(),updatedBy:currentUser.email}));await batch.commit();await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'IMPORTACAO_INICIAL',descricao:`Base inicial importada: ${SEED.length} posições`,usuario:currentUser.email,data:serverTimestamp()});await loadFaccoes();alert('Base inicial importada com sucesso.')}catch(e){alert('Erro na importação: '+e.message)}
 };
 
 function getFormBenefits(){
@@ -191,6 +232,19 @@ function buildDeliveryExtract(f=currentFactionFromForm()){
  return L.join('\n');
 }
 function changedBenefit(oldB={},newB={},keys=[]){return keys.some(k=>String(oldB?.[k]??'')!==String(newB?.[k]??''))}
+function samePlain(a,b){return JSON.stringify(clonePlain(a||{}))===JSON.stringify(clonePlain(b||{}))}
+function operationalRequestAdditions(old={},f={}){
+ const req=[],oldO=mergedTechProfile(old).operacional||opBlank(),newO=f?.perfilTecnico?.operacional||mergedTechProfile(f).operacional||opBlank(),group=f.group||old.group||'{Group}';
+ const og=t=>oldO.garagens?.find(x=>x.tipo===t)||{},ng=t=>newO.garagens?.find(x=>x.tipo===t)||{};
+ const add=(tipo,titulo,texto)=>req.push({tipo,titulo,texto});
+ const pub2=ng('PUBLICA_2'),oldPub2=og('PUBLICA_2');
+ if((pub2.blip||pub2.spawn)&&!samePlain(oldPub2,pub2))add('GARAGEM','Garagem Pública 2',['Assunto:','','- Solicitação de Garagem Pública;','','Solicitação:','','- Adicione uma garagem pública na CDS abaixo:','',`- Blip: ${fmtCds(pub2.blip)}`,`- Spawn: ${fmtCds(pub2.spawn)}`,'',`- Permissão: ${group}`].join('\n'));
+ const serv=ng('SERVICO'),oldServ=og('SERVICO');
+ if((serv.blip||serv.spawn||serv.veiculos)&&!samePlain(oldServ,serv))add('GARAGEM_SERVICO','Garagem de Serviço / VIP Org',['Assunto:','',`- Adição de Garagem de Serviço no Group "${group}";`,'','Solicitação:','',`- Adicione uma garagem de serviço no Group "${group}";`,'','- Tipo: SERVIÇO / VIP ORG;',`- Veículos de aluguel: ${serv.veiculos||'{veiculo1}, {veiculo2}'};`,'',`- Blip: ${fmtCds(serv.blip)}`,`- Spawn: ${fmtCds(serv.spawn)}`,'',`- A garagem deverá ficar disponível para todos os membros do Group "${group}".`,'',`- Permissão: "${group}".`].join('\n'));
+ const arm=newO.blindados||{},oldArm=oldO.blindados||{};
+ if((arm.blip||arm.spawn||arm.veiculos||arm.vagas)&&!samePlain(oldArm,arm))add('GARAGEM_BLINDADOS','Garagem de Blindados',['Assunto:','',`- Adição de Garagem de Blindados no Group "${group}";`,'','Solicitação:','',`- Adicione uma garagem de blindados no Group "${group}";`,'',`- Quantidade de vagas: ${arm.vagas||'{quantidade}'};`,`- Blip: ${fmtCds(arm.blip)}`,`- Spawn da garagem: ${fmtCds(arm.spawn)}`,`- Spawn do veículo blindado: ${arm.veiculos||'{spawn_do_veiculo}'};`,'',`- Obs: Os veículos só serão spawnados após o líder cadastrar no painel o membro permissionado a pegar o mesmo. Se o membro não tiver set, informar para solicitar à liderança o set de blindado, dentro das vagas disponíveis. Se não houver mais blindado disponível, exibir a mensagem: "Esse Group já setou todas as vagas de blindados disponíveis, verifique com o líder da facção."`,'',`- Permissão: "${group}".`].join('\n'));
+ return req;
+}
 function autoDeliveryRequests(f=currentFactionFromForm()){
  const old=faccoes.find(x=>x.group===f.group)||{}, ob=old.beneficios||{}, b=f.beneficios||{}, req=[];
  const add=(tipo,titulo,texto)=>req.push({tipo,titulo,texto});
@@ -207,6 +261,7 @@ function autoDeliveryRequests(f=currentFactionFromForm()){
  if(b.telao && (!ob.telao || changedBenefit(ob,b,['telaoNome','telaoPostit','telaoCds']))){add('TELAO','Telão da Organização',['Assunto: Ativação de Telão Hall em uma Organização Ilegal','','Solicitação:','','- Ativação de Telão Hall em uma Organização Ilegal.','',`- Group: ${f.group}`,`- Telão usado: ${b.telaoNome||'{modelo_do_telao}'}`,'','- Local/Coordenadas de onde está o telão (coordenadas pega com postit):',`  ${fmtCds(b.telaoPostit)}`,'','- Local/Coordenadas de onde está o telão (coordenadas pega com cds):',`  ${fmtCds(b.telaoCds)}`].join('\n'))}
  if(b.garagemPublica && (!ob.garagemPublica || changedBenefit(ob,b,['garagemPublicaBlip','garagemPublicaSpawn']))){add('GARAGEM','Garagem Pública',['Assunto:','','- Solicitaçao de Garagem Publica;','','Solicitaçao:','','- Adicione uma garagem publica na CDS abaixo:','',`* Blip: ${fmtCds(b.garagemPublicaBlip)}`,`* Spawn: ${fmtCds(b.garagemPublicaSpawn)}`,'',`- Permissao : ${f.group}`].join('\n'))}
  if(b.heliponto && (!ob.heliponto || changedBenefit(ob,b,['helipontoBlip','helipontoSpawn']))){add('HELIPONTO','Heliponto',['Assunto: Adição de Heliponto','','Solicitação:','- Adicione um Heliponto na cds abaixo;',`- ${fmtCds(b.helipontoBlip)}`,...(b.helipontoSpawn?['',`- Spawn: ${fmtCds(b.helipontoSpawn)}`]:[]),'',`- Group: ${f.group}.`].join('\n'))}
+ operationalRequestAdditions(old,f).forEach(x=>{if(!req.some(r=>requestFingerprint({group:f.group,tipo:r.tipo,texto:r.texto})===requestFingerprint({group:f.group,tipo:x.tipo,texto:x.texto})))req.push(x)});
  return req;
 }
 function renderDeliveryRequests(){const box=$('#deliveryRequestsPreview');if(!box)return;const rs=autoDeliveryRequests();box.innerHTML=rs.length?rs.map((r,i)=>`<article class="delivery-request-card"><div><b>${i+1}. ${esc(r.titulo)}</b><span>${esc(r.tipo)}</span></div><pre>${esc(r.texto)}</pre></article>`).join(''):'<div class="delivery-no-change">Nenhuma nova solicitação necessária com as alterações atuais.</div>'}
@@ -238,7 +293,7 @@ $('#copyDeliveryBtn').onclick=copyDeliveryExtract; $('#copyDeliveryRequestsBtn')
 $('#facForm').onsubmit=async e=>{
  e.preventDefault();const group=$('#fGroup').value,old=faccoes.find(x=>x.group===group);getTechProfileFromForm();const data={...old,segmento:$('#fSegment')?.value||old?.segmento||'OUTROS',status:$('#fStatus').value,faccao:$('#fFaccao').value.trim(),qg:$('#fQG').value.trim(),produto:$('#fProduto').value.trim(),lider:$('#fLider').value.trim(),staff:$('#fStaff').value.trim(),dataEntrega:$('#fData').value.trim(),anuncio:$('#fAnuncio').value.trim(),imagemAnuncio:$('#fImagemAnuncio')?.value.trim()||'',cds:$('#fCds').value.trim(),observacoes:$('#fObs').value.trim(),beneficios:getFormBenefits(),perfilEntrega:{planoPadrao:$('#fPlanoPadrao')?.value.trim()||'',observacao:$('#fPerfilObs')?.value.trim()||'',beneficiosPadrao:selectedDefaultBenefits()},perfilTecnico:getTechProfileFromForm(),updatedAt:serverTimestamp(),updatedBy:currentUser.email};
  if(data.status==='ATIVA'&&!data.faccao){alert('Informe o nome da facção para marcar como ATIVA.');return}
- try{const generated=autoDeliveryRequests(data);await setDoc(doc(db,'highos','data','faccoes',group),data);const localIndex=faccoes.findIndex(x=>x.group===group);if(localIndex>=0)faccoes[localIndex]={...faccoes[localIndex],...clonePlain(data)};await addDoc(histCol,{tipo:(old?.qg!==data.qg||old?.cds!==data.cds||JSON.stringify(old?.beneficios||{})!==JSON.stringify(data.beneficios||{}))?'QG_ALTERADO':(old?.status==='INATIVA'&&data.status==='ATIVA'?'ENTREGA':'EDICAO'),group,faccao:data.faccao||old?.faccao||'',qg:data.qg||'',antes:snapshot(old),depois:snapshot(data),solicitacoesGeradas:generated,extratoEntrega:buildDeliveryExtract(data),usuario:currentUser.email,data:serverTimestamp()});await syncGroupsToOfficialSheet([data],{quiet:true});closeGroupProfilePage();await loadFaccoes()}catch(err){alert('Erro ao salvar: '+err.message)}
+ try{const generated=autoDeliveryRequests(data);await setDoc(doc(db,'highos','data','faccoes',group),data);const localIndex=faccoes.findIndex(x=>x.group===group);if(localIndex>=0)faccoes[localIndex]={...faccoes[localIndex],...clonePlain(data)};await addDoc(histCol,{sessionId:currentSessionId||'',tipo:(old?.qg!==data.qg||old?.cds!==data.cds||JSON.stringify(old?.beneficios||{})!==JSON.stringify(data.beneficios||{}))?'QG_ALTERADO':(old?.status==='INATIVA'&&data.status==='ATIVA'?'ENTREGA':'EDICAO'),group,faccao:data.faccao||old?.faccao||'',qg:data.qg||'',antes:snapshot(old),depois:snapshot(data),solicitacoesGeradas:generated,extratoEntrega:buildDeliveryExtract(data),usuario:currentUser.email,data:serverTimestamp()});for(const r of generated)await archiveTechnicalRequest(r,data,'ALTERACAO_DO_GROUP');await syncGroupsToOfficialSheet([data],{quiet:true});closeGroupProfilePage();await loadFaccoes()}catch(err){alert('Erro ao salvar: '+err.message)}
 };
 let recollectPanelImage='';
 function recollectReasonLabel(v){return ({BAIXO_CONTINGENTE:'Baixo contingente',INATIVIDADE:'Inatividade',ABANDONO:'Abandono da facção',QUEBRA_REGRAS:'Quebra de regras / descumprimento',DECISAO_CUPULA:'Decisão da cúpula',SOLICITACAO_LIDERANCA:'Solicitação da liderança',OUTRO:'Outro'})[v]||v||'—'}
@@ -252,7 +307,7 @@ async function setRecollectPrint(file){try{recollectPanelImage=await compressRec
 $('#recolherBtn').onclick=openRecollectModal;
 $('#recollectModalClose')?.addEventListener('click',closeRecollectModal);$('#cancelRecollectBtn')?.addEventListener('click',closeRecollectModal);$('#rReason')?.addEventListener('change',updateRecollectUi);['rResponsible','rDate','rTime','rDetails','rContingentObserved','rContingentMin','rContingentPeriod','rContingentMetric'].forEach(id=>$('#'+id)?.addEventListener('input',updateRecollectUi));$('#rPanelPrint')?.addEventListener('change',e=>setRecollectPrint(e.target.files?.[0]));$('#rRemovePrint')?.addEventListener('click',()=>{recollectPanelImage='';$('#rPanelPrint').value='';$('#rPanelPreviewWrap').classList.add('hidden');$('#rPanelPreview').removeAttribute('src');$('#rPanelPrintLabel').textContent='CLIQUE, ARRASTE OU COLE O PRINT AQUI';updateRecollectUi()});$('#copyRecollectExtract')?.addEventListener('click',e=>copyText(recollectExtract(),e.currentTarget));
 $('#recollectModal')?.addEventListener('paste',async e=>{const item=[...(e.clipboardData?.items||[])].find(x=>x.type?.startsWith('image/'));if(item){e.preventDefault();await setRecollectPrint(item.getAsFile())}});
-$('#recollectForm')?.addEventListener('submit',async e=>{e.preventDefault();const group=$('#rGroup').value,old=faccoes.find(x=>x.group===group);if(!old||old.status!=='ATIVA')return alert('A ocupação deste Group já foi alterada. Atualize a tela e tente novamente.');const reason=$('#rReason').value;if(!reason)return alert('Selecione o motivo do recolhimento.');if(reason==='BAIXO_CONTINGENTE'&&!recollectPanelImage)return alert('Para recolhimento por baixo contingente, o print do painel é obrigatório.');if(reason==='BAIXO_CONTINGENTE'&&!$('#rContingentObserved').value)return alert('Informe o contingente observado.');const recolhimento={motivo:reason,motivoLabel:recollectReasonLabel(reason),responsavel:$('#rResponsible').value.trim(),data:$('#rDate').value.trim(),hora:$('#rTime').value.trim(),justificativa:$('#rDetails').value.trim(),baixoContingente:reason==='BAIXO_CONTINGENTE'?{observado:Number($('#rContingentObserved').value||0),minimo:Number($('#rContingentMin').value||0),periodo:$('#rContingentPeriod').value.trim(),metrica:$('#rContingentMetric').value.trim(),possuiPrint:!!recollectPanelImage}:null,extrato:recollectExtract(),createdAtText:new Date().toISOString(),createdBy:currentUser.email};if(!recolhimento.responsavel||!recolhimento.data||!recolhimento.hora||!recolhimento.justificativa)return alert('Preencha responsável, data, hora e justificativa.');if(!confirm(`Confirmar recolhimento de ${old.faccao||group}?\n\nMotivo: ${recolhimento.motivoLabel}\nO Group ficará vago e o histórico será preservado.`))return;const data={...old,status:'INATIVA',faccao:'',lider:'',staff:'',dataEntrega:'',ocupacaoAtual:null,anuncioDiscordStatus:{postado:false,resetEm:new Date().toISOString(),resetPor:currentUser.email},ultimoRecolhimento:{...recolhimento,possuiEvidencia:!!recollectPanelImage},observacoes:old.observacoes||'',updatedAt:serverTimestamp(),updatedBy:currentUser.email};try{let evidenceId='';if(recollectPanelImage){const ev=await addDoc(collection(db,'highos','data','evidencias_recolhimento'),{tipo:'PRINT_PAINEL',group,faccao:old.faccao||'',motivo:reason,imagemDataUrl:recollectPanelImage,createdAt:serverTimestamp(),createdAtText:new Date().toISOString(),createdBy:currentUser.email});evidenceId=ev.id}recolhimento.evidenciaId=evidenceId;data.ultimoRecolhimento.evidenciaId=evidenceId;await setDoc(doc(db,'highos','data','faccoes',group),data);if(old.faccao){const oid=orgKey(old.faccao);await setDoc(doc(db,'highos','data','organizacoes',oid),{nome:old.faccao,status:'SEM_GROUP',groupAtual:'',segmentoAtual:old.segmento||'',segmentoVinculado:old.segmento||'',qgAtual:'',ultimoRecolhimento:recolhimento,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true})}const activeDeliveries=entregas.filter(x=>x.group===group&&x.status==='ATIVA');for(const d of activeDeliveries)await setDoc(doc(db,'highos','data','entregas',d.id),{status:'RECOLHIDA',recolhimento,recolhidaEm:serverTimestamp(),recolhidaPor:currentUser.email},{merge:true});await addDoc(histCol,{tipo:'RECOLHIMENTO',group,faccao:old.faccao||'',qg:old.qg||'',motivo:reason,motivoLabel:recolhimento.motivoLabel,responsavel:recolhimento.responsavel,dataRecolhimento:recolhimento.data,horaRecolhimento:recolhimento.hora,justificativa:recolhimento.justificativa,baixoContingente:recolhimento.baixoContingente,evidenciaId:evidenceId,extratoRecolhimento:recolhimento.extrato,antes:snapshot(old),depois:snapshot(data),usuario:currentUser.email,data:serverTimestamp()});await syncGroupsToOfficialSheet([data],{quiet:true});closeRecollectModal();closeGroupProfilePage();await loadFaccoes();await loadDeliveries();alert('Facção recolhida com sucesso. O extrato e a evidência foram registrados no histórico.')}catch(err){alert('Erro ao recolher: '+err.message)}});
+$('#recollectForm')?.addEventListener('submit',async e=>{e.preventDefault();const group=$('#rGroup').value,old=faccoes.find(x=>x.group===group);if(!old||old.status!=='ATIVA')return alert('A ocupação deste Group já foi alterada. Atualize a tela e tente novamente.');const reason=$('#rReason').value;if(!reason)return alert('Selecione o motivo do recolhimento.');if(reason==='BAIXO_CONTINGENTE'&&!recollectPanelImage)return alert('Para recolhimento por baixo contingente, o print do painel é obrigatório.');if(reason==='BAIXO_CONTINGENTE'&&!$('#rContingentObserved').value)return alert('Informe o contingente observado.');const recolhimento={motivo:reason,motivoLabel:recollectReasonLabel(reason),responsavel:$('#rResponsible').value.trim(),data:$('#rDate').value.trim(),hora:$('#rTime').value.trim(),justificativa:$('#rDetails').value.trim(),baixoContingente:reason==='BAIXO_CONTINGENTE'?{observado:Number($('#rContingentObserved').value||0),minimo:Number($('#rContingentMin').value||0),periodo:$('#rContingentPeriod').value.trim(),metrica:$('#rContingentMetric').value.trim(),possuiPrint:!!recollectPanelImage}:null,extrato:recollectExtract(),createdAtText:new Date().toISOString(),createdBy:currentUser.email};if(!recolhimento.responsavel||!recolhimento.data||!recolhimento.hora||!recolhimento.justificativa)return alert('Preencha responsável, data, hora e justificativa.');if(!confirm(`Confirmar recolhimento de ${old.faccao||group}?\n\nMotivo: ${recolhimento.motivoLabel}\nO Group ficará vago e o histórico será preservado.`))return;const data={...old,status:'INATIVA',faccao:'',lider:'',staff:'',dataEntrega:'',ocupacaoAtual:null,anuncioDiscordStatus:{postado:false,resetEm:new Date().toISOString(),resetPor:currentUser.email},ultimoRecolhimento:{...recolhimento,possuiEvidencia:!!recollectPanelImage},observacoes:old.observacoes||'',updatedAt:serverTimestamp(),updatedBy:currentUser.email};try{let evidenceId='';if(recollectPanelImage){const ev=await addDoc(collection(db,'highos','data','evidencias_recolhimento'),{tipo:'PRINT_PAINEL',group,faccao:old.faccao||'',motivo:reason,imagemDataUrl:recollectPanelImage,createdAt:serverTimestamp(),createdAtText:new Date().toISOString(),createdBy:currentUser.email});evidenceId=ev.id}recolhimento.evidenciaId=evidenceId;data.ultimoRecolhimento.evidenciaId=evidenceId;await setDoc(doc(db,'highos','data','faccoes',group),data);if(old.faccao){const oid=orgKey(old.faccao);await setDoc(doc(db,'highos','data','organizacoes',oid),{nome:old.faccao,status:'SEM_GROUP',groupAtual:'',segmentoAtual:old.segmento||'',segmentoVinculado:old.segmento||'',qgAtual:'',ultimoRecolhimento:recolhimento,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true})}const activeDeliveries=entregas.filter(x=>x.group===group&&x.status==='ATIVA');for(const d of activeDeliveries)await setDoc(doc(db,'highos','data','entregas',d.id),{status:'RECOLHIDA',recolhimento,recolhidaEm:serverTimestamp(),recolhidaPor:currentUser.email},{merge:true});await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'RECOLHIMENTO',group,faccao:old.faccao||'',qg:old.qg||'',motivo:reason,motivoLabel:recolhimento.motivoLabel,responsavel:recolhimento.responsavel,dataRecolhimento:recolhimento.data,horaRecolhimento:recolhimento.hora,justificativa:recolhimento.justificativa,baixoContingente:recolhimento.baixoContingente,evidenciaId:evidenceId,extratoRecolhimento:recolhimento.extrato,antes:snapshot(old),depois:snapshot(data),usuario:currentUser.email,data:serverTimestamp()});await syncGroupsToOfficialSheet([data],{quiet:true});closeRecollectModal();closeGroupProfilePage();await loadFaccoes();await loadDeliveries();alert('Facção recolhida com sucesso. O extrato e a evidência foram registrados no histórico.')}catch(err){alert('Erro ao recolher: '+err.message)}});
 function snapshot(o){if(!o)return null;const x={...o};delete x.updatedAt;return x}
 
 
@@ -261,6 +316,8 @@ const REQUEST_TYPES=[
   ['GARAGEM','Garagem Pública'],
   ['HELIPONTO','Heliponto'],
   ['GARAGEM_VIP','Garagem VIP / VIP Fac'],
+  ['GARAGEM_SERVICO','Garagem de Serviço / VIP Org'],
+  ['GARAGEM_BLINDADOS','Garagem de Blindados'],
   ['ROTA_FARM','Rota de Farm Exclusiva'],
   ['BAU','Baú'],
   ['BLIP','Adição / Alteração de Blip'],
@@ -281,6 +338,8 @@ const TYPE_PLACEHOLDERS={
  GARAGEM:'Blip: {x,y,z,h}\nSpawn: {x,y,z,h}\nObservações:',
  HELIPONTO:'Blip: {x,y,z,h}\nSpawn: {x,y,z,h}\nObservações:',
  GARAGEM_VIP:'Veículos: LLMOTOSTIER2002, fooxcustomzlexrfc\nBlip: {x,y,z,h}\nSpawn: {x,y,z,h}\nObservações:',
+ GARAGEM_SERVICO:'Tipo: SERVIÇO / VIP ORG\nVeículos: veiculo1, veiculo2\nBlip: {x,y,z,h}\nSpawn: {x,y,z,h}\nObservações:',
+ GARAGEM_BLINDADOS:'Quantidade de vagas: 2\nBlip: {x,y,z,h}\nSpawn da garagem: {x,y,z,h}\nSpawn do veículo blindado: spawn_do_veiculo\nObservações:',
  ROTA_FARM:'Blips da rota nova:\n{x,y,z},\n{x,y,z},\n{x,y,z}\nObservações:',
  BAU:'CDS: {x,y,z,h}\nCapacidade: \nPermissão: \nObservações:',
  BLIP:'Tipo do blip: \nCDS: {x,y,z,h}\nSpawn: {x,y,z,h} (se houver)\nObservações:',
@@ -335,6 +394,8 @@ function defaultSubject(type){return ({
  GARAGEM:'Solicitaçao de Garagem Publica',
  HELIPONTO:'Adição de Heliponto',
  GARAGEM_VIP:'Ativação de garagem VIP',
+ GARAGEM_SERVICO:'Adição de Garagem de Serviço',
+ GARAGEM_BLINDADOS:'Adição de Garagem de Blindados',
  ROTA_FARM:'Ativação de rota de farm exclusiva',
  BAU:'Adição de baú',
  BLIP:'Adição de blip',
@@ -389,6 +450,14 @@ function buildRequestText(){
  else if(tipo==='GARAGEM_VIP'){
    const veic=getDetailValue('Veículos?',d)||'"LLMOTOSTIER2002" e "fooxcustomzlexrfc"';
    L=[`Assunto: ${subject}`,'','Solicitação:','','- Ativação de garagem VIP','','- Garagem VIP:','','- Blip de Garagem VIP Org.',`- Veículos: ${veic}`,'',`- Group: ${G}`,'',`- Blip:`,`  ${fmtCds(getDetailValue('Blip',d))}`,'',`- Spawn:`,`  ${fmtCds(getDetailValue('Spawn',d))}`];pushObs(L,d);
+ }
+ else if(tipo==='GARAGEM_SERVICO'){
+   const tipoGar=getDetailValue('Tipo',d)||'SERVIÇO / VIP ORG',veic=getDetailValue('Veículos?',d)||'{veiculo1}, {veiculo2}',blip=getDetailValue('Blip',d),spawn=getDetailValue('Spawn',d);
+   L=['Assunto:','',`- Adição de Garagem de Serviço no Group "${G}";`,'','Solicitação:','',`- Adicione uma garagem de serviço no Group "${G}";`,'',`- Tipo: ${tipoGar};`,`- Veículos de aluguel: ${veic};`,'',`- Blip: ${fmtCds(blip)}`,`- Spawn: ${fmtCds(spawn)}`,'',`- A garagem deverá ficar disponível para todos os membros do Group "${G}".`,'',`- Permissão: "${G}".`];pushObs(L,d);
+ }
+ else if(tipo==='GARAGEM_BLINDADOS'){
+   const vagas=getDetailValue('Quantidade de vagas',d)||'{quantidade}',blip=getDetailValue('Blip',d),spawn=getDetailValue('Spawn da garagem',d)||getDetailValue('Spawn',d),veic=getDetailValue('Spawn do veículo blindado',d)||getDetailValue('Veículos?',d)||'{spawn_do_veiculo}';
+   L=['Assunto:','',`- Adição de Garagem de Blindados no Group "${G}";`,'','Solicitação:','',`- Adicione uma garagem de blindados no Group "${G}";`,'',`- Quantidade de vagas: ${vagas};`,`- Blip: ${fmtCds(blip)}`,`- Spawn da garagem: ${fmtCds(spawn)}`,`- Spawn do veículo blindado: ${veic};`,'',`- Obs: Os veículos só serão spawnados após o líder cadastrar no painel o membro permissionado a pegar o mesmo. Se o membro não tiver set, informar para solicitar à liderança o set de blindado, dentro das vagas disponíveis. Se não houver mais blindado disponível, exibir a mensagem: "Esse Group já setou todas as vagas de blindados disponíveis, verifique com o líder da facção."`,'',`- Permissão: "${G}".`];pushObs(L,d);
  }
  else if(tipo==='ROTA_FARM'){
    let pts=getDetailBlock('Blips da rota nova',d); if(!pts.length)pts=d.split(/\r?\n/).map(x=>x.trim()).filter(x=>/^\{.*\},?$/.test(x)); if(!pts.length&&b.rotaBlips)pts=String(b.rotaBlips).split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
@@ -473,9 +542,11 @@ function openRequestModal(id='',group=''){
 }
 async function loadRequests(){
  try{
-   const qs=await getDocs(reqCol);
-   solicitacoes=qs.docs.map(d=>({id:d.id,...d.data()})).filter(x=>x.isModelo===true);
+   const qs=await getDocs(reqCol),all=qs.docs.map(d=>({id:d.id,...d.data()}));
+   solicitacoes=all.filter(x=>x.isModelo===true);
+   requestRecords=all.filter(x=>x.isModelo!==true);
    solicitacoes.sort((a,b)=>(a.nome||a.assunto||'').localeCompare(b.nome||b.assunto||'','pt-BR'));
+   requestRecords.sort((a,b)=>String(b.createdAtText||'').localeCompare(String(a.createdAtText||'')));
    renderRequests();
  }catch(e){$('#reqList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR</h3><p>${esc(e.message)}</p></div>`}
 }
@@ -517,7 +588,7 @@ async function applyRouteRequestToProfile(){
  const benefits={...(f.beneficios||{}),rotaExclusiva:true,rotaBlips:pts.join('\n')};
  try{
   await setDoc(doc(db,'highos','data','faccoes',group),{perfilTecnico:nextT,beneficios,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true});
-  await addDoc(histCol,{tipo:'ROTA_EXCLUSIVA_SOLICITADA',group,descricao:`Solicitação de rota exclusiva criada e Perfil Técnico alimentado automaticamente • ${pts.length} CDS do takefarm`,rotaPontos:pts,solicitacaoTexto:buildRequestText(),origem:'SOLICITACAO_TAKEFARM',usuario:currentUser.email,data:serverTimestamp()});
+  await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'ROTA_EXCLUSIVA_SOLICITADA',group,descricao:`Solicitação de rota exclusiva criada e Perfil Técnico alimentado automaticamente • ${pts.length} CDS do takefarm`,rotaPontos:pts,solicitacaoTexto:buildRequestText(),origem:'SOLICITACAO_TAKEFARM',usuario:currentUser.email,data:serverTimestamp()});
   await loadFaccoes();
   try{await copyRequestText()}catch{}
   if(typeof currentGroupProfile!=='undefined'&&currentGroupProfile?.group===group){const fresh=faccoes.find(x=>x.group===group);if(fresh){renderTechProfile(fresh);$('#fRotaExclusiva').checked=true;renderRouteOverview();}}
@@ -531,12 +602,32 @@ async function saveRequestModel(e){
  const tipo=$('#reqTipo').value;
  const payload={isModelo:true,tipo,nome:$('#reqModelName').value.trim()||requestTypeName(tipo),assunto:$('#reqAssunto').value.trim()||defaultSubject(tipo),detalhes:$('#reqDetalhes').value.trim(),origem:'Biblioteca High OS',updatedAt:serverTimestamp(),updatedBy:currentUser.email};
  try{
-   if(id){await setDoc(doc(db,'highos','data','solicitacoes',id),payload,{merge:true});await addDoc(histCol,{tipo:'MODELO_SOLICITACAO_EDITADO',solicitacaoId:id,descricao:payload.nome,usuario:currentUser.email,data:serverTimestamp()});}
-   else{const ref=await addDoc(reqCol,{...payload,createdAt:serverTimestamp(),createdBy:currentUser.email});await addDoc(histCol,{tipo:'MODELO_SOLICITACAO_CRIADO',solicitacaoId:ref.id,descricao:payload.nome,usuario:currentUser.email,data:serverTimestamp()});}
+   if(id){await setDoc(doc(db,'highos','data','solicitacoes',id),payload,{merge:true});await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'MODELO_SOLICITACAO_EDITADO',solicitacaoId:id,descricao:payload.nome,usuario:currentUser.email,data:serverTimestamp()});}
+   else{const ref=await addDoc(reqCol,{...payload,createdAt:serverTimestamp(),createdBy:currentUser.email});await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'MODELO_SOLICITACAO_CRIADO',solicitacaoId:ref.id,descricao:payload.nome,usuario:currentUser.email,data:serverTimestamp()});}
    $('#reqModal').classList.add('hidden');await loadRequests();
  }catch(err){alert('Erro ao salvar modelo: '+err.message)}
 }
-async function copyRequestText(){const text=$('#reqPreview').value;try{await navigator.clipboard.writeText(text);const b=$('#copyReqBtn'),old=b.textContent;b.textContent='COPIADO ✓';setTimeout(()=>b.textContent=old,1400)}catch(e){$('#reqPreview').select();document.execCommand('copy')}}
+function manualRequestMutation(tipo,d,f={}){
+ const t=mergedTechProfile(f),o=clonePlain(t.operacional||opBlank()),b={...(f.beneficios||{})};let changed=false,desc='';
+ const upGarage=(kind,obj)=>{o.garagens=o.garagens||[];let i=o.garagens.findIndex(x=>x.tipo===kind);const old=i>=0?o.garagens[i]:{};if(!samePlain(old,obj)){if(i>=0)o.garagens[i]=obj;else o.garagens.push(obj);changed=true}};
+ if(tipo==='TELAO'){const next={...(o.telao||{}),ativo:true,modelo:getDetailValue('Modelo do Telão',d)||getDetailValue('Telão usado',d)||o.telao?.modelo||'',postit:getDetailValue('CDS/postit',d)||o.telao?.postit||'',cds:getDetailValue('CDS',d)||o.telao?.cds||'',permissao:f.group||''};if(!samePlain(o.telao,next)){o.telao=next;b.telao=true;b.telaoNome=next.modelo;b.telaoPostit=next.postit;b.telaoCds=next.cds;changed=true;desc='Telão'}}
+ else if(tipo==='GARAGEM'){const obj={tipo:'PUBLICA',blip:getDetailValue('Blip',d),spawn:getDetailValue('Spawn',d),veiculos:'',vagas:''};upGarage('PUBLICA',obj);b.garagemPublica=true;b.garagemPublicaBlip=obj.blip;b.garagemPublicaSpawn=obj.spawn;desc='Garagem Pública'}
+ else if(tipo==='GARAGEM_VIP'){const obj={tipo:'FACCAO',blip:getDetailValue('Blip',d),spawn:getDetailValue('Spawn',d),veiculos:getDetailValue('Veículos?',d),vagas:''};upGarage('FACCAO',obj);b.garagemVipBlip=obj.blip;b.garagemVipSpawn=obj.spawn;b.garagemVipVeiculos=obj.veiculos;desc='Garagem VIP'}
+ else if(tipo==='GARAGEM_SERVICO'){const obj={tipo:'SERVICO',blip:getDetailValue('Blip',d),spawn:getDetailValue('Spawn',d),veiculos:getDetailValue('Veículos?',d),vagas:''};upGarage('SERVICO',obj);desc='Garagem de Serviço'}
+ else if(tipo==='GARAGEM_BLINDADOS'){const next={vagas:getDetailValue('Quantidade de vagas',d),blip:getDetailValue('Blip',d),spawn:getDetailValue('Spawn da garagem',d)||getDetailValue('Spawn',d),veiculos:getDetailValue('Spawn do veículo blindado',d)||getDetailValue('Veículos?',d)};if(!samePlain(o.blindados,next)){o.blindados=next;changed=true;desc='Garagem de Blindados'}}
+ else if(tipo==='HELIPONTO'){const next=[{blip:getDetailValue('Blip',d)||getDetailValue('CDS',d),spawn:getDetailValue('Spawn',d)}];if(!samePlain(o.helipontos,next)){o.helipontos=next;b.heliponto=true;b.helipontoBlip=next[0].blip;b.helipontoSpawn=next[0].spawn;changed=true;desc='Heliponto'}}
+ else if(tipo==='LOJA_FACCAO'){const next={cds:getDetailValue('CDS',d)||getDetailValue('Blip',d)};if(!samePlain(o.lojaFac,next)){o.lojaFac=next;b.shopExclusivo=next.cds;changed=true;desc='Loja da Facção'}}
+ t.operacional=o;return {changed,perfilTecnico:t,beneficios:b,descricao:desc};
+}
+async function copyRequestText(){
+ const text=$('#reqPreview').value,group=$('#reqGroup')?.value||'',tipo=$('#reqTipo')?.value||'GERAL',d=$('#reqDetalhes')?.value||'',f=faccoes.find(x=>x.group===group);
+ try{
+  if(group&&f){const mut=manualRequestMutation(tipo,d,f);if(mut.changed){const yes=confirm(`Essa solicitação vai gerar modificações no Group ${group}.\n\nAlteração detectada: ${mut.descricao||requestTypeName(tipo)}.\n\nDeseja que as mesmas sejam cadastradas no Group?`);if(yes){await setDoc(doc(db,'highos','data','faccoes',group),{perfilTecnico:mut.perfilTecnico,beneficios:mut.beneficios,updatedAt:serverTimestamp(),updatedBy:currentUser?.email||''},{merge:true});const ix=faccoes.findIndex(x=>x.group===group);if(ix>=0){faccoes[ix].perfilTecnico=clonePlain(mut.perfilTecnico);faccoes[ix].beneficios=clonePlain(mut.beneficios)}await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'SOLICITACAO_APLICADA_AO_GROUP',group,descricao:`${mut.descricao||requestTypeName(tipo)} cadastrada no Group a partir de solicitação`,solicitacaoTexto:text,usuario:currentUser?.email||'',data:serverTimestamp()});}}
+   await archiveTechnicalRequest({tipo,titulo:$('#reqAssunto')?.value||requestTypeName(tipo),texto:text},f,'CENTRAL_DE_SOLICITACOES');
+  }
+  await navigator.clipboard.writeText(text);const b=$('#copyReqBtn'),old=b.textContent;b.textContent='COPIADO + ARQUIVADO ✓';setTimeout(()=>b.textContent=old,1600)
+ }catch(e){try{$('#reqPreview').select();document.execCommand('copy')}catch{}alert('O texto foi preparado, mas ocorreu um erro ao registrar/sincronizar: '+(e?.message||e))}
+}
 function slug(v){return (v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-')}
 
 initRequestUi();
@@ -568,19 +659,19 @@ async function loadUsers(){
 function renderUsers(){
  if(!$('#userList'))return;
  const q=($('#userSearch').value||'').toLowerCase(), role=$('#userRoleFilter').value, st=$('#userStatusFilter').value;
- const list=usuarios.filter(u=>(!role||String(u.role||'CONSULTA').toUpperCase()===role)&&(!st||(st==='ATIVO'?u.active===true:u.active!==true))&&(!q||[u.name,u.email,u.role,u.notes].join(' ').toLowerCase().includes(q)));
+ const list=usuarios.filter(u=>(!role||String(u.role||'CONSULTA').toUpperCase()===role)&&(!st||(st==='ATIVO'?u.active===true:u.active!==true))&&(!q||[u.name,u.cargo,u.email,u.role,u.notes].join(' ').toLowerCase().includes(q)));
  const ativos=usuarios.filter(u=>u.active===true).length, admins=usuarios.filter(u=>String(u.role||'').toUpperCase()==='ADMIN'&&u.active===true).length;
  $('#userStats').innerHTML=`<span><b>${usuarios.length}</b> CADASTRADOS</span><span><b>${ativos}</b> ATIVOS</span><span><b>${usuarios.length-ativos}</b> INATIVOS</span><span><b>${admins}</b> ADMINS</span><span><b>${list.length}</b> EXIBIDOS</span>`;
  if(!usuarios.length){$('#userList').innerHTML='<div class="placeholder"><b>♟</b><h3>NENHUM USUÁRIO</h3><p>Cadastre a primeira conta autorizada.</p></div>';return}
- $('#userList').innerHTML=list.map(u=>`<article class="user-row" data-email="${esc(u.email)}"><div class="user-avatar">${esc((u.name||u.email||'?').slice(0,1).toUpperCase())}</div><div class="user-main"><strong>${esc(u.name||'Sem nome')}</strong><span>${esc(u.email)}</span>${u.notes?`<small>${esc(u.notes)}</small>`:''}</div><div class="user-tags"><span class="role-chip r-${slug(u.role)}">${esc(String(u.role||'CONSULTA').toUpperCase())}</span><span class="status-chip ${u.active===true?'ativa':'inativa'}">${u.active===true?'ATIVO':'INATIVO'}</span></div><button class="mini-btn">EDITAR</button></article>`).join('');
- document.querySelectorAll('.user-row').forEach(r=>r.onclick=e=>{if(e.target.closest('button')||e.currentTarget===r)openUserModal(r.dataset.email)});
+ $('#userList').innerHTML=list.map(u=>`<article class="user-row" data-email="${esc(u.email)}"><div class="user-avatar">${esc((u.name||u.email||'?').slice(0,1).toUpperCase())}</div><div class="user-main"><strong>${esc(u.name||'Sem nome')}</strong><span>${esc(u.email)}</span><small class="user-cargo-line">${esc(u.cargo||String(u.role||'CONSULTA').toUpperCase())}</small>${u.notes?`<small>${esc(u.notes)}</small>`:''}</div><div class="user-tags"><span class="role-chip r-${slug(u.role)}">${esc(String(u.role||'CONSULTA').toUpperCase())}</span><span class="status-chip ${u.active===true?'ativa':'inativa'}">${u.active===true?'ATIVO':'INATIVO'}</span></div><div class="user-row-actions"><button type="button" class="mini-btn user-activity-btn" data-activity="${esc(u.email)}">ATIVIDADE</button><button type="button" class="mini-btn user-edit-btn">EDITAR</button></div></article>`).join('');
+ document.querySelectorAll('.user-row').forEach(r=>{r.querySelector('.user-edit-btn')?.addEventListener('click',e=>{e.stopPropagation();openUserModal(r.dataset.email)});r.querySelector('.user-activity-btn')?.addEventListener('click',e=>{e.stopPropagation();openUserActivity(e.currentTarget.dataset.activity)});r.addEventListener('click',()=>openUserModal(r.dataset.email));});
 }
 function openUserModal(email=''){
  if(!assertAdmin())return;
  const u=email?usuarios.find(x=>x.email===email):null;
  $('#userOriginalEmail').value=u?.email||'';
  $('#uEmail').value=u?.email||''; $('#uEmail').disabled=!!u;
- $('#uName').value=u?.name||''; $('#uRole').value=String(u?.role||'CONSULTA').toUpperCase(); $('#uActive').value=u?.active===false?'false':'true'; $('#uNotes').value=u?.notes||'';
+ $('#uName').value=u?.name||''; $('#uCargo').value=u?.cargo||''; $('#uRole').value=String(u?.role||'CONSULTA').toUpperCase(); $('#uActive').value=u?.active===false?'false':'true'; $('#uNotes').value=u?.notes||'';
  $('#userModalTitle').textContent=u?'EDITAR USUÁRIO':'NOVO USUÁRIO';
  $('#toggleUserBtn').style.display=u?'block':'none';
  $('#toggleUserBtn').textContent=u?.active===true?'DESATIVAR ACESSO':'REATIVAR ACESSO';
@@ -592,12 +683,12 @@ async function saveUser(e){
  const original=$('#userOriginalEmail').value.trim().toLowerCase(), email=$('#uEmail').value.trim().toLowerCase();
  if(!email){alert('Informe o e-mail Google.');return}
  const old=original?usuarios.find(x=>x.email===original):null;
- const payload={email,name:$('#uName').value.trim(),role:$('#uRole').value,active:$('#uActive').value==='true',notes:$('#uNotes').value.trim(),updatedAt:serverTimestamp(),updatedBy:currentUser.email};
+ const payload={email,name:$('#uName').value.trim(),cargo:$('#uCargo').value.trim(),role:$('#uRole').value,active:$('#uActive').value==='true',notes:$('#uNotes').value.trim(),updatedAt:serverTimestamp(),updatedBy:currentUser.email};
  if(email===String(currentUser.email||'').toLowerCase() && payload.active!==true){alert('Você não pode desativar sua própria conta enquanto está logado.');return}
  try{
   await setDoc(doc(db,'users',email),payload,{merge:true});
-  await addDoc(histCol,{tipo:old?'USUARIO_EDITADO':'USUARIO_CRIADO',usuarioAlvo:email,antes:snapshot(old),depois:snapshot(payload),usuario:currentUser.email,data:serverTimestamp()});
-  $('#userModal').classList.add('hidden'); await loadUsers();
+  await addDoc(histCol,{sessionId:currentSessionId||'',tipo:old?'USUARIO_EDITADO':'USUARIO_CRIADO',usuarioAlvo:email,antes:snapshot(old),depois:snapshot(payload),usuario:currentUser.email,data:serverTimestamp()});
+  $('#userModal').classList.add('hidden'); if(email===String(currentUser?.email||'').toLowerCase()){currentProfile={...currentProfile,...payload};$('#userName').textContent=payload.name||currentUser?.displayName||email;$('#userRole').textContent=payload.cargo||payload.role;$('#userAccessLevel').textContent='ACESSO: '+String(payload.role||'CONSULTA').toUpperCase();renderSessionClock(email);} await loadUsers();
  }catch(err){alert('Erro ao salvar usuário: '+err.message)}
 }
 async function toggleUserAccess(){
@@ -608,11 +699,56 @@ async function toggleUserAccess(){
  if(!confirm(`${next?'Reativar':'Desativar'} o acesso de ${old.name||email}?`))return;
  try{
   await setDoc(doc(db,'users',email),{...old,active:next,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true});
-  await addDoc(histCol,{tipo:next?'USUARIO_REATIVADO':'USUARIO_DESATIVADO',usuarioAlvo:email,usuario:currentUser.email,data:serverTimestamp()});
+  await addDoc(histCol,{sessionId:currentSessionId||'',tipo:next?'USUARIO_REATIVADO':'USUARIO_DESATIVADO',usuarioAlvo:email,usuario:currentUser.email,data:serverTimestamp()});
   $('#userModal').classList.add('hidden'); await loadUsers();
  }catch(err){alert('Erro ao alterar acesso: '+err.message)}
 }
 initUsersUi();
+
+// ===== HIGH OS V8.15 · SESSÕES E AUDITORIA DE USUÁRIOS =====
+let userSessions=[];
+function auditModule(tipo=''){
+ const t=String(tipo||'').toUpperCase();
+ if(t.includes('SESSION')||t.includes('LOGIN')||t.includes('USUARIO'))return 'ACESSO';
+ if(t.includes('CRAFT')||t.includes('FARM')||t.includes('ROTA'))return 'CRAFT / FARM';
+ if(t.includes('SEGMENT'))return 'SEGMENTOS';
+ if(t.includes('METRIC'))return 'MÉTRICAS';
+ if(t.includes('SOLICIT')||t.includes('MODELO'))return 'SOLICITAÇÕES';
+ if(t.includes('ENTREGA'))return 'ENTREGAS';
+ if(t.includes('RECOLH'))return 'RECOLHIMENTO';
+ if(t.includes('SYNC')||t.includes('PLANILHA'))return 'PLANILHA';
+ if(t.includes('ORGANIZ'))return 'FACÇÕES';
+ if(t.includes('QG')||t.includes('EDICAO')||t.includes('ALTER')||t.includes('TRANSFER'))return 'GROUPS / QGs';
+ if(t.includes('ADM'))return 'ADMIN';return 'SISTEMA';
+}
+function auditTarget(h){return [h.group,h.faccao,h.usuarioAlvo,h.segmento,h.alvo].filter(Boolean).join(' • ')||'—'}
+function sessionStartMs(x){const d=x?.startAt;try{if(d?.toDate)return d.toDate().getTime();if(d?.seconds)return d.seconds*1000;if(x?.startAtText)return new Date(x.startAtText).getTime()}catch(e){}return 0}
+function sessionEndMs(x){const d=x?.endAt;try{if(d?.toDate)return d.toDate().getTime();if(d?.seconds)return d.seconds*1000;if(x?.endAtText)return new Date(x.endAtText).getTime()}catch(e){}return 0}
+function fmtDateMs(ms){return ms?new Date(ms).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'}):'—'}
+function sessionActions(sess){return historico.filter(h=>h.sessionId===sess.sessionId&&!['SESSION_START','SESSION_END'].includes(String(h.tipo||'').toUpperCase())).sort((a,b)=>(historyDateValue(a)?.getTime()||0)-(historyDateValue(b)?.getTime()||0))}
+function sessionEffectiveEnd(sess){const end=sessionEndMs(sess);if(end)return end;if(sess.sessionId===currentSessionId)return Date.now();const last=sessionActions(sess).map(h=>historyDateValue(h)?.getTime()||0).filter(Boolean).pop();return last||Number(sess.lastActivityText?new Date(sess.lastActivityText).getTime():0)||sessionStartMs(sess)}
+function sessionDuration(sess){return Math.min(SESSION_MAX_MS,Math.max(0,Number(sess.durationMs)||sessionEffectiveEnd(sess)-sessionStartMs(sess)))}
+function isSameLocalDay(ms,base=Date.now()){if(!ms)return false;const a=new Date(ms),b=new Date(base);return a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate()}
+async function loadUserAudit(){
+ if(!isAdmin()||!$('#adminSessionList'))return;
+ try{if(!historico.length){const hq=await getDocs(histCol);historico=hq.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(historyDateValue(b)?.getTime()||0)-(historyDateValue(a)?.getTime()||0));}
+ const qs=await getDocs(sessionCol);userSessions=qs.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>sessionStartMs(b)-sessionStartMs(a));renderUserAudit();}catch(e){$('#adminSessionList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR AUDITORIA</h3><p>${esc(e.message)}</p></div>`}
+}
+function renderUserAudit(){
+ const box=$('#adminSessionList');if(!box)return;const q=String($('#adminAuditSearch')?.value||'').toLowerCase(),user=String($('#adminAuditUser')?.value||'').toLowerCase(),status=$('#adminAuditStatus')?.value||'',day=$('#adminAuditDate')?.value||'';
+ const known=[...new Set(userSessions.map(s=>String(s.email||'').toLowerCase()).filter(Boolean))].sort();const sel=$('#adminAuditUser');if(sel){const old=sel.value;sel.innerHTML='<option value="">TODOS OS USUÁRIOS</option>'+known.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');if(known.includes(old))sel.value=old;}
+ const list=userSessions.filter(s=>{const sm=sessionStartMs(s),date=sm?new Date(sm).toISOString().slice(0,10):'';const acts=sessionActions(s);return(!user||String(s.email||'').toLowerCase()===user)&&(!status||(status==='ATIVA'?s.sessionId===currentSessionId&&s.status!=='ENCERRADA':s.status==='ENCERRADA'))&&(!day||date===day)&&(!q||[s.email,s.nome,s.role,s.endReason,...acts.map(a=>[a.tipo,a.group,a.faccao,a.descricao].join(' '))].join(' ').toLowerCase().includes(q))});
+ const todayTotal=userSessions.filter(s=>isSameLocalDay(sessionStartMs(s))).reduce((n,s)=>n+sessionDuration(s),0),active=userSessions.filter(s=>s.sessionId===currentSessionId&&s.status!=='ENCERRADA').length;
+ $('#adminAuditStats').innerHTML=`<span><b>${userSessions.length}</b> SESSÕES</span><span><b>${active}</b> EM ANDAMENTO</span><span><b>${fmtDuration(todayTotal)}</b> TEMPO LOGADO HOJE</span><span><b>${list.length}</b> EXIBIDAS</span>`;
+ if(!list.length){box.innerHTML='<div class="placeholder"><b>◷</b><h3>NENHUMA SESSÃO ENCONTRADA</h3><p>Altere os filtros de auditoria.</p></div>';return}
+ box.innerHTML=list.map(s=>{const acts=sessionActions(s),start=sessionStartMs(s),end=sessionEffectiveEnd(s),ongoing=s.sessionId===currentSessionId&&s.status!=='ENCERRADA';return `<article class="audit-session-row" data-session="${esc(s.sessionId)}"><div class="audit-session-state ${ongoing?'live':''}">●</div><div class="audit-session-main"><strong>${esc(s.nome||s.email||'Usuário')}</strong><span>${esc(s.email||'—')} • ${esc(String(s.role||'').toUpperCase())}</span><small>${fmtDateMs(start)} → ${ongoing?'EM ANDAMENTO':fmtDateMs(end)}</small></div><div class="audit-session-kpi"><span>TEMPO</span><b>${fmtDuration(sessionDuration(s))}</b></div><div class="audit-session-kpi"><span>AÇÕES</span><b>${acts.length}</b></div><button type="button" class="mini-btn audit-open">VER SESSÃO</button></article>`}).join('');
+ box.querySelectorAll('.audit-session-row').forEach(r=>r.querySelector('.audit-open')?.addEventListener('click',()=>openAuditSession(r.dataset.session)));
+}
+function openAuditSession(id){const s=userSessions.find(x=>x.sessionId===id);if(!s)return;const acts=sessionActions(s),start=sessionStartMs(s),end=sessionEffectiveEnd(s),ongoing=s.sessionId===currentSessionId&&s.status!=='ENCERRADA';$('#auditSessionTitle').textContent=`SESSÃO • ${s.email||'USUÁRIO'}`;$('#auditSessionMeta').innerHTML=`<span><b>LOGIN</b>${fmtDateMs(start)}</span><span><b>${ongoing?'ÚLTIMA ATIVIDADE':'ENCERRAMENTO'}</b>${ongoing?fmtDateMs(end):fmtDateMs(sessionEndMs(s)||end)}</span><span><b>DURAÇÃO</b>${fmtDuration(sessionDuration(s))}</span><span><b>AÇÕES</b>${acts.length}</span>`;$('#auditSessionTimeline').innerHTML=`<div class="audit-event"><time>${new Date(start).toLocaleTimeString('pt-BR')}</time><div><b>LOGIN</b><span>Usuário entrou no High OS</span></div></div>`+acts.map(h=>{const d=historyDateValue(h);return `<div class="audit-event"><time>${d?d.toLocaleTimeString('pt-BR'):'—'}</time><div><b>${esc(String(h.tipo||'AÇÃO').replaceAll('_',' '))}</b><span>${esc(auditModule(h.tipo))}${auditTarget(h)!=='—'?' • '+esc(auditTarget(h)):''}</span>${h.descricao?`<small>${esc(h.descricao)}</small>`:''}${h.antes||h.depois?`<details><summary>VER ALTERAÇÃO ANTES → DEPOIS</summary><div class="audit-diff"><pre>${esc(JSON.stringify(h.antes||{},null,2))}</pre><pre>${esc(JSON.stringify(h.depois||{},null,2))}</pre></div></details>`:''}</div></div>`}).join('')+(!ongoing?`<div class="audit-event"><time>${new Date(end).toLocaleTimeString('pt-BR')}</time><div><b>FIM DA SESSÃO</b><span>${esc(s.endReason==='TIMEOUT_8H'?'Limite máximo de 8 horas atingido':'Sessão encerrada')}</span></div></div>`:'');$('#auditSessionModal').classList.remove('hidden');}
+$('#auditSessionClose')?.addEventListener('click',()=>$('#auditSessionModal')?.classList.add('hidden'));
+['adminAuditSearch','adminAuditUser','adminAuditStatus','adminAuditDate'].forEach(id=>{$('#'+id)?.addEventListener(id==='adminAuditSearch'?'input':'change',renderUserAudit)});
+$('#adminAuditRefresh')?.addEventListener('click',loadUserAudit);
+function openUserActivity(email){activateAppPage('administracao');loadUserAudit().then(()=>{const s=$('#adminAuditUser');if(s){s.value=String(email||'').toLowerCase();renderUserAudit();}})}
 
 // ===== HIGH OS V5 · GROUP COMO PATRIMÔNIO + ENTREGA COMO VÍNCULO =====
 let entregas=[];
@@ -738,7 +874,7 @@ async function openOrganizationByName(name=''){
 $('#newOrgBtn')?.addEventListener('click',()=>openOrganizationByName(''));
 $('#orgModalClose')?.addEventListener('click',closeOrganizationProfilePage);
 ['orgSearch','orgSegment','orgStatus'].forEach(id=>$('#'+id)?.addEventListener(id==='orgSearch'?'input':'change',renderOrganizations));
-$('#orgForm')?.addEventListener('submit',async e=>{e.preventDefault();const nome=$('#oNome').value.trim();if(!nome)return;const id=$('#orgId').value||orgKey(nome),current=faccoes.find(f=>String(f.faccao||'').toLowerCase()===nome.toLowerCase());const data={nome,status:current?'ATIVA':$('#oStatus').value,lider:$('#oLider').value.trim(),contato:$('#oContato').value.trim(),discord:$('#oDiscord').value.trim(),desde:$('#oDesde').value.trim(),observacoes:$('#oObs').value.trim(),groupAtual:current?.group||'',segmentoAtual:current?.segmento||$('#oSegment')?.value||'',segmentoVinculado:$('#oSegment')?.value||current?.segmento||'',qgAtual:current?.qg||'',updatedAt:serverTimestamp(),updatedBy:currentUser.email};try{await setDoc(doc(db,'highos','data','organizacoes',id),data);await addDoc(histCol,{tipo:'ORGANIZACAO',faccao:nome,group:current?.group||'',descricao:`Cadastro da facção ${nome} atualizado`,usuario:currentUser.email,data:serverTimestamp()});closeOrganizationProfilePage();await loadOrganizations()}catch(err){alert('Erro ao salvar facção: '+err.message)}});
+$('#orgForm')?.addEventListener('submit',async e=>{e.preventDefault();const nome=$('#oNome').value.trim();if(!nome)return;const id=$('#orgId').value||orgKey(nome),current=faccoes.find(f=>String(f.faccao||'').toLowerCase()===nome.toLowerCase());const data={nome,status:current?'ATIVA':$('#oStatus').value,lider:$('#oLider').value.trim(),contato:$('#oContato').value.trim(),discord:$('#oDiscord').value.trim(),desde:$('#oDesde').value.trim(),observacoes:$('#oObs').value.trim(),groupAtual:current?.group||'',segmentoAtual:current?.segmento||$('#oSegment')?.value||'',segmentoVinculado:$('#oSegment')?.value||current?.segmento||'',qgAtual:current?.qg||'',updatedAt:serverTimestamp(),updatedBy:currentUser.email};try{await setDoc(doc(db,'highos','data','organizacoes',id),data);await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'ORGANIZACAO',faccao:nome,group:current?.group||'',descricao:`Cadastro da facção ${nome} atualizado`,usuario:currentUser.email,data:serverTimestamp()});closeOrganizationProfilePage();await loadOrganizations()}catch(err){alert('Erro ao salvar facção: '+err.message)}});
 async function upsertOrganizationFromDelivery(payload,f){
  const id=orgKey(payload.faccao),existing=derivedOrganizations().find(o=>String(o.nome).toLowerCase()===payload.faccao.toLowerCase())||{};
  await setDoc(doc(db,'highos','data','organizacoes',id),{nome:payload.faccao,status:'ATIVA',lider:payload.lider||existing.lider||'',contato:existing.contato||'',discord:existing.discord||'',desde:existing.desde||payload.dataEntrega||'',observacoes:existing.observacoes||'',groupAtual:f.group,segmentoAtual:f.segmento||'',segmentoVinculado:f.segmento||existing.segmentoVinculado||'',qgAtual:f.qg||'',updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true});
@@ -793,7 +929,7 @@ async function saveNewDelivery(e){
   // encerra logicamente a ocupação anterior no Group e mantém a estrutura física do local.
   const previous=entregas.filter(x=>x.group===f.group&&x.status==='ATIVA');for(const d of previous)await setDoc(doc(db,'highos','data','entregas',d.id),{...d,status:'RECOLHIDA',recolhidaEm:serverTimestamp(),recolhidaPor:currentUser.email},{merge:true});
   await addDoc(deliveryCol,payload);const deliveredGroup={...f,status:'ATIVA',faccao,lider:payload.lider,staff:payload.staff,dataEntrega:payload.dataEntrega,ocupacaoAtual:{faccao,lider:payload.lider,staff:payload.staff,dataEntrega:payload.dataEntrega,plano:payload.plano,beneficiosAtivos:active},updatedAt:serverTimestamp(),updatedBy:currentUser.email};await setDoc(doc(db,'highos','data','faccoes',f.group),deliveredGroup);await syncGroupsToOfficialSheet([deliveredGroup],{quiet:true});await upsertOrganizationFromDelivery(payload,f);
-  await addDoc(histCol,{tipo:'ENTREGA_GROUP',group:f.group,faccao,solicitacoesGeradas:requests,extrato:extract,usuario:currentUser.email,data:serverTimestamp()});$('#newDeliveryModal').classList.add('hidden');await loadFaccoes();await loadDeliveries();alert('Entrega registrada. A estrutura permanente do Group foi preservada.');
+  await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'ENTREGA_GROUP',group:f.group,faccao,solicitacoesGeradas:requests,extrato:extract,usuario:currentUser.email,data:serverTimestamp()});$('#newDeliveryModal').classList.add('hidden');await loadFaccoes();await loadDeliveries();alert('Entrega registrada. A estrutura permanente do Group foi preservada.');
  }catch(err){alert('Erro ao concluir entrega: '+err.message)}
 }
 initDeliveryUi();
@@ -1133,7 +1269,7 @@ async function fetchMetricsFromSource({persist=false,quiet=false,authorize=true}
 }
 async function persistMetricRows(rows,sheet=''){
  const chunks=[];for(let i=0;i<rows.length;i+=400)chunks.push(rows.slice(i,i+400));for(const chunk of chunks){const batch=writeBatch(db);chunk.forEach(r=>{r=metricSnapshot(r);const id=(r.group+'_'+r.data).replace(/[^a-zA-Z0-9_-]/g,'_');batch.set(doc(db,'highos','data','metricas',id),{...r,source:'GOOGLE_SHEETS_READONLY',sourceSheet:sheet||metricSourceConfig.sheet||'',updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true})});await batch.commit()}
- await addDoc(histCol,{tipo:'SINCRONIZACAO_METRICAS',descricao:`${rows.length} registro(s) lidos em modo somente leitura da planilha oficial${sheet?' • aba '+sheet:''}`,usuario:currentUser.email,data:serverTimestamp()});metricasCache=rows.slice();
+ await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'SINCRONIZACAO_METRICAS',descricao:`${rows.length} registro(s) lidos em modo somente leitura da planilha oficial${sheet?' • aba '+sheet:''}`,usuario:currentUser.email,data:serverTimestamp()});metricasCache=rows.slice();
 }
 async function loadMetrics(){
  try{const qs=await getDocs(metricCol);metricasCache=qs.docs.map(d=>({id:d.id,...d.data()}));metricas=metricasCache.slice();metricPeriodKey=currentMetricMonthKey()}catch(e){metricasCache=[];metricas=[];metricPeriodKey=currentMetricMonthKey()}
@@ -1371,7 +1507,7 @@ function parseMetricImport(text=''){
 }
 async function saveMetricImport(){
  const rows=parseMetricImport($('#metricImportText')?.value||'');if(!rows.length){alert('Nenhuma linha válida. Use um cabeçalho como: Group;Data;18:00;18:30;19:00;...');return}
- try{const batch=writeBatch(db);rows.forEach(r=>{const existing=metricas.find(x=>alvesNorm(x.group||'')===alvesNorm(r.group)&&normalizeMetricDate(x.data||x.date)===normalizeMetricDate(r.data));r={...r,slots:{...metricSlots(existing||{}),...r.slots}};r=metricSnapshot(r);const id=(r.group+'_'+r.data).replace(/[^a-zA-Z0-9_-]/g,'_');batch.set(doc(db,'highos','data','metricas',id),{...r,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true})});await batch.commit();await addDoc(histCol,{tipo:'IMPORTACAO_METRICAS',descricao:`${rows.length} registro(s) importado(s) com horários flexíveis`,usuario:currentUser.email,data:serverTimestamp()});$('#metricImportModal')?.classList.add('hidden');$('#metricImportText').value='';await loadMetrics();alert(`${rows.length} registro(s) importado(s). Os horários adicionais foram preservados.`)}catch(e){alert('Erro ao importar métricas: '+e.message)}
+ try{const batch=writeBatch(db);rows.forEach(r=>{const existing=metricas.find(x=>alvesNorm(x.group||'')===alvesNorm(r.group)&&normalizeMetricDate(x.data||x.date)===normalizeMetricDate(r.data));r={...r,slots:{...metricSlots(existing||{}),...r.slots}};r=metricSnapshot(r);const id=(r.group+'_'+r.data).replace(/[^a-zA-Z0-9_-]/g,'_');batch.set(doc(db,'highos','data','metricas',id),{...r,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true})});await batch.commit();await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'IMPORTACAO_METRICAS',descricao:`${rows.length} registro(s) importado(s) com horários flexíveis`,usuario:currentUser.email,data:serverTimestamp()});$('#metricImportModal')?.classList.add('hidden');$('#metricImportText').value='';await loadMetrics();alert(`${rows.length} registro(s) importado(s). Os horários adicionais foram preservados.`)}catch(e){alert('Erro ao importar métricas: '+e.message)}
 }
 
 $('#metricSearch')?.addEventListener('input',()=>renderMetrics());$('#metricPeriod')?.addEventListener('change',e=>{metricDateStart='';metricDateEnd='';syncMetricDateInputs();metricPeriodKey=e.target.value||currentMetricMonthKey();renderMetrics();syncMetricSelectors()});
@@ -1470,7 +1606,7 @@ async function updateOfficialGroupProfiles(){
  if(String(currentProfile?.role||'').toUpperCase()!=='ADMIN')return alert('Apenas ADMIN pode atualizar os perfis dos Groups.');
  const keys=[...new Set([...Object.keys(GROUP_PROFILE_SOURCE),...Object.keys(GROUP_BASE_CORRECTIONS)])];const entries=keys.map(k=>[k,GROUP_PROFILE_SOURCE[k]||{}]);if(!entries.length)return alert('Nenhum perfil oficial carregado.');
  if(!confirm(`Atualizar ${entries.length} perfis técnicos com a base oficial de ${GROUP_PROFILE_SOURCE_VERSION}?\n\nA ocupação atual, líderes, status, histórico e receitas personalizadas serão preservados.`))return;
- try{let updated=0,missing=0;const batch=writeBatch(db);for(const [sourceGroup,src] of entries){const f=(faccoes||[]).find(x=>alvesNorm(x.group).replace(/\s+/g,'')===alvesNorm(sourceGroup).replace(/\s+/g,''));if(!f){missing++;continue}const patch=sourceToGroupPatch(f,src);batch.set(doc(db,'highos','data','faccoes',f.group),{...patch,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true});updated++;}await batch.commit();await addDoc(histCol,{tipo:'ATUALIZACAO_PERFIS',descricao:`Perfis técnicos oficiais atualizados: ${updated} Group(s) · fonte ${GROUP_PROFILE_SOURCE_VERSION}`,usuario:currentUser.email,data:serverTimestamp()});await loadFaccoes();alert(`Perfis atualizados com sucesso.\n\nAtualizados: ${updated}\nSem Group correspondente na base atual: ${missing}\n\nFacções/ocupações existentes foram preservadas.`);}catch(e){alert('Erro ao atualizar perfis: '+e.message)}
+ try{let updated=0,missing=0;const batch=writeBatch(db);for(const [sourceGroup,src] of entries){const f=(faccoes||[]).find(x=>alvesNorm(x.group).replace(/\s+/g,'')===alvesNorm(sourceGroup).replace(/\s+/g,''));if(!f){missing++;continue}const patch=sourceToGroupPatch(f,src);batch.set(doc(db,'highos','data','faccoes',f.group),{...patch,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true});updated++;}await batch.commit();await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'ATUALIZACAO_PERFIS',descricao:`Perfis técnicos oficiais atualizados: ${updated} Group(s) · fonte ${GROUP_PROFILE_SOURCE_VERSION}`,usuario:currentUser.email,data:serverTimestamp()});await loadFaccoes();alert(`Perfis atualizados com sucesso.\n\nAtualizados: ${updated}\nSem Group correspondente na base atual: ${missing}\n\nFacções/ocupações existentes foram preservadas.`);}catch(e){alert('Erro ao atualizar perfis: '+e.message)}
 }
 
 // ===== HIGH OS V6.3 · PERFIL TÉCNICO INTEGRADO AO GROUP =====
@@ -1698,7 +1834,22 @@ function techAutoRequests(f=currentFactionFromForm()){
 }
 const _autoDeliveryRequestsV62=autoDeliveryRequests;autoDeliveryRequests=function(f=currentFactionFromForm()){return [..._autoDeliveryRequestsV62(f),...techAutoRequests(f)]};
 const _updateDeliveryPreviewV62=updateDeliveryPreview;updateDeliveryPreview=function(){getTechProfileFromForm();_updateDeliveryPreviewV62();try{renderStructureSnapshot(currentFactionFromForm());renderConnectedRequests()}catch{}};
-function renderConnectedRequests(){const box=$('#groupConnectedRequests');if(!box)return;let rs=[];try{rs=autoDeliveryRequests(currentFactionFromForm())}catch{}box.innerHTML=rs.length?rs.map((r,i)=>`<article class="delivery-request-card"><div><b>${i+1}. ${esc(r.titulo)}</b><span>${esc(r.tipo)}</span></div><pre>${esc(r.texto)}</pre></article>`).join(''):'<div class="delivery-no-change">Nenhuma solicitação técnica pendente pelas alterações atuais.</div>';}
+function requestFingerprint(r={}){return `${String(r.group||'').toUpperCase()}|${String(r.tipo||'').toUpperCase()}|${String(r.texto||'').replace(/\s+/g,' ').trim().toLowerCase()}`}
+async function archiveTechnicalRequest(r,f={},origem='ALTERACAO_GROUP'){
+ const group=f.group||r.group||'',texto=r.texto||'',tipo=r.tipo||'GERAL';if(!group||!texto)return null;
+ const fp=requestFingerprint({group,tipo,texto}),dup=requestRecords.find(x=>x.status==='PENDENTE'&&x.fingerprint===fp);if(dup)return dup;
+ const payload={isModelo:false,status:'PENDENTE',tipo,group,faccao:f.faccao||'',assunto:r.titulo||r.assunto||requestTypeName(tipo),titulo:r.titulo||'',texto,origem,solicitadoPor:currentUser?.email||'',createdAt:serverTimestamp(),createdAtText:new Date().toISOString(),createdBy:currentUser?.email||'',fingerprint:fp};
+ const ref=await addDoc(reqCol,payload),item={id:ref.id,...clonePlain(payload),createdAt:null};requestRecords.unshift(item);return item;
+}
+function fmtRequestWhen(r={}){const d=r.createdAtText?new Date(r.createdAtText):null;return d&&!isNaN(d)?d.toLocaleString('pt-BR'):'—'}
+async function copyArchivedRequest(id,btn){const r=requestRecords.find(x=>x.id===id);if(!r?.texto)return;try{await navigator.clipboard.writeText(r.texto);const o=btn.textContent;btn.textContent='COPIADO ✓';setTimeout(()=>btn.textContent=o,1200)}catch{}}
+function renderConnectedRequests(){
+ const box=$('#groupConnectedRequests');if(!box)return;const f=currentFactionFromForm(),group=f?.group||$('#fGroup')?.value||'';let pending=[];try{pending=autoDeliveryRequests(f)}catch{}
+ const archived=requestRecords.filter(x=>x.group===group).slice(0,60);
+ const pendingHtml=pending.length?`<div class="request-archive-section"><div class="request-archive-head"><b>DEMANDAS GERADAS PELAS ALTERAÇÕES ATUAIS</b><span>${pending.length} pendente(s) de salvar</span></div>${pending.map((r,i)=>`<article class="delivery-request-card request-live"><div><b>${i+1}. ${esc(r.titulo)}</b><span>${esc(r.tipo)}</span></div><pre>${esc(r.texto)}</pre></article>`).join('')}</div>`:'<div class="delivery-no-change">Nenhuma nova demanda pelas alterações atuais.</div>';
+ const archiveHtml=archived.length?`<div class="request-archive-section"><div class="request-archive-head"><b>ARQUIVO DE SOLICITAÇÕES DO GROUP</b><span>${archived.length} registro(s)</span></div>${archived.map(r=>`<article class="delivery-request-card archived-request"><div><b>${esc(r.assunto||r.titulo||requestTypeName(r.tipo))}</b><span class="req-status s-${String(r.status||'PENDENTE').toLowerCase()}">${esc(r.status||'PENDENTE')}</span></div><div class="request-audit-meta">${esc(fmtRequestWhen(r))} • ${esc(r.solicitadoPor||r.createdBy||'—')} • ${esc(r.origem||'—')}</div><pre>${esc(r.texto||'')}</pre><button type="button" class="mini-btn copy-archived-request" data-request-id="${esc(r.id)}">COPIAR</button></article>`).join('')}</div>`:'<div class="delivery-no-change">Este Group ainda não possui solicitações arquivadas.</div>';
+ box.innerHTML=pendingHtml+archiveHtml;box.querySelectorAll('.copy-archived-request').forEach(b=>b.onclick=()=>copyArchivedRequest(b.dataset.requestId,b));
+}
 $('#addCraftRecipeBtn')?.addEventListener('click',addRecipe);$('#addFarmItemBtn')?.addEventListener('click',addFarmItem);$('#routePointsToggleBtn')?.addEventListener('click',toggleRoutePoints);document.querySelectorAll('[data-route-exclusive]').forEach(b=>b.addEventListener('click',()=>setRouteExclusive(b.dataset.routeExclusive==='1')));$('#fRotaExclusiva')?.addEventListener('change',renderRouteOverview);
 ['fTechCraftCds','fTechCraftNome','fTechFarmCds','fTechRouteName','fTechRouteStart','fTechRoutePoints'].forEach(id=>$('#'+id)?.addEventListener('input',()=>{getTechProfileFromForm();renderRouteOverview();renderConnectedRequests();renderStructureSnapshot(currentFactionFromForm());}));
 document.querySelectorAll('.tech-tab').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.tech-tab').forEach(x=>x.classList.toggle('active',x===b));document.querySelectorAll('.tech-panel').forEach(p=>p.classList.toggle('active',p.dataset.techPanel===b.dataset.techTab));if(b.dataset.techTab==='farm')renderRouteOverview();if(b.dataset.techTab==='estrutura')renderStructureSnapshot(currentFactionFromForm());if(b.dataset.techTab==='solicitacoes')renderConnectedRequests()}));
@@ -2079,7 +2230,7 @@ function renderFacSheetDiffModal(){
 }
 async function facSheetApplyConfirmed(){
  if(!facSheetPendingDiffs.length)return $('#facSheetDiffModal')?.classList.add('hidden');if(!confirm(`Confirmar ${facSheetPendingDiffs.length} atualização(ões) da planilha no High OS?`))return;const btn=$('#facSheetDiffConfirm');if(btn){btn.disabled=true;btn.textContent='ATUALIZANDO...'}
- try{const batch=writeBatch(db);for(const d of facSheetPendingDiffs){const next={...d.current,...d.patch,group:d.current.group,updatedAt:serverTimestamp(),updatedBy:currentUser.email,syncSource:'GOOGLE_SHEETS'};batch.set(doc(db,'highos','data','faccoes',d.current.group),next,{merge:true})}await batch.commit();for(const d of facSheetPendingDiffs){const oldName=String(d.current.faccao||'').trim(),newName=String(d.patch.faccao||'').trim();if(oldName&&facSheetNorm(oldName)!==facSheetNorm(newName)){await setDoc(doc(db,'highos','data','organizacoes',orgKey(oldName)),{nome:oldName,status:'SEM_GROUP',groupAtual:'',segmentoAtual:'',qgAtual:'',updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true})}if(newName){await setDoc(doc(db,'highos','data','organizacoes',orgKey(newName)),{nome:newName,status:d.patch.status==='ATIVA'?'ATIVA':'SEM_GROUP',groupAtual:d.patch.status==='ATIVA'?d.current.group:'',segmentoAtual:d.patch.status==='ATIVA'?(d.current.segmento||''):'',qgAtual:d.patch.status==='ATIVA'?(d.patch.qg||d.current.qg||''):'',lider:d.patch.lider||'',updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true})}}await addDoc(histCol,{tipo:'SYNC_PLANILHA_FACCOES_IMPORT',descricao:`${facSheetPendingDiffs.length} Group(s) atualizados após confirmação da planilha oficial`,grupos:facSheetPendingDiffs.map(x=>x.current.group),usuario:currentUser.email,data:serverTimestamp()});facSheetPendingDiffs=[];$('#facSheetDiffModal')?.classList.add('hidden');await loadFaccoes();facSheetRenderStatus('online','Alterações da planilha confirmadas e aplicadas ao High OS.');alert('High OS atualizado com os dados confirmados da planilha.')}catch(e){alert('Erro ao aplicar alterações: '+e.message)}finally{if(btn){btn.disabled=false;btn.textContent='CONFIRMAR E ATUALIZAR HIGH OS'}}
+ try{const batch=writeBatch(db);for(const d of facSheetPendingDiffs){const next={...d.current,...d.patch,group:d.current.group,updatedAt:serverTimestamp(),updatedBy:currentUser.email,syncSource:'GOOGLE_SHEETS'};batch.set(doc(db,'highos','data','faccoes',d.current.group),next,{merge:true})}await batch.commit();for(const d of facSheetPendingDiffs){const oldName=String(d.current.faccao||'').trim(),newName=String(d.patch.faccao||'').trim();if(oldName&&facSheetNorm(oldName)!==facSheetNorm(newName)){await setDoc(doc(db,'highos','data','organizacoes',orgKey(oldName)),{nome:oldName,status:'SEM_GROUP',groupAtual:'',segmentoAtual:'',qgAtual:'',updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true})}if(newName){await setDoc(doc(db,'highos','data','organizacoes',orgKey(newName)),{nome:newName,status:d.patch.status==='ATIVA'?'ATIVA':'SEM_GROUP',groupAtual:d.patch.status==='ATIVA'?d.current.group:'',segmentoAtual:d.patch.status==='ATIVA'?(d.current.segmento||''):'',qgAtual:d.patch.status==='ATIVA'?(d.patch.qg||d.current.qg||''):'',lider:d.patch.lider||'',updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true})}}await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'SYNC_PLANILHA_FACCOES_IMPORT',descricao:`${facSheetPendingDiffs.length} Group(s) atualizados após confirmação da planilha oficial`,grupos:facSheetPendingDiffs.map(x=>x.current.group),usuario:currentUser.email,data:serverTimestamp()});facSheetPendingDiffs=[];$('#facSheetDiffModal')?.classList.add('hidden');await loadFaccoes();facSheetRenderStatus('online','Alterações da planilha confirmadas e aplicadas ao High OS.');alert('High OS atualizado com os dados confirmados da planilha.')}catch(e){alert('Erro ao aplicar alterações: '+e.message)}finally{if(btn){btn.disabled=false;btn.textContent='CONFIRMAR E ATUALIZAR HIGH OS'}}
 }
 async function syncGroupsToOfficialSheet(groups=[],{quiet=false,forceAuthorize=false}={}){
  const clean=groups.filter(Boolean);if(!clean.length)return true;let token=facSheetAccessToken;if(!token&&forceAuthorize)token=await facSheetAuthorize();if(!token){facSheetRenderStatus('warn','High OS salvo. Conecte o Google Sheets para enviar as alterações pendentes à planilha.');return false}
@@ -2087,7 +2238,7 @@ async function syncGroupsToOfficialSheet(groups=[],{quiet=false,forceAuthorize=f
  facSheetSetLastCheck();facSheetRenderStatus('online',`${clean.length} Group(s) sincronizado(s) com a planilha.`);return true}catch(e){facSheetRenderStatus('warn','High OS foi salvo, mas a planilha não recebeu a atualização: '+e.message);if(!quiet)alert('High OS salvo, mas houve erro ao atualizar a planilha: '+e.message);return false}
 }
 async function facSheetPushAll(){
- if(!isAdmin())return;const btn=$('#facSheetPushAllBtn');if(btn){btn.disabled=true;btn.textContent='ENVIANDO...'}try{if(!facSheetAccessToken)await facSheetAuthorize();if(!confirm(`Enviar os ${faccoes.length} Groups atuais do High OS para a planilha oficial?\n\nLinhas existentes serão atualizadas pelo Group e Groups ausentes serão adicionados.`))return;const ok=await syncGroupsToOfficialSheet(faccoes,{forceAuthorize:true});if(ok){await addDoc(histCol,{tipo:'SYNC_PLANILHA_FACCOES_EXPORT',descricao:`Base High OS enviada manualmente para a planilha oficial: ${faccoes.length} Group(s)`,usuario:currentUser.email,data:serverTimestamp()});alert('Planilha atualizada com a base atual do High OS.')}}catch(e){alert('Erro ao enviar a base: '+e.message)}finally{if(btn){btn.disabled=false;btn.textContent='ENVIAR HIGH OS → PLANILHA'}}
+ if(!isAdmin())return;const btn=$('#facSheetPushAllBtn');if(btn){btn.disabled=true;btn.textContent='ENVIANDO...'}try{if(!facSheetAccessToken)await facSheetAuthorize();if(!confirm(`Enviar os ${faccoes.length} Groups atuais do High OS para a planilha oficial?\n\nLinhas existentes serão atualizadas pelo Group e Groups ausentes serão adicionados.`))return;const ok=await syncGroupsToOfficialSheet(faccoes,{forceAuthorize:true});if(ok){await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'SYNC_PLANILHA_FACCOES_EXPORT',descricao:`Base High OS enviada manualmente para a planilha oficial: ${faccoes.length} Group(s)`,usuario:currentUser.email,data:serverTimestamp()});alert('Planilha atualizada com a base atual do High OS.')}}catch(e){alert('Erro ao enviar a base: '+e.message)}finally{if(btn){btn.disabled=false;btn.textContent='ENVIAR HIGH OS → PLANILHA'}}
 }
 $('#facSheetConnectBtn')?.addEventListener('click',async()=>{try{await facSheetAuthorize();await facSheetReadAll();facSheetSetLastCheck();alert('Google Sheets conectado com permissão de edição. A sincronização automática do High OS → planilha está ativa nesta sessão.')}catch(e){facSheetRenderStatus('offline','Falha ao conectar: '+e.message);alert('Não foi possível conectar a planilha: '+e.message)}});
 $('#facSheetCheckBtn')?.addEventListener('click',facSheetCheckForChanges);
@@ -2256,9 +2407,9 @@ $('#recipeEditorForm')?.addEventListener('submit',async e=>{
    let generatedRequest=null,requestRef=null;
    if(shouldGenerate){
      generatedRequest=buildCraftRequestText(group,r,perfilTecnico,oldPerfil);
-     requestRef=await addDoc(reqCol,{isModelo:false,status:'PENDENTE',tipo:'CRAFT_ITEM',group,faccao:local?.faccao||'',assunto:`Adição do produto ${nome} no Group ${group}`,texto:generatedRequest.texto,receita:clonePlain(r),farmItens:generatedRequest.farmItens,origem:'CRAFT_DO_GROUP',createdAt:serverTimestamp(),createdAtText:new Date().toISOString(),createdBy:currentUser?.email||''});
+     const craftPayload={isModelo:false,status:'PENDENTE',tipo:'CRAFT_ITEM',group,faccao:local?.faccao||'',assunto:`Adição do produto ${nome} no Group ${group}`,texto:generatedRequest.texto,receita:clonePlain(r),farmItens:generatedRequest.farmItens,origem:'CRAFT_DO_GROUP',solicitadoPor:currentUser?.email||'',createdAt:serverTimestamp(),createdAtText:new Date().toISOString(),createdBy:currentUser?.email||'',fingerprint:requestFingerprint({group,tipo:'CRAFT_ITEM',texto:generatedRequest.texto})};const dup=requestRecords.find(x=>x.status==='PENDENTE'&&x.fingerprint===craftPayload.fingerprint);if(dup){requestRef={id:dup.id}}else{requestRef=await addDoc(reqCol,craftPayload);requestRecords.unshift({id:requestRef.id,...clonePlain(craftPayload),createdAt:null})};
    }
-   await addDoc(histCol,{tipo:'CRAFT_RECEITA',group,faccao:local?.faccao||'',descricao:`Receita ${nome} (${spawn}) salva no Craft do Group${generatedRequest?' • solicitação gerada':''}`,receita:clonePlain(r),solicitacaoId:requestRef?.id||'',solicitacaoTexto:generatedRequest?.texto||'',alteracao:oldRecipe?'EDICAO':'ADICAO',usuario:currentUser?.email||'',data:serverTimestamp()});
+   await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'CRAFT_RECEITA',group,faccao:local?.faccao||'',descricao:`Receita ${nome} (${spawn}) salva no Craft do Group${generatedRequest?' • solicitação gerada':''}`,receita:clonePlain(r),solicitacaoId:requestRef?.id||'',solicitacaoTexto:generatedRequest?.texto||'',alteracao:oldRecipe?'EDICAO':'ADICAO',usuario:currentUser?.email||'',data:serverTimestamp()});
    if(btn)btn.textContent=generatedRequest?'SALVO + SOLICITAÇÃO ✓':'SALVO ✓';
    setTimeout(()=>{closeRecipeEditor();if(generatedRequest)openCraftRequestModal(group,r,generatedRequest)},250);
  }catch(err){
@@ -2314,7 +2465,7 @@ async function toggleAvailablePosted(group){
  if(!was&&!confirm(`Marcar ${group} • ${f.qg||'QG'} como POSTADO no Discord?`))return;
  if(was&&!confirm(`Desmarcar a postagem de ${group}?`))return;
  const status=was?{postado:false,desmarcadoEm:now.toISOString(),desmarcadoPor:currentUser.email}:{postado:true,dataHora:now.toLocaleString('pt-BR'),postadoEm:now.toISOString(),responsavel:currentProfile?.name||currentUser?.displayName||currentUser.email,postadoPor:currentUser.email,texto:availableAnnouncementText(f),imagemUrl:f.imagemAnuncio||''};
- try{await setDoc(doc(db,'highos','data','faccoes',group),{anuncioDiscordStatus:status,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true});await addDoc(histCol,{tipo:was?'ANUNCIO_DISCORD_DESMARCADO':'ANUNCIO_DISCORD_POSTADO',group,qg:f.qg||'',segmento:f.segmento||'',texto:availableAnnouncementText(f),imagemUrl:f.imagemAnuncio||'',usuario:currentUser.email,data:serverTimestamp()});await loadFaccoes()}catch(e){alert('Erro ao atualizar status do anúncio: '+e.message)}
+ try{await setDoc(doc(db,'highos','data','faccoes',group),{anuncioDiscordStatus:status,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true});await addDoc(histCol,{sessionId:currentSessionId||'',tipo:was?'ANUNCIO_DISCORD_DESMARCADO':'ANUNCIO_DISCORD_POSTADO',group,qg:f.qg||'',segmento:f.segmento||'',texto:availableAnnouncementText(f),imagemUrl:f.imagemAnuncio||'',usuario:currentUser.email,data:serverTimestamp()});await loadFaccoes()}catch(e){alert('Erro ao atualizar status do anúncio: '+e.message)}
 }
 ['availableSearch','availableSegment','availableDiscord'].forEach(id=>$('#'+id)?.addEventListener(id==='availableSearch'?'input':'change',renderAvailableFaccoes));
 
@@ -2382,22 +2533,24 @@ async function createSegment(){
  if(!oldName&&segmentNames().some(x=>segmentKey(x)===segmentKey(nome)))return alert('Este segmento já existe.');
  if(oldName&&segmentKey(nome)!==segmentKey(oldName)&&segmentNames().some(x=>segmentKey(x)===segmentKey(nome)))return alert('Já existe um segmento com esse nome.');
  try{
-  if(oldName){const item=segmentDefs().find(x=>segmentKey(x.nome)===segmentKey(oldName));const batch=writeBatch(db);faccoes.filter(f=>segmentKey(f.segmento)===segmentKey(oldName)).forEach(f=>batch.set(doc(db,'highos','data','faccoes',f.group),{segmento:nome,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true}));organizacoes.filter(o=>segmentKey(orgSegmentValue(o))===segmentKey(oldName)).forEach(o=>batch.set(doc(db,'highos','data','organizacoes',o.id||orgKey(o.nome)),{segmentoAtual:nome,segmentoVinculado:nome,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true}));await batch.commit();Object.assign(item,{nome,icone,descricao});await addDoc(histCol,{tipo:'SEGMENTO_EDITADO',segmento:nome,descricao:`Segmento ${oldName} alterado para ${nome}`,usuario:currentUser.email,data:serverTimestamp()});
-  }else{segmentos.push({nome,icone,descricao});await addDoc(histCol,{tipo:'SEGMENTO_CRIADO',segmento:nome,descricao:`Segmento ${nome} criado`,usuario:currentUser.email,data:serverTimestamp()})}
+  if(oldName){const item=segmentDefs().find(x=>segmentKey(x.nome)===segmentKey(oldName));const batch=writeBatch(db);faccoes.filter(f=>segmentKey(f.segmento)===segmentKey(oldName)).forEach(f=>batch.set(doc(db,'highos','data','faccoes',f.group),{segmento:nome,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true}));organizacoes.filter(o=>segmentKey(orgSegmentValue(o))===segmentKey(oldName)).forEach(o=>batch.set(doc(db,'highos','data','organizacoes',o.id||orgKey(o.nome)),{segmentoAtual:nome,segmentoVinculado:nome,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true}));await batch.commit();Object.assign(item,{nome,icone,descricao});await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'SEGMENTO_EDITADO',segmento:nome,descricao:`Segmento ${oldName} alterado para ${nome}`,usuario:currentUser.email,data:serverTimestamp()});
+  }else{segmentos.push({nome,icone,descricao});await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'SEGMENTO_CRIADO',segmento:nome,descricao:`Segmento ${nome} criado`,usuario:currentUser.email,data:serverTimestamp()})}
   editingSegmentName='';$('#segmentNewName').value='';$('#segmentNewIcon').value='';$('#segmentNewDesc').value='';if($('#segmentCreateBtn'))$('#segmentCreateBtn').textContent='CRIAR SEGMENTO';await saveSegmentRegistry();await loadFaccoes();
  }catch(e){alert('Erro ao salvar segmento: '+e.message)}
 }
 async function assignSegment(){
- const type=$('#segmentAssignType')?.value||'GROUP',entity=$('#segmentAssignEntity')?.value,target=$('#segmentAssignTarget')?.value;if(!entity||!target)return alert('Selecione o cadastro e o segmento.');try{if(type==='GROUP'){const f=faccoes.find(x=>x.group===entity);if(!f)return;await setDoc(doc(db,'highos','data','faccoes',f.group),{segmento:target,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true});if(f.faccao)await setDoc(doc(db,'highos','data','organizacoes',orgKey(f.faccao)),{segmentoAtual:target,segmentoVinculado:target,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true})}else{const o=derivedOrganizations().find(x=>x.nome===entity);if(!o)return;await setDoc(doc(db,'highos','data','organizacoes',o.id||orgKey(o.nome)),{segmentoVinculado:target,segmentoAtual:o.groupAtual?o.segmentoAtual||target:target,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true})}await addDoc(histCol,{tipo:'SEGMENTO_VINCULO',descricao:`${type==='GROUP'?'Group':'Facção'} ${entity} vinculado(a) ao segmento ${target}`,segmento:target,usuario:currentUser.email,data:serverTimestamp()});await loadFaccoes();renderSegmentAdmin()}catch(e){alert('Erro ao vincular segmento: '+e.message)}
+ const type=$('#segmentAssignType')?.value||'GROUP',entity=$('#segmentAssignEntity')?.value,target=$('#segmentAssignTarget')?.value;if(!entity||!target)return alert('Selecione o cadastro e o segmento.');try{if(type==='GROUP'){const f=faccoes.find(x=>x.group===entity);if(!f)return;await setDoc(doc(db,'highos','data','faccoes',f.group),{segmento:target,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true});if(f.faccao)await setDoc(doc(db,'highos','data','organizacoes',orgKey(f.faccao)),{segmentoAtual:target,segmentoVinculado:target,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true})}else{const o=derivedOrganizations().find(x=>x.nome===entity);if(!o)return;await setDoc(doc(db,'highos','data','organizacoes',o.id||orgKey(o.nome)),{segmentoVinculado:target,segmentoAtual:o.groupAtual?o.segmentoAtual||target:target,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true})}await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'SEGMENTO_VINCULO',descricao:`${type==='GROUP'?'Group':'Facção'} ${entity} vinculado(a) ao segmento ${target}`,segmento:target,usuario:currentUser.email,data:serverTimestamp()});await loadFaccoes();renderSegmentAdmin()}catch(e){alert('Erro ao vincular segmento: '+e.message)}
 }
 async function deleteSegment(name,replacement){
  const u=segmentUsage(name);if((u.groups||u.orgs)&&!replacement)return alert(`O segmento ${name} está em uso por ${u.groups} Group(s) e ${u.orgs} facção(ões). Escolha "TRANSFERIR PARA..." antes de apagar.`);if(!confirm(`Apagar o segmento ${name}?${replacement?`\n\nTodos os vínculos serão transferidos para ${replacement}.`:''}`))return;
- try{if(replacement){const batch=writeBatch(db);faccoes.filter(f=>segmentKey(f.segmento)===segmentKey(name)).forEach(f=>batch.set(doc(db,'highos','data','faccoes',f.group),{segmento:replacement,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true}));organizacoes.filter(o=>segmentKey(orgSegmentValue(o))===segmentKey(name)).forEach(o=>batch.set(doc(db,'highos','data','organizacoes',o.id||orgKey(o.nome)),{segmentoAtual:replacement,segmentoVinculado:replacement,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true}));await batch.commit()}segmentos=segmentDefs().filter(x=>segmentKey(x.nome)!==segmentKey(name));await saveSegmentRegistry();await addDoc(histCol,{tipo:'SEGMENTO_APAGADO',segmento:name,descricao:`Segmento ${name} apagado${replacement?` e vínculos movidos para ${replacement}`:''}`,usuario:currentUser.email,data:serverTimestamp()});await loadFaccoes()}catch(e){alert('Erro ao apagar segmento: '+e.message)}
+ try{if(replacement){const batch=writeBatch(db);faccoes.filter(f=>segmentKey(f.segmento)===segmentKey(name)).forEach(f=>batch.set(doc(db,'highos','data','faccoes',f.group),{segmento:replacement,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true}));organizacoes.filter(o=>segmentKey(orgSegmentValue(o))===segmentKey(name)).forEach(o=>batch.set(doc(db,'highos','data','organizacoes',o.id||orgKey(o.nome)),{segmentoAtual:replacement,segmentoVinculado:replacement,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true}));await batch.commit()}segmentos=segmentDefs().filter(x=>segmentKey(x.nome)!==segmentKey(name));await saveSegmentRegistry();await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'SEGMENTO_APAGADO',segmento:name,descricao:`Segmento ${name} apagado${replacement?` e vínculos movidos para ${replacement}`:''}`,usuario:currentUser.email,data:serverTimestamp()});await loadFaccoes()}catch(e){alert('Erro ao apagar segmento: '+e.message)}
 }
 async function applyCoreSegmentMap(){
- const rules={Manicomio:'DROGAS',Contrabando01:'CONTRABANDO',Contrabando02:'CONTRABANDO',IlegalMedic1:'APOIO',IlegalMedic2:'APOIO',IlegalMecanic01:'APOIO'};const needs=faccoes.filter(f=>rules[f.group]&&segmentKey(f.segmento)!==segmentKey(rules[f.group]));if(!needs.length)return;try{const batch=writeBatch(db);needs.forEach(f=>{const seg=rules[f.group];batch.set(doc(db,'highos','data','faccoes',f.group),{segmento:seg,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true});if(f.faccao)batch.set(doc(db,'highos','data','organizacoes',orgKey(f.faccao)),{segmentoAtual:seg,segmentoVinculado:seg,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true})});await batch.commit();faccoes=faccoes.map(f=>rules[f.group]?{...f,segmento:rules[f.group]}:f);await addDoc(histCol,{tipo:'SEGMENTOS_PADRAO_V813',descricao:'Correção estrutural: Manicomio=DROGAS, Contrabando=CONTRABANDO, IlegalMedic/IlegalMecanic=APOIO',usuario:currentUser.email,data:serverTimestamp()})}catch(e){console.warn('Falha na correção dos segmentos padrão',e)}
+ const rules={Manicomio:'DROGAS',Contrabando01:'CONTRABANDO',Contrabando02:'CONTRABANDO',IlegalMedic1:'APOIO',IlegalMedic2:'APOIO',IlegalMecanic01:'APOIO'};const needs=faccoes.filter(f=>rules[f.group]&&segmentKey(f.segmento)!==segmentKey(rules[f.group]));if(!needs.length)return;try{const batch=writeBatch(db);needs.forEach(f=>{const seg=rules[f.group];batch.set(doc(db,'highos','data','faccoes',f.group),{segmento:seg,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true});if(f.faccao)batch.set(doc(db,'highos','data','organizacoes',orgKey(f.faccao)),{segmentoAtual:seg,segmentoVinculado:seg,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true})});await batch.commit();faccoes=faccoes.map(f=>rules[f.group]?{...f,segmento:rules[f.group]}:f);await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'SEGMENTOS_PADRAO_V813',descricao:'Correção estrutural: Manicomio=DROGAS, Contrabando=CONTRABANDO, IlegalMedic/IlegalMecanic=APOIO',usuario:currentUser.email,data:serverTimestamp()})}catch(e){console.warn('Falha na correção dos segmentos padrão',e)}
 }
 $('#segmentCreateBtn')?.addEventListener('click',createSegment);$('#segmentAssignType')?.addEventListener('change',refreshSegmentAssignEntities);$('#segmentAssignBtn')?.addEventListener('click',assignSegment);
 const _loadFaccoesV813=loadFaccoes;loadFaccoes=async function(){await _loadFaccoesV813();if(String(currentProfile?.role||'').toUpperCase()==='ADMIN'){await applyCoreSegmentMap();renderFaccoes();renderOrganizations();renderAvailableFaccoes();renderSegmentAdmin()}};
 
 console.info('HIGH OS V8.13 · Segmentos gerenciáveis + filtros visuais carregados');
+
+console.info('HIGH OS V8.14 · Solicitações bidirecionais + arquivo por Group carregado');
