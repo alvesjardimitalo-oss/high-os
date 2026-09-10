@@ -19,3 +19,9 @@
 .mp-pin{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#76259f;color:#fff;border:2px solid #fff;font-size:10px;font-weight:900;box-shadow:0 3px 10px #000}.mp-heading{font-size:24px;color:#fff;font-weight:900;text-shadow:0 2px 5px #000;transform-origin:center}
 .mp-crosshair{cursor:crosshair!important}.leaflet-control-layers{background:rgba(12,12,17,.92)!important;color:#fff!important;border:1px solid rgba(255,255,255,.15)!important}.leaflet-control-layers label{color:#fff!important}.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#121019!important;color:#fff!important}.leaflet-bar a{background:#15131b!important;color:#fff!important;border-color:#31283a!important}
 @media(max-width:1100px){.mission-planner-shell{grid-template-columns:1fr}.mission-planner-side{position:static;max-height:none}.mission-planner-mapwrap{min-height:620px}}
+/* V8.31 — validação segura de CDS */
+.mp-pin.planned{background:#c98916;border-color:#fff1b8}.mp-pin.validated{background:#1f9f58;border-color:#caffdc}
+.mp-point-row.planned{border-color:rgba(255,190,70,.20)}.mp-point-row.validated{border-color:rgba(73,214,132,.24)}
+.mp-point-row.selected{outline:2px solid rgba(177,95,226,.55);border-color:#9650bd}
+.mp-state{font-size:8px;padding:2px 5px;border-radius:999px;margin-left:4px;vertical-align:1px}.mp-state.warn{background:rgba(255,186,62,.12);color:#ffc85c}.mp-state.ok{background:rgba(73,214,132,.12);color:#74e7a5}
+.mp-warn{color:#ffc85c}.mp-ok{color:#74e7a5}.mp-row-actions{display:flex;align-items:center;gap:2px}.mp-row-actions button{border:0;background:transparent;color:#aeb6c2;font-size:16px;cursor:pointer;padding:3px}.mp-row-actions button:hover{color:#fff}
