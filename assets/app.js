@@ -2718,15 +2718,42 @@ async function applyCoreSegmentMap(){
  const rules={Manicomio:'DROGAS',Contrabando01:'CONTRABANDO',Contrabando02:'CONTRABANDO',IlegalMedic1:'APOIO',IlegalMedic2:'APOIO',IlegalMecanic01:'APOIO'};const needs=faccoes.filter(f=>rules[f.group]&&segmentKey(f.segmento)!==segmentKey(rules[f.group]));if(!needs.length)return;try{const batch=writeBatch(db);needs.forEach(f=>{const seg=rules[f.group];batch.set(doc(db,'highos','data','faccoes',f.group),{segmento:seg,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true});if(f.faccao)batch.set(doc(db,'highos','data','organizacoes',orgKey(f.faccao)),{segmentoAtual:seg,segmentoVinculado:seg,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true})});await batch.commit();faccoes=faccoes.map(f=>rules[f.group]?{...f,segmento:rules[f.group]}:f);await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'SEGMENTOS_PADRAO_V813',descricao:'Correção estrutural: Manicomio=DROGAS, Contrabando=CONTRABANDO, IlegalMedic/IlegalMecanic=APOIO',usuario:currentUser.email,data:serverTimestamp()})}catch(e){console.warn('Falha na correção dos segmentos padrão',e)}
 }
 $('#segmentCreateBtn')?.addEventListener('click',createSegment);$('#segmentAssignType')?.addEventListener('change',refreshSegmentAssignEntities);$('#segmentAssignBtn')?.addEventListener('click',assignSegment);
-const _loadFaccoesV813=loadFaccoes;loadFaccoes=async function(){await _loadFaccoesV813();if(String(currentProfile?.role||'').toUpperCase()==='ADMIN'){await applyCoreSegmentMap();renderFaccoes();renderOrganizations();renderAvailableFaccoes();renderSegmentAdmin()}};
+const _loadFaccoesV813=loadFaccoes;loadFaccoes=async function(){await _loadFaccoesV813();if(String(currentProfile?.role||'').toUpperCase()==='ADMIN'){await applyCoreSegmentMap();renderFaccoes();renderOrganizations();renderAvailableFaccoes();renderSegmentAdmin();renderAdminGroupManager()}};
 
 console.info('HIGH OS V8.13 · Segmentos gerenciáveis + filtros visuais carregados');
 
 console.info('HIGH OS V8.14 · Solicitações bidirecionais + arquivo por Group carregado');
 
 
+
+// ===== HIGH OS V8.24 · ADMINISTRAÇÃO MESTRE DE GROUPS =====
+function adminGroupStatus(f={}){return f.status==='ATIVA'&&String(f.faccao||'').trim()?'ATIVA':'INATIVA'}
+function renderAdminGroupManager(){
+ const box=$('#adminGroupList'),stats=$('#adminGroupStats');if(!box)return;
+ const q=String($('#adminGroupSearch')?.value||'').trim().toLowerCase(),status=$('#adminGroupStatus')?.value||'';
+ const rows=faccoes.filter(f=>!f.removido).filter(f=>{const st=adminGroupStatus(f);if(status&&st!==status)return false;const hay=[f.group,f.qg,f.segmento,f.faccao,f.produto,f.staff,f.lider].join(' ').toLowerCase();return !q||hay.includes(q)});
+ const occupied=faccoes.filter(f=>!f.removido&&adminGroupStatus(f)==='ATIVA').length,total=faccoes.filter(f=>!f.removido).length;
+ if(stats)stats.innerHTML=`<article><span>TOTAL</span><b>${total}</b><small>Groups cadastrados</small></article><article><span>OCUPADOS</span><b>${occupied}</b><small>com facção ativa</small></article><article><span>VAGOS</span><b>${total-occupied}</b><small>sem ocupação</small></article><article><span>EXIBIDOS</span><b>${rows.length}</b><small>filtro atual</small></article>`;
+ box.innerHTML=rows.length?rows.map(f=>`<article class="admin-group-row" data-group="${esc(f.group)}"><div class="admin-group-identity"><b>${esc(f.group||'—')}</b><span>${esc(f.qg||'SEM QG')}</span><small>${esc(f.segmento||'OUTROS')} • ${adminGroupStatus(f)==='ATIVA'?'OCUPADO':'VAGO'}</small></div><div class="admin-group-link"><span>VÍNCULO ATUAL</span><b>${esc(f.faccao||'SEM FACÇÃO')}</b><small>${esc(f.lider||f.staff||'—')}</small></div><div class="admin-group-product"><span>PRODUTO / OPERAÇÃO</span><b>${esc(f.produto||'—')}</b></div><div class="admin-group-actions"><button type="button" class="mini-btn admin-group-full-edit" data-id="${esc(f.id||f.group)}">EDITAR COMPLETO</button><button type="button" class="mini-btn admin-group-rename" data-group="${esc(f.group)}">RENOMEAR</button></div></article>`).join(''):'<div class="dash-empty">Nenhum Group encontrado com esse filtro.</div>';
+ box.querySelectorAll('.admin-group-full-edit').forEach(b=>b.onclick=()=>{const f=faccoes.find(x=>(x.id||x.group)===b.dataset.id);if(!f)return;activateAppPage('faccoes');openFac(f.id||f.group)});
+ box.querySelectorAll('.admin-group-rename').forEach(b=>b.onclick=()=>renameAdminGroup(b.dataset.group));
+}
+async function renameAdminGroup(oldGroup){
+ if(!isAdmin())return;const current=faccoes.find(f=>alvesNorm(f.group)===alvesNorm(oldGroup));if(!current)return alert('Group não encontrado.');
+ const nextRaw=prompt(`Novo nome para ${current.group}:`,current.group);if(nextRaw===null)return;const next=String(nextRaw||'').trim();if(!next||next===current.group)return;if(faccoes.some(f=>alvesNorm(f.group)===alvesNorm(next)))return alert('Já existe um Group com esse nome.');
+ if(!confirm(`Renomear o Group ${current.group} para ${next}?\n\nO vínculo da facção ocupante será atualizado. O histórico antigo será preservado.`))return;
+ try{
+  const before=clonePlain(current),payload={...current,group:next,groupOriginal:current.groupOriginal||current.group,updatedAt:serverTimestamp(),updatedBy:currentUser.email};delete payload.id;
+  await setDoc(doc(db,'highos','data','faccoes',next),payload,{merge:false});await deleteDoc(doc(db,'highos','data','faccoes',current.id||current.group));
+  const linked=organizacoes.filter(o=>alvesNorm(o.groupAtual)===alvesNorm(current.group));for(const o of linked){await setDoc(doc(db,'highos','data','organizacoes',o.id||orgKey(o.nome)),{groupAtual:next,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true})}
+  await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'RENOMEAR_GROUP',group:next,groupAnterior:current.group,faccao:current.faccao||'',descricao:`Group ${current.group} renomeado para ${next}`,antes:before,depois:{...clonePlain(payload),group:next},usuario:currentUser.email,data:serverTimestamp()});
+  await loadFaccoes();await loadOrganizations();renderAdminGroupManager();alert(`Group renomeado para ${next}.`);
+ }catch(e){alert('Erro ao renomear Group: '+e.message)}
+}
+$('#adminGroupSearch')?.addEventListener('input',renderAdminGroupManager);$('#adminGroupStatus')?.addEventListener('change',renderAdminGroupManager);
+
 // ===== HIGH OS V8.18 · ADMINISTRAÇÃO ORGANIZADA =====
-function openAdminTab(tab='acessos'){document.querySelectorAll('[data-admin-tab]').forEach(b=>b.classList.toggle('active',b.dataset.adminTab===tab));document.querySelectorAll('[data-admin-panel]').forEach(p=>p.classList.toggle('active',p.dataset.adminPanel===tab));if(tab==='auditoria'&&isAdmin())loadUserAudit()}
+function openAdminTab(tab='acessos'){document.querySelectorAll('[data-admin-tab]').forEach(b=>b.classList.toggle('active',b.dataset.adminTab===tab));document.querySelectorAll('[data-admin-panel]').forEach(p=>p.classList.toggle('active',p.dataset.adminPanel===tab));if(tab==='auditoria'&&isAdmin())loadUserAudit();if(tab==='groups'&&isAdmin())renderAdminGroupManager()}
 document.querySelectorAll('[data-admin-tab]').forEach(b=>b.addEventListener('click',()=>openAdminTab(b.dataset.adminTab)));
 $('#dashCfgSave')?.addEventListener('click',saveDashboardConfig);
 ['dashCfgAtencao','dashCfgCritico','dashCfgMinComparacoes'].forEach(id=>$('#'+id)?.addEventListener('input',()=>{const raw={quedaAtencaoPct:Number($('#dashCfgAtencao')?.value)||15,quedaCriticaPct:Number($('#dashCfgCritico')?.value)||30,minComparacoes:Number($('#dashCfgMinComparacoes')?.value)||4};const old=dashboardConfig;dashboardConfig=sanitizeDashboardConfig(raw);renderDashboardConfigAdmin();dashboardConfig=old;}));
@@ -2763,3 +2790,5 @@ function startChat(){if(chatUnsubscribe||!currentUser||!canViewModule('chat'))re
 async function sendChatMessage(){if(!canEditModule('chat'))return permissionDeniedMessage('chat',true);const input=$('#chatInput'),texto=input?.value.trim();if(!texto)return;if(texto.length>1000)return alert('Mensagem muito longa. Limite: 1000 caracteres.');try{await addDoc(chatCol,{texto,email:currentUser.email||'',nome:currentProfile?.name||currentUser.displayName||currentUser.email,cargo:currentProfile?.cargo||currentProfile?.role||'',photoURL:currentUser.photoURL||'',sessionId:currentSessionId||'',createdAt:serverTimestamp(),createdAtText:new Date().toISOString()});input.value=''}catch(e){alert('Erro ao enviar mensagem: '+e.message)}}
 async function deleteChatMessage(id){if(!isAdmin())return;try{await deleteDoc(doc(db,'highos','data','chat_mensagens',id));await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'CHAT_EXCLUSAO',descricao:'Mensagem removida do chat interno',usuario:currentUser.email,data:serverTimestamp()})}catch(e){alert('Erro ao excluir mensagem: '+e.message)}}
 $('#spotifySaveBtn')?.addEventListener('click',saveSpotifyConfig);$('#chatSendBtn')?.addEventListener('click',sendChatMessage);$('#chatInput')?.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChatMessage()}});document.querySelectorAll('[data-chat-emoji]').forEach(b=>b.addEventListener('click',()=>{const i=$('#chatInput');if(i){i.value+=b.dataset.chatEmoji;i.focus()}}));
+
+console.info('HIGH OS V8.24 · GitHub consolidado + Administração de Groups + cache hardening');
