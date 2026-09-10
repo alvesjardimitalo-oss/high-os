@@ -238,7 +238,7 @@ function setFormBenefits(b={}){
 function selectedDefaultBenefits(){return [...document.querySelectorAll('[data-default-benefit]:checked')].map(x=>x.dataset.defaultBenefit)}
 function currentFactionFromForm(){
  const old=faccoes.find(x=>x.group===$('#fGroup').value)||{};
- return {...old,group:$('#fGroup').value,status:$('#fStatus').value,faccao:$('#fFaccao').value.trim(),qg:$('#fQG').value.trim(),produto:$('#fProduto').value.trim(),lider:$('#fLider').value.trim(),staff:$('#fStaff').value.trim(),dataEntrega:$('#fData').value.trim(),anuncio:$('#fAnuncio').value.trim(),imagemAnuncio:$('#fImagemAnuncio')?.value.trim()||'',cds:$('#fCds').value.trim(),observacoes:$('#fObs').value.trim(),beneficios:getFormBenefits(),perfilEntrega:{planoPadrao:$('#fPlanoPadrao')?.value.trim()||'',observacao:$('#fPerfilObs')?.value.trim()||'',beneficiosPadrao:selectedDefaultBenefits()},perfilTecnico:getTechProfileFromForm()};
+ return {...old,group:$('#fGroup').value,status:$('#fStatus').value,faccao:$('#fFaccao').value.trim(),qg:$('#fQG').value.trim(),produto:$('#fProduto').value.trim(),lider:$('#fLider').value.trim(),staff:$('#fStaff').value.trim(),dataEntrega:$('#fData').value.trim(),anuncio:$('#fAnuncio').value.trim(),imagemAnuncio:$('#fImagemAnuncio')?.value.trim()||'',contingenteMin:Number($('#fContingenteMin')?.value||15),contingenteMax:Number($('#fContingenteMax')?.value||28),cds:$('#fCds').value.trim(),observacoes:$('#fObs').value.trim(),beneficios:getFormBenefits(),perfilEntrega:{planoPadrao:$('#fPlanoPadrao')?.value.trim()||'',observacao:$('#fPerfilObs')?.value.trim()||'',beneficiosPadrao:selectedDefaultBenefits()},perfilTecnico:getTechProfileFromForm()};
 }
 function benefitLines(f){
  const b=f?.beneficios||{}, out=[];
@@ -312,16 +312,16 @@ function resolveGroupIdentity(f={}){
 }
 function openFac(id){
  const raw=faccoes.find(x=>x.id===id);if(!raw)return;const f=resolveGroupIdentity(raw);
- $('#fGroup').value=f.group;$('#fGroupShow').value=f.group;syncSegmentSelects();if($('#fSegment'))$('#fSegment').value=segmentNames().find(x=>segmentKey(x)===segmentKey(f.segmento||''))||f.segmento||'OUTROS';$('#fStatus').value=f.status||'INATIVA';$('#fFaccao').value=f.faccao||'';$('#fQG').value=f.qg||'';$('#fProduto').value=f.produto||'';$('#fLider').value=f.lider||'';$('#fStaff').value=f.staff||'';$('#fData').value=f.dataEntrega||'';$('#fAnuncio').value=f.anuncio||'';if($('#fImagemAnuncio'))$('#fImagemAnuncio').value=f.imagemAnuncio||'';$('#fCds').value=f.cds||'';$('#fObs').value=f.observacoes||'';setFormBenefits(f.beneficios||{});renderDefaultDeliveryProfile(f);renderTechProfile(f);$('#facModalTitle').textContent=f.group;showGroupProfilePage(f);updateDeliveryPreview();
+ $('#fGroup').value=f.group;$('#fGroupShow').value=f.group;syncSegmentSelects();if($('#fSegment'))$('#fSegment').value=segmentNames().find(x=>segmentKey(x)===segmentKey(f.segmento||''))||f.segmento||'OUTROS';$('#fStatus').value=f.status||'INATIVA';$('#fFaccao').value=f.faccao||'';$('#fQG').value=f.qg||'';$('#fProduto').value=f.produto||'';$('#fLider').value=f.lider||'';$('#fStaff').value=f.staff||'';$('#fData').value=f.dataEntrega||'';$('#fAnuncio').value=f.anuncio||'';if($('#fImagemAnuncio'))$('#fImagemAnuncio').value=f.imagemAnuncio||'';if($('#fContingenteMin'))$('#fContingenteMin').value=f.contingenteMin||15;if($('#fContingenteMax'))$('#fContingenteMax').value=f.contingenteMax||28;$('#fCds').value=f.cds||'';$('#fObs').value=f.observacoes||'';setFormBenefits(f.beneficios||{});renderDefaultDeliveryProfile(f);renderTechProfile(f);$('#facModalTitle').textContent=f.group;showGroupProfilePage(f);updateDeliveryPreview();
  $('#recolherBtn').style.display=f.status==='ATIVA'?'block':'none';
 }
 $('#facModalClose').onclick=closeGroupProfilePage;
 
-['fSegment','fStatus','fFaccao','fQG','fProduto','fLider','fStaff','fData','fAnuncio','fImagemAnuncio','fCds','fObs','fVipOrg','fChatFaccao','fSalario','fSalarioMin','fRadio','fGaragemVipBlip','fGaragemVipSpawn','fGaragemVipVeiculos','fLojaRoupas','fBarbearia','fTatuagem','fShopExclusivo','fBau','fBauCapacidade','fArena','fFarm','fCraft','fRotaExclusiva','fRotaBlips','fTelao','fTelaoNome','fTelaoPostit','fTelaoCds','fGaragemPublica','fGaragemPublicaBlip','fGaragemPublicaSpawn','fHeliponto','fHelipontoBlip','fHelipontoSpawn','fOutrosBeneficios','fPlanoPadrao','fPerfilObs','fTechCraftCds','fTechCraftNome','fTechFarmCds','fTechRouteName','fTechRouteStart','fTechRoutePoints'].forEach(id=>$('#'+id)?.addEventListener('input',updateDeliveryPreview));
+['fSegment','fStatus','fFaccao','fQG','fProduto','fLider','fStaff','fData','fAnuncio','fImagemAnuncio','fContingenteMin','fContingenteMax','fCds','fObs','fVipOrg','fChatFaccao','fSalario','fSalarioMin','fRadio','fGaragemVipBlip','fGaragemVipSpawn','fGaragemVipVeiculos','fLojaRoupas','fBarbearia','fTatuagem','fShopExclusivo','fBau','fBauCapacidade','fArena','fFarm','fCraft','fRotaExclusiva','fRotaBlips','fTelao','fTelaoNome','fTelaoPostit','fTelaoCds','fGaragemPublica','fGaragemPublicaBlip','fGaragemPublicaSpawn','fHeliponto','fHelipontoBlip','fHelipontoSpawn','fOutrosBeneficios','fPlanoPadrao','fPerfilObs','fTechCraftCds','fTechCraftNome','fTechFarmCds','fTechRouteName','fTechRouteStart','fTechRoutePoints'].forEach(id=>$('#'+id)?.addEventListener('input',updateDeliveryPreview));
 $('#copyDeliveryBtn').onclick=copyDeliveryExtract; $('#copyDeliveryRequestsBtn').onclick=copyDeliveryRequests;
 
 $('#facForm').onsubmit=async e=>{
- e.preventDefault();const group=$('#fGroup').value,old=faccoes.find(x=>x.group===group);getTechProfileFromForm();const data={...old,segmento:$('#fSegment')?.value||old?.segmento||'OUTROS',status:$('#fStatus').value,faccao:$('#fFaccao').value.trim(),qg:$('#fQG').value.trim(),produto:$('#fProduto').value.trim(),lider:$('#fLider').value.trim(),staff:$('#fStaff').value.trim(),dataEntrega:$('#fData').value.trim(),anuncio:$('#fAnuncio').value.trim(),imagemAnuncio:$('#fImagemAnuncio')?.value.trim()||'',cds:$('#fCds').value.trim(),observacoes:$('#fObs').value.trim(),beneficios:getFormBenefits(),perfilEntrega:{planoPadrao:$('#fPlanoPadrao')?.value.trim()||'',observacao:$('#fPerfilObs')?.value.trim()||'',beneficiosPadrao:selectedDefaultBenefits()},perfilTecnico:getTechProfileFromForm(),updatedAt:serverTimestamp(),updatedBy:currentUser.email};
+ e.preventDefault();const group=$('#fGroup').value,old=faccoes.find(x=>x.group===group);getTechProfileFromForm();const data={...old,segmento:$('#fSegment')?.value||old?.segmento||'OUTROS',status:$('#fStatus').value,faccao:$('#fFaccao').value.trim(),qg:$('#fQG').value.trim(),produto:$('#fProduto').value.trim(),lider:$('#fLider').value.trim(),staff:$('#fStaff').value.trim(),dataEntrega:$('#fData').value.trim(),anuncio:$('#fAnuncio').value.trim(),imagemAnuncio:$('#fImagemAnuncio')?.value.trim()||'',contingenteMin:Number($('#fContingenteMin')?.value||15),contingenteMax:Number($('#fContingenteMax')?.value||28),cds:$('#fCds').value.trim(),observacoes:$('#fObs').value.trim(),beneficios:getFormBenefits(),perfilEntrega:{planoPadrao:$('#fPlanoPadrao')?.value.trim()||'',observacao:$('#fPerfilObs')?.value.trim()||'',beneficiosPadrao:selectedDefaultBenefits()},perfilTecnico:getTechProfileFromForm(),updatedAt:serverTimestamp(),updatedBy:currentUser.email};
  if(data.status==='ATIVA'&&!data.faccao){alert('Informe o nome da facção para marcar como ATIVA.');return}
  try{const generated=autoDeliveryRequests(data);await setDoc(doc(db,'highos','data','faccoes',group),data);const localIndex=faccoes.findIndex(x=>x.group===group);if(localIndex>=0)faccoes[localIndex]={...faccoes[localIndex],...clonePlain(data)};await addDoc(histCol,{sessionId:currentSessionId||'',tipo:(old?.qg!==data.qg||old?.cds!==data.cds||JSON.stringify(old?.beneficios||{})!==JSON.stringify(data.beneficios||{}))?'QG_ALTERADO':(old?.status==='INATIVA'&&data.status==='ATIVA'?'ENTREGA':'EDICAO'),group,faccao:data.faccao||old?.faccao||'',qg:data.qg||'',antes:snapshot(old),depois:snapshot(data),solicitacoesGeradas:generated,extratoEntrega:buildDeliveryExtract(data),usuario:currentUser.email,data:serverTimestamp()});for(const r of generated)await archiveTechnicalRequest(r,data,'ALTERACAO_DO_GROUP');await syncGroupsToOfficialSheet([data],{quiet:true});closeGroupProfilePage();await loadFaccoes()}catch(err){alert('Erro ao salvar: '+err.message)}
 };
@@ -867,7 +867,7 @@ function derivedOrganizations(){
  const map=new Map();
  organizacoes.forEach(o=>map.set(String(o.nome||o.id||'').toLowerCase(),{...o,source:'cadastro'}));
  faccoes.filter(f=>f.faccao).forEach(f=>{const k=String(f.faccao).toLowerCase(),old=map.get(k)||{};map.set(k,{...old,id:old.id||orgKey(f.faccao),nome:old.nome||f.faccao,lider:old.lider||f.lider||'',status:old.status||'ATIVA',groupAtual:f.group,segmentoAtual:f.segmento,segmentoVinculado:old.segmentoVinculado||f.segmento,qgAtual:f.qg,contato:old.contato||'',discord:old.discord||'',desde:old.desde||f.dataEntrega||'',observacoes:old.observacoes||'',source:old.source||'group'});});
- return [...map.values()].sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
+ return [...map.values()].map(o=>({...o,status:o.groupAtual?'ATIVA':'INATIVA'})).sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
 }
 async function loadOrganizations(){
  try{const qs=await getDocs(orgCol);organizacoes=qs.docs.map(d=>({id:d.id,...d.data()}));renderOrganizations();syncOrgOptions()}catch(e){if($('#orgList'))$('#orgList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR</h3><p>${esc(e.message)}</p></div>`}
@@ -915,7 +915,7 @@ async function openOrganizationByName(name=''){
 $('#newOrgBtn')?.addEventListener('click',()=>openOrganizationByName(''));
 $('#orgModalClose')?.addEventListener('click',closeOrganizationProfilePage);
 ['orgSearch','orgSegment','orgStatus'].forEach(id=>$('#'+id)?.addEventListener(id==='orgSearch'?'input':'change',renderOrganizations));
-$('#orgForm')?.addEventListener('submit',async e=>{e.preventDefault();const nome=$('#oNome').value.trim();if(!nome)return;const id=$('#orgId').value||orgKey(nome),current=faccoes.find(f=>String(f.faccao||'').toLowerCase()===nome.toLowerCase());const data={nome,status:current?'ATIVA':$('#oStatus').value,lider:$('#oLider').value.trim(),contato:$('#oContato').value.trim(),discord:$('#oDiscord').value.trim(),desde:$('#oDesde').value.trim(),observacoes:$('#oObs').value.trim(),groupAtual:current?.group||'',segmentoAtual:current?.segmento||$('#oSegment')?.value||'',segmentoVinculado:$('#oSegment')?.value||current?.segmento||'',qgAtual:current?.qg||'',updatedAt:serverTimestamp(),updatedBy:currentUser.email};try{await setDoc(doc(db,'highos','data','organizacoes',id),data);await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'ORGANIZACAO',faccao:nome,group:current?.group||'',descricao:`Cadastro da facção ${nome} atualizado`,usuario:currentUser.email,data:serverTimestamp()});closeOrganizationProfilePage();await loadOrganizations()}catch(err){alert('Erro ao salvar facção: '+err.message)}});
+$('#orgForm')?.addEventListener('submit',async e=>{e.preventDefault();const nome=$('#oNome').value.trim();if(!nome)return;const id=$('#orgId').value||orgKey(nome),current=faccoes.find(f=>String(f.faccao||'').toLowerCase()===nome.toLowerCase());const data={nome,status:current?'ATIVA':'INATIVA',lider:$('#oLider').value.trim(),contato:$('#oContato').value.trim(),discord:$('#oDiscord').value.trim(),desde:$('#oDesde').value.trim(),observacoes:$('#oObs').value.trim(),groupAtual:current?.group||'',segmentoAtual:current?.segmento||$('#oSegment')?.value||'',segmentoVinculado:$('#oSegment')?.value||current?.segmento||'',qgAtual:current?.qg||'',updatedAt:serverTimestamp(),updatedBy:currentUser.email};try{await setDoc(doc(db,'highos','data','organizacoes',id),data);await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'ORGANIZACAO',faccao:nome,group:current?.group||'',descricao:`Cadastro da facção ${nome} atualizado`,usuario:currentUser.email,data:serverTimestamp()});closeOrganizationProfilePage();await loadOrganizations()}catch(err){alert('Erro ao salvar facção: '+err.message)}});
 async function upsertOrganizationFromDelivery(payload,f){
  const id=orgKey(payload.faccao),existing=derivedOrganizations().find(o=>String(o.nome).toLowerCase()===payload.faccao.toLowerCase())||{};
  await setDoc(doc(db,'highos','data','organizacoes',id),{nome:payload.faccao,status:'ATIVA',lider:payload.lider||existing.lider||'',contato:existing.contato||'',discord:existing.discord||'',desde:existing.desde||payload.dataEntrega||'',observacoes:existing.observacoes||'',groupAtual:f.group,segmentoAtual:f.segmento||'',segmentoVinculado:f.segmento||existing.segmentoVinculado||'',qgAtual:f.qg||'',updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true});
@@ -2466,49 +2466,115 @@ $('#farmEditorForm')?.addEventListener('submit',e=>{e.preventDefault();const i=+
 
 // HIGH OS V8.1 · FACÇÕES DISPONÍVEIS + ANÚNCIOS DISCORD
 function availableAnnouncementText(f){
- const eixo=f.segmento||'OUTROS';
+ const min=Math.max(1,Number(f.contingenteMin||15));
+ const max=Math.max(min,Number(f.contingenteMax||28));
+ const local=[f.qg||'SEM LOCAL',f.group||''].filter(Boolean).join(' - ');
  const linhas=[
-  'FACÇÃO DISPONÍVEL PARA ASSUMIR','',
-  `- Eixo: ${eixo}`,
-  `- Group: ${f.group||'—'}`,
-  `- QG: ${f.qg||'—'}`,
+  '# 🔥 OPORTUNIDADE DE ASSUMIR FACÇÃO','',
+  `🏴 Segmento: ${f.segmento||'OUTROS'}`,'',
+  `📍 Local: ${local}`,'',
+  `👥 Contingente mínimo: ${min} a ${max} membros`,'',
+  '🎁 Benefícios iniciais:','- VIP Facção por 2 semanas','- $1.000.000 em dinheiro sujo','- Estrutura inicial da organização','',
+  '📋 Como participar:','- Abra um ticket no suporte do Ilegal','- Mencione esta postagem no ticket','- Informe o nome da sua tropa e a quantidade de membros','- Aguarde o atendimento de um responsável do Ilegal','',
+  '🚨 A facção será liberada mediante análise de contingente, organização e disponibilidade.','',
+  '🏆 Reúna sua tropa e venha disputar seu espaço no Ilegal da High.'
  ];
- if(f.produto)linhas.push(`- Produto: ${f.produto}`);
- linhas.push('', '- Esta facção encontra-se disponível para assumir.', '- Interessados devem abrir ticket no Discord do Ilegal.', '- Consulte os requisitos e metas do eixo antes de solicitar.', '', 'HIGH ROLEPLAY', 'GESTÃO DO ILEGAL');
+ if(f.imagemAnuncio)linhas.push('',String(f.imagemAnuncio).trim());
  return linhas.join('\n');
 }
-function availablePosted(f){return !!f?.anuncioDiscordStatus?.postado}
+
+async function saveAvailableImageLink(group,input,button){
+ const f=faccoes.find(x=>x.group===group);if(!f||!currentUser)return;
+ const url=String(input?.value||'').trim();
+ if(url&&!/^https?:\/\//i.test(url)){alert('Informe um link válido começando com http:// ou https://');return}
+ const old=f.imagemAnuncio||'';
+ if(url===old){if(button){const t=button.textContent;button.textContent='JÁ SALVO';setTimeout(()=>button.textContent=t,900)}return}
+ try{
+  if(button){button.disabled=true;button.textContent='SALVANDO...'}
+  await setDoc(doc(db,'highos','data','faccoes',group),{imagemAnuncio:url,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true});
+  await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'IMAGEM_ANUNCIO_DISCORD',group,antes:{imagemAnuncio:old},depois:{imagemAnuncio:url},descricao:url?'Link da imagem do anúncio cadastrado/alterado':'Link da imagem do anúncio removido',usuario:currentUser.email,data:serverTimestamp()});
+  await loadFaccoes();
+ }catch(e){alert('Erro ao salvar link da imagem: '+e.message);if(button){button.disabled=false;button.textContent='SALVAR LINK'}}
+}
+async function saveAvailableContingent(group,card,button){
+ const f=faccoes.find(x=>x.group===group);if(!f||!currentUser)return;
+ const min=Math.max(1,Number(card?.querySelector('.available-cont-min')?.value||15));
+ const rawMax=Number(card?.querySelector('.available-cont-max')?.value||28);
+ const max=Math.max(min,rawMax||28);
+ const antes={contingenteMin:Number(f.contingenteMin||15),contingenteMax:Number(f.contingenteMax||28)};
+ try{
+  if(button){button.disabled=true;button.textContent='SALVANDO...'}
+  await setDoc(doc(db,'highos','data','faccoes',group),{contingenteMin:min,contingenteMax:max,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true});
+  await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'CONTINGENTE_ANUNCIO',group,antes,depois:{contingenteMin:min,contingenteMax:max},descricao:`Contingente do anúncio alterado para ${min} a ${max} membros`,usuario:currentUser.email,data:serverTimestamp()});
+  await loadFaccoes();
+ }catch(e){alert('Erro ao salvar contingente: '+e.message);if(button){button.disabled=false;button.textContent='SALVAR CONTINGENTE'}}
+}
+function availableDiscordState(f){
+ const meta=f?.anuncioDiscordStatus||{};
+ if(meta.postado===true)return 'POSTADO';
+ if(meta.postado===false&&(meta.confirmado===true||meta.naoPostadoEm||meta.desmarcadoEm))return 'NAO_POSTADO';
+ return 'NAO_INFORMADO';
+}
+function availablePosted(f){return availableDiscordState(f)==='POSTADO'}
 function renderAvailableFaccoes(){
  const box=$('#availableList');if(!box)return;renderAvailableSegmentCards();
  const q=($('#availableSearch')?.value||'').toLowerCase(),seg=$('#availableSegment')?.value||'',dc=$('#availableDiscord')?.value||'';
  const all=faccoes.filter(f=>f.status!=='ATIVA'||!String(f.faccao||'').trim());
- const list=all.filter(f=>(!seg||segmentKey(f.segmento)===segmentKey(seg))&&(!q||[f.group,f.qg,f.produto,f.segmento].join(' ').toLowerCase().includes(q))&&(!dc||(dc==='POSTADO'?availablePosted(f):!availablePosted(f))));
- const posted=all.filter(availablePosted).length,pending=all.length-posted;
- if($('#availableStats'))$('#availableStats').innerHTML=`<span><b>${all.length}</b> DISPONÍVEIS</span><span><b>${pending}</b> NÃO POSTADAS</span><span><b>${posted}</b> POSTADAS</span><span><b>${list.length}</b> EXIBIDAS</span>`;
+ const list=all.filter(f=>(!seg||segmentKey(f.segmento)===segmentKey(seg))&&(!q||[f.group,f.qg,f.produto,f.segmento].join(' ').toLowerCase().includes(q))&&(!dc||availableDiscordState(f)===dc));
+ const posted=all.filter(f=>availableDiscordState(f)==='POSTADO').length,notPosted=all.filter(f=>availableDiscordState(f)==='NAO_POSTADO').length,unknown=all.filter(f=>availableDiscordState(f)==='NAO_INFORMADO').length;
+ if($('#availableStats'))$('#availableStats').innerHTML=`<span><b>${all.length}</b> LIVRES</span><span><b>${unknown}</b> NÃO INFORMADO</span><span><b>${notPosted}</b> NÃO POSTADAS</span><span><b>${posted}</b> POSTADAS</span><span><b>${list.length}</b> EXIBIDAS</span>`;
  if(!list.length){box.innerHTML='<div class="placeholder"><b>◈</b><h3>NENHUMA FACÇÃO DISPONÍVEL NESTE FILTRO</h3><p>Ajuste os filtros ou aguarde um Group ficar vago.</p></div>';return}
- box.innerHTML=list.map(f=>{const posted=availablePosted(f),meta=f.anuncioDiscordStatus||{},text=availableAnnouncementText(f);return `<article class="available-card" data-group="${esc(f.group)}">
-   <div class="available-card-head"><div><span>${esc(f.segmento||'OUTROS')}</span><h3>${esc(f.group)}</h3></div><span class="discord-state ${posted?'posted':'pending'}">${posted?'POSTADO':'NÃO POSTADO'}</span></div>
+ box.innerHTML=list.map(f=>{const dcState=availableDiscordState(f),posted=dcState==='POSTADO',meta=f.anuncioDiscordStatus||{},text=availableAnnouncementText(f),stateLabel=dcState==='POSTADO'?'POSTADO':dcState==='NAO_POSTADO'?'NÃO POSTADO':'RESPONDER STATUS';return `<article class="available-card" data-group="${esc(f.group)}">
+   <div class="available-card-head"><div><span>${esc(f.segmento||'OUTROS')}</span><h3>${esc(f.group)}</h3></div><span class="discord-state ${posted?'posted':dcState==='NAO_POSTADO'?'not-posted':'pending'}">${stateLabel}</span></div>
    <div class="available-qg">${esc(f.qg||'SEM LOCAL')}</div>
    <div class="available-product">${esc(f.produto||'Produto não informado')}</div>
-   ${f.imagemAnuncio?`<div class="available-image-link"><span>IMAGEM</span><b>${esc(f.imagemAnuncio)}</b></div>`:'<div class="available-image-link missing"><span>IMAGEM</span><b>LINK NÃO CADASTRADO NO PERFIL DO GROUP</b></div>'}
+   <div class="available-contingent-editor"><span>CONTINGENTE DO ANÚNCIO</span><div class="available-contingent-row"><label>MÍNIMO<input class="available-cont-min" type="number" min="1" max="100" value="${Number(f.contingenteMin||15)}"></label><label>MÁXIMO<input class="available-cont-max" type="number" min="1" max="100" value="${Number(f.contingenteMax||28)}"></label><button class="mini-btn available-save-contingent" data-group="${esc(f.group)}">SALVAR CONTINGENTE</button></div></div>
+   <div class="available-image-editor ${f.imagemAnuncio?'':'missing'}"><label><span>LINK DA IMAGEM PARA O DISCORD</span><div class="available-image-input-row"><input class="available-image-input" data-group="${esc(f.group)}" value="${esc(f.imagemAnuncio||'')}" placeholder="Cole aqui o link direto da imagem..."><button class="mini-btn available-save-image" data-group="${esc(f.group)}">SALVAR LINK</button></div><small>${f.imagemAnuncio?'O link será incluído automaticamente no texto do anúncio.':'Cadastre o link aqui; não precisa abrir o perfil do Group.'}</small></label></div>
    ${posted?`<div class="available-posted-meta">Publicado por <b>${esc(meta.responsavel||meta.postadoPor||'—')}</b>${meta.dataHora?` • ${esc(meta.dataHora)}`:''}</div>`:''}
-   <div class="available-actions"><button class="btn-primary compact available-generate" data-group="${esc(f.group)}">GERAR ANÚNCIO</button><button class="mini-btn available-copy-text" data-group="${esc(f.group)}">COPIAR ANÚNCIO</button><button class="mini-btn available-copy-image" data-group="${esc(f.group)}" ${f.imagemAnuncio?'':'disabled'}>COPIAR LINK DA IMAGEM</button><button class="mini-btn available-toggle-posted ${posted?'posted':''}" data-group="${esc(f.group)}">${posted?'DESMARCAR POSTAGEM':'MARCAR COMO POSTADO'}</button></div>
+   <div class="available-actions"><button class="btn-primary compact available-generate" data-group="${esc(f.group)}">GERAR ANÚNCIO</button><button class="mini-btn available-copy-text" data-group="${esc(f.group)}">COPIAR ANÚNCIO + IMAGEM</button><button class="mini-btn available-copy-image" data-group="${esc(f.group)}" ${f.imagemAnuncio?'':'disabled'}>COPIAR SÓ O LINK</button><button class="mini-btn available-set-posted ${posted?'posted':''}" data-group="${esc(f.group)}">✓ POSTADO NO HIGH FACS LIVRES</button><button class="mini-btn available-set-not-posted ${dcState==='NAO_POSTADO'?'not-posted':''}" data-group="${esc(f.group)}">✕ NÃO POSTADO</button></div>
    <textarea class="available-preview hidden" data-preview="${esc(f.group)}">${esc(text)}</textarea>
   </article>`}).join('');
  box.querySelectorAll('.available-generate').forEach(b=>b.onclick=()=>{const card=b.closest('.available-card'),ta=card?.querySelector('.available-preview');if(!ta)return;ta.classList.toggle('hidden');b.textContent=ta.classList.contains('hidden')?'GERAR ANÚNCIO':'OCULTAR PRÉVIA'});
+ box.querySelectorAll('.available-save-contingent').forEach(b=>b.onclick=()=>saveAvailableContingent(b.dataset.group,b.closest('.available-card'),b));
+ box.querySelectorAll('.available-save-image').forEach(b=>b.onclick=()=>{const input=b.closest('.available-image-editor')?.querySelector('.available-image-input');saveAvailableImageLink(b.dataset.group,input,b)});
+ box.querySelectorAll('.available-image-input').forEach(i=>i.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();const b=i.closest('.available-image-editor')?.querySelector('.available-save-image');if(b)saveAvailableImageLink(i.dataset.group,i,b)}}));
  box.querySelectorAll('.available-copy-text').forEach(b=>b.onclick=()=>{const f=faccoes.find(x=>x.group===b.dataset.group);if(f)copyText(availableAnnouncementText(f),b)});
  box.querySelectorAll('.available-copy-image').forEach(b=>b.onclick=()=>{const f=faccoes.find(x=>x.group===b.dataset.group);if(f?.imagemAnuncio)copyText(f.imagemAnuncio,b)});
- box.querySelectorAll('.available-toggle-posted').forEach(b=>b.onclick=()=>toggleAvailablePosted(b.dataset.group));
+ box.querySelectorAll('.available-set-posted').forEach(b=>b.onclick=()=>setAvailableDiscordState(b.dataset.group,true));
+ box.querySelectorAll('.available-set-not-posted').forEach(b=>b.onclick=()=>setAvailableDiscordState(b.dataset.group,false));
 }
-async function toggleAvailablePosted(group){
+async function setAvailableDiscordState(group,postado){
  const f=faccoes.find(x=>x.group===group);if(!f)return;
- const was=availablePosted(f),now=new Date();
- if(!was&&!confirm(`Marcar ${group} • ${f.qg||'QG'} como POSTADO no Discord?`))return;
- if(was&&!confirm(`Desmarcar a postagem de ${group}?`))return;
- const status=was?{postado:false,desmarcadoEm:now.toISOString(),desmarcadoPor:currentUser.email}:{postado:true,dataHora:now.toLocaleString('pt-BR'),postadoEm:now.toISOString(),responsavel:currentProfile?.name||currentUser?.displayName||currentUser.email,postadoPor:currentUser.email,texto:availableAnnouncementText(f),imagemUrl:f.imagemAnuncio||''};
- try{await setDoc(doc(db,'highos','data','faccoes',group),{anuncioDiscordStatus:status,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true});await addDoc(histCol,{sessionId:currentSessionId||'',tipo:was?'ANUNCIO_DISCORD_DESMARCADO':'ANUNCIO_DISCORD_POSTADO',group,qg:f.qg||'',segmento:f.segmento||'',texto:availableAnnouncementText(f),imagemUrl:f.imagemAnuncio||'',usuario:currentUser.email,data:serverTimestamp()});await loadFaccoes()}catch(e){alert('Erro ao atualizar status do anúncio: '+e.message)}
+ if(f.status==='ATIVA'&&String(f.faccao||'').trim())return alert('Este Group está ocupado e não faz parte das facções livres.');
+ const now=new Date(),label=postado?'POSTADO':'NÃO POSTADO';
+ if(!confirm(`Confirmar ${group} como ${label} no Discord HIGH FACS LIVRES?`))return;
+ const status=postado
+  ?{confirmado:true,postado:true,dataHora:now.toLocaleString('pt-BR'),postadoEm:now.toISOString(),responsavel:currentProfile?.name||currentUser?.displayName||currentUser.email,postadoPor:currentUser.email,texto:availableAnnouncementText(f),imagemUrl:f.imagemAnuncio||''}
+  :{confirmado:true,postado:false,dataHora:now.toLocaleString('pt-BR'),naoPostadoEm:now.toISOString(),responsavel:currentProfile?.name||currentUser?.displayName||currentUser.email,confirmadoPor:currentUser.email};
+ try{await setDoc(doc(db,'highos','data','faccoes',group),{anuncioDiscordStatus:status,status:'INATIVA',updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true});await addDoc(histCol,{sessionId:currentSessionId||'',tipo:postado?'ANUNCIO_DISCORD_POSTADO':'ANUNCIO_DISCORD_NAO_POSTADO',group,qg:f.qg||'',segmento:f.segmento||'',descricao:`${group} confirmado como ${label} no HIGH FACS LIVRES`,texto:postado?availableAnnouncementText(f):'',imagemUrl:f.imagemAnuncio||'',usuario:currentUser.email,data:serverTimestamp()});await loadFaccoes()}catch(e){alert('Erro ao atualizar status do anúncio: '+e.message)}
+}
+async function toggleAvailablePosted(group){const f=faccoes.find(x=>x.group===group);return setAvailableDiscordState(group,!availablePosted(f))}
+
+function freeFaccoesForReport(type='TODAS'){
+ const rows=faccoes.filter(f=>!f.removido&&(f.status!=='ATIVA'||!String(f.faccao||'').trim()));
+ return type==='TODAS'?rows:rows.filter(f=>availableDiscordState(f)===type);
+}
+function freeFacReportText(type='TODAS'){
+ const rows=freeFaccoesForReport(type),now=new Date().toLocaleString('pt-BR');
+ const title=type==='POSTADO'?'POSTADAS':type==='NAO_POSTADO'?'NÃO POSTADAS':type==='NAO_INFORMADO'?'SEM STATUS INFORMADO':'TODAS AS LIVRES';
+ return [`RELATÓRIO DE FACÇÕES LIVRES — ${title}`,`Gerado em: ${now}`,`Total: ${rows.length}`,'',...rows.map((f,i)=>`${i+1}. ${f.group} | ${f.segmento||'OUTROS'} | ${f.qg||'SEM LOCAL'} | ${availableDiscordState(f)==='POSTADO'?'POSTADO':availableDiscordState(f)==='NAO_POSTADO'?'NÃO POSTADO':'NÃO INFORMADO'}${f.anuncioDiscordStatus?.dataHora?' | '+f.anuncioDiscordStatus.dataHora:''}`)].join('\n');
+}
+function downloadFreeFacCsv(type='TODAS'){
+ const rows=freeFaccoesForReport(type),head=['Group','Segmento','QG','Produto','Status Discord','Data/Hora','Responsável','Link imagem'];
+ const data=[head,...rows.map(f=>{const m=f.anuncioDiscordStatus||{};return [f.group,f.segmento||'',f.qg||'',f.produto||'',availableDiscordState(f)==='POSTADO'?'POSTADO':availableDiscordState(f)==='NAO_POSTADO'?'NÃO POSTADO':'NÃO INFORMADO',m.dataHora||'',m.responsavel||m.postadoPor||m.confirmadoPor||'',f.imagemAnuncio||'']})];
+ const csv='\ufeff'+data.map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(';')).join('\r\n'),blob=new Blob([csv],{type:'text/csv;charset=utf-8'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`faccoes_livres_${String(type).toLowerCase()}_${new Date().toISOString().slice(0,10)}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+function showFreeFacReport(){
+ const type=$('#availableReportType')?.value||'TODAS',rows=freeFaccoesForReport(type),existing=$('#freeFacReportModal');if(existing)existing.remove();
+ const modal=document.createElement('div');modal.id='freeFacReportModal';modal.className='modal';modal.innerHTML=`<div class="modal-box free-report-box"><div class="modal-head"><div><div class="eyebrow">RELATÓRIO • HIGH FACS LIVRES</div><h3>${type==='TODAS'?'TODAS AS FACÇÕES LIVRES':type==='POSTADO'?'FACÇÕES LIVRES POSTADAS':type==='NAO_POSTADO'?'FACÇÕES LIVRES NÃO POSTADAS':'FACÇÕES LIVRES SEM STATUS'}</h3></div><button type="button" class="modal-x">×</button></div><div class="free-report-summary"><b>${rows.length}</b><span>registro(s)</span><small>Gerado em ${new Date().toLocaleString('pt-BR')}</small></div><div class="free-report-table-wrap"><table class="free-report-table"><thead><tr><th>GROUP</th><th>SEGMENTO</th><th>QG</th><th>DISCORD</th><th>DATA / RESPONSÁVEL</th></tr></thead><tbody>${rows.map(f=>{const m=f.anuncioDiscordStatus||{},st=availableDiscordState(f);return `<tr><td><b>${esc(f.group)}</b></td><td>${esc(f.segmento||'—')}</td><td>${esc(f.qg||'SEM LOCAL')}</td><td><span class="discord-state ${st==='POSTADO'?'posted':st==='NAO_POSTADO'?'not-posted':'pending'}">${st==='POSTADO'?'POSTADO':st==='NAO_POSTADO'?'NÃO POSTADO':'NÃO INFORMADO'}</span></td><td>${esc(m.dataHora||'—')}<br><small>${esc(m.responsavel||m.postadoPor||m.confirmadoPor||'—')}</small></td></tr>`}).join('')||'<tr><td colspan="5">Nenhum registro neste filtro.</td></tr>'}</tbody></table></div><div class="modal-actions"><button type="button" class="mini-btn free-report-copy">COPIAR RELATÓRIO</button><button type="button" class="mini-btn free-report-csv">BAIXAR CSV</button><button type="button" class="btn-primary compact free-report-print">IMPRIMIR / PDF</button></div></div>`;document.body.appendChild(modal);modal.querySelector('.modal-x').onclick=()=>modal.remove();modal.querySelector('.free-report-copy').onclick=e=>copyText(freeFacReportText(type),e.currentTarget);modal.querySelector('.free-report-csv').onclick=()=>downloadFreeFacCsv(type);modal.querySelector('.free-report-print').onclick=()=>window.print();
 }
 ['availableSearch','availableSegment','availableDiscord'].forEach(id=>$('#'+id)?.addEventListener(id==='availableSearch'?'input':'change',renderAvailableFaccoes));
+$('#availableReportBtn')?.addEventListener('click',showFreeFacReport);
 
 console.info('HIGH OS V8.7 · Persistência de Craft/Farm corrigida');
 
@@ -2601,3 +2667,19 @@ console.info('HIGH OS V8.14 · Solicitações bidirecionais + arquivo por Group 
 function openAdminTab(tab='acessos'){document.querySelectorAll('[data-admin-tab]').forEach(b=>b.classList.toggle('active',b.dataset.adminTab===tab));document.querySelectorAll('[data-admin-panel]').forEach(p=>p.classList.toggle('active',p.dataset.adminPanel===tab));if(tab==='auditoria'&&isAdmin())loadUserAudit()}
 document.querySelectorAll('[data-admin-tab]').forEach(b=>b.addEventListener('click',()=>openAdminTab(b.dataset.adminTab)));
 $('#adminOpenUsersBtn')?.addEventListener('click',()=>activateAppPage('usuarios'));
+
+console.info('HIGH OS V8.20 · Facções livres: status obrigatório Discord + relatórios + status ativo por ocupação');
+
+// HIGH OS V8.20 · status da facção é determinado pela ocupação do Group.
+async function normalizeOccupationStatusV820(){
+ const changes=[];
+ faccoes.forEach(f=>{const active=!!String(f.faccao||'').trim(),wanted=active?'ATIVA':'INATIVA';if(f.status!==wanted)changes.push({f,wanted})});
+ if(!changes.length)return;
+ faccoes=faccoes.map(f=>{const hit=changes.find(x=>x.f.group===f.group);return hit?{...f,status:hit.wanted}:f});
+ if(isAdmin()){
+  try{const batch=writeBatch(db);changes.forEach(({f,wanted})=>batch.set(doc(db,'highos','data','faccoes',f.group),{status:wanted,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true}));await batch.commit();await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'STATUS_OCUPACAO_NORMALIZADO',descricao:`${changes.length} Group(s) tiveram o status ajustado automaticamente pela ocupação`,grupos:changes.map(x=>x.f.group),usuario:currentUser.email,data:serverTimestamp()})}catch(e){console.warn('Falha ao normalizar status por ocupação',e)}
+ }
+ renderFaccoes();renderAvailableFaccoes();renderOrganizations();
+}
+const _loadFaccoesV820=loadFaccoes;
+loadFaccoes=async function(){await _loadFaccoesV820();await normalizeOccupationStatusV820()};
