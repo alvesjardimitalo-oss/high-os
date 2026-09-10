@@ -237,3 +237,10 @@
 .metric-quick-row{display:grid;grid-template-columns:42px minmax(190px,1.4fr) minmax(120px,.7fr) 100px 120px;align-items:center;gap:12px;width:100%;padding:11px 16px;border:0;border-bottom:1px solid rgba(145,81,210,.10);background:transparent;color:inherit;text-align:left;cursor:pointer}
 .metric-quick-row:hover{background:rgba(145,81,210,.08)}.metric-quick-row:last-child{border-bottom:0}.metric-quick-row>strong{font-size:14px}.metric-quick-row div b{display:block}.metric-quick-row div small,.metric-quick-row>small{display:block;opacity:.65;font-size:10px}.metric-quick-row .metric-main-value{font-size:15px;font-weight:900}
 @media(max-width:800px){.metric-quick-row{grid-template-columns:34px 1fr 100px}.metric-quick-row>.metric-hide-mobile{display:none}}
+
+/* HIGH OS V8.6 · solicitação automática ao cadastrar Craft */
+.craft-request-modal{width:min(920px,94vw)}
+.craft-request-summary{display:flex;flex-wrap:wrap;gap:8px;margin:13px 0 15px}
+.craft-request-summary span{padding:7px 10px;border:1px solid rgba(169,87,255,.25);border-radius:999px;background:rgba(169,87,255,.06);font-size:9px;font-weight:900;letter-spacing:.06em;color:#cab6d8}
+.craft-request-text-label{display:block;font-size:9px;letter-spacing:.11em;color:#9b8ba6;font-weight:900}
+#craftRequestText{display:block;width:100%;box-sizing:border-box;margin-top:7px;padding:14px;border:1px solid #392a45;border-radius:12px;background:#09070c;color:#f2eaf6;font:12px/1.6 ui-monospace,SFMono-Regular,Consolas,monospace;resize:vertical}

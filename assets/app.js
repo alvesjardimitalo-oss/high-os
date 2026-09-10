@@ -2085,12 +2085,105 @@ const _renderHistoryV78=renderHistory;renderHistory=function(){_renderHistoryV78
 const _renderOrganizationsV78=renderOrganizations;renderOrganizations=function(){_renderOrganizationsV78();renderCommandDashboard()};
 console.info('HIGH OS DEV V7.8 · Central de Comando + Perfil de Facção em página');
 
+// HIGH OS V8.6 — solicitação automática ao salvar Craft adquirido/extra
+function craftRecipeKey(r={}){return String(r.spawn||r.id||r.nome||'').trim().toLowerCase()}
+function farmItemKey(x={}){return String(x.spawn||x.nome||'').trim().toLowerCase()}
+function ingredientDisplay(x={}){
+ const meta=ITEM_META[x.spawn]||{};
+ const nome=x.nome||meta.nome||x.spawn||'Item';
+ const qtd=String(x.qtd??'').trim();
+ return qtd?`${nome} x${qtd}`:nome;
+}
+function isLaundryMachineRecipe(r={}){
+ const txt=`${r.nome||''} ${r.spawn||''}`.toLowerCase();
+ return /brastemp|m[aá]quina.*lav|maquina.*lav|lavagem/.test(txt) || String(r.spawn||'').toLowerCase()==='lavagem';
+}
+function buildCraftRequestText(group,recipe,newProfile={},oldProfile={}){
+ const product=recipe?.nome||recipe?.spawn||'Produto';
+ const recipeLine=(recipe?.insumos||[]).map(ingredientDisplay).join(', ')||'Informar receita';
+ const oldFarm=new Map(((oldProfile?.farm?.itens)||[]).map(x=>[farmItemKey(x),x]));
+ let farmNew=((newProfile?.farm?.itens)||[]).filter(x=>!oldFarm.has(farmItemKey(x)));
+ if(!farmNew.length)farmNew=(recipe?.insumos||[]).map(x=>({spawn:x.spawn,nome:x.nome||ITEM_META[x.spawn]?.nome||x.spawn,qtd:x.qtd}));
+ if(isLaundryMachineRecipe(recipe) && !farmNew.some(x=>farmItemKey(x)==='washbleach'||/alvejante/i.test(x.nome||''))){
+   farmNew.push({spawn:'washbleach',nome:'Alvejante'});
+ }
+ const seen=new Set(),farmNames=[];
+ farmNew.forEach(x=>{const k=farmItemKey(x);if(!k||seen.has(k))return;seen.add(k);farmNames.push(x.nome||ITEM_META[x.spawn]?.nome||x.spawn)});
+ const farmLine=farmNames.length?farmNames.join(', '):'Informar itens do farm';
+ const L=[
+  'Assunto:','',
+  `- Adição do produto "${product}" no Group "${group}";`,'',
+  'Solicitação:','',
+  `- Adicionar o produto "${product}" ao craft do group "${group}";`,'',
+  `- Receita do Craft: ${recipeLine};`,'',
+  `- Adicionar os itens abaixo no farm do group "${group}";`,'',
+  `- ${farmLine};`,'',
+ ];
+ if(isLaundryMachineRecipe(recipe)){
+   L.push(`- Obs: O Group referido abaixo terá permissão para fabricar a "${product}" e apenas o "Lider e o Sublider" desse group poderão utilizar a mesma para realizar lavagem, as configurações e restrições do item seguem padrão.`,'');
+ }else if(String(recipe?.origem||'').toUpperCase()==='ADQUIRIDO EM LOJA'){
+   L.push(`- Obs: Craft adquirido em loja para o Group "${group}". A receita deverá ser adicionada somente a este Group, mantendo as configurações e restrições padrão do item.`,'');
+ }
+ L.push(`- Permissão "${group}".`);
+ return {texto:L.join('\n'),farmItens:farmNames};
+}
+function openCraftRequestModal(group,recipe,requestData){
+ const modal=$('#craftRequestModal'),ta=$('#craftRequestText'),sum=$('#craftRequestSummary');
+ if(!modal||!ta)return;
+ ta.value=requestData?.texto||'';
+ if(sum)sum.innerHTML=`<span>GROUP: ${esc(group)}</span><span>PRODUTO: ${esc(recipe?.nome||recipe?.spawn||'—')}</span><span>TIPO: ${esc(recipe?.origem||'EXTRA DO GROUP')}</span>`;
+ modal.classList.remove('hidden');
+}
+function closeCraftRequestModal(){$('#craftRequestModal')?.classList.add('hidden')}
+$('#craftRequestClose')?.addEventListener('click',closeCraftRequestModal);
+$('#craftRequestLater')?.addEventListener('click',closeCraftRequestModal);
+$('#craftRequestModal')?.addEventListener('click',e=>{if(e.target.id==='craftRequestModal')closeCraftRequestModal()});
+$('#copyCraftRequestBtn')?.addEventListener('click',async()=>{
+ const t=$('#craftRequestText')?.value||'';if(!t)return;const b=$('#copyCraftRequestBtn'),old=b?.textContent||'COPIAR SOLICITAÇÃO';
+ try{await navigator.clipboard.writeText(t);if(b)b.textContent='COPIADO ✓'}catch(e){const ta=$('#craftRequestText');ta?.select();document.execCommand('copy');if(b)b.textContent='COPIADO ✓'}
+ setTimeout(()=>{if(b)b.textContent=old},1400);
+});
+
 // HIGH OS V7.9 — editores visuais de Receita e Farm (sem prompt do navegador)
 $('#recipeEditorClose')?.addEventListener('click',closeRecipeEditor);
 $('#recipeEditorCancel')?.addEventListener('click',()=>{const i=+($('#recipeEditorIndex')?.value||-1),r=techDraft?.craft?.receitas?.[i];if(r&&!r.nome&&!r.spawn){techDraft.craft.receitas.splice(i,1);renderCraftRecipes();renderFarmItems()}closeRecipeEditor()});
 $('#recipeAddIngredient')?.addEventListener('click',()=>{const items=readIngredientEditor();items.push({spawn:'',nome:'',qtd:'',imagem:''});renderIngredientEditor(items)});
 $('#recipeEditorSpawn')?.addEventListener('input',e=>{$('#recipeEditorImage').src=itemImg(e.target.value.trim(),ITEM_META[e.target.value.trim()]?.imagem||'',$('#recipeEditorName')?.value||'')});
-$('#recipeEditorForm')?.addEventListener('submit',e=>{e.preventDefault();const i=+($('#recipeEditorIndex')?.value||-1),r=techDraft?.craft?.receitas?.[i];if(!r)return;r.nome=$('#recipeEditorName').value.trim();r.spawn=$('#recipeEditorSpawn').value.trim();r.nivel=$('#recipeEditorLevel').value.trim();r.max=$('#recipeEditorMax').value.trim();r.origem=$('#recipeEditorOrigin')?.value||r.origem||'EXTRA DO GROUP';r.disponibilidade=r.origem==='ADQUIRIDO EM LOJA'?'TODAS AS FACÇÕES':(r.disponibilidade||'');r.insumos=readIngredientEditor();r.imagem=ITEM_META[r.spawn]?.imagem||r.imagem||'';r.origem=r.origem||'EXTRA DO GROUP';syncFarmWithCraft();renderCraftRecipes();renderFarmItems();updateDeliveryPreview();renderConnectedRequests();closeRecipeEditor()});
+$('#recipeEditorForm')?.addEventListener('submit',async e=>{
+ e.preventDefault();
+ const i=Number($('#recipeEditorIndex')?.value);
+ const r=Number.isInteger(i)?techDraft?.craft?.receitas?.[i]:null;
+ if(!r)return alert('Não foi possível localizar esta receita. Feche e abra o Craft novamente.');
+ const nome=$('#recipeEditorName').value.trim(),spawn=$('#recipeEditorSpawn').value.trim(),insumos=readIngredientEditor();
+ if(!nome||!spawn)return alert('Informe o nome e o spawn do produto.');
+ if(!insumos.length)return alert('Adicione pelo menos um insumo à receita antes de salvar.');
+ r.nome=nome;r.spawn=spawn;r.nivel=$('#recipeEditorLevel').value.trim();r.max=$('#recipeEditorMax').value.trim();r.origem=$('#recipeEditorOrigin')?.value||r.origem||'EXTRA DO GROUP';r.disponibilidade=r.origem==='ADQUIRIDO EM LOJA'?'TODAS AS FACÇÕES':(r.disponibilidade||'');r.insumos=insumos;r.imagem=ITEM_META[r.spawn]?.imagem||r.imagem||'';r.origem=r.origem||'EXTRA DO GROUP';
+ syncFarmWithCraft();renderCraftRecipes();renderFarmItems();updateDeliveryPreview();renderConnectedRequests();
+ const group=$('#fGroup')?.value||'';
+ const btn=$('#recipeEditorSave');
+ if(btn){btn.disabled=true;btn.textContent='SALVANDO...'}
+ try{
+   if(!group)throw new Error('Group não identificado.');
+   const local=faccoes.find(x=>x.group===group);
+   const oldPerfil=clonePlain(mergedTechProfile(local||{}));
+   const perfilTecnico=getTechProfileFromForm();
+   const oldRecipe=(oldPerfil?.craft?.receitas||[]).find(x=>craftRecipeKey(x)===craftRecipeKey(r));
+   await setDoc(doc(db,'highos','data','faccoes',group),{perfilTecnico,updatedAt:serverTimestamp(),updatedBy:currentUser?.email||''},{merge:true});
+   if(local)local.perfilTecnico=clonePlain(perfilTecnico);
+   const shouldGenerate=String(r.origem||'').toUpperCase()!=='PADRÃO DO SEGMENTO';
+   let generatedRequest=null,requestRef=null;
+   if(shouldGenerate){
+     generatedRequest=buildCraftRequestText(group,r,perfilTecnico,oldPerfil);
+     requestRef=await addDoc(reqCol,{isModelo:false,status:'PENDENTE',tipo:'CRAFT_ITEM',group,faccao:local?.faccao||'',assunto:`Adição do produto ${nome} no Group ${group}`,texto:generatedRequest.texto,receita:clonePlain(r),farmItens:generatedRequest.farmItens,origem:'CRAFT_DO_GROUP',createdAt:serverTimestamp(),createdAtText:new Date().toISOString(),createdBy:currentUser?.email||''});
+   }
+   await addDoc(histCol,{tipo:'CRAFT_RECEITA',group,faccao:local?.faccao||'',descricao:`Receita ${nome} (${spawn}) salva no Craft do Group${generatedRequest?' • solicitação gerada':''}`,receita:clonePlain(r),solicitacaoId:requestRef?.id||'',solicitacaoTexto:generatedRequest?.texto||'',alteracao:oldRecipe?'EDICAO':'ADICAO',usuario:currentUser?.email||'',data:serverTimestamp()});
+   if(btn)btn.textContent=generatedRequest?'SALVO + SOLICITAÇÃO ✓':'SALVO ✓';
+   setTimeout(()=>{closeRecipeEditor();if(generatedRequest)openCraftRequestModal(group,r,generatedRequest)},250);
+ }catch(err){
+   if(btn){btn.disabled=false;btn.textContent='SALVAR RECEITA'}
+   alert('Erro ao salvar a receita: '+(err?.message||err));
+ }
+});
 $('#farmEditorClose')?.addEventListener('click',closeFarmEditor);
 $('#farmEditorCancel')?.addEventListener('click',()=>{const i=+($('#farmEditorIndex')?.value||-1),x=techDraft?.farm?.itens?.[i];if(x&&String(x.origem||'').toUpperCase()!=='CRAFT'&&!x.nome&&!x.spawn){techDraft.farm.itens.splice(i,1);renderFarmItems()}closeFarmEditor()});
 $('#farmEditorSpawn')?.addEventListener('input',e=>{$('#farmEditorImage').src=itemImg(e.target.value.trim(),ITEM_META[e.target.value.trim()]?.imagem||'',$('#farmEditorName')?.value||'')});
