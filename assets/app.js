@@ -138,6 +138,7 @@ const SYSTEM_MODULES=[
  {id:'metricas',label:'Métricas',desc:'Central de métricas e relatórios'},
  {id:'economia',label:'Economia',desc:'Tabela, pista e referências econômicas'},
  {id:'historico',label:'Histórico',desc:'Movimentações e auditoria operacional'},
+ {id:'planejador',label:'Planejador de Missões',desc:'Mapa GTA V, spawns, áreas e distribuição de equipes'},
  {id:'alvesinho',label:'Alvesinho',desc:'Assistente do High OS'},
  {id:'chat',label:'Chat da Equipe',desc:'Mensagens internas entre usuários logados'},
  {id:'spotify',label:'Spotify',desc:'Player de música integrado ao High OS'}
@@ -193,12 +194,12 @@ onAuthStateChanged(auth,async user=>{
  }catch(e){show(deniedView);$('#deniedText').textContent='Falha ao validar seu cadastro no Firestore: '+e.message}
 });
 
-document.querySelectorAll('.nav-item').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));$('#page-'+btn.dataset.page).classList.add('active');if(btn.dataset.page==='administracao'&&isAdmin())loadUserAudit()}));
+document.querySelectorAll('.nav-item').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));$('#page-'+btn.dataset.page).classList.add('active');if(btn.dataset.page==='administracao'&&isAdmin())loadUserAudit();if(btn.dataset.page==='planejador')setTimeout(()=>window.HighMissionPlanner?.activate?.(),60)}));
 
 // HIGH OS V6.7 · o perfil do Group passa a abrir como página interna, não como modal.
 function activateAppPage(page){
  if(page!=='administracao'&&page!=='usuarios'&&!isAdmin()&&!canViewModule(page)){permissionDeniedMessage(page,false);const fallback=firstAllowedModule();if(!fallback||fallback===page)return;page=fallback}
- if(page==='administracao'&&isAdmin())setTimeout(()=>loadUserAudit(),0);if(page==='spotify')setTimeout(()=>loadSpotifyConfig(),0);if(page==='chat')setTimeout(()=>startChat(),0);
+ if(page==='administracao'&&isAdmin())setTimeout(()=>loadUserAudit(),0);if(page==='spotify')setTimeout(()=>loadSpotifyConfig(),0);if(page==='chat')setTimeout(()=>startChat(),0);if(page==='planejador')setTimeout(()=>window.HighMissionPlanner?.activate?.(),60);
  document.querySelectorAll('.page').forEach(x=>x.classList.toggle('active',x.id==='page-'+page));
  document.querySelectorAll('.nav-item').forEach(x=>x.classList.toggle('active',x.dataset.page===page));
  try{window.scrollTo({top:0,behavior:'smooth'})}catch{}
