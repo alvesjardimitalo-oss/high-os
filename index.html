@@ -537,9 +537,6 @@
     <button type="button" class="tech-tab" data-tech-tab="farm">FARM</button>
     <button type="button" class="tech-tab" data-tech-tab="rota-exclusiva">ROTA EXCLUSIVA</button>
     <button type="button" class="tech-tab" data-tech-tab="estrutura-mapa">ESTRUTURA / MAPA</button>
-    <button type="button" class="tech-tab" data-tech-tab="perfil">PERFIL OPERACIONAL</button>
-    <button type="button" class="tech-tab" data-tech-tab="estrutura">RESUMO</button>
-    <button type="button" class="tech-tab" data-tech-tab="solicitacoes">SOLICITAÇÕES CONECTADAS</button>
   </div>
 
   <section class="tech-panel active" data-tech-panel="craft">
@@ -609,13 +606,13 @@
   </section>
 
   <section class="tech-panel" data-tech-panel="estrutura-mapa">
-    <div class="tech-panel-head"><div><div class="eyebrow">BASE ADMINISTRATIVA DO GROUP</div><b>Estrutura + Mapa Operacional</b><span>Cadastre aqui o que você consulta no /fac. Uma única informação alimenta a lista e o mapa do High OS.</span></div><span id="gsCount" class="dev-badge">0 PONTOS</span></div>
-    <div class="gs-toolbar admin-only"><button type="button" id="gsAdd" class="btn-primary compact">+ ADICIONAR ESTRUTURA</button><button type="button" id="gsImportArmas01" class="btn-secondary compact hidden">IMPORTAR DADOS /FAC ARMAS01</button><button type="button" id="gsSave" class="btn-secondary compact">SALVAR ESTRUTURA</button></div>
+    <div class="tech-panel-head"><div><div class="eyebrow">BASE ADMINISTRATIVA DO GROUP</div><b>Estrutura + Mapa Operacional</b><span>Fonte única da infraestrutura do Group. Os cadastros antigos são consolidados aqui e a mesma informação alimenta lista, mapa e solicitações.</span></div><span id="gsCount" class="dev-badge">0 PONTOS</span></div>
+    <div class="gs-toolbar admin-only"><button type="button" id="gsAdd" class="btn-primary compact">+ ADICIONAR ESTRUTURA</button><button type="button" id="gsMigrate" class="btn-secondary compact">LER DADOS JÁ CADASTRADOS</button><button type="button" id="gsSave" class="btn-secondary compact">SALVAR ESTRUTURA</button></div>
     <div class="gs-layout"><div><div class="gs-filters" id="gsFilters"></div><div id="gsList" class="gs-list"></div></div><div class="gs-map-card"><div class="gr-map-toolbar"><b>MAPA OPERACIONAL</b><label><input type="checkbox" id="gsShowRoute" checked> Rota exclusiva</label><button type="button" id="gsFit" class="mini-btn">RECALIBRAR</button></div><div id="gsMap"></div><div id="gsLegend" class="gr-map-legend"></div></div></div>
     <p class="delivery-help">O /fac continua sendo o painel do servidor. Esta é a sua base administrativa externa para consultar as mesmas informações sem precisar estar logado no FiveM.</p>
   </section>
 
-  <section class="tech-panel" data-tech-panel="perfil">
+  <section class="tech-panel v8362-legacy-storage" data-tech-panel="perfil">
     <div class="tech-panel-head"><div><div class="eyebrow">FICHA TÉCNICA DO GROUP / QG</div><b>Perfil Operacional</b><span>Localização principal do QG e todas as estruturas permanentes usadas pela facção ocupante.</span></div></div>
 
     <div class="op-section">
@@ -685,12 +682,12 @@
     </div>
   </section>
 
-  <section class="tech-panel" data-tech-panel="estrutura">
+  <section class="tech-panel v8362-legacy-storage" data-tech-panel="estrutura">
     <div id="groupStructureSnapshot" class="group-structure-snapshot"></div>
     <p class="delivery-help">Garagens, heliponto, rádio, baú, lojas, uniforme, benefícios e demais instalações continuam sendo editados acima. Esta aba consolida tudo em uma única visão do Group.</p>
   </section>
 
-  <section class="tech-panel" data-tech-panel="solicitacoes">
+  <section class="tech-panel v8362-legacy-storage" data-tech-panel="solicitacoes">
     <div class="tech-request-connect"><b>SOLICITAÇÕES DO GROUP</b><p>Toda alteração que gere demanda para o Discord é arquivada aqui com data, usuário, status e texto. Solicitações criadas pela Central também podem alimentar o Group quando houver uma modificação técnica detectável.</p></div>
     <div id="groupConnectedRequests" class="delivery-requests-preview"></div>
   </section>
