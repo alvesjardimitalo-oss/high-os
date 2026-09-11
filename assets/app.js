@@ -3121,4 +3121,33 @@ gsRenderMap=function(fit=false){gsEnsureMap();if(!gsMap)return;gsLayer.clearLaye
 async function v9SaveAll(){if(!v9StructureDirty)return alert('Nenhuma alteração para salvar.');const f=grCurrent(),group=f?.group;if(!group)return;const before=v9Clone(v9StructureOriginal),after=v9Clone(gsRows()),diff=v9Diff(before,after);try{techDraft.estruturaCatalogo=v9Clone(after);await setDoc(doc(db,'highos','data','faccoes',group),{perfilTecnico:clonePlain(techDraft),updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true});const local=faccoes.find(x=>x.group===group);if(local)local.perfilTecnico=clonePlain(techDraft);await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'ESTRUTURA_ATUALIZADA',group,descricao:`Estrutura atualizada: ${diff.length} alteração(ões)`,usuario:currentUser.email,data:serverTimestamp()});v9StructureOriginal=v9Clone(after);v9StructureDirty=false;$('#gsDirtyBar')?.classList.add('hidden');if(diff.length&&confirm(`Alterações salvas.\n\nDeseja gerar uma solicitação ao Dev da cidade com as ${diff.length} alteração(ões) realizadas?`))v9ShowRequest(v9StructureRequest(group,diff));gsRender(false)}catch(e){alert('Erro ao salvar estrutura: '+e.message)}}
 setTimeout(()=>{$('#gsSaveAll')?.addEventListener('click',v9SaveAll);$('#gsDiscard')?.addEventListener('click',()=>{if(!v9StructureDirty||confirm('Descartar todas as alterações ainda não salvas?')){techDraft.estruturaCatalogo=v9Clone(v9StructureOriginal);v9StructureDirty=false;$('#gsDirtyBar')?.classList.add('hidden');gsRender(false)}});const add=$('#gsAdd');if(add){const n=add.cloneNode(true);add.replaceWith(n);n.addEventListener('click',()=>gsOpenEditor(-1))}},0);
 console.info('HIGH OS V9.0.3 · Estrutura simples: lista + mapa visíveis por padrão.');
-\n\n/* V9.0.4 — foco direto da estrutura no mapa */\nwindow.gsFocusMap=function(ev,i){\n  ev?.preventDefault?.();\n  ev?.stopPropagation?.();\n  const row=gsRows()[i];\n  if(!row)return false;\n  gsFilter='TODOS';\n  gsSetView('MAPA');\n  setTimeout(()=>{\n    gsRenderMap(false);\n    gsMap?.invalidateSize();\n    const p=gsCoord(row.cds)||gsCoord(row.secondary)||(row.tipo==='RÁDIO'?gsCoord(v9QGCds()):null);\n    if(!p||!gsMap)return;\n    const ll=L.latLng(p.y,p.x);\n    gsMap.setView(ll,4,{animate:true});\n    let nearest=null,best=Infinity;\n    gsLayer?.eachLayer?.(layer=>{\n      if(!layer?.getLatLng)return;\n      const q=layer.getLatLng();\n      const d=Math.hypot(q.lat-ll.lat,q.lng-ll.lng);\n      if(d<best){best=d;nearest=layer}\n    });\n    nearest?.openPopup?.();\n  },140);\n  return false;\n};\n
+
+
+/* V9.0.4 — foco direto da estrutura no mapa */
+window.gsFocusMap=function(ev,i){
+  ev?.preventDefault?.();
+  ev?.stopPropagation?.();
+  const row=gsRows()[i];
+  if(!row)return false;
+  gsFilter='TODOS';
+  gsSetView('MAPA');
+  setTimeout(()=>{
+    gsRenderMap(false);
+    gsMap?.invalidateSize();
+    const p=gsCoord(row.cds)||gsCoord(row.secondary)||(row.tipo==='RÁDIO'?gsCoord(v9QGCds()):null);
+    if(!p||!gsMap)return;
+    const ll=L.latLng(p.y,p.x);
+    gsMap.setView(ll,4,{animate:true});
+    let nearest=null,best=Infinity;
+    gsLayer?.eachLayer?.(layer=>{
+      if(!layer?.getLatLng)return;
+      const q=layer.getLatLng();
+      const d=Math.hypot(q.lat-ll.lat,q.lng-ll.lng);
+      if(d<best){best=d;nearest=layer}
+    });
+    nearest?.openPopup?.();
+  },140);
+  return false;
+};
+
+console.info('HIGH OS V9.0.6 · Syntax fix do bloco Ver no Mapa + Telão completo.');
