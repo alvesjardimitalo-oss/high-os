@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#09070d">
   <title>High OS • Gestão do Ilegal</title>
-  <link rel="stylesheet" href="assets/style.css?v=8.34">
+  <link rel="stylesheet" href="assets/style.css?v=8.35">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="assets/mission-planner.css?v=8.34">
+  <link rel="stylesheet" href="assets/mission-planner.css?v=8.35">
 <style>
 .rh-section-head{display:flex;justify-content:space-between;gap:18px;align-items:end;margin:18px 0}.rh-section-head h3{margin:3px 0}.rh-compare-controls{display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:end;margin:16px 0}.rh-compare-controls label{display:grid;gap:6px;font-size:11px;font-weight:800}.rh-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:14px 0}.rh-card{border:1px solid var(--line,#33283b);border-radius:14px;padding:14px;background:rgba(255,255,255,.025)}.rh-card span{display:block;font-size:10px;opacity:.65;font-weight:800}.rh-card b{display:block;font-size:24px;margin-top:5px}.rh-card small{opacity:.7}.rh-alert{padding:10px 12px;border:1px solid var(--line,#33283b);border-radius:10px;margin:7px 0}.rh-ranking-row{display:grid;grid-template-columns:45px 1fr repeat(4,110px);gap:10px;align-items:center;padding:11px;border-bottom:1px solid var(--line,#33283b)}.rh-ranking-row>span{text-align:right}.rh-compare-table{width:100%;border-collapse:collapse;margin-top:14px}.rh-compare-table th,.rh-compare-table td{padding:10px;border-bottom:1px solid var(--line,#33283b);text-align:center}.rh-compare-table th:first-child,.rh-compare-table td:first-child{text-align:left}@media(max-width:900px){.rh-grid{grid-template-columns:1fr 1fr}.rh-ranking-row{grid-template-columns:35px 1fr 80px}.rh-ranking-row .rh-extra{display:none}.rh-compare-controls{grid-template-columns:1fr}}
 </style>
@@ -78,7 +78,7 @@
       </aside>
       <div class="content">
         <section class="page active" id="page-dashboard">
-          <div class="page-head"><div><div class="eyebrow">CENTRAL DE COMANDO DO ILEGAL</div><h2>DASHBOARD</h2><p class="page-subtitle">Visão operacional para identificar rapidamente ocupação, contingente, pendências e movimentações da Staff.</p></div><span class="dev-badge">V8.34</span></div>
+          <div class="page-head"><div><div class="eyebrow">CENTRAL DE COMANDO DO ILEGAL</div><h2>DASHBOARD</h2><p class="page-subtitle">Visão operacional para identificar rapidamente ocupação, contingente, pendências e movimentações da Staff.</p></div><span class="dev-badge">V8.35</span></div>
           <div id="commandDashboard" class="command-dashboard"><div class="placeholder"><b>◆</b><h3>CARREGANDO CENTRAL DE COMANDO</h3></div></div>
           <span id="dashEmail" class="hidden">—</span><span id="dashRole" class="hidden">—</span>
         </section>
@@ -175,7 +175,7 @@
           </div>
         </section>
         <section class="page" id="page-planejador">
-          <div class="page-head"><div><div class="eyebrow">MAPA GTA V • EVENTOS • MISSÕES</div><h2>PLANEJADOR DE MISSÕES</h2><p class="page-subtitle">Crie novos locais de evento, gere spawns em círculo, valide CDS uma a uma e mantenha cada missão salva com o último print do mapa.</p></div><span class="dev-badge">V8.34</span></div>
+          <div class="page-head"><div><div class="eyebrow">MAPA GTA V • EVENTOS • MISSÕES</div><h2>PLANEJADOR DE MISSÕES</h2><p class="page-subtitle">Crie novos locais de evento, gere spawns em círculo, valide CDS uma a uma e mantenha cada missão salva com o último print do mapa.</p></div><span class="dev-badge">V8.35</span></div>
 
           <div class="mp-topbar">
             <div class="mp-mission-select-wrap">
@@ -529,7 +529,8 @@
   <div class="benefits-head"><div><div class="eyebrow">ESTRUTURA OPERACIONAL CONECTADA</div><h3>PERFIL COMPLETO DO GROUP</h3></div><small>Craft, receitas, farm e rota pertencem ao Group/QG e permanecem quando a facção muda.</small></div>
   <div class="tech-profile-tabs">
     <button type="button" class="tech-tab active" data-tech-tab="craft">CRAFT / RECEITAS</button>
-    <button type="button" class="tech-tab" data-tech-tab="farm">FARM / ROTA</button>
+    <button type="button" class="tech-tab" data-tech-tab="farm">FARM</button>
+    <button type="button" class="tech-tab" data-tech-tab="rota-exclusiva">ROTA EXCLUSIVA</button>
     <button type="button" class="tech-tab" data-tech-tab="perfil">PERFIL OPERACIONAL</button>
     <button type="button" class="tech-tab" data-tech-tab="estrutura">RESUMO</button>
     <button type="button" class="tech-tab" data-tech-tab="solicitacoes">SOLICITAÇÕES CONECTADAS</button>
@@ -585,6 +586,21 @@
     <textarea id="fTechRoutePointsStandard" class="hidden" aria-hidden="true"></textarea>
   </section>
 
+
+  <section class="tech-panel" data-tech-panel="rota-exclusiva">
+    <div class="tech-panel-head route-panel-head"><div><div class="eyebrow">MAPA OPERACIONAL DO GROUP</div><b>Rota Exclusiva</b><span>Importe as CDS recebidas pelo takefarm, edite os pontos e visualize a rota junto das demais coordenadas do Group.</span></div><span id="grRouteStatus" class="dev-badge">SEM ROTA</span></div>
+    <div class="gr-route-kpis"><div><span>GROUP</span><b id="grRouteGroup">—</b></div><div><span>PONTOS DA ROTA</span><b id="grRouteCount">0</b></div><div><span>NOME</span><b id="grRouteName">—</b></div><div><span>PERMISSÃO</span><b id="grRoutePermission">—</b></div></div>
+    <div class="gr-route-layout">
+      <div class="gr-route-editor">
+        <label>CDS DA ROTA / TAKEFARM<textarea id="grRouteInput" placeholder="{ 1154.28,-785.74,57.08 },&#10;{ 1129.62,-989.42,45.45 },"></textarea></label>
+        <small id="grRouteParseInfo">Cole uma coordenada por linha. X,Y,Z e X,Y,Z,H são aceitos.</small>
+        <div class="gr-route-actions"><button type="button" id="grRoutePreview" class="btn-secondary compact">VISUALIZAR NO MAPA</button><button type="button" id="grRouteSave" class="btn-primary compact admin-only">SALVAR ROTA</button><button type="button" id="grRouteRequest" class="btn-secondary compact">GERAR SOLICITAÇÃO</button><button type="button" id="grRouteMapPng" class="btn-secondary compact">SALVAR IMAGEM DO MAPA</button><button type="button" id="grRouteDelete" class="btn-danger compact admin-only">🗑 EXCLUIR ROTA</button></div>
+        <div id="grRouteRequestBox" class="gr-route-request hidden"><div><b>SOLICITAÇÃO GERADA</b><button type="button" id="grRouteCopyRequest" class="mini-btn">COPIAR</button></div><textarea id="grRouteRequestText" readonly></textarea></div>
+      </div>
+      <div class="gr-map-side"><div class="gr-map-toolbar"><b>MAPA DO GROUP</b><label><input type="checkbox" id="grMapRoute" checked> Rota</label><label><input type="checkbox" id="grMapStructures" checked> Outras CDS</label></div><div id="grGroupMap"></div><div id="grMapLegend" class="gr-map-legend"></div></div>
+    </div>
+    <div class="gr-route-points"><div class="route-section-title"><div><span>PONTOS DA ROTA</span><b>Edição individual</b></div><small>Edite diretamente a CDS; a ordem das linhas define a sequência.</small></div><div id="grRoutePointRows"></div></div>
+  </section>
 
   <section class="tech-panel" data-tech-panel="perfil">
     <div class="tech-panel-head"><div><div class="eyebrow">FICHA TÉCNICA DO GROUP / QG</div><b>Perfil Operacional</b><span>Localização principal do QG e todas as estruturas permanentes usadas pela facção ocupante.</span></div></div>
@@ -738,8 +754,8 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-  <script src="assets/mission-planner.js?v=8.34"></script>
-  <script type="module" src="assets/app.js?v=8.34"></script>
+  <script src="assets/mission-planner.js?v=8.35"></script>
+  <script type="module" src="assets/app.js?v=8.35"></script>
 
 <div id="newDeliveryModal" class="modal hidden"><div class="modal-card delivery-modal-v5"><button class="modal-x" id="newDeliveryClose">×</button>
   <div class="eyebrow">NOVA OCUPAÇÃO</div><h2>ENTREGA DE GROUP</h2><p class="delivery-help">O Group traz sua estrutura instalada. Personalize apenas o que será ativado para a nova facção.</p>
