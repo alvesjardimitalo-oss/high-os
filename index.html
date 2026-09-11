@@ -67,10 +67,7 @@
         <div class="user-card" title="Nome e cargo são administrados pelo ADMIN. A foto vem da conta Google."><img id="userPhoto" alt="Foto da conta Google"><div><strong id="userName">—</strong><span id="userRole">—</span><small id="userAccessLevel">—</small></div></div>
         <nav>
           <button class="nav-item active" data-page="dashboard">⌂ <span>Dashboard</span></button>
-          <button class="nav-item" data-page="faccoes">◆ <span>Groups / QGs</span></button>
-          <button class="nav-item" data-page="organizacoes">♜ <span>Facções</span></button>
-          <button class="nav-item" data-page="disponiveis">◈ <span>Facções Disponíveis</span></button>
-          <button class="nav-item" data-page="entregas">◇ <span>Entregas</span></button>
+          <button class="nav-item" data-page="faccoes">◆ <span>Organizações</span></button>
           <button class="nav-item" data-page="solicitacoes">▤ <span>Solicitações</span></button>
           <button class="nav-item" data-page="metricas">▥ <span>Métricas</span></button>
           <button class="nav-item" data-page="economia">$ <span>Economia</span></button>
@@ -85,13 +82,14 @@
       </aside>
       <div class="content">
         <section class="page active" id="page-dashboard">
-          <div class="page-head"><div><div class="eyebrow">CENTRAL DE COMANDO DO ILEGAL</div><h2>DASHBOARD</h2><p class="page-subtitle">Visão operacional para identificar rapidamente ocupação, contingente, pendências e movimentações da Staff.</p></div><span class="dev-badge">V8.35</span></div>
+          <div class="page-head"><div><div class="eyebrow">CENTRAL DE COMANDO DO ILEGAL</div><h2>DASHBOARD</h2><p class="page-subtitle">Visão operacional para identificar rapidamente ocupação, contingente, pendências e movimentações da Staff.</p></div><span class="dev-badge">V8.36</span></div>
           <div id="commandDashboard" class="command-dashboard"><div class="placeholder"><b>◆</b><h3>CARREGANDO CENTRAL DE COMANDO</h3></div></div>
           <span id="dashEmail" class="hidden">—</span><span id="dashRole" class="hidden">—</span>
         </section>
         <section class="page" id="page-faccoes">
-<div class="page-head"><div><div class="eyebrow">PATRIMÔNIO PERMANENTE DA CIDADE</div><h2>GROUPS / QGs</h2><p class="page-subtitle">Cada Group guarda seu QG, instalações, coordenadas e pré-configuração. A facção é apenas a ocupante atual.</p></div><div class="profile-head-actions"><button id="updateProfilesBtn" class="btn-primary compact admin-only">ATUALIZAR PERFIS DOS GROUPS</button><button id="seedBtn" class="btn-secondary admin-only">IMPORTAR BASE INICIAL</button></div></div>
-<div class="fac-toolbar fac-toolbar-clickable"><input id="facSearch" placeholder="Buscar Group, facção, QG, líder..."><select id="facSegment" class="filter-native-hidden" aria-label="Segmento"><option value="">TODOS OS SEGMENTOS</option></select><select id="facStatus" class="filter-native-hidden"><option value="">AMBOS</option><option value="ATIVA">OCUPADOS</option><option value="INATIVA">VAGOS</option></select></div><div id="facStatusButtons" class="activity-filter" aria-label="Filtrar Groups por ocupação"></div><div id="facSegmentChips" class="segment-visual-grid" aria-label="Filtrar Groups por segmento"></div>
+<div class="page-head"><div><div class="eyebrow">CENTRAL OPERACIONAL • GROUP + OCUPAÇÃO</div><h2>ORGANIZAÇÕES</h2><p class="page-subtitle">Um único lugar para administrar o Group permanente, a facção ocupante, divulgação quando livre, entrega, estrutura, rota, mapa e histórico.</p></div><div class="profile-head-actions"><button id="unifiedFreeReportBtn" class="btn-secondary compact">RELATÓRIO DE LIVRES</button><button id="updateProfilesBtn" class="btn-primary compact admin-only">ATUALIZAR PERFIS</button><button id="seedBtn" class="btn-secondary admin-only">IMPORTAR BASE INICIAL</button></div></div>
+<div class="org-unified-note"><b>GROUP PERMANENTE + OCUPANTE ATUAL</b><span>Disponível = sem ocupante. Se não existir Rota Exclusiva cadastrada, o High OS considera automaticamente Rota Padrão.</span></div>
+<div class="fac-toolbar fac-toolbar-clickable"><input id="facSearch" placeholder="Buscar Group, facção, QG, líder..."><select id="facSegment" class="filter-native-hidden" aria-label="Segmento"><option value="">TODOS OS SEGMENTOS</option></select><select id="facStatus" class="filter-native-hidden"><option value="">TODOS</option><option value="ATIVA">OCUPADOS</option><option value="INATIVA">DISPONÍVEIS</option></select></div><div id="facStatusButtons" class="activity-filter" aria-label="Filtrar organizações por ocupação"></div><div id="facSegmentChips" class="segment-visual-grid" aria-label="Filtrar organizações por segmento"></div>
 <div id="facOverview" class="ops-overview"></div><div id="facStats" class="fac-stats compact-stats"></div><div id="facList" class="fac-grid"><div class="placeholder"><b>◆</b><h3>CARREGANDO</h3></div></div>
 </section>
         <section class="page" id="page-organizacoes">
@@ -182,7 +180,7 @@
           </div>
         </section>
         <section class="page" id="page-planejador">
-          <div class="page-head"><div><div class="eyebrow">MAPA GTA V • EVENTOS • MISSÕES</div><h2>PLANEJADOR DE MISSÕES</h2><p class="page-subtitle">Crie novos locais de evento, gere spawns em círculo, valide CDS uma a uma e mantenha cada missão salva com o último print do mapa.</p></div><span class="dev-badge">V8.35</span></div>
+          <div class="page-head"><div><div class="eyebrow">MAPA GTA V • EVENTOS • MISSÕES</div><h2>PLANEJADOR DE MISSÕES</h2><p class="page-subtitle">Crie novos locais de evento, gere spawns em círculo, valide CDS uma a uma e mantenha cada missão salva com o último print do mapa.</p></div><span class="dev-badge">V8.36</span></div>
 
           <div class="mp-topbar">
             <div class="mp-mission-select-wrap">
@@ -346,7 +344,7 @@
         </section>
         <section class="page" id="page-group-profile">
           <div class="group-profile-page-head">
-            <button type="button" id="groupProfileBack" class="profile-back-btn">← GROUPS / QGs</button>
+            <button type="button" id="groupProfileBack" class="profile-back-btn">← ORGANIZAÇÕES</button>
             <div class="group-profile-page-copy">
               <div class="eyebrow">PATRIMÔNIO TÉCNICO • CONFIGURAÇÃO PERMANENTE</div>
               <h2 id="groupProfilePageTitle">GROUP</h2>
@@ -550,32 +548,32 @@
   </section>
 
   <section class="tech-panel" data-tech-panel="farm">
-    <div class="tech-panel-head route-panel-head"><div><div class="eyebrow">LOGÍSTICA DO GROUP</div><b>Farm / Rota</b><span>O Farm mostra os insumos exigidos pelas receitas deste Group. A rota pode ser padrão ou exclusiva; somente as CDS do takefarm entram pela Solicitação.</span></div><button type="button" id="addFarmItemBtn" class="btn-secondary compact admin-only">+ ITEM FORA DO CRAFT</button></div>
+    <div class="tech-panel-head route-panel-head"><div><div class="eyebrow">LOGÍSTICA DO GROUP</div><b>Farm / Insumos</b><span>O Farm mostra os insumos relacionados ao Craft. A rota geográfica é administrada exclusivamente na aba Rota Exclusiva.</span></div><button type="button" id="addFarmItemBtn" class="btn-secondary compact admin-only">+ ITEM FORA DO CRAFT</button></div>
 
-    <div class="route-overview" id="routeOverview">
+    <div class="route-overview v836-legacy-route" id="routeOverview">
       <div class="route-type-card"><span>TIPO DA ROTA</span><strong id="routeTypeLabel">ROTA PADRÃO</strong><small id="routeTypeHelp">Utiliza a rota padrão do segmento.</small></div>
       <div class="route-kpi-card"><span>BLIPS EXCLUSIVOS</span><strong id="routePointCount">0</strong><small id="routePointHint">Não se aplica à rota padrão.</small></div>
       <div class="route-kpi-card route-start-card"><span>INÍCIO / FARM</span><strong id="routeStartDisplay">—</strong><small>Blip inicial cadastrado para este Group.</small></div>
     </div>
 
-    <div class="route-choice admin-only" id="routeChoice">
+    <div class="route-choice admin-only v836-legacy-route" id="routeChoice">
       <div><span>ROTA EXCLUSIVA?</span><small>Escolha somente o tipo. As CDS exclusivas são cadastradas pela Solicitação.</small></div>
       <button type="button" class="route-choice-btn" data-route-exclusive="0">NÃO · PADRÃO</button>
       <button type="button" class="route-choice-btn" data-route-exclusive="1">SIM · EXCLUSIVA</button>
     </div>
 
-    <div class="route-admin-meta admin-only">
+    <div class="route-admin-meta admin-only v836-legacy-route">
       <label>Blip / início do Farm<input id="fTechRouteStart" placeholder="{x,y,z,h}"></label>
       <input id="fTechFarmCds" type="hidden">
       <input id="fTechRouteName" type="hidden">
     </div>
 
     <div class="route-items-section">
-      <div class="route-section-title"><div><span>ITENS DA ROTA</span><b>Insumos coletados para abastecer o Craft</b></div><small>Sincronizado automaticamente pelas receitas do Group.</small></div>
+      <div class="route-section-title"><div><span>INSUMOS DO CRAFT</span><b>Itens de farm relacionados às receitas do Group</b></div><small>Sincronizado automaticamente pelas receitas do Group.</small></div>
       <div id="groupFarmItems" class="group-farm-items route-item-grid"></div>
     </div>
 
-    <div id="exclusiveRouteBox" class="exclusive-route-box hidden">
+    <div id="exclusiveRouteBox" class="exclusive-route-box hidden v836-legacy-route">
       <div class="exclusive-route-summary">
         <div><span>ROTA EXCLUSIVA</span><b id="exclusiveRouteSummary">0 CDS cadastradas</b><small>As CDS vêm da solicitação feita com os pontos recebidos pelo takefarm e ficam salvas aqui para consulta.</small></div>
         <button type="button" id="routePointsToggleBtn" class="btn-secondary compact">VER CDS DA ROTA</button>
@@ -595,13 +593,13 @@
 
 
   <section class="tech-panel" data-tech-panel="rota-exclusiva">
-    <div class="tech-panel-head route-panel-head"><div><div class="eyebrow">MAPA OPERACIONAL DO GROUP</div><b>Rota Exclusiva</b><span>Importe as CDS recebidas pelo takefarm, edite os pontos e visualize a rota junto das demais coordenadas do Group.</span></div><span id="grRouteStatus" class="dev-badge">SEM ROTA</span></div>
+    <div class="tech-panel-head route-panel-head"><div><div class="eyebrow">MAPA OPERACIONAL DO GROUP</div><b>Rota Exclusiva</b><span>Importe as CDS recebidas pelo takefarm, edite os pontos e visualize a rota junto das demais coordenadas do Group.</span></div><span id="grRouteStatus" class="dev-badge">ROTA PADRÃO</span></div>
     <div class="gr-route-kpis"><div><span>GROUP</span><b id="grRouteGroup">—</b></div><div><span>PONTOS DA ROTA</span><b id="grRouteCount">0</b></div><div><span>NOME</span><b id="grRouteName">—</b></div><div><span>PERMISSÃO</span><b id="grRoutePermission">—</b></div></div>
     <div class="gr-route-layout">
       <div class="gr-route-editor">
         <label>CDS DA ROTA / TAKEFARM<textarea id="grRouteInput" placeholder="{ 1154.28,-785.74,57.08 },&#10;{ 1129.62,-989.42,45.45 },"></textarea></label>
         <small id="grRouteParseInfo">Cole uma coordenada por linha. X,Y,Z e X,Y,Z,H são aceitos.</small>
-        <div class="gr-route-actions"><button type="button" id="grRoutePreview" class="btn-secondary compact">VISUALIZAR NO MAPA</button><button type="button" id="grRouteSave" class="btn-primary compact admin-only">SALVAR ROTA</button><button type="button" id="grRouteRequest" class="btn-secondary compact">GERAR SOLICITAÇÃO</button><button type="button" id="grRouteMapPng" class="btn-secondary compact">SALVAR IMAGEM DO MAPA</button><button type="button" id="grRouteDelete" class="btn-danger compact admin-only">🗑 EXCLUIR ROTA</button></div>
+        <div class="gr-route-actions"><button type="button" id="grRoutePreview" class="btn-secondary compact">VISUALIZAR NO MAPA</button><button type="button" id="grRouteSave" class="btn-primary compact admin-only">SALVAR ROTA</button><button type="button" id="grRouteRequest" class="btn-secondary compact">GERAR SOLICITAÇÃO</button><button type="button" id="grRouteMapPng" class="btn-secondary compact">SALVAR IMAGEM DO MAPA</button><button type="button" id="grRouteDelete" class="btn-danger compact admin-only">🗑 EXCLUIR ROTA</button><button type="button" id="grRouteConfirmDelete" class="btn-danger compact admin-only hidden">CONFIRMAR REMOÇÃO EXECUTADA</button></div>
         <div id="grRouteRequestBox" class="gr-route-request hidden"><div><b>SOLICITAÇÃO GERADA</b><button type="button" id="grRouteCopyRequest" class="mini-btn">COPIAR</button></div><textarea id="grRouteRequestText" readonly></textarea></div>
       </div>
       <div class="gr-map-side"><div class="gr-map-toolbar"><b>MAPA DO GROUP</b><label><input type="checkbox" id="grMapRoute" checked> Rota</label><label><input type="checkbox" id="grMapStructures" checked> Outras CDS</label></div><div id="grGroupMap"></div><div id="grMapLegend" class="gr-map-legend"></div></div>
