@@ -1,4 +1,4 @@
-/* HIGH OS V8.33 — Planejador de Missões */
+/* HIGH OS V8.34 — Planejador de Missões */
 (() => {
   const qs=(s,r=document)=>r.querySelector(s);
   const qsa=(s,r=document)=>[...r.querySelectorAll(s)];
@@ -78,11 +78,17 @@
     const cayoUrl='https://raw.githubusercontent.com/fivenet-app/livemap-tiles/main/overlays/cayo-perico/satellite.webp';
     const cayoPostalUrl='https://raw.githubusercontent.com/fivenet-app/livemap-tiles/main/overlays/cayo-perico/postal.webp';
     const cayoBounds=L.latLngBounds(ll(3900,-6000),ll(5600,-4300));
-    const cayo=L.imageOverlay(cayoUrl,cayoBounds,{opacity:1,interactive:false,crossOrigin:true});
-    const cayoPostal=L.imageOverlay(cayoPostalUrl,cayoBounds,{opacity:1,interactive:false,crossOrigin:true});
-    state.map=L.map('missionPlannerMap',{crs:makeCrs(),minZoom:1,maxZoom:5,layers:[atlas,cayo],preferCanvas:true,zoomControl:true,attributionControl:false});
+    // Fundo de oceano próprio para a região de Cayo. O mapa base não possui tiles nessa área,
+    // então este retângulo evita o vazio/preto ao redor da ilha sem alterar as coordenadas GTA/FiveM.
+    state.map=L.map('missionPlannerMap',{crs:makeCrs(),minZoom:1,maxZoom:5,layers:[atlas],preferCanvas:true,zoomControl:true,attributionControl:false});
+    state.map.createPane('cayoOceanPane');state.map.getPane('cayoOceanPane').style.zIndex=220;
+    state.map.createPane('cayoMapPane');state.map.getPane('cayoMapPane').style.zIndex=230;
+    const cayoOceanBounds=L.latLngBounds(ll(3450,-6450),ll(6050,-3850));
+    const cayoOcean=L.rectangle(cayoOceanBounds,{pane:'cayoOceanPane',stroke:false,fill:true,fillColor:'#174f70',fillOpacity:1,interactive:false}).addTo(state.map);
+    const cayo=L.imageOverlay(cayoUrl,cayoBounds,{pane:'cayoMapPane',opacity:1,interactive:false,crossOrigin:true}).addTo(state.map);
+    const cayoPostal=L.imageOverlay(cayoPostalUrl,cayoBounds,{pane:'cayoMapPane',opacity:1,interactive:false,crossOrigin:true});
     L.control.layers({'ATLAS':atlas,'SATELLITE':sat,'GRID':grid},{'CAYO PERICO — SATÉLITE':cayo,'CAYO PERICO — POSTAL':cayoPostal},{collapsed:false,position:'topright'}).addTo(state.map);
-    state.cayoBounds=cayoBounds;state.cayoLayer=cayo;state.cayoPostalLayer=cayoPostal;
+    state.cayoBounds=cayoBounds;state.cayoOceanBounds=cayoOceanBounds;state.cayoOceanLayer=cayoOcean;state.cayoLayer=cayo;state.cayoPostalLayer=cayoPostal;
     state.map.setView(ll(900,-600),3);
     let okCount=0,errCount=0,fallbackUsed=false;
     const ok=()=>{okCount++;setStatus('Mapa GTA V carregado','ok');};
@@ -92,7 +98,7 @@
     state.map.on('click',e=>{
       const m=active();if(!m)return;
       if(qs('#mpClicked'))qs('#mpClicked').textContent=`${f(e.latlng.lng)},${f(e.latlng.lat)}`;
-      if(state.placing){m.points.push(normalizePoint({x:e.latlng.lng,y:e.latlng.lat,z:null,h:null,status:'planned'},m.points.length));commit('Ponto marcado no mapa');}
+      if(state.placing){m.points.push(normalizePoint({x:e.latlng.lng,y:e.latlng.lat,z:0,h:0,status:'planned'},m.points.length));commit('Ponto marcado no mapa');}
       else {m.center.x=e.latlng.lng;m.center.y=e.latlng.lat;syncForm();commit('Centro ajustado no mapa');}
     });
   }
@@ -114,7 +120,7 @@
       const marker=L.marker(pos,{icon:pinIcon(p),draggable:true}).addTo(state.map);
       marker.bindPopup(`<b>Ponto ${String(p.id).padStart(2,'0')}</b><br>Status: <b>${valid?'VALIDADO':'PENDENTE'}</b><br>${f(p.x)},${f(p.y)}${valid?','+f(p.z)+','+f(p.h):''}`);
       marker.on('click',()=>selectPoint(p.id));
-      marker.on('dragend',ev=>{const n=ev.target.getLatLng();p.x=n.lng;p.y=n.lat;p.z=null;p.status='planned';p.validatedAt=null;commit(`Ponto ${p.id} movido — validação removida`);selectPoint(p.id);});
+      marker.on('dragend',ev=>{const n=ev.target.getLatLng();p.x=n.lng;p.y=n.lat;p.z=0;p.status='planned';p.validatedAt=null;commit(`Ponto ${p.id} movido — validação removida`);selectPoint(p.id);});
       state.drawn.push(circle,marker);
       if(Number.isFinite(p.h)){const a=p.h*Math.PI/180,d=35;state.drawn.push(L.marker(ll(p.x+Math.sin(a)*d,p.y+Math.cos(a)*d),{icon:headingIcon(p.h),interactive:false}).addTo(state.map));}
     });
@@ -128,14 +134,14 @@
   function renderPointList(){
     const m=active(),box=qs('#mpPointList');if(!box||!m)return;
     if(!m.points.length){box.innerHTML='<div class="mp-note">Nenhum ponto registrado.</div>';return;}
-    box.innerHTML=m.points.map((p,i)=>{const valid=isValidated(p);return `<div class="mp-point-row ${valid?'validated':'planned'}" data-pidx="${i}"><div class="mp-point-num">${String(i+1).padStart(2,'0')}</div><div><b>Ponto ${i+1} <span class="mp-state ${valid?'ok':'warn'}">${valid?'VALIDADO':'PENDENTE'}</span></b><small>${f(p.x)},${f(p.y)}${valid?','+f(p.z)+','+f(p.h):' • precisa validar no jogo'}</small></div><div class="mp-row-actions">${valid?`<button type="button" data-copy="${i}" title="Copiar CDS">⧉</button>`:''}<button type="button" data-del="${i}" title="Remover">×</button></div></div>`;}).join('');
+    box.innerHTML=m.points.map((p,i)=>{const valid=isValidated(p);return `<div class="mp-point-row ${valid?'validated':'planned'}" data-pidx="${i}"><div class="mp-point-num">${String(i+1).padStart(2,'0')}</div><div><b>Ponto ${i+1} <span class="mp-state ${valid?'ok':'warn'}">${valid?'VALIDADO':'PENDENTE'}</span></b><small>${valid?rawCds(p):tpCds(p)+' • Z provisório para TP/NC'}</small></div><div class="mp-row-actions"><button type="button" data-copy="${i}" title="${valid?'Copiar CDS validada':'Copiar CDS provisória para TPCDS'}">⧉</button><button type="button" data-del="${i}" title="Remover">×</button></div></div>`;}).join('');
     qsa('.mp-point-row',box).forEach(r=>r.onclick=e=>{if(e.target.dataset.copy!==undefined||e.target.dataset.del!==undefined)return;const i=Number(r.dataset.pidx);selectPoint(i+1);state.map?.setView(ll(m.points[i].x,m.points[i].y),5);});
-    qsa('[data-copy]',box).forEach(b=>b.onclick=async e=>{e.stopPropagation();const p=m.points[Number(b.dataset.copy)];await copyText(rawCds(p));b.textContent='✓';setTimeout(()=>b.textContent='⧉',800);});
+    qsa('[data-copy]',box).forEach(b=>b.onclick=async e=>{e.stopPropagation();const p=m.points[Number(b.dataset.copy)];await copyText(isValidated(p)?rawCds(p):tpCds(p));b.textContent='✓';setTimeout(()=>b.textContent='⧉',800);});
     qsa('[data-del]',box).forEach(b=>b.onclick=e=>{e.stopPropagation();m.points.splice(Number(b.dataset.del),1);commit('Ponto removido');});
   }
   function selectPoint(id){
     const m=active(),p=m?.points[id-1],box=qs('#mpValidationTarget');
-    if(box)box.innerHTML=p?`Ponto <b>${String(id).padStart(2,'0')}</b> • ${f(p.x)}, ${f(p.y)} • ${isValidated(p)?'<span class="mp-ok">VALIDADO</span>':'<span class="mp-warn">PENDENTE</span>'}`:'Selecione um ponto.';
+    if(box)box.innerHTML=p?`Ponto <b>${String(id).padStart(2,'0')}</b> • ${isValidated(p)?rawCds(p):tpCds(p)} • ${isValidated(p)?'<span class="mp-ok">VALIDADO</span>':'<span class="mp-warn">PENDENTE / Z PROVISÓRIO</span>'}`:'Selecione um ponto.';
     if(m)m.selectedId=id;
     qsa('.mp-point-row').forEach((r,i)=>r.classList.toggle('selected',i===id-1));
   }
@@ -150,6 +156,7 @@
     if(qs('#mpNearest'))qs('#mpNearest').textContent=pair?`${pair[0]} ↔ ${pair[1]} • ${min.toFixed(1)} m`:'—';
   }
   function rawCds(p){return `${f(p.x)},${f(p.y)},${f(p.z)},${f(p.h)}`;}
+  function tpCds(p){const z=Number.isFinite(Number(p?.z))?Number(p.z):0;const h=Number.isFinite(Number(p?.h))?Number(p.h):0;return `${f(p.x)},${f(p.y)},${f(z)},${f(h)}`;}
   function updateExport(){const m=active(),out=qs('#mpExport');if(out&&m)out.value=m.points.filter(isValidated).map((p,i)=>`${p.id||i+1} - ${rawCds(p)}`).join('\n');}
   function render(){renderMissionList();renderPointList();renderMap();analyze();updateExport();syncForm();loadSnapshotPreview();}
 
@@ -158,7 +165,7 @@
     const vals={mpMissionName:m.name,mpEventType:m.event,mpPanel:m.panel,mpMode:m.mode,mpCenterLabel:m.center.label||'Coordenada central',mpCenterX:m.center.x??'',mpCenterY:m.center.y??'',mpCenterZ:m.center.z??'',mpCenterH:m.center.h??'',mpCircleRadius:m.circleRadius||1000,mpStartAngle:m.startAngle||0,mpRadius:m.spawnRadius||100};
     Object.entries(vals).forEach(([id,v])=>{const el=qs('#'+id);if(el&&document.activeElement!==el)el.value=v;});
     if(qs('#mpRadiusValue'))qs('#mpRadiusValue').textContent=`${m.spawnRadius||100} m`;
-    const assist=m.mode==='assistant';qs('#mpModeHint')&&(qs('#mpModeHint').textContent=assist?'ASSISTENTE: todo ponto novo começa PENDENTE e só fica verde após validação explícita.':'MANUAL: CDS completa e não-zero pode ser adicionada já como validada.');
+    const assist=m.mode==='assistant';qs('#mpModeHint')&&(qs('#mpModeHint').textContent=assist?'ASSISTENTE: todo ponto novo começa PENDENTE (vermelho), recebe Z provisório 0.00 para TPCDS/NC e só fica verde após validação com a CDS real.':'MANUAL: CDS completa e não-zero pode ser adicionada já como validada.');
   }
 
   function commit(reason='Alteração salva'){
@@ -185,7 +192,7 @@
     const m=active();if(!m)return;const cx=num(qs('#mpCenterX')?.value),cy=num(qs('#mpCenterY')?.value),qty=Math.max(2,Number(qs('#mpQty')?.value)||2),r=Math.max(1,Number(qs('#mpCircleRadius')?.value)||1000),start=Number(qs('#mpStartAngle')?.value)||0;
     if(cx===null||cy===null){alert('Defina a coordenada central no mapa ou informe X e Y.');return;}
     m.center.x=cx;m.center.y=cy;m.circleRadius=r;m.startAngle=start;m.points=[];
-    for(let i=0;i<qty;i++){const deg=start+(360/qty)*i,a=deg*Math.PI/180;m.points.push(normalizePoint({x:cx+Math.sin(a)*r,y:cy+Math.cos(a)*r,z:null,h:(deg+180)%360,status:'planned'},i));}
+    for(let i=0;i<qty;i++){const deg=start+(360/qty)*i,a=deg*Math.PI/180;m.points.push(normalizePoint({x:cx+Math.sin(a)*r,y:cy+Math.cos(a)*r,z:0,h:(deg+180)%360,status:'planned'},i));}
     commit(`${qty} pontos gerados como PENDENTES`);fit();
   }
   function parseBulk(text){const out=[];String(text||'').split(/\n+/).forEach(line=>{const c=line.replace(/^\s*\d+\s*[-–—:]\s*/,'').trim();if(!c)return;const p=c.split(',').map(v=>v.trim());const x=num(p[0]),y=num(p[1]);if(x===null||y===null)return;out.push({x,y,z:num(p[2]),h:num(p[3])});});return out;}
@@ -210,7 +217,7 @@
   function clearPoints(){const m=active();if(!m||!confirm('Limpar todos os pontos desta missão?'))return;m.points=[];m.selectedId=null;commit('Pontos removidos');}
   async function copyText(text){try{await navigator.clipboard.writeText(text);return true;}catch{}const ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();try{document.execCommand('copy');}catch{}ta.remove();return true;}
   async function exportValidated(){const m=active(),v=m?.points.filter(isValidated)||[];if(!v.length){alert('Nenhum ponto validado para exportar.');return;}const txt=v.map((p,i)=>`${p.id||i+1} - ${rawCds(p)}`).join('\n');if(qs('#mpExport'))qs('#mpExport').value=txt;await copyText(txt);}
-  async function exportXY(){const m=active();if(!m?.points.length)return;await copyText(m.points.map((p,i)=>`${i+1} - ${f(p.x)},${f(p.y)}`).join('\n'));}
+  async function exportXY(){const m=active();if(!m?.points.length)return;await copyText(m.points.map((p,i)=>`${i+1} - ${isValidated(p)?rawCds(p):tpCds(p)}`).join('\n'));}
   function generateRequest(){
     const m=active();if(!m)return;const pts=m.points.filter(isValidated);const center=[m.center.x,m.center.y,m.center.z,m.center.h].every(v=>num(v)!==null)?`${f(m.center.x)},${f(m.center.y)},${f(m.center.z)},${f(m.center.h)}`:`${f(m.center.x)},${f(m.center.y)}`;
     const title=m.event||m.name;let text=`Assunto:\n\n- Solicitação de Alteração de Local do Evento ${title}${m.panel?` - Painel ${m.panel}`:''};\n\nSolicitação:\n\n- Solicitamos a alteração do local de realização do evento ${title}${m.panel?` do painel ${m.panel}`:''}.\n\n${String(m.center.label||'Coordenada central').toUpperCase()}:\n\n- ${center}\n\nSPAWNS DAS ORGANIZAÇÕES:\n\n${pts.map((p,i)=>`${String(i+1).padStart(2,'0')} - ${rawCds(p)}`).join('\n')}\n\n- Os pontos de spawn deverão ser distribuídos entre as organizações de acordo com a quantidade de facções inscritas no evento, utilizando 1 ponto diferente para cada organização.\n\n- Caso haja menos organizações inscritas que a quantidade de pontos disponíveis, deverão ser utilizados somente os spawns necessários.\n\n- Todas as demais configurações, regras e funcionamento atualmente existentes no evento deverão permanecer inalterados.`;
