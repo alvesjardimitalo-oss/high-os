@@ -449,3 +449,15 @@ body[data-access-mode="custom"] .nav-item[style*="display: none"]{pointer-events
 .spotify-library-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px;color:#8fa197}.spotify-library-head button{border:1px solid #294636;background:#111b15;color:#b9c9bf;border-radius:7px;padding:5px 7px;font-size:7px;cursor:pointer}
 .spotify-playlist-results{display:grid;gap:5px}.spotify-playlist-row{display:grid;grid-template-columns:42px minmax(0,1fr) 20px;gap:8px;align-items:center;text-align:left;border:1px solid #1f3227;background:#0d1510;color:#fff;border-radius:9px;padding:6px;cursor:pointer}.spotify-playlist-cover{width:42px;height:42px;border-radius:6px;overflow:hidden;display:grid;place-items:center;background:#18231c;color:#56d989}.spotify-playlist-cover img{width:100%;height:100%;object-fit:cover}.spotify-playlist-row b,.spotify-playlist-row small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.spotify-playlist-row b{font-size:9px}.spotify-playlist-row small{font-size:8px;color:#8b9a90;margin-top:3px}.spotify-error{color:#ff938f;font-size:8px;font-weight:800}
 @media(max-width:900px){.spotify-dock-popover{width:min(430px,95vw)}}
+
+
+/* ===== HIGH OS V8.36 · ORGANIZAÇÕES UNIFICADAS ===== */
+.org-unified-note{display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:12px 14px;margin:0 0 14px;border:1px solid var(--line);border-radius:12px;background:rgba(126,66,255,.06)}
+.org-unified-note b{font-size:12px;letter-spacing:.08em}.org-unified-note span{font-size:12px;color:var(--muted)}
+.unified-org-card{overflow:hidden;padding:0!important;display:grid;grid-template-columns:138px minmax(0,1fr);min-height:174px}
+.unified-card-image{min-height:174px;background:linear-gradient(145deg,rgba(126,66,255,.22),rgba(10,10,18,.94));display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;border-right:1px solid var(--line)}
+.unified-card-image img{width:100%;height:100%;min-height:174px;object-fit:cover;display:block}.unified-card-image span{font-weight:900;font-size:26px;letter-spacing:.12em}.unified-card-image small{margin-top:7px;color:var(--muted);font-weight:700}.unified-card-image.broken:after{content:'IMAGEM INDISPONÍVEL';font-size:10px;color:var(--muted)}
+.unified-card-body{padding:14px;min-width:0}.unified-card-body .fac-card-head>div small{display:block;color:var(--muted);font-size:10px;font-weight:800;letter-spacing:.08em;margin-bottom:2px}
+.unified-card-tags{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}.unified-card-tags>span{font-size:9px;font-weight:900;letter-spacing:.06em;border:1px solid var(--line);padding:5px 7px;border-radius:999px;color:var(--muted)}
+.unified-actions{display:flex!important;gap:6px;flex-wrap:wrap;margin-top:10px}.unified-actions button{min-height:32px}.v836-legacy-route{display:none!important}
+@media(max-width:720px){.unified-org-card{grid-template-columns:1fr}.unified-card-image{min-height:150px;max-height:220px;border-right:0;border-bottom:1px solid var(--line)}.unified-card-image img{min-height:150px;max-height:220px}.org-unified-note{align-items:flex-start;flex-direction:column}}
