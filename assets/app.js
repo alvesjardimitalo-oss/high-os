@@ -3151,3 +3151,82 @@ window.gsFocusMap=function(ev,i){
 };
 
 console.info('HIGH OS V9.0.6 · Syntax fix do bloco Ver no Mapa + Telão completo.');
+
+
+/* ===== HIGH OS V9.0.8 · Estruturas com salvamento imediato e persistência completa ===== */
+async function v908CommitStructure(beforeRows, descricao='Estrutura atualizada'){
+  const f=grCurrent(), group=f?.group;
+  if(!group) throw new Error('Group não identificado.');
+  const before=v9CleanRows(v9Clone(beforeRows||[]));
+  const after=v9CleanRows(v9Clone(gsRows()));
+  const diff=v9Diff(before,after);
+  techDraft.estruturaCatalogo=v9Clone(after);
+  const ref=doc(db,'highos','data','faccoes',group);
+  await setDoc(ref,{perfilTecnico:clonePlain(techDraft),updatedAt:serverTimestamp(),updatedBy:currentUser?.email||''},{merge:true});
+  // Relê o Firestore para garantir que Post-it e caixas do telão realmente persistiram.
+  const snap=await getDoc(ref);
+  if(snap.exists()){
+    const fresh={id:snap.id,...snap.data()};
+    const pos=faccoes.findIndex(x=>x.group===group);
+    if(pos>=0) faccoes[pos]={...faccoes[pos],...fresh};
+    techDraft=mergedTechProfile(pos>=0?faccoes[pos]:fresh);
+  }
+  v9StructureOriginal=v9Clone(techDraft.estruturaCatalogo||after);
+  v9StructureDirty=false;
+  $('#gsDirtyBar')?.classList.add('hidden');
+  await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'ESTRUTURA_ATUALIZADA',group,descricao:`${descricao}: ${diff.length} alteração(ões)`,usuario:currentUser?.email||'',data:serverTimestamp()});
+  gsRender(false);
+  if(diff.length && confirm(`Alterações salvas.\n\nDeseja gerar uma solicitação ao Dev da cidade com ${diff.length} alteração(ões)?`)){
+    v9ShowRequest(v9StructureRequest(group,diff));
+  }
+  return true;
+}
+
+function v908EditorHtml(row={},i=-1,isNew=false){
+  const speakers=[...(row.speakers||[]),'','','',''].slice(0,4);
+  const speakerRows=[0,1,2,3].map(j=>`<label class="v9-speaker-row ${j>=Math.max(1,(row.speakers||[]).filter(Boolean).length)?'hidden':''}" data-speaker="${j}">CAIXA DE SOM ${j+1}<input class="gsmSpeaker" data-i="${j}" value="${esc(speakers[j]||'')}" placeholder="x,y,z,h"></label>`).join('');
+  return `<div class="gs-modal-backdrop" id="gsModal"><div class="gs-modal"><div class="gs-modal-head"><div><div class="eyebrow">${isNew?'ADICIONAR':'EDITAR'} ESTRUTURA</div><h3>${esc(row.nome||'Estrutura')}</h3></div><button type="button" class="mini-btn" id="gsmClose">✕</button></div><div class="gs-modal-grid"><label>TIPO<select id="gsmType">${GS_TYPES.map(t=>`<option ${row.tipo===t?'selected':''}>${t}</option>`).join('')}</select></label><label>NOME / IDENTIFICAÇÃO<input id="gsmName" value="${esc(row.nome||'')}"></label><label>CDS PRINCIPAL / BLIP<input id="gsmCds" value="${esc(row.cds||'')}" placeholder="x,y,z,h"></label><label id="v9SecondaryField" class="${row.tipo==='TELÃO'?'hidden':''}">SPAWN / CDS SECUNDÁRIA<input id="gsmSecondary" value="${esc(row.secondary||'')}" placeholder="x,y,z,h"></label><label id="v9RadioField" class="${row.tipo==='RÁDIO'?'':'hidden'}">FREQUÊNCIA<input id="gsmRadio" value="${esc(row.radio||'')}" placeholder="Ex.: 123"></label></div><div id="v9TelaoFields" class="v9-telao-fields ${row.tipo==='TELÃO'?'':'hidden'}"><div class="v9-telao-title"><div><b>SISTEMA DO TELÃO</b><small>Telão + Post-it + até 4 caixas de som</small></div><div class="v9-speaker-actions"><button type="button" class="mini-btn" id="gsmAddSpeaker">+ CAIXA DE SOM</button><button type="button" class="mini-btn" id="gsmRemoveSpeaker">− REMOVER</button></div></div><div class="gs-modal-grid"><label>CDS POST-IT<input id="gsmPostit" value="${esc(row.postit||'')}" placeholder="x,y,z,h"></label>${speakerRows}</div></div><div class="gs-modal-actions"><button type="button" class="btn-secondary compact" id="gsmCancel">CANCELAR</button><button type="button" class="btn-primary compact" id="gsmSave">${isNew?'ADICIONAR E SALVAR':'SALVAR EDIÇÃO'}</button></div></div></div>`;
+}
+
+window.gsOpenEditor=function(i=-1){
+  const rows=gsRows(), isNew=i<0;
+  const row=isNew?{tipo:'OUTRO',nome:'',cds:'',secondary:'',radio:'',postit:'',speakers:[]}:{...rows[i],speakers:[...(rows[i]?.speakers||[])]};
+  const before=v9Clone(rows);
+  document.body.insertAdjacentHTML('beforeend',v908EditorHtml(row,i,isNew));
+  const modal=$('#gsModal');
+  const close=()=>modal?.remove();
+  $('#gsmClose').onclick=close; $('#gsmCancel').onclick=close;
+  const speakerRows=()=>[...modal.querySelectorAll('.v9-speaker-row')];
+  const syncType=()=>{const t=$('#gsmType').value;$('#v9RadioField')?.classList.toggle('hidden',t!=='RÁDIO');$('#v9TelaoFields')?.classList.toggle('hidden',t!=='TELÃO');$('#v9SecondaryField')?.classList.toggle('hidden',t==='TELÃO')};
+  $('#gsmType').addEventListener('change',syncType); syncType();
+  $('#gsmAddSpeaker')?.addEventListener('click',()=>{const h=speakerRows().find(x=>x.classList.contains('hidden'));if(h)h.classList.remove('hidden');else alert('O telão aceita no máximo 4 caixas de som.')});
+  $('#gsmRemoveSpeaker')?.addEventListener('click',()=>{const vis=speakerRows().filter(x=>!x.classList.contains('hidden'));if(vis.length>1){const r=vis[vis.length-1];r.querySelector('input').value='';r.classList.add('hidden')}else{const inp=vis[0]?.querySelector('input');if(inp)inp.value=''}});
+  $('#gsmSave').onclick=async()=>{
+    const tipo=$('#gsmType').value;
+    const n={tipo,nome:$('#gsmName').value.trim(),cds:$('#gsmCds').value.trim(),secondary:tipo==='TELÃO'?'':($('#gsmSecondary')?.value.trim()||''),radio:tipo==='RÁDIO'?($('#gsmRadio')?.value.trim()||''):'',postit:tipo==='TELÃO'?($('#gsmPostit')?.value.trim()||''):'',speakers:tipo==='TELÃO'?[...modal.querySelectorAll('.gsmSpeaker')].map(x=>x.value.trim()).filter(Boolean).slice(0,4):[]};
+    if(!n.nome)return alert('Informe o nome/identificação.');
+    const btn=$('#gsmSave'); btn.disabled=true; btn.textContent='SALVANDO...';
+    if(isNew) rows.push(n); else rows[i]=n;
+    try{await v908CommitStructure(before,isNew?`Estrutura adicionada: ${n.tipo} ${n.nome}`:`Estrutura editada: ${n.tipo} ${n.nome}`);close()}catch(e){if(isNew)rows.pop();else rows[i]=before[i];alert('Erro ao salvar estrutura: '+e.message);btn.disabled=false;btn.textContent=isNew?'ADICIONAR E SALVAR':'SALVAR EDIÇÃO'}
+  };
+};
+
+window.gsDeleteSimple=async function(i){
+  const rows=gsRows(),r=rows[i]; if(!r)return;
+  if(!confirm(`Excluir ${r.nome||r.tipo}?`))return;
+  const before=v9Clone(rows); rows.splice(i,1);
+  try{await v908CommitStructure(before,`Estrutura excluída: ${r.tipo} ${r.nome||''}`)}catch(e){techDraft.estruturaCatalogo=before;alert('Erro ao excluir: '+e.message);gsRender(false)}
+};
+
+// Foco do Telão também aceita Post-it e caixas de som como fallback.
+window.gsFocusMap=function(ev,i){
+  ev?.preventDefault?.(); ev?.stopPropagation?.();
+  const row=gsRows()[i]; if(!row)return false;
+  gsFilter='TODOS'; gsSetView('MAPA');
+  setTimeout(()=>{gsRenderMap(false);gsMap?.invalidateSize();const candidates=[row.cds,row.secondary,row.postit,...(row.speakers||[]),row.tipo==='RÁDIO'?v9QGCds():''];let p=null;for(const c of candidates){p=gsCoord(c);if(p)break}if(!p||!gsMap)return;const ll=L.latLng(p.y,p.x);gsMap.setView(ll,4,{animate:true});let nearest=null,best=Infinity;gsLayer?.eachLayer?.(layer=>{if(!layer?.getLatLng)return;const q=layer.getLatLng(),d=Math.hypot(q.lat-ll.lat,q.lng-ll.lng);if(d<best){best=d;nearest=layer}});nearest?.openPopup?.()},140);
+  return false;
+};
+
+// O salvamento agora é feito no próprio modal; a barra antiga fica desativada.
+$('#gsDirtyBar')?.classList.add('hidden');
+console.info('HIGH OS V9.0.8 · Salvamento imediato de estruturas + Telão completo persistente.');
