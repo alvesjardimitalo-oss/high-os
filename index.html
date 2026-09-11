@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#09070d">
   <title>High OS • Gestão do Ilegal</title>
-  <link rel="stylesheet" href="assets/style.css?v=8.35">
+  <link rel="stylesheet" href="assets/style.css?v=8.36.1">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="assets/mission-planner.css?v=8.35">
+  <link rel="stylesheet" href="assets/mission-planner.css?v=8.36.1">
 <style>
 .rh-section-head{display:flex;justify-content:space-between;gap:18px;align-items:end;margin:18px 0}.rh-section-head h3{margin:3px 0}.rh-compare-controls{display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:end;margin:16px 0}.rh-compare-controls label{display:grid;gap:6px;font-size:11px;font-weight:800}.rh-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:14px 0}.rh-card{border:1px solid var(--line,#33283b);border-radius:14px;padding:14px;background:rgba(255,255,255,.025)}.rh-card span{display:block;font-size:10px;opacity:.65;font-weight:800}.rh-card b{display:block;font-size:24px;margin-top:5px}.rh-card small{opacity:.7}.rh-alert{padding:10px 12px;border:1px solid var(--line,#33283b);border-radius:10px;margin:7px 0}.rh-ranking-row{display:grid;grid-template-columns:45px 1fr repeat(4,110px);gap:10px;align-items:center;padding:11px;border-bottom:1px solid var(--line,#33283b)}.rh-ranking-row>span{text-align:right}.rh-compare-table{width:100%;border-collapse:collapse;margin-top:14px}.rh-compare-table th,.rh-compare-table td{padding:10px;border-bottom:1px solid var(--line,#33283b);text-align:center}.rh-compare-table th:first-child,.rh-compare-table td:first-child{text-align:left}@media(max-width:900px){.rh-grid{grid-template-columns:1fr 1fr}.rh-ranking-row{grid-template-columns:35px 1fr 80px}.rh-ranking-row .rh-extra{display:none}.rh-compare-controls{grid-template-columns:1fr}}
 </style>
@@ -536,6 +536,7 @@
     <button type="button" class="tech-tab active" data-tech-tab="craft">CRAFT / RECEITAS</button>
     <button type="button" class="tech-tab" data-tech-tab="farm">FARM</button>
     <button type="button" class="tech-tab" data-tech-tab="rota-exclusiva">ROTA EXCLUSIVA</button>
+    <button type="button" class="tech-tab" data-tech-tab="estrutura-mapa">ESTRUTURA / MAPA</button>
     <button type="button" class="tech-tab" data-tech-tab="perfil">PERFIL OPERACIONAL</button>
     <button type="button" class="tech-tab" data-tech-tab="estrutura">RESUMO</button>
     <button type="button" class="tech-tab" data-tech-tab="solicitacoes">SOLICITAÇÕES CONECTADAS</button>
@@ -605,6 +606,13 @@
       <div class="gr-map-side"><div class="gr-map-toolbar"><b>MAPA DO GROUP</b><label><input type="checkbox" id="grMapRoute" checked> Rota</label><label><input type="checkbox" id="grMapStructures" checked> Outras CDS</label></div><div id="grGroupMap"></div><div id="grMapLegend" class="gr-map-legend"></div></div>
     </div>
     <div class="gr-route-points"><div class="route-section-title"><div><span>PONTOS DA ROTA</span><b>Edição individual</b></div><small>Edite diretamente a CDS; a ordem das linhas define a sequência.</small></div><div id="grRoutePointRows"></div></div>
+  </section>
+
+  <section class="tech-panel" data-tech-panel="estrutura-mapa">
+    <div class="tech-panel-head"><div><div class="eyebrow">BASE ADMINISTRATIVA DO GROUP</div><b>Estrutura + Mapa Operacional</b><span>Cadastre aqui o que você consulta no /fac. Uma única informação alimenta a lista e o mapa do High OS.</span></div><span id="gsCount" class="dev-badge">0 PONTOS</span></div>
+    <div class="gs-toolbar admin-only"><button type="button" id="gsAdd" class="btn-primary compact">+ ADICIONAR ESTRUTURA</button><button type="button" id="gsImportArmas01" class="btn-secondary compact hidden">IMPORTAR DADOS /FAC ARMAS01</button><button type="button" id="gsSave" class="btn-secondary compact">SALVAR ESTRUTURA</button></div>
+    <div class="gs-layout"><div><div class="gs-filters" id="gsFilters"></div><div id="gsList" class="gs-list"></div></div><div class="gs-map-card"><div class="gr-map-toolbar"><b>MAPA OPERACIONAL</b><label><input type="checkbox" id="gsShowRoute" checked> Rota exclusiva</label><button type="button" id="gsFit" class="mini-btn">RECALIBRAR</button></div><div id="gsMap"></div><div id="gsLegend" class="gr-map-legend"></div></div></div>
+    <p class="delivery-help">O /fac continua sendo o painel do servidor. Esta é a sua base administrativa externa para consultar as mesmas informações sem precisar estar logado no FiveM.</p>
   </section>
 
   <section class="tech-panel" data-tech-panel="perfil">
@@ -760,7 +768,7 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <script src="assets/mission-planner.js?v=8.35"></script>
-  <script type="module" src="assets/app.js?v=8.35"></script>
+  <script type="module" src="assets/app.js?v=8.36.1.1"></script>
 
 <div id="newDeliveryModal" class="modal hidden"><div class="modal-card delivery-modal-v5"><button class="modal-x" id="newDeliveryClose">×</button>
   <div class="eyebrow">NOVA OCUPAÇÃO</div><h2>ENTREGA DE GROUP</h2><p class="delivery-help">O Group traz sua estrutura instalada. Personalize apenas o que será ativado para a nova facção.</p>
