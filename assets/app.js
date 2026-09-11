@@ -1877,7 +1877,7 @@ function mergedTechProfile(f={}){
  const semCraft=!!(f.semCraft||GROUP_BASE_CORRECTIONS?.[f.group]?.state==='SEM_CRAFT'||p?.craft?.ativo===false);
  const saved=Array.isArray(p?.craft?.receitas)?p.craft.receitas:[];
  const receitas=semCraft?[]:mergeRecipeLists(d.craft.receitas,saved);
- const out={craft:{cds:p?.craft?.cds??d.craft.cds,nome:p?.craft?.nome??d.craft.nome,ativo:!semCraft,receitas},farm:{cds:p?.farm?.cds??d.farm.cds,itens:Array.isArray(p?.farm?.itens)?p.farm.itens.map(x=>({...x})):[]},rota:{nome:p?.rota?.nome??d.rota.nome,inicio:p?.rota?.inicio??d.rota.inicio,pontos:p?.rota?.pontos??d.rota.pontos,origem:p?.rota?.origem||'',status:p?.rota?.status||''},estruturaExtra:{...(d.estruturaExtra||{}),...(p?.estruturaExtra||{})},estruturaCatalogo:Array.isArray(p?.estruturaCatalogo)?p.estruturaCatalogo.map(x=>({...x})):[]};return syncFarmWithCraft(out);
+ const canonicalV9=Array.isArray(f?.estruturaCatalogoV9)?f.estruturaCatalogoV9:null;const out={craft:{cds:p?.craft?.cds??d.craft.cds,nome:p?.craft?.nome??d.craft.nome,ativo:!semCraft,receitas},farm:{cds:p?.farm?.cds??d.farm.cds,itens:Array.isArray(p?.farm?.itens)?p.farm.itens.map(x=>({...x})):[]},rota:{nome:p?.rota?.nome??d.rota.nome,inicio:p?.rota?.inicio??d.rota.inicio,pontos:p?.rota?.pontos??d.rota.pontos,origem:p?.rota?.origem||'',status:p?.rota?.status||''},estruturaExtra:{...(d.estruturaExtra||{}),...(p?.estruturaExtra||{})},estruturaCatalogo:(canonicalV9|| (Array.isArray(p?.estruturaCatalogo)?p.estruturaCatalogo:[])).map(x=>({...x}))};return syncFarmWithCraft(out);
 }
 function renderTechProfile(f){
  techDraft=mergedTechProfile(f);$('#fTechCraftCds').value=techDraft.craft.cds||'';$('#fTechCraftNome').value=techDraft.craft.nome||'';$('#fTechFarmCds').value=techDraft.farm.cds||'';$('#fTechRouteName').value=techDraft.rota.nome||'';$('#fTechRouteStart').value=techDraft.rota.inicio||'';$('#fTechRoutePoints').value=techDraft.rota.pontos||'';renderCraftRecipes();renderFarmItems();renderRouteOverview();renderStructureSnapshot(f);renderConnectedRequests();if(typeof gsRender==='function')gsRender(true);
@@ -3154,34 +3154,43 @@ console.info('HIGH OS V9.0.6 · Syntax fix do bloco Ver no Mapa + Telão complet
 
 
 /* ===== HIGH OS V9.0.8 · Estruturas com salvamento imediato e persistência completa ===== */
-async function v908CommitStructure(beforeRows, descricao='Estrutura atualizada'){
+async function v909CommitStructure(beforeRows, descricao='Estrutura atualizada'){
   const f=grCurrent(), group=f?.group;
   if(!group) throw new Error('Group não identificado.');
   const before=v9CleanRows(v9Clone(beforeRows||[]));
   const after=v9CleanRows(v9Clone(gsRows()));
   const diff=v9Diff(before,after);
+  const scrollY=window.scrollY;
   techDraft.estruturaCatalogo=v9Clone(after);
   const ref=doc(db,'highos','data','faccoes',group);
-  await setDoc(ref,{perfilTecnico:clonePlain(techDraft),updatedAt:serverTimestamp(),updatedBy:currentUser?.email||''},{merge:true});
-  // Relê o Firestore para garantir que Post-it e caixas do telão realmente persistiram.
+  // V9: grava uma cópia canônica no nível raiz + compatibilidade no perfilTecnico.
+  // Assim nenhuma consolidação legada consegue apagar Post-it/caixas de som na leitura seguinte.
+  await setDoc(ref,{
+    estruturaCatalogoV9:clonePlain(after),
+    perfilTecnico:clonePlain(techDraft),
+    updatedAt:serverTimestamp(),
+    updatedBy:currentUser?.email||''
+  },{merge:true});
   const snap=await getDoc(ref);
-  if(snap.exists()){
-    const fresh={id:snap.id,...snap.data()};
-    const pos=faccoes.findIndex(x=>x.group===group);
-    if(pos>=0) faccoes[pos]={...faccoes[pos],...fresh};
-    techDraft=mergedTechProfile(pos>=0?faccoes[pos]:fresh);
-  }
-  v9StructureOriginal=v9Clone(techDraft.estruturaCatalogo||after);
+  if(!snap.exists()) throw new Error('Não foi possível reler o Group após salvar.');
+  const fresh={id:snap.id,...snap.data()};
+  const persisted=v9CleanRows(v9Clone(fresh.estruturaCatalogoV9||fresh.perfilTecnico?.estruturaCatalogo||[]));
+  if(JSON.stringify(persisted)!==JSON.stringify(after)) throw new Error('O Firestore não confirmou todas as coordenadas salvas.');
+  const pos=faccoes.findIndex(x=>x.group===group);
+  if(pos>=0) faccoes[pos]={...faccoes[pos],...fresh};
+  techDraft=mergedTechProfile(pos>=0?faccoes[pos]:fresh);
+  techDraft.estruturaCatalogo=v9Clone(persisted);
+  v9StructureOriginal=v9Clone(persisted);
   v9StructureDirty=false;
   $('#gsDirtyBar')?.classList.add('hidden');
   await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'ESTRUTURA_ATUALIZADA',group,descricao:`${descricao}: ${diff.length} alteração(ões)`,usuario:currentUser?.email||'',data:serverTimestamp()});
   gsRender(false);
+  requestAnimationFrame(()=>window.scrollTo({top:scrollY,left:0,behavior:'auto'}));
   if(diff.length && confirm(`Alterações salvas.\n\nDeseja gerar uma solicitação ao Dev da cidade com ${diff.length} alteração(ões)?`)){
     v9ShowRequest(v9StructureRequest(group,diff));
   }
   return true;
 }
-
 function v908EditorHtml(row={},i=-1,isNew=false){
   const speakers=[...(row.speakers||[]),'','','',''].slice(0,4);
   const speakerRows=[0,1,2,3].map(j=>`<label class="v9-speaker-row ${j>=Math.max(1,(row.speakers||[]).filter(Boolean).length)?'hidden':''}" data-speaker="${j}">CAIXA DE SOM ${j+1}<input class="gsmSpeaker" data-i="${j}" value="${esc(speakers[j]||'')}" placeholder="x,y,z,h"></label>`).join('');
@@ -3201,13 +3210,13 @@ window.gsOpenEditor=function(i=-1){
   $('#gsmType').addEventListener('change',syncType); syncType();
   $('#gsmAddSpeaker')?.addEventListener('click',()=>{const h=speakerRows().find(x=>x.classList.contains('hidden'));if(h)h.classList.remove('hidden');else alert('O telão aceita no máximo 4 caixas de som.')});
   $('#gsmRemoveSpeaker')?.addEventListener('click',()=>{const vis=speakerRows().filter(x=>!x.classList.contains('hidden'));if(vis.length>1){const r=vis[vis.length-1];r.querySelector('input').value='';r.classList.add('hidden')}else{const inp=vis[0]?.querySelector('input');if(inp)inp.value=''}});
-  $('#gsmSave').onclick=async()=>{
+  $('#gsmSave').onclick=async(ev)=>{ev?.preventDefault?.();ev?.stopPropagation?.();
     const tipo=$('#gsmType').value;
     const n={tipo,nome:$('#gsmName').value.trim(),cds:$('#gsmCds').value.trim(),secondary:tipo==='TELÃO'?'':($('#gsmSecondary')?.value.trim()||''),radio:tipo==='RÁDIO'?($('#gsmRadio')?.value.trim()||''):'',postit:tipo==='TELÃO'?($('#gsmPostit')?.value.trim()||''):'',speakers:tipo==='TELÃO'?[...modal.querySelectorAll('.gsmSpeaker')].map(x=>x.value.trim()).filter(Boolean).slice(0,4):[]};
     if(!n.nome)return alert('Informe o nome/identificação.');
     const btn=$('#gsmSave'); btn.disabled=true; btn.textContent='SALVANDO...';
     if(isNew) rows.push(n); else rows[i]=n;
-    try{await v908CommitStructure(before,isNew?`Estrutura adicionada: ${n.tipo} ${n.nome}`:`Estrutura editada: ${n.tipo} ${n.nome}`);close()}catch(e){if(isNew)rows.pop();else rows[i]=before[i];alert('Erro ao salvar estrutura: '+e.message);btn.disabled=false;btn.textContent=isNew?'ADICIONAR E SALVAR':'SALVAR EDIÇÃO'}
+    try{await v909CommitStructure(before,isNew?`Estrutura adicionada: ${n.tipo} ${n.nome}`:`Estrutura editada: ${n.tipo} ${n.nome}`);close()}catch(e){if(isNew)rows.pop();else rows[i]=before[i];alert('Erro ao salvar estrutura: '+e.message);btn.disabled=false;btn.textContent=isNew?'ADICIONAR E SALVAR':'SALVAR EDIÇÃO'}
   };
 };
 
@@ -3215,7 +3224,7 @@ window.gsDeleteSimple=async function(i){
   const rows=gsRows(),r=rows[i]; if(!r)return;
   if(!confirm(`Excluir ${r.nome||r.tipo}?`))return;
   const before=v9Clone(rows); rows.splice(i,1);
-  try{await v908CommitStructure(before,`Estrutura excluída: ${r.tipo} ${r.nome||''}`)}catch(e){techDraft.estruturaCatalogo=before;alert('Erro ao excluir: '+e.message);gsRender(false)}
+  try{await v909CommitStructure(before,`Estrutura excluída: ${r.tipo} ${r.nome||''}`)}catch(e){techDraft.estruturaCatalogo=before;alert('Erro ao excluir: '+e.message);gsRender(false)}
 };
 
 // Foco do Telão também aceita Post-it e caixas de som como fallback.
@@ -3230,3 +3239,5 @@ window.gsFocusMap=function(ev,i){
 // O salvamento agora é feito no próprio modal; a barra antiga fica desativada.
 $('#gsDirtyBar')?.classList.add('hidden');
 console.info('HIGH OS V9.0.8 · Salvamento imediato de estruturas + Telão completo persistente.');
+
+console.info('HIGH OS V9.0.9 · Estrutura V9 canônica + persistência confirmada do Telão.');
