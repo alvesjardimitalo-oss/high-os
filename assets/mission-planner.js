@@ -1,4 +1,4 @@
-/* HIGH OS V8.32 — Planejador de Missões */
+/* HIGH OS V8.33 — Planejador de Missões */
 (() => {
   const qs=(s,r=document)=>r.querySelector(s);
   const qsa=(s,r=document)=>[...r.querySelectorAll(s)];
@@ -73,8 +73,16 @@
     if(state.map||!qs('#missionPlannerMap'))return;
     if(typeof L==='undefined'){setStatus('Leaflet não carregou','warn');return;}
     let atlas=layer('styleAtlas'),sat=layer('styleSatelite'),grid=layer('styleGrid','png');
-    state.map=L.map('missionPlannerMap',{crs:makeCrs(),minZoom:1,maxZoom:5,layers:[atlas],preferCanvas:true,zoomControl:true,attributionControl:false});
-    L.control.layers({'ATLAS':atlas,'SATELLITE':sat,'GRID':grid},null,{collapsed:false,position:'topright'}).addTo(state.map);
+    // Cayo Perico overlay calibrated to the GTA/FiveM world-coordinate region around 4700,-5150.
+    // It is an overlay (not a separate coordinate system), so clicks/markers continue returning GTA X/Y.
+    const cayoUrl='https://raw.githubusercontent.com/fivenet-app/livemap-tiles/main/overlays/cayo-perico/satellite.webp';
+    const cayoPostalUrl='https://raw.githubusercontent.com/fivenet-app/livemap-tiles/main/overlays/cayo-perico/postal.webp';
+    const cayoBounds=L.latLngBounds(ll(3900,-6000),ll(5600,-4300));
+    const cayo=L.imageOverlay(cayoUrl,cayoBounds,{opacity:1,interactive:false,crossOrigin:true});
+    const cayoPostal=L.imageOverlay(cayoPostalUrl,cayoBounds,{opacity:1,interactive:false,crossOrigin:true});
+    state.map=L.map('missionPlannerMap',{crs:makeCrs(),minZoom:1,maxZoom:5,layers:[atlas,cayo],preferCanvas:true,zoomControl:true,attributionControl:false});
+    L.control.layers({'ATLAS':atlas,'SATELLITE':sat,'GRID':grid},{'CAYO PERICO — SATÉLITE':cayo,'CAYO PERICO — POSTAL':cayoPostal},{collapsed:false,position:'topright'}).addTo(state.map);
+    state.cayoBounds=cayoBounds;state.cayoLayer=cayo;state.cayoPostalLayer=cayoPostal;
     state.map.setView(ll(900,-600),3);
     let okCount=0,errCount=0,fallbackUsed=false;
     const ok=()=>{okCount++;setStatus('Mapa GTA V carregado','ok');};
@@ -218,7 +226,7 @@
     if(state.initialized)return;state.initialized=true;loadStore();initMap();render();bindFormAutosave();
     qs('#mpNewMission')?.addEventListener('click',createMission);qs('#mpDuplicateMission')?.addEventListener('click',duplicateMission);qs('#mpDeleteMission')?.addEventListener('click',deleteMission);
     qs('#mpPlaceBtn')?.addEventListener('click',()=>{state.placing=!state.placing;qs('#missionPlannerMap')?.classList.toggle('mp-crosshair',state.placing);qs('#mpPlaceBtn').textContent=state.placing?'PARAR DE MARCAR':'MARCAR PONTO NO MAPA';});
-    qs('#mpFit')?.addEventListener('click',fit);qs('#mpGenerateCircle')?.addEventListener('click',generateCircle);qs('#mpImport')?.addEventListener('click',importBulk);qs('#mpValidateBtn')?.addEventListener('click',validateSelected);qs('#mpAddCoord')?.addEventListener('click',addManual);qs('#mpClear')?.addEventListener('click',clearPoints);qs('#mpExportBtn')?.addEventListener('click',exportValidated);qs('#mpExportXYBtn')?.addEventListener('click',exportXY);qs('#mpGenerateRequest')?.addEventListener('click',generateRequest);qs('#mpCopyRequest')?.addEventListener('click',()=>copyText(qs('#mpRequestText')?.value||''));qs('#mpCaptureBtn')?.addEventListener('click',()=>captureSnapshot(true));
+    qs('#mpFit')?.addEventListener('click',fit);qs('#mpGoLS')?.addEventListener('click',()=>state.map?.setView(ll(900,-600),3));qs('#mpGoCayo')?.addEventListener('click',()=>{if(state.map&&state.cayoBounds)state.map.fitBounds(state.cayoBounds,{padding:[20,20]});});qs('#mpGenerateCircle')?.addEventListener('click',generateCircle);qs('#mpImport')?.addEventListener('click',importBulk);qs('#mpValidateBtn')?.addEventListener('click',validateSelected);qs('#mpAddCoord')?.addEventListener('click',addManual);qs('#mpClear')?.addEventListener('click',clearPoints);qs('#mpExportBtn')?.addEventListener('click',exportValidated);qs('#mpExportXYBtn')?.addEventListener('click',exportXY);qs('#mpGenerateRequest')?.addEventListener('click',generateRequest);qs('#mpCopyRequest')?.addEventListener('click',()=>copyText(qs('#mpRequestText')?.value||''));qs('#mpCaptureBtn')?.addEventListener('click',()=>captureSnapshot(true));
     setTimeout(()=>{state.map?.invalidateSize();fit();queueSnapshot();},180);
   }
   function activate(){bind();setTimeout(()=>{state.map?.invalidateSize();fit();},100);}
