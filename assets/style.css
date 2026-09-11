@@ -487,3 +487,10 @@ body[data-access-mode="custom"] .nav-item[style*="display: none"]{pointer-events
 #gsLayout.v9-structure-layout > div:first-child{display:block;}
 #gsLayout.v9-structure-layout.v9-map-only > div:first-child{display:none!important;}
 #gsLayout.v9-structure-layout.v9-map-only > .gs-map-card{display:block!important;}
+
+/* V9.0.5 — modal de estrutura + sistema de telão */
+.gs-modal select,.gs-modal select option{background:#0d0912!important;color:#f7f1fb!important;color-scheme:dark!important}
+.gs-modal select{border:1px solid #3d3048!important;border-radius:8px!important;padding:8px 10px!important;appearance:auto!important}
+.v9-telao-fields{margin-top:14px;padding:12px;border:1px solid #34263f;border-radius:13px;background:#0a080d}
+.v9-telao-fields.hidden{display:none!important}.v9-telao-title{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:10px}.v9-telao-title b{display:block;font-size:10px;color:#d88cff;letter-spacing:.06em}.v9-telao-title small{display:block;margin-top:3px;color:#8e8297;font-size:8px}.v9-speaker-actions{display:flex;gap:6px;flex-wrap:wrap}.v9-speaker-row.hidden{display:none!important}
+@media(max-width:700px){.v9-telao-title{align-items:flex-start;flex-direction:column}.v9-speaker-actions{width:100%}.v9-speaker-actions button{flex:1}}
