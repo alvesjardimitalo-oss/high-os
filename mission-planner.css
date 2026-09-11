@@ -1,0 +1,40 @@
+/* HIGH OS V8.30 — Planejador de Missões */
+.mission-planner-shell{display:grid;grid-template-columns:360px minmax(0,1fr);gap:14px;min-height:720px}
+.mission-planner-side{background:linear-gradient(180deg,rgba(18,15,24,.96),rgba(12,10,17,.98));border:1px solid var(--line,#33283b);border-radius:16px;padding:14px;max-height:calc(100vh - 160px);overflow:auto;position:sticky;top:92px}
+.mission-planner-mapwrap{position:relative;min-height:720px;border:1px solid var(--line,#33283b);border-radius:16px;overflow:hidden;background:#07080b}
+#missionPlannerMap{position:absolute;inset:0;z-index:1;background:#174f70}
+.mp-map-status{position:absolute;z-index:550;left:12px;top:12px;background:rgba(8,9,13,.91);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:9px 11px;display:grid;gap:2px;pointer-events:none;box-shadow:0 8px 24px rgba(0,0,0,.28)}
+.mp-map-status b{font-size:11px;letter-spacing:.08em}.mp-map-status span{font:11px Consolas,monospace;color:#c9ced8}
+.mp-map-status .ok{color:#7ef0a2}.mp-map-status .warn{color:#f8c86a}
+.mp-card{background:rgba(255,255,255,.027);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:12px;margin-bottom:10px}
+.mp-card h3{margin:0 0 9px;font-size:11px;letter-spacing:.1em;color:#d9c4eb}.mp-card p{margin:8px 0 0}
+.mp-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.mp-grid.three{grid-template-columns:repeat(3,1fr)}
+.mp-card label{display:grid;gap:5px;font-size:10px;font-weight:800;color:#aeb6c2;letter-spacing:.03em}
+.mp-card input,.mp-card textarea,.mp-card select{width:100%;box-sizing:border-box;background:#0c0d12;border:1px solid #30273a;color:#fff;border-radius:8px;padding:8px 9px;outline:none}
+.mp-card input:focus,.mp-card textarea:focus{border-color:#8e49ba}.mp-card textarea{resize:vertical;min-height:82px;font-family:Consolas,monospace;font-size:11px}
+.mp-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}.mp-actions button{border:1px solid #3b3047;background:#211b28;color:#fff;border-radius:8px;padding:8px 10px;font-size:10px;font-weight:800;letter-spacing:.04em;cursor:pointer}.mp-actions button:hover{background:#2b2035}.mp-actions .primary{background:#73259b;border-color:#9549bd}.mp-actions .danger{color:#ffadb0}
+.mp-note{font-size:10px;line-height:1.5;color:#9099a6}.mp-readout{font:11px Consolas,monospace;color:#eee;word-break:break-all;background:#0b0c10;border:1px solid rgba(255,255,255,.06);border-radius:7px;padding:8px}
+.mp-kpis{display:grid;grid-template-columns:1fr 1fr;gap:7px}.mp-kpi{background:#0d0e13;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:8px}.mp-kpi span{display:block;font-size:9px;color:#8f98a5}.mp-kpi b{display:block;margin-top:3px;font-size:12px}
+.mp-point-list{display:grid;gap:6px;max-height:270px;overflow:auto}.mp-point-row{display:grid;grid-template-columns:31px 1fr auto;gap:8px;align-items:center;padding:8px;border:1px solid rgba(255,255,255,.06);border-radius:9px;background:rgba(255,255,255,.02);cursor:pointer}.mp-point-row:hover{border-color:#614271}.mp-point-num{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#76259f;color:#fff;font-size:10px;font-weight:900;border:1px solid #ba85d5}.mp-point-row b{font-size:11px}.mp-point-row small{display:block;margin-top:2px;font:10px Consolas,monospace;color:#929ba8}.mp-point-row button{border:0;background:transparent;color:#9aa1ac;font-size:18px;cursor:pointer}.mp-point-row button:hover{color:#ff8f94}
+.mp-pin{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#76259f;color:#fff;border:2px solid #fff;font-size:10px;font-weight:900;box-shadow:0 3px 10px #000}.mp-heading{font-size:24px;color:#fff;font-weight:900;text-shadow:0 2px 5px #000;transform-origin:center}
+.mp-crosshair{cursor:crosshair!important}.leaflet-control-layers{background:rgba(12,12,17,.92)!important;color:#fff!important;border:1px solid rgba(255,255,255,.15)!important}.leaflet-control-layers label{color:#fff!important}.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#121019!important;color:#fff!important}.leaflet-bar a{background:#15131b!important;color:#fff!important;border-color:#31283a!important}
+@media(max-width:1100px){.mission-planner-shell{grid-template-columns:1fr}.mission-planner-side{position:static;max-height:none}.mission-planner-mapwrap{min-height:620px}}
+/* V8.31 — validação segura de CDS */
+.mp-pin.planned{background:#c98916;border-color:#fff1b8}.mp-pin.validated{background:#1f9f58;border-color:#caffdc}
+.mp-point-row.planned{border-color:rgba(255,190,70,.20)}.mp-point-row.validated{border-color:rgba(73,214,132,.24)}
+.mp-point-row.selected{outline:2px solid rgba(177,95,226,.55);border-color:#9650bd}
+.mp-state{font-size:8px;padding:2px 5px;border-radius:999px;margin-left:4px;vertical-align:1px}.mp-state.warn{background:rgba(255,186,62,.12);color:#ffc85c}.mp-state.ok{background:rgba(73,214,132,.12);color:#74e7a5}
+.mp-warn{color:#ffc85c}.mp-ok{color:#74e7a5}.mp-row-actions{display:flex;align-items:center;gap:2px}.mp-row-actions button{border:0;background:transparent;color:#aeb6c2;font-size:16px;cursor:pointer;padding:3px}.mp-row-actions button:hover{color:#fff}
+
+/* V8.32 — fluxo de missões, validação e snapshots */
+.mp-topbar{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;margin-bottom:14px;padding:12px;border:1px solid rgba(255,255,255,.08);background:rgba(12,15,22,.72);border-radius:16px}
+.mp-top-title{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px;font-size:12px;letter-spacing:.08em}.mp-top-title span{opacity:.7;font-size:11px;letter-spacing:0}
+.mp-mission-list{display:flex;gap:8px;overflow:auto;padding-bottom:2px}.mp-mission-item{min-width:190px;text-align:left;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.035);border-radius:12px;padding:9px 11px;color:inherit;cursor:pointer}.mp-mission-item.active{outline:2px solid rgba(133,87,255,.75);background:rgba(133,87,255,.12)}.mp-mission-item b{display:block;font-size:12px}.mp-mission-item small{display:block;margin-top:3px;opacity:.65;font-size:10px}
+.mp-top-actions{display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.mp-validation-card{border-color:rgba(255,95,95,.22)!important}.mp-validation-card .primary{box-shadow:0 0 0 1px rgba(255,255,255,.03)}
+.mp-snapshot-preview{display:none;width:100%;max-height:190px;object-fit:cover;border-radius:10px;border:1px solid rgba(255,255,255,.08);margin-top:8px}.mp-snapshot-preview.show{display:block}
+.mp-kpis{grid-template-columns:repeat(3,minmax(0,1fr))!important}.mp-kpi b{word-break:break-word}
+.mp-point-row.planned{border-color:rgba(255,82,82,.45)!important;background:rgba(255,70,70,.07)!important}.mp-point-row.validated{border-color:rgba(72,210,123,.38)!important;background:rgba(72,210,123,.06)!important}
+.mp-pin.planned{background:#a72c3d!important;border-color:#ff697c!important;box-shadow:0 0 0 3px rgba(255,75,95,.18)!important}.mp-pin.validated{background:#187a4b!important;border-color:#62e5a1!important;box-shadow:0 0 0 3px rgba(77,213,137,.16)!important}
+@media (max-width:980px){.mp-topbar{grid-template-columns:1fr}.mp-top-actions{justify-content:flex-start}.mp-kpis{grid-template-columns:1fr!important}}
+.mp-center-pin{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:rgba(116,73,255,.9);border:2px solid rgba(255,255,255,.92);color:#fff;font-size:20px;font-weight:900;box-shadow:0 0 0 5px rgba(116,73,255,.18),0 5px 16px rgba(0,0,0,.4);cursor:move}
