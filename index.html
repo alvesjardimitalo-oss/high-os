@@ -17,14 +17,21 @@
   <header class="topbar">
     <div class="wrap topbar-inner">
       <a class="brand" href="index.html"><img src="assets/high_logo.png" alt="High"><div class="brand-copy"><strong>HIGH OS</strong><span>GESTÃO DO ILEGAL • DEV</span></div></a>
-      <div id="spotifyTopDock" class="spotify-top-dock hidden" aria-label="Spotify High OS">
-        <button type="button" id="spotifyDockMain" class="spotify-dock-main" title="Abrir Spotify"><span class="spotify-note-icon">♫</span><span class="spotify-now"><b id="spotifyNowTitle">Spotify</b><small id="spotifyNowArtist">Conectar conta</small></span><span id="spotifyPlayGlyph">▶</span></button>
-        <div class="spotify-dock-popover">
-          <div class="spotify-dock-head"><strong>SPOTIFY • HIGH OS</strong><button type="button" id="spotifyDockOpenPage">ABRIR MÓDULO</button></div>
+      <div id="spotifyTopDock" class="spotify-top-dock hidden" aria-label="Mini Spotify High OS">
+        <button type="button" id="spotifyDockMain" class="spotify-dock-main" title="Abrir Mini Spotify" aria-expanded="false"><span class="spotify-note-icon">♫</span><span class="spotify-now"><b id="spotifyNowTitle">Spotify</b><small id="spotifyNowArtist">Conectar conta</small></span><span id="spotifyPlayGlyph">▶</span></button>
+        <div class="spotify-dock-popover" id="spotifyMiniPanel">
+          <div class="spotify-dock-head"><strong>MINI SPOTIFY • HIGH OS</strong><div class="spotify-head-actions"><button type="button" id="spotifyDockOpenPage">CONFIG</button><button type="button" id="spotifyDockClose" aria-label="Fechar Mini Spotify">✕</button></div></div>
           <div id="spotifyDockAuth" class="spotify-dock-auth"></div>
-          <div class="spotify-dock-controls"><button type="button" id="spotifyPrevBtn">⏮</button><button type="button" id="spotifyPlayBtn">▶ / ❚❚</button><button type="button" id="spotifyNextBtn">⏭</button></div>
-          <div class="spotify-dock-search"><input id="spotifySearchInput" placeholder="Buscar música no Spotify..."><button type="button" id="spotifySearchBtn">BUSCAR</button></div>
-          <div id="spotifySearchResults" class="spotify-search-results"></div>
+          <div class="spotify-mini-now">
+            <div id="spotifyCover" class="spotify-cover"><span>♫</span></div>
+            <div class="spotify-mini-meta"><b id="spotifyMiniTitle">Nenhuma música tocando</b><small id="spotifyMiniArtist">Conecte sua conta Spotify</small><small id="spotifyMiniAlbum"></small></div>
+          </div>
+          <div class="spotify-progress-wrap"><span id="spotifyElapsed">0:00</span><input id="spotifyProgress" type="range" min="0" max="1000" value="0" step="1" aria-label="Posição da música"><span id="spotifyDuration">0:00</span></div>
+          <div class="spotify-dock-controls"><button type="button" id="spotifyPrevBtn" title="Anterior">⏮</button><button type="button" id="spotifyPlayBtn" class="spotify-main-play" title="Play/Pause">▶</button><button type="button" id="spotifyNextBtn" title="Próxima">⏭</button></div>
+          <div class="spotify-volume-control"><span aria-hidden="true">🔊</span><input id="spotifyVolume" type="range" min="0" max="100" step="1" value="45" aria-label="Volume do Spotify"><strong id="spotifyVolumeValue">45%</strong></div>
+          <div class="spotify-mini-tabs"><button type="button" data-spotify-tab="search" class="active">PESQUISAR</button><button type="button" data-spotify-tab="playlists">MINHAS PLAYLISTS</button></div>
+          <div id="spotifyTabSearch" class="spotify-mini-tab active"><div class="spotify-dock-search"><input id="spotifySearchInput" placeholder="Música, artista ou álbum..."><button type="button" id="spotifySearchBtn">BUSCAR</button></div><div id="spotifySearchResults" class="spotify-search-results"></div></div>
+          <div id="spotifyTabPlaylists" class="spotify-mini-tab"><div class="spotify-library-head"><small>Suas playlists</small><button type="button" id="spotifyRefreshPlaylists">ATUALIZAR</button></div><div id="spotifyPlaylistResults" class="spotify-playlist-results"></div></div>
         </div>
       </div>
       <div class="session" id="sessionArea">
