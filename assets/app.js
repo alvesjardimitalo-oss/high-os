@@ -3241,3 +3241,52 @@ $('#gsDirtyBar')?.classList.add('hidden');
 console.info('HIGH OS V9.0.8 · Salvamento imediato de estruturas + Telão completo persistente.');
 
 console.info('HIGH OS V9.0.9 · Estrutura V9 canônica + persistência confirmada do Telão.');
+
+/* ===== HIGH OS V9.0.10 · Persistência Estrutura sem sair do perfil ===== */
+async function v9010CommitStructure(beforeRows, descricao='Estrutura atualizada'){
+  const current=grCurrent(), group=current?.group;
+  if(!group) throw new Error('Group não identificado.');
+  const before=v9CleanRows(v9Clone(beforeRows||[]));
+  const after=v9CleanRows(v9Clone(gsRows()));
+  const diff=v9Diff(before,after);
+  const scrollY=window.scrollY;
+  const ref=doc(db,'highos','data','faccoes',group);
+  techDraft=techDraft||mergedTechProfile(current);
+  techDraft.estruturaCatalogo=v9Clone(after);
+  await setDoc(ref,{
+    estruturaCatalogoV9:clonePlain(after),
+    perfilTecnico:clonePlain(techDraft),
+    updatedAt:serverTimestamp(),
+    updatedBy:currentUser?.email||''
+  },{merge:true});
+  const snap=await getDoc(ref);
+  if(!snap.exists()) throw new Error('Não foi possível reler o Group após salvar.');
+  const fresh={id:snap.id,...snap.data()};
+  const persisted=v9CleanRows(v9Clone(fresh.estruturaCatalogoV9||[]));
+  if(JSON.stringify(persisted)!==JSON.stringify(after)) throw new Error('O Firestore não confirmou todas as coordenadas salvas.');
+  let pos=faccoes.findIndex(x=>x.group===group);
+  if(pos>=0) faccoes[pos]={...faccoes[pos],...fresh,id:faccoes[pos].id||fresh.id};
+  else {faccoes.push(fresh);pos=faccoes.length-1}
+  techDraft=mergedTechProfile(faccoes[pos]);
+  techDraft.estruturaCatalogo=v9Clone(persisted);
+  v9StructureOriginal=v9Clone(persisted);
+  v9StructureDirty=false;
+  $('#gsDirtyBar')?.classList.add('hidden');
+  try{await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'ESTRUTURA_ATUALIZADA',group,descricao:`${descricao}: ${diff.length} alteração(ões)`,usuario:currentUser?.email||'',data:serverTimestamp()})}catch(e){console.warn('Histórico da estrutura não gravado:',e)}
+  // A edição de estrutura nunca deve fechar o perfil nem voltar para Organizações.
+  activateAppPage('group-profile');
+  gsRender(false);
+  setTimeout(()=>{try{window.scrollTo({top:scrollY,left:0,behavior:'auto'})}catch{};gsMap?.invalidateSize?.()},60);
+  if(diff.length && confirm(`Alterações salvas.\n\nDeseja gerar uma solicitação ao Dev da cidade com ${diff.length} alteração(ões)?`)){
+    v9ShowRequest(v9StructureRequest(group,diff));
+  }
+  return true;
+}
+// Substitui apenas o commit da estrutura; o restante da V9 permanece igual.
+v909CommitStructure=v9010CommitStructure;
+// Blindagem: botões da Estrutura dentro do formulário do Group nunca podem submeter o formulário principal.
+document.addEventListener('click',e=>{
+  const b=e.target.closest?.('#groupStructurePanel button, .gs-card button, #gsModal button');
+  if(b && !b.hasAttribute('type')) b.setAttribute('type','button');
+},true);
+console.info('HIGH OS V9.0.10 · Estrutura salva sem fechar o perfil + proteção contra submit do formulário principal.');
