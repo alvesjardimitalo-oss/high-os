@@ -2911,8 +2911,10 @@ function v836CardImage(f){const url=String(f?.imagemAnuncio||'').trim();return u
 function v836RenderOrganizations(){
  const box=$('#facList');if(!box)return;
  const q=($('#facSearch')?.value||'').toLowerCase(),seg=$('#facSegment')?.value||'',st=$('#facStatus')?.value||'';
- const rows=faccoes.filter(f=>{const t=mergedTechProfile(f),hasMap=!!((t?.estruturaCatalogo||[]).some(x=>x.tipo==='QG'&&gsCoord(x.cds))||gsCoord(f?.perfilOperacional?.qg?.cds||f?.perfilOperacional?.coordenadaPrincipal||f?.beneficios?.coordenadaBase||''));const operational=v836Occupied(f)||hasMap;return !f.removido&&operational&&(!seg||segmentKey(f.segmento)===segmentKey(seg))&&(!st||(st==='ATIVA'?v836Occupied(f):!v836Occupied(f)))&&(!q||[f.group,f.faccao,f.qg,f.lider,f.staff,f.produto].join(' ').toLowerCase().includes(q))});
- const occupied=faccoes.filter(f=>!f.removido&&v836Occupied(f)).length,total=faccoes.filter(f=>!f.removido).length,free=total-occupied;
+ const isRegisteredAvailable=f=>{if(v836Occupied(f))return false;const dc=f?.anuncioDiscordStatus||{};return !!(f?.assumivel===true||String(f?.imagemAnuncio||'').trim()||String(f?.qg||'').trim()||String(f?.produto||'').trim()||dc?.confirmado===true||dc?.postado===true||dc?.postadoEm||dc?.dataHora)};
+ const isOperational=f=>{const t=mergedTechProfile(f),v9=f?.estruturaCatalogoV9||[];const hasMap=!!(v9.some(x=>x.tipo==='QG'&&gsCoord(x.cds))||(t?.estruturaCatalogo||[]).some(x=>x.tipo==='QG'&&gsCoord(x.cds))||gsCoord(f?.perfilOperacional?.qg?.cds||f?.perfilOperacional?.coordenadaPrincipal||f?.beneficios?.coordenadaBase||''));return v836Occupied(f)||isRegisteredAvailable(f)||hasMap};
+ const rows=faccoes.filter(f=>!f.removido&&isOperational(f)&&(!seg||segmentKey(f.segmento)===segmentKey(seg))&&(!st||(st==='ATIVA'?v836Occupied(f):!v836Occupied(f)))&&(!q||[f.group,f.faccao,f.qg,f.lider,f.staff,f.produto].join(' ').toLowerCase().includes(q)));
+ const visibleBase=faccoes.filter(f=>!f.removido&&isOperational(f)),occupied=visibleBase.filter(v836Occupied).length,total=visibleBase.length,free=visibleBase.filter(f=>!v836Occupied(f)).length;
  if($('#facStats'))$('#facStats').innerHTML=`<span><b>${total}</b> GROUPS</span><span><b>${occupied}</b> OCUPADOS</span><span><b>${free}</b> DISPONÍVEIS</span><span><b>${rows.length}</b> EXIBIDOS</span>`;
  if(!rows.length){box.innerHTML='<div class="placeholder"><b>◆</b><h3>NENHUMA ORGANIZAÇÃO NESTE FILTRO</h3><p>Ajuste o segmento, status ou busca.</p></div>';return}
  box.innerHTML=rows.map(f=>{const occupied=v836Occupied(f),dc=availableDiscordState(f),route=v836RouteLabel(f),dcText=dc==='POSTADO'?'DIVULGADA':dc==='NAO_POSTADO'?'NÃO POSTADA':'DIVULGAÇÃO PENDENTE';return `<article class="fac-card unified-org-card ${occupied?'occupied':'available'}" data-id="${esc(f.id||f.group)}" data-group="${esc(f.group)}">
@@ -3290,3 +3292,5 @@ document.addEventListener('click',e=>{
   if(b && !b.hasAttribute('type')) b.setAttribute('type','button');
 },true);
 console.info('HIGH OS V9.0.10 · Estrutura salva sem fechar o perfil + proteção contra submit do formulário principal.');
+
+console.info('HIGH OS V9.0.11 · Facções disponíveis restauradas sem expor Groups apenas detectados por métricas.');
