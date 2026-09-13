@@ -1,4 +1,4 @@
-/* HIGH OS V8.34 — Planejador de Missões */
+/* HIGH OS Planejador de Eventos V8 — Tipo > Evento > Zona */
 (() => {
   const qs=(s,r=document)=>r.querySelector(s);
   const qsa=(s,r=document)=>[...r.querySelectorAll(s)];
@@ -19,13 +19,47 @@
     {id:'facxfac-norte',name:'Fac x Fac — Norte',event:'Fac x Fac',panel:'/ilegal',mode:'assistant',center:{x:1692.36,y:4040.85,z:281.98,h:22.68,label:'Centro da área do gás'},radius:1000,points:FACXFAC_25}
   ];
 
-  const state={map:null,drawn:[],missions:[],activeId:null,initialized:false,placing:false,snapshotTimer:null,autosaveTimer:null,editing:false,editBackup:null,dirty:false,libraryCategory:'dominacao'};
+  const state={map:null,drawn:[],missions:[],activeId:null,initialized:false,placing:false,snapshotTimer:null,autosaveTimer:null,editing:false,editBackup:null,dirty:false,libraryCategory:'dominacao',activeEventId:null};
   const f=n=>Number(n).toFixed(2);
   const num=v=>{const n=Number(v);return Number.isFinite(n)?n:null};
   const nowIso=()=>new Date().toISOString();
   const uid=()=>`m_${Date.now()}_${Math.random().toString(36).slice(2,7)}`;
   const ll=(x,y)=>L.latLng(Number(y),Number(x));
   const active=()=>state.missions.find(m=>m.id===state.activeId)||null;
+  const eventUid=()=>`e_${Date.now()}_${Math.random().toString(36).slice(2,7)}`;
+  const activeEventId=()=>active()?.eventId||state.activeEventId||null;
+  const zonesOfEvent=(eventId)=>state.missions.filter(m=>m.eventId===eventId);
+  const eventsOfCategory=(category)=> {
+    const seen=new Map();
+    state.missions.filter(m=>(m.category||'dominacao')===category).forEach(m=>{
+      if(!seen.has(m.eventId)) seen.set(m.eventId,{id:m.eventId,name:m.event||'Evento sem nome',category:m.category||category,panel:m.panel||'/ilegal'});
+    });
+    return [...seen.values()];
+  };
+  function slugify(s){return String(s||'evento').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'evento';}
+  function inferLegacyStructure(m){
+    if(m.eventId) return;
+    const cat=m.category||((String(m.event||'').toLowerCase().includes('domina'))?'dominacao':'gas');
+    const name=String(m.name||'').trim(), evt=String(m.event||'').trim();
+    let eventName=evt||name||'Evento';
+    let zoneName=name||'Zona Principal';
+    if(cat==='dominacao' && /^domina/i.test(evt||'') && /[—-]/.test(name)){
+      const parts=name.split(/\s*[—-]\s*/).filter(Boolean);
+      if(parts.length>=2){eventName=`Dominação ${parts.slice(1).join(' ')}`;zoneName='Zona Principal';}
+      else {eventName=name;zoneName='Zona Principal';}
+    } else if(cat==='gas' && /[—-]/.test(name) && evt && name.toLowerCase().startsWith(evt.toLowerCase())){
+      const rest=name.slice(evt.length).replace(/^\s*[—-]\s*/,'').trim();
+      eventName=evt;zoneName=rest||'Zona Principal';
+    } else if(name && evt && name!==evt && !name.toLowerCase().includes('clone')){
+      eventName=evt;zoneName=name;
+    } else {
+      eventName=evt||name||'Evento'; zoneName='Zona Principal';
+    }
+    m.event=eventName;
+    m.name=zoneName;
+    m.eventId=`legacy_${cat}_${slugify(eventName)}`;
+    m.requestKind=m.requestKind||(m.official?'alter-zone':'create-zone');
+  }
 
   function coverageStats(m){
     if(!m||!validCoord(m.center?.x)||!validCoord(m.center?.y))return null;
@@ -50,10 +84,15 @@
     return {id:i+1,x:num(p.x),y:num(p.y),z:num(p.z),h:num(p.h),status:p.status||statusDefault,validatedAt:p.validatedAt||null};
   }
   function presetMission(p){
-    return {id:p.id,name:p.name,event:p.event,panel:p.panel,mode:p.mode,category:(p.event==='Dominação'?'dominacao':'gas'),center:{...p.center,status:'validated',validatedAt:nowIso()},circleRadius:p.radius,eventRadius:null,startAngle:0,spawnRadius:100,createdAt:nowIso(),updatedAt:nowIso(),points:p.points.map((v,i)=>normalizePoint({x:v[0],y:v[1],z:v[2],h:v[3],status:'validated',validatedAt:nowIso()},i,'validated')),requestText:'',official:true};
+    const category=(p.event==='Dominação'?'dominacao':'gas');
+    let eventName=p.event, zoneName=p.name;
+    if(category==='dominacao' && /Sul/i.test(p.name)){eventName='Dominação Sul';zoneName='Zona Principal';}
+    if(category==='gas' && /Fac x Fac/i.test(p.event||p.name)){eventName='Fac x Fac';zoneName=(/Norte/i.test(p.name)?'Norte':'Zona Principal');}
+    return {id:p.id,eventId:`preset_${category}_${slugify(eventName)}`,name:zoneName,event:eventName,panel:p.panel,mode:p.mode,category,center:{...p.center,status:'validated',validatedAt:nowIso()},circleRadius:p.radius,eventRadius:null,startAngle:0,spawnRadius:100,createdAt:nowIso(),updatedAt:nowIso(),points:p.points.map((v,i)=>normalizePoint({x:v[0],y:v[1],z:v[2],h:v[3],status:'validated',validatedAt:nowIso()},i,'validated')),requestText:'',requestKind:'alter-zone',official:true};
   }
-  function newMission(){
-    return {id:uid(),name:'Novo Local de Evento',event:'Novo Evento',panel:'/ilegal',mode:'assistant',category:'dominacao',center:{x:null,y:null,z:null,h:null,label:'Coordenada central',status:'planned',validatedAt:null},circleRadius:1000,eventRadius:null,startAngle:0,spawnRadius:100,createdAt:nowIso(),updatedAt:nowIso(),points:[],requestText:'',official:false};
+  function newMission(eventId=null,eventName=null,category=null){
+    const cat=category||state.libraryCategory||'dominacao';
+    return {id:uid(),eventId:eventId||eventUid(),name:'Zona Principal',event:eventName||(cat==='gas'?'Novo Evento de Gás':'Novo Evento de Dominação'),panel:'/ilegal',mode:'assistant',category:cat,center:{x:null,y:null,z:null,h:null,label:cat==='gas'?'Centro do Gás / Marco Zero':'Centro da Zona do Evento',status:'planned',validatedAt:null},circleRadius:1000,eventRadius:null,startAngle:0,spawnRadius:100,createdAt:nowIso(),updatedAt:nowIso(),points:[],requestText:'',requestKind:eventId?'create-zone':'create-event',official:false};
   }
 
   function saveStore(){
@@ -62,9 +101,9 @@
   function loadStore(){
     try{
       const raw=JSON.parse(localStorage.getItem(STORE)||'null');
-      if(Array.isArray(raw)&&raw.length){state.missions=raw;state.missions.forEach(m=>{normalizeCenter(m);if(!m.category)m.category=(String(m.event||'').toLowerCase().includes('domina')?'dominacao':'gas');});state.activeId=localStorage.getItem(ACTIVE)||raw[0].id;state.libraryCategory=(state.missions.find(m=>m.id===state.activeId)?.category||'dominacao');saveStore();return;}
+      if(Array.isArray(raw)&&raw.length){state.missions=raw;state.missions.forEach(m=>{normalizeCenter(m);if(!m.category)m.category=(String(m.event||'').toLowerCase().includes('domina')?'dominacao':'gas');inferLegacyStructure(m);});state.activeId=localStorage.getItem(ACTIVE)||raw[0].id;const am=state.missions.find(m=>m.id===state.activeId)||raw[0];state.libraryCategory=(am?.category||'dominacao');state.activeEventId=am?.eventId||null;saveStore();return;}
     }catch{}
-    state.missions=presets.map(presetMission);state.activeId=state.missions[0].id;state.libraryCategory=state.missions[0]?.category||'dominacao';saveStore();
+    state.missions=presets.map(presetMission);state.activeId=state.missions[0].id;state.libraryCategory=state.missions[0]?.category||'dominacao';state.activeEventId=state.missions[0]?.eventId||null;saveStore();
   }
 
   function openDb(){
@@ -149,19 +188,38 @@
     });
   }
 
+  function renderEventList(){
+    const box=qs('#mpEventList');if(!box)return;
+    const cat=state.libraryCategory||active()?.category||'dominacao';
+    const events=eventsOfCategory(cat);
+    let selected=activeEventId();
+    if(!events.some(e=>e.id===selected) && events[0]) selected=events[0].id;
+    state.activeEventId=selected||null;
+    box.innerHTML=events.length?events.map(e=>{
+      const zones=zonesOfEvent(e.id),ready=zones.filter(z=>isCenterValidated(z)&&z.points?.length&&z.points.every(isValidated)).length;
+      return `<button type="button" class="mp-event-item ${e.id===selected?'active':''}" data-eid="${e.id}"><span><b>${e.name}</b><small>${zones.length} zona${zones.length===1?'':'s'} • ${ready}/${zones.length} prontas</small></span><span class="mp-event-arrow">›</span></button>`;
+    }).join(''):`<div class="mp-note">Nenhum evento cadastrado neste tipo.</div>`;
+    qsa('[data-eid]',box).forEach(b=>b.onclick=()=>switchEvent(b.dataset.eid));
+  }
   function renderMissionList(){
     const box=qs('#mpMissionList');if(!box)return;
-    const cat=state.libraryCategory||active()?.category||'dominacao';
-    const filtered=state.missions.filter(m=>(m.category||'dominacao')===cat);
-    box.innerHTML=filtered.length?filtered.map(m=>{const total=m.points.length,validated=m.points.filter(isValidated).length;return `<button type="button" class="mp-mission-item ${m.id===state.activeId?'active':''}" data-mid="${m.id}"><span class="mp-mission-card-top"><b>${m.name}</b><span class="mp-mission-kind ${cat}">${cat==='gas'?'GÁS':'DOMINAÇÃO'}</span></span><small>${m.event}</small><span class="mp-mission-meta"><span>${total} spawns</span><span>${validated}/${total} validados</span></span></button>`;}).join(''):`<div class="mp-note">Nenhum evento cadastrado nesta categoria.</div>`;
+    renderEventList();
+    const eid=activeEventId();
+    const zones=eid?zonesOfEvent(eid):[];
+    box.innerHTML=zones.length?zones.map(m=>{
+      const total=m.points.length,validated=m.points.filter(isValidated).length;
+      const gas=(m.category||'dominacao')==='gas', coverage=gas?zoneCoverageCounts(m):null;
+      const warn=gas&&coverage?.outside>0;
+      return `<button type="button" class="mp-mission-item ${m.id===state.activeId?'active':''}" data-mid="${m.id}"><span class="mp-mission-card-top"><b>${m.name||'Zona sem nome'}</b><span class="mp-mission-kind ${gas?'gas':'dominacao'}">${gas?'GÁS':'DOMINAÇÃO'}</span></span><small>${m.event||'Evento'}</small><span class="mp-mission-meta"><span>${total} spawns</span><span>${validated}/${total} validados</span>${warn?`<span class="warn">${coverage.outside} fora da safe</span>`:''}</span></button>`;
+    }).join(''):`<div class="mp-note">Este evento ainda não possui zonas.</div>`;
     qsa('[data-mid]',box).forEach(b=>b.onclick=()=>switchMission(b.dataset.mid));
     renderLibraryCategoryUi();
   }
   function renderLibraryCategoryUi(){
     const host=qs('#mpCategoryLibrary');if(!host)return;
     const cat=state.libraryCategory||'dominacao';
-    host.innerHTML=`<div style="font-size:11px;font-weight:800;letter-spacing:.08em;margin-bottom:7px">CATEGORIA DE EVENTOS</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px"><button type="button" id="mpLibDominacao" class="${cat==='dominacao'?'primary':''}">DOMINAÇÃO</button><button type="button" id="mpLibGas" class="${cat==='gas'?'primary':''}">ZONA DE GÁS</button></div><div class="mp-note" style="margin-top:7px">${cat==='gas'?'Safe inicial + fechamento progressivo. Spawns precisam começar dentro da safe.':'Área fixa de disputa. Os spawns podem ficar fora da área de Dominação.'}</div>`;
-    const change=(next)=>{if(next===state.libraryCategory)return;if(state.editing&&state.dirty&&!confirm('Existem alterações não salvas. Deseja descartá-las para trocar de categoria?'))return;if(state.editing)cancelEdit();state.libraryCategory=next;const first=state.missions.find(m=>(m.category||'dominacao')===next);if(first)state.activeId=first.id;saveStore();render();updateEditUi();setTimeout(fit,80);};
+    host.innerHTML=`<div class="mp-hierarchy-head"><div><span>TIPO DE EVENTO</span><strong>${cat==='gas'?'ZONA DE GÁS':'DOMINAÇÃO'}</strong></div><div class="mp-hierarchy-path">${active()?.event||'Selecione um evento'} <b>›</b> ${active()?.name||'Selecione uma zona'}</div></div><div class="mp-type-tabs"><button type="button" id="mpLibDominacao" class="${cat==='dominacao'?'primary':''}">DOMINAÇÃO</button><button type="button" id="mpLibGas" class="${cat==='gas'?'primary':''}">ZONA DE GÁS</button></div><div class="mp-note">${cat==='gas'?'Safe inicial + fechamento progressivo. Os spawns devem iniciar dentro da safe.':'Área fixa de disputa. Os spawns podem ficar dentro ou fora da área de Dominação.'}</div>`;
+    const change=(next)=>{if(next===state.libraryCategory)return;if(state.editing&&state.dirty&&!confirm('Existem alterações não salvas. Deseja descartá-las para trocar de tipo?'))return;if(state.editing)cancelEdit();state.libraryCategory=next;const first=state.missions.find(m=>(m.category||'dominacao')===next);if(first){state.activeId=first.id;state.activeEventId=first.eventId;}saveStore();render();updateEditUi();setTimeout(()=>focusActiveMission(false),80);};
     qs('#mpLibDominacao')?.addEventListener('click',()=>change('dominacao'));
     qs('#mpLibGas')?.addEventListener('click',()=>change('gas'));
   }
@@ -263,7 +321,7 @@ Os pontos atuais serão substituídos e ficarão PENDENTES até validação no F
 
   function syncForm(){
     const m=active();if(!m)return;
-    const vals={mpMissionName:m.name,mpEventCategory:m.category||'dominacao',mpEventType:m.event,mpPanel:m.panel,mpMode:m.mode,mpCenterLabel:m.center.label||'Coordenada central',mpCenterX:m.center.x??'',mpCenterY:m.center.y??'',mpCenterZ:m.center.z??'',mpCenterH:m.center.h??'',mpCircleRadius:m.circleRadius||1000,mpStartAngle:m.startAngle||0,mpRadius:m.spawnRadius||100,mpEventRadius:m.eventRadius||''};
+    const vals={mpMissionName:m.name,mpEventCategory:m.category||'dominacao',mpEventType:m.event,mpPanel:m.panel,mpMode:m.mode,mpRequestKind:m.requestKind||'alter-zone',mpCenterLabel:m.center.label||'Coordenada central',mpCenterX:m.center.x??'',mpCenterY:m.center.y??'',mpCenterZ:m.center.z??'',mpCenterH:m.center.h??'',mpCircleRadius:m.circleRadius||1000,mpStartAngle:m.startAngle||0,mpRadius:m.spawnRadius||100,mpEventRadius:m.eventRadius||''};
     Object.entries(vals).forEach(([id,v])=>{const el=qs('#'+id);if(el&&document.activeElement!==el)el.value=v;});
     if(qs('#mpRadiusValue'))qs('#mpRadiusValue').textContent=`${m.spawnRadius||100} m`;
     const assist=m.mode==='assistant';qs('#mpModeHint')&&(qs('#mpModeHint').textContent=assist?'ASSISTENTE: todo ponto novo começa PENDENTE (vermelho), recebe Z provisório 0.00 para TPCDS/NC e só fica verde após validação com a CDS real.':'MANUAL: CDS completa e não-zero pode ser adicionada já como validada.');
@@ -274,10 +332,10 @@ Os pontos atuais serão substituídos e ficarão PENDENTES até validação no F
     if(state.editing){state.dirty=true;render();setSaveState(`${reason} • NÃO SALVO`);return;}
     saveStore();render();setSaveState(`${reason} • salvo`);queueSnapshot();
   }
-  function requireEdit(){if(state.editing)return true;alert('Evento travado em modo visualização. Clique em EDITAR EVENTO para fazer alterações.');return false;}
-  function startEdit(){const m=active();if(!m||state.editing)return;state.editBackup=JSON.parse(JSON.stringify(m));state.editing=true;state.dirty=false;state.placing=false;render();updateEditUi();setSaveState('MODO EDIÇÃO • alterações ainda não salvas');}
-  function saveMission(){const m=active();if(!m)return;if(!state.editing){setSaveState('Nenhuma alteração para salvar');return;}m.updatedAt=nowIso();saveStore();state.editBackup=null;state.editing=false;state.dirty=false;state.placing=false;render();updateEditUi();setSaveState('Missão salva ✓');queueSnapshot();}
-  function cancelEdit(){if(!state.editing)return;const idx=state.missions.findIndex(x=>x.id===state.activeId);if(idx>=0&&state.editBackup)state.missions[idx]=state.editBackup;state.editBackup=null;state.editing=false;state.dirty=false;state.placing=false;render();updateEditUi();setSaveState('Alterações descartadas • visualização');}
+  function requireEdit(){if(state.editing)return true;alert('Zona travada em modo visualização. Clique em EDITAR ZONA para fazer alterações.');return false;}
+  function startEdit(){const m=active();if(!m||state.editing)return;state.editBackup={eventId:m.eventId,zones:JSON.parse(JSON.stringify(zonesOfEvent(m.eventId)))};state.editing=true;state.dirty=false;state.placing=false;render();updateEditUi();setSaveState('MODO EDIÇÃO • alterações ainda não salvas');}
+  function saveMission(){const m=active();if(!m)return;if(!state.editing){setSaveState('Nenhuma alteração para salvar');return;}m.updatedAt=nowIso();saveStore();state.editBackup=null;state.editing=false;state.dirty=false;state.placing=false;render();updateEditUi();setSaveState('Zona salva ✓');queueSnapshot();}
+  function cancelEdit(){if(!state.editing)return;if(state.editBackup?.eventId&&Array.isArray(state.editBackup.zones)){const eid=state.editBackup.eventId;const keep=state.missions.filter(x=>x.eventId!==eid);state.missions=[...state.editBackup.zones,...keep];}state.editBackup=null;state.editing=false;state.dirty=false;state.placing=false;state.activeEventId=active()?.eventId||state.activeEventId;render();updateEditUi();setSaveState('Alterações descartadas • visualização');}
   function updateEditUi(){
     const edit=state.editing;const eb=qs('#mpEditMission'),sb=qs('#mpSaveMission'),cb=qs('#mpCancelEdit');
     if(eb)eb.style.display=edit?'none':'';if(sb)sb.style.display=edit?'':'none';if(cb)cb.style.display=edit?'':'none';
@@ -324,34 +382,58 @@ Os pontos atuais serão substituídos e ficarão PENDENTES até validação no F
     const m=active();if(!m)return;const x=num(qs('#mpX')?.value),y=num(qs('#mpY')?.value),z=num(qs('#mpZ')?.value),h=num(qs('#mpH')?.value);if(x===null||y===null){alert('Informe X e Y válidos.');return;}
     const can=m.mode==='manual'&&validCoord(x)&&validCoord(y)&&validCoord(z)&&h!==null;m.points.push(normalizePoint({x,y,z,h,status:can?'validated':'planned',validatedAt:can?nowIso():null},m.points.length));commit(can?'Ponto manual validado':'Ponto manual adicionado como PENDENTE');
   }
-  function createMission(){if(state.editing&&state.dirty&&!confirm('Descartar alterações não salvas e criar um novo evento?'))return;if(state.editing)cancelEdit();const m=newMission();m.category=state.libraryCategory||'dominacao';m.event=m.category==='gas'?'Novo Evento de Gás':'Dominação';m.center.label=m.category==='gas'?'Centro do Gás / Marco Zero':'Centro da Zona do Evento';state.missions.unshift(m);state.activeId=m.id;saveStore();render();startEdit();state.map?.setView(ll(900,-600),3);setSaveState('Novo evento criado • configure e clique SALVAR EVENTO');}
+  function createEvent(){
+    if(state.editing&&state.dirty&&!confirm('Descartar alterações não salvas e criar um novo evento?'))return;
+    if(state.editing)cancelEdit();
+    const m=newMission(null,null,state.libraryCategory||'dominacao');
+    m.name='Zona Principal';m.requestKind='create-event';
+    state.missions.unshift(m);state.activeId=m.id;state.activeEventId=m.eventId;saveStore();render();startEdit();state.map?.setView(ll(900,-600),3);setSaveState('Novo evento criado • configure a Zona Principal e clique SALVAR EVENTO');
+  }
+  function createZone(){
+    if(state.editing&&state.dirty&&!confirm('Descartar alterações não salvas e criar uma nova zona?'))return;
+    if(state.editing)cancelEdit();
+    const base=active(),eid=activeEventId();
+    if(!eid||!base){alert('Selecione primeiro um evento.');return;}
+    const m=newMission(eid,base.event,base.category);
+    m.name=`Nova Zona ${zonesOfEvent(eid).length+1}`;m.panel=base.panel;m.mode=base.mode;m.requestKind='create-zone';m.eventRadius=base.eventRadius||null;m.circleRadius=base.circleRadius||1000;m.spawnRadius=base.spawnRadius||100;
+    state.missions.unshift(m);state.activeId=m.id;state.activeEventId=eid;saveStore();render();startEdit();setSaveState('Nova zona criada • defina centro, raio e spawns');
+  }
   function focusActiveMission(scrollToMap=false){
     const m=active();if(!state.map||!m)return;
     const run=()=>{state.map.invalidateSize();const arr=(m.points||[]).filter(p=>validCoord(p.x)&&validCoord(p.y)).map(p=>ll(p.x,p.y));if(validCoord(m.center?.x)&&validCoord(m.center?.y))arr.push(ll(m.center.x,m.center.y));if(arr.length>1)state.map.fitBounds(L.latLngBounds(arr).pad(.12),{animate:true,duration:.45,maxZoom:5});else if(arr.length===1)state.map.setView(arr[0],5,{animate:true});};
     setTimeout(run,70);setTimeout(run,260);
     if(scrollToMap){const el=qs('#missionPlannerMap')?.closest('.mission-planner-mapwrap')||qs('#missionPlannerMap');if(el)setTimeout(()=>el.scrollIntoView({behavior:'smooth',block:'center'}),40);}
   }
-  function switchMission(id){if(state.editing&&state.dirty&&!confirm('Existem alterações não salvas. Deseja descartá-las?'))return;if(state.editing)cancelEdit();state.activeId=id;state.libraryCategory=(state.missions.find(m=>m.id===id)?.category||state.libraryCategory||'dominacao');saveStore();render();updateEditUi();focusActiveMission(true);}
-  function deleteMission(){const m=active();if(!m||m.official){alert('Os dois eventos oficiais cadastrados não podem ser apagados. Duplique ou crie uma nova missão.');return;}if(!confirm(`Apagar a missão "${m.name}"?`))return;state.missions=state.missions.filter(x=>x.id!==m.id);state.activeId=state.missions[0]?.id||null;saveStore();render();fit();}
-  function cloneMissionTo(targetCategory){
+  function switchEvent(eventId){
+    if(state.editing&&state.dirty&&!confirm('Existem alterações não salvas. Deseja descartá-las?'))return;
+    if(state.editing)cancelEdit();
+    const zones=zonesOfEvent(eventId);if(!zones.length)return;
+    state.activeEventId=eventId;state.activeId=zones[0].id;state.libraryCategory=zones[0].category||state.libraryCategory;saveStore();render();updateEditUi();focusActiveMission(false);
+  }
+  function switchMission(id){if(state.editing&&state.dirty&&!confirm('Existem alterações não salvas. Deseja descartá-las?'))return;if(state.editing)cancelEdit();state.activeId=id;const m=state.missions.find(m=>m.id===id);state.activeEventId=m?.eventId||state.activeEventId;state.libraryCategory=(m?.category||state.libraryCategory||'dominacao');saveStore();render();updateEditUi();focusActiveMission(true);}
+  function deleteZone(){const m=active();if(!m)return;const zones=zonesOfEvent(m.eventId);if(zones.length<=1){alert('Este é o único mapa/zona do evento. Para removê-lo, exclua o evento inteiro.');return;}if(!confirm(`Apagar somente a zona "${m.name}" do evento "${m.event}"?`))return;state.missions=state.missions.filter(x=>x.id!==m.id);const next=zones.find(x=>x.id!==m.id);state.activeId=next?.id||null;saveStore();render();focusActiveMission(false);}
+  function deleteEvent(){
+    const m=active();if(!m)return;const zones=zonesOfEvent(m.eventId);
+    if(zones.some(z=>z.official)){if(!confirm(`Este evento contém zona(s) cadastrada(s) originalmente no sistema. Excluir o evento "${m.event}" e suas ${zones.length} zona(s)?`))return;}
+    else if(!confirm(`Excluir o evento "${m.event}" e TODAS as ${zones.length} zona(s)?`))return;
+    state.missions=state.missions.filter(x=>x.eventId!==m.eventId);
+    const first=state.missions.find(x=>(x.category||'dominacao')===state.libraryCategory)||state.missions[0];
+    state.activeId=first?.id||null;state.activeEventId=first?.eventId||null;saveStore();render();focusActiveMission(false);
+  }
+  function cloneZone(){
     const m=active();if(!m)return;if(state.editing&&state.dirty){alert('Salve ou cancele as alterações antes de clonar.');return;}
-    const c=JSON.parse(JSON.stringify(m));c.id=uid();c.category=targetCategory;c.name=`${m.name} — Clone ${targetCategory==='gas'?'Gás':'Dominação'}`;c.official=false;c.createdAt=nowIso();c.updatedAt=nowIso();c.requestText='';
-    if(targetCategory==='gas'){
-      c.event=(String(c.event||'').toLowerCase().includes('domina')?'Evento de Gás':c.event||'Evento de Gás');
-      c.center.label='Centro do Gás / Marco Zero';
-    }else{
-      c.event='Dominação';c.center.label='Centro da Zona do Evento';
-    }
-    /* Clonar/trocar categoria não altera a posição física. Se a CDS já era validada,
-       ela continua válida. A validação só é removida quando X/Y realmente mudam. */
-    if(c.center&&validCoord(c.center.x)&&validCoord(c.center.y)&&validCoord(c.center.z)&&Number.isFinite(Number(c.center.h))){
-      c.center.status='validated';c.center.validatedAt=c.center.validatedAt||nowIso();delete c.center.validationReason;
-    }
-    state.missions.unshift(c);state.activeId=c.id;state.libraryCategory=targetCategory;saveStore();render();startEdit();setSaveState(`Clone criado em ${targetCategory==='gas'?'ZONA DE GÁS':'DOMINAÇÃO'} • evento original preservado`);
+    const c=JSON.parse(JSON.stringify(m));c.id=uid();c.name=`${m.name} — Cópia`;c.official=false;c.createdAt=nowIso();c.updatedAt=nowIso();c.requestText='';c.requestKind='create-zone';
+    state.missions.unshift(c);state.activeId=c.id;state.activeEventId=c.eventId;saveStore();render();startEdit();setSaveState('Zona clonada • evento original preservado');
+  }
+  function cloneEventTo(targetCategory){
+    const m=active();if(!m)return;if(state.editing&&state.dirty){alert('Salve ou cancele as alterações antes de clonar.');return;}
+    const source=zonesOfEvent(m.eventId);const newEventId=eventUid();const newName=`${m.event} — Clone ${targetCategory==='gas'?'Gás':'Dominação'}`;
+    const clones=source.map((z,idx)=>{const c=JSON.parse(JSON.stringify(z));c.id=uid();c.eventId=newEventId;c.event=newName;c.category=targetCategory;c.official=false;c.createdAt=nowIso();c.updatedAt=nowIso();c.requestText='';c.requestKind=idx===0?'create-event':'create-zone';c.center.label=targetCategory==='gas'?'Centro do Gás / Marco Zero':'Centro da Zona do Evento';if(c.center&&validCoord(c.center.x)&&validCoord(c.center.y)&&validCoord(c.center.z)&&Number.isFinite(Number(c.center.h))){c.center.status='validated';c.center.validatedAt=c.center.validatedAt||nowIso();delete c.center.validationReason;}return c;});
+    state.missions.unshift(...clones);state.activeId=clones[0].id;state.activeEventId=newEventId;state.libraryCategory=targetCategory;saveStore();render();startEdit();setSaveState(`Evento clonado com ${clones.length} zona(s) • original preservado`);
   }
   function duplicateMission(){
-    const target=qs('#mpCloneTarget')?.value||((active()?.category||'dominacao')==='gas'?'dominacao':'gas');
-    cloneMissionTo(target);
+    const target=qs('#mpCloneTarget')?.value||state.libraryCategory||'dominacao';
+    cloneEventTo(target);
   }
   function clearPoints(){if(!requireEdit())return;const m=active();if(!m||!confirm('Limpar todos os pontos desta missão?'))return;m.points=[];m.selectedId=null;commit('Pontos removidos');}
   async function copyText(text){try{await navigator.clipboard.writeText(text);return true;}catch{}const ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();try{document.execCommand('copy');}catch{}ta.remove();return true;}
@@ -361,48 +443,105 @@ Os pontos atuais serão substituídos e ficarão PENDENTES até validação no F
     const m=active();if(!m)return;
     const category=m.category||'dominacao',all=m.points||[],pts=all.filter(isValidated),pending=all.length-pts.length;
     if(!pts.length){alert('Nenhum spawn validado para gerar a solicitação.');return;}
-    if(pending>0){alert(`Existem ${pending} spawn(s) pendente(s). Valide todos antes de gerar a solicitação para evitar pontos faltando.`);return;}
+    if(pending>0){alert(`Existem ${pending} spawn(s) pendente(s). Valide todos antes de gerar a solicitação.`);return;}
     if(!isCenterValidated(m)){alert(`Valide primeiro a CDS real do ${category==='gas'?'CENTRO DO GÁS / MARCO ZERO':'CENTRO DA ZONA'}.`);return;}
     const radius=effectiveEventRadius(m),counts=zoneCoverageCounts(m);
-    if(category==='gas'&&counts.outside>0){alert(`${counts.outside} spawn(s) estão FORA da safe inicial (${Math.round(radius)} m). Na categoria Zona de Gás todos precisam iniciar dentro da área segura.`);return;}
-    const center=rawCds(m.center),title=m.event||m.name,panel=m.panel?` - ${m.panel}`:'',action=m.official?'Alteração':'Criação';
+    if(category==='gas'&&counts.outside>0){alert(`${counts.outside} spawn(s) estão FORA da safe inicial (${Math.round(radius)} m). Todos precisam iniciar dentro da área segura.`);return;}
+    const center=rawCds(m.center),panel=m.panel?` - ${m.panel}`:'',kind=m.requestKind||'alter-zone',eventName=m.event||'Evento',zoneName=m.name||'Zona Principal';
+    let subject='',intro='';
+    if(kind==='create-event'){
+      subject=`Solicitação de Criação do Evento ${eventName}${panel}`;
+      intro=`- Solicitamos a criação do evento "${eventName}"${m.panel?` no painel ${m.panel}`:''}.
+
+- O evento deverá ser criado inicialmente com a zona "${zoneName}", utilizando a configuração geográfica abaixo.`;
+    }else if(kind==='create-zone'){
+      subject=`Solicitação de Criação da Zona ${zoneName} - Evento ${eventName}${panel}`;
+      intro=`- Solicitamos a criação da nova zona "${zoneName}" para o evento "${eventName}"${m.panel?` no painel ${m.panel}`:''}.
+
+- As demais zonas já existentes do evento deverão permanecer inalteradas.`;
+    }else{
+      subject=`Solicitação de Alteração da Zona ${zoneName} - Evento ${eventName}${panel}`;
+      intro=`- Solicitamos a alteração da zona "${zoneName}" do evento "${eventName}"${m.panel?` no painel ${m.panel}`:''}, utilizando a configuração geográfica abaixo.
+
+- As demais zonas do evento deverão permanecer inalteradas.`;
+    }
     const centerTitle=category==='gas'?'CENTRO DO GÁS / MARCO ZERO':'COORDENADA CENTRAL';
     const radiusTitle=category==='gas'?'RAIO INICIAL DA SAFE / GÁS':'RAIO DA ÁREA DE DOMINAÇÃO';
-    const intro=category==='gas'
-      ? `- Solicitamos a ${action.toLowerCase()} do evento "${m.name||title}"${m.panel?` no painel ${m.panel}`:''}.\n\n- O evento deverá utilizar uma safe/gás com fechamento progressivo, carregando o centro, raio inicial e spawns desta configuração.`
-      : `- Solicitamos a ${action.toLowerCase()} da zona "${m.name||title}" no evento Dominação${m.panel?` do painel ${m.panel}`:''}.\n\n- A zona deverá manter as mesmas regras e funcionamento da Dominação, alterando somente localização, área e pontos de spawn.`;
-    const tail=category==='gas'
-      ? `- Todos os spawns deverão iniciar dentro da safe inicial.\n\n- Após o início, o fechamento da safe/gás deverá seguir a configuração do evento.`
-      : `- Os spawns poderão ficar dentro ou fora da área de Dominação conforme a distribuição planejada.\n\n- A área de Dominação é fixa e não possui fechamento progressivo de gás/safe.`;
-    const text=`Assunto:\n\n- Solicitação de ${action} - ${m.name||title}${panel};\n\nSolicitação:\n\n${intro}\n\n${centerTitle}:\n\n- ${center}\n\n${radiusTitle}:\n\n- ${Math.round(radius)} metros.\n\nSPAWNS DAS ORGANIZAÇÕES:\n\n${pts.map((p,i)=>`${String(i+1).padStart(2,'0')} - ${rawCds(p)}`).join('\n')}\n\nDISTRIBUIÇÃO:\n\n- Utilizar 1 spawn diferente por organização inscrita.\n\n- Caso haja menos organizações que pontos disponíveis, utilizar somente a quantidade necessária.\n\n- Nenhuma organização deverá compartilhar o mesmo ponto de spawn.\n\n${tail}\n\n- As demais configurações, regras, premiações, duração e funcionamento deverão permanecer inalterados.`;
+    const mechanic=category==='gas'
+      ? `- Todos os spawns deverão iniciar dentro da safe inicial.
+
+- Após o início, o fechamento da safe/gás deverá seguir a configuração e funcionamento atuais do evento.`
+      : `- Os spawns poderão ficar dentro ou fora da área de Dominação conforme a distribuição planejada.
+
+- A área de Dominação deverá permanecer fixa, sem fechamento progressivo de gás/safe.`;
+    const selectorNote=kind==='create-zone'?`
+
+- A nova zona deverá ser adicionada à seleção de zonas do evento "${eventName}".`:'';
+    const text=`Assunto:
+
+- ${subject};
+
+Solicitação:
+
+${intro}${selectorNote}
+
+${centerTitle}:
+
+- ${center}
+
+${radiusTitle}:
+
+- ${Math.round(radius)} metros.
+
+SPAWNS DAS ORGANIZAÇÕES:
+
+${pts.map((p,i)=>`${String(i+1).padStart(2,'0')} - ${rawCds(p)}`).join('\n')}
+
+DISTRIBUIÇÃO:
+
+- Utilizar 1 spawn diferente por organização inscrita.
+
+- Caso haja menos organizações que pontos disponíveis, utilizar somente a quantidade necessária.
+
+- Nenhuma organização deverá compartilhar o mesmo ponto de spawn.
+
+${mechanic}
+
+- As demais configurações, regras, premiações, duração e funcionamento do evento deverão permanecer inalterados.`;
     m.requestText=text;if(qs('#mpRequestText'))qs('#mpRequestText').value=text;
   }
   async function copyCurrentRequest(){generateRequest();const m=active();if(!m?.requestText)return;await copyText(m.requestText);const b=qs('#mpCopyRequest');if(b){const old=b.textContent;b.textContent='COPIADO ✓';setTimeout(()=>b.textContent=old,900);}}
 
 
   function bindFormAutosave(){
-    const map={mpMissionName:['name'],mpEventCategory:['category'],mpEventType:['event'],mpPanel:['panel'],mpMode:['mode'],mpCenterLabel:['center','label'],mpCenterX:['center','x'],mpCenterY:['center','y'],mpCenterZ:['center','z'],mpCenterH:['center','h'],mpCircleRadius:['circleRadius'],mpStartAngle:['startAngle'],mpRadius:['spawnRadius']};
-    Object.entries(map).forEach(([id,path])=>qs('#'+id)?.addEventListener((id==='mpMode'||id==='mpEventCategory')?'change':'input',e=>{const m=active();if(!m||!state.editing)return;let v=e.target.value;const oldCategory=m.category;if(['mpCenterX','mpCenterY','mpCenterZ','mpCenterH','mpCircleRadius','mpStartAngle','mpRadius'].includes(id))v=num(v);if(path.length===2){if((id==='mpCenterX'||id==='mpCenterY')&&Number(m.center[path[1]])!==Number(v)){m.center.z=0;m.center.h=0;m.center.status='planned';m.center.validatedAt=null;m.center.validationReason='coordinate-change';}m[path[0]][path[1]]=v;}else m[path[0]]=v;if(id==='mpEventCategory'&&oldCategory!==v){state.libraryCategory=v;if(v==='gas'){m.center.label='Centro do Gás / Marco Zero';}else{m.center.label='Centro da Zona do Evento';}/* trocar categoria não muda a CDS; mantém validação existente */}if(id==='mpMode'&&v==='assistant'){m.points.forEach(p=>{if(!p.validatedAt&&p.status!=='validated')p.status='planned';});}state.dirty=true;setSaveState('Alteração • NÃO SALVO');renderMap();renderCenterValidation();renderCoverage();if(id==='mpRadius'&&qs('#mpRadiusValue'))qs('#mpRadiusValue').textContent=`${v||100} m`; }));
+    const map={mpMissionName:['name'],mpEventCategory:['category'],mpEventType:['event'],mpPanel:['panel'],mpMode:['mode'],mpRequestKind:['requestKind'],mpCenterLabel:['center','label'],mpCenterX:['center','x'],mpCenterY:['center','y'],mpCenterZ:['center','z'],mpCenterH:['center','h'],mpCircleRadius:['circleRadius'],mpStartAngle:['startAngle'],mpRadius:['spawnRadius']};
+    Object.entries(map).forEach(([id,path])=>qs('#'+id)?.addEventListener((['mpMode','mpEventCategory','mpRequestKind'].includes(id))?'change':'input',e=>{const m=active();if(!m||!state.editing)return;let v=e.target.value;const oldCategory=m.category;if(['mpCenterX','mpCenterY','mpCenterZ','mpCenterH','mpCircleRadius','mpStartAngle','mpRadius'].includes(id))v=num(v);if(path.length===2){if((id==='mpCenterX'||id==='mpCenterY')&&Number(m.center[path[1]])!==Number(v)){m.center.z=0;m.center.h=0;m.center.status='planned';m.center.validatedAt=null;m.center.validationReason='coordinate-change';}m[path[0]][path[1]]=v;}else m[path[0]]=v;if(id==='mpEventType'){zonesOfEvent(m.eventId).forEach(z=>z.event=v);}if(id==='mpPanel'){zonesOfEvent(m.eventId).forEach(z=>z.panel=v);}if(id==='mpEventCategory'){zonesOfEvent(m.eventId).forEach(z=>z.category=v);}if(id==='mpEventCategory'&&oldCategory!==v){state.libraryCategory=v;if(v==='gas'){m.center.label='Centro do Gás / Marco Zero';}else{m.center.label='Centro da Zona do Evento';}/* trocar categoria não muda a CDS; mantém validação existente */}if(id==='mpMode'&&v==='assistant'){m.points.forEach(p=>{if(!p.validatedAt&&p.status!=='validated')p.status='planned';});}state.dirty=true;setSaveState('Alteração • NÃO SALVO');renderMap();renderCenterValidation();renderCoverage();if(id==='mpRadius'&&qs('#mpRadiusValue'))qs('#mpRadiusValue').textContent=`${v||100} m`; }));
   }
 
 
   function ensurePlannerV2Ui(){
-    if(!qs('#mpCategoryLibrary')){
-      const list=qs('#mpMissionList');if(list){const cat=document.createElement('div');cat.id='mpCategoryLibrary';cat.style.marginBottom='10px';list.insertAdjacentElement('beforebegin',cat);}
-    }
+    const list=qs('#mpMissionList');
+    if(list&&!qs('#mpCategoryLibrary')){const cat=document.createElement('div');cat.id='mpCategoryLibrary';list.insertAdjacentElement('beforebegin',cat);}
+    if(list&&!qs('#mpEventList')){const eventWrap=document.createElement('div');eventWrap.innerHTML='<div class="mp-level-title"><span>2</span><div><b>EVENTOS</b><small>Selecione o evento deste tipo</small></div></div><div id="mpEventList" class="mp-event-list"></div><div class="mp-level-title zone-title"><span>3</span><div><b>ZONAS DO EVENTO</b><small>Cada zona possui centro, raio e spawns próprios</small></div></div>';list.insertAdjacentElement('beforebegin',eventWrap);}
     if(!qs('#mpEventCategory')){
-      const ev=qs('#mpEventType');if(ev){const lab=document.createElement('label');lab.innerHTML='Categoria do evento<select id="mpEventCategory"><option value="dominacao">DOMINAÇÃO — ZONA FIXA</option><option value="gas">ZONA DE GÁS — SAFE FECHANDO</option></select>';ev.closest('.mp-grid')?.insertAdjacentElement('beforebegin',lab);}
+      const ev=qs('#mpEventType');if(ev){const lab=document.createElement('label');lab.innerHTML='Tipo de evento<select id="mpEventCategory"><option value="dominacao">DOMINAÇÃO — ÁREA FIXA</option><option value="gas">ZONA DE GÁS — SAFE FECHANDO</option></select>';ev.closest('.mp-grid')?.insertAdjacentElement('beforebegin',lab);}
     }
-    const actions=qs('.mp-top-actions');if(actions&&!qs('#mpEditMission')){
-      actions.insertAdjacentHTML('afterbegin','<button type="button" id="mpEditMission" class="btn-secondary compact">EDITAR EVENTO</button><button type="button" id="mpSaveMission" class="btn-primary compact" style="display:none">SALVAR EVENTO</button><button type="button" id="mpCancelEdit" class="btn-secondary compact" style="display:none">CANCELAR</button>');
+    if(!qs('#mpRequestKind')){
+      const ev=qs('#mpEventType');if(ev){const lab=document.createElement('label');lab.innerHTML='Tipo de solicitação<select id="mpRequestKind"><option value="create-event">Criar evento</option><option value="create-zone">Criar nova zona</option><option value="alter-zone">Alterar zona existente</option></select>';ev.closest('.mp-grid')?.insertAdjacentElement('afterend',lab);}
     }
-    const dup=qs('#mpDuplicateMission');if(dup){dup.textContent='CLONAR EVENTO';if(!qs('#mpCloneTarget')){const sel=document.createElement('select');sel.id='mpCloneTarget';sel.title='Categoria do clone';sel.innerHTML='<option value="dominacao">Clone → Dominação</option><option value="gas">Clone → Zona de Gás</option>';sel.style.maxWidth='190px';dup.insertAdjacentElement('beforebegin',sel);}}
-    const topActions=qs('.mp-top-actions');if(topActions){topActions.classList.add('mp-actions-organized');const cloneSel=qs('#mpCloneTarget');const cloneBtn=qs('#mpDuplicateMission');if(cloneSel&&cloneBtn&&!qs('#mpCloneGroup')){const group=document.createElement('div');group.id='mpCloneGroup';group.className='mp-clone-group';cloneSel.parentNode.insertBefore(group,cloneSel);group.append(cloneSel,cloneBtn);}const del=qs('#mpDeleteMission');if(del)del.classList.add('mp-delete-action');const nw=qs('#mpNewMission');if(nw)nw.classList.add('mp-new-action');}
-    const clicked=qs('#mpClicked');if(clicked&&!state.editing)clicked.textContent='MODO VISUALIZAÇÃO • pontos travados. Clique em EDITAR EVENTO para alterar o mapa.';renderLibraryCategoryUi();
+    const name=qs('#mpMissionName');if(name?.closest('label')){const l=name.closest('label');for(const n of [...l.childNodes])if(n.nodeType===3&&n.textContent.trim())n.textContent='Nome da zona ';}
+
+    const actions=qs('.mp-top-actions');
+    if(actions){
+      actions.innerHTML=`<div class="mp-action-section"><span>EVENTO</span><button type="button" id="mpNewMission" class="mp-new-action">+ NOVO EVENTO</button><select id="mpCloneTarget"><option value="dominacao">Clone → Dominação</option><option value="gas">Clone → Zona de Gás</option></select><button type="button" id="mpDuplicateMission">CLONAR EVENTO</button><button type="button" id="mpDeleteEvent" class="mp-delete-action">EXCLUIR EVENTO</button></div><div class="mp-action-section zone"><span>ZONA</span><button type="button" id="mpNewZone" class="primary">+ NOVA ZONA</button><button type="button" id="mpCloneZone">CLONAR ZONA</button><button type="button" id="mpDeleteMission" class="mp-delete-action">EXCLUIR ZONA</button></div><div class="mp-action-section edit"><span>EDIÇÃO</span><button type="button" id="mpEditMission">EDITAR ZONA</button><button type="button" id="mpSaveMission" class="primary" style="display:none">SALVAR ZONA</button><button type="button" id="mpCancelEdit" style="display:none">CANCELAR</button></div>`;
+      actions.className='mp-top-actions mp-actions-v8';
+    }
+    const clicked=qs('#mpClicked');if(clicked&&!state.editing)clicked.textContent='MODO VISUALIZAÇÃO • zona travada. Clique em EDITAR ZONA para alterar o mapa.';
+    renderLibraryCategoryUi();
   }
   function bind(){
-    if(state.initialized)return;state.initialized=true;loadStore();ensurePlannerV2Ui();initMap();render();bindFormAutosave();updateEditUi();
-    qs('#mpEditMission')?.addEventListener('click',startEdit);qs('#mpSaveMission')?.addEventListener('click',saveMission);qs('#mpCancelEdit')?.addEventListener('click',cancelEdit);qs('#mpNewMission')?.addEventListener('click',createMission);qs('#mpDuplicateMission')?.addEventListener('click',duplicateMission);qs('#mpDeleteMission')?.addEventListener('click',deleteMission);
+    if(state.initialized)return;state.initialized=true;loadStore();state.activeEventId=active()?.eventId||state.activeEventId;ensurePlannerV2Ui();initMap();render();bindFormAutosave();updateEditUi();
+    qs('#mpEditMission')?.addEventListener('click',startEdit);qs('#mpSaveMission')?.addEventListener('click',saveMission);qs('#mpCancelEdit')?.addEventListener('click',cancelEdit);qs('#mpNewMission')?.addEventListener('click',createEvent);qs('#mpNewZone')?.addEventListener('click',createZone);qs('#mpCloneZone')?.addEventListener('click',cloneZone);qs('#mpDuplicateMission')?.addEventListener('click',duplicateMission);qs('#mpDeleteMission')?.addEventListener('click',deleteZone);qs('#mpDeleteEvent')?.addEventListener('click',deleteEvent);
     qs('#mpPlaceBtn')?.addEventListener('click',()=>{if(!requireEdit())return;state.placing=!state.placing;qs('#missionPlannerMap')?.classList.toggle('mp-crosshair',state.placing);qs('#mpPlaceBtn').textContent=state.placing?'PARAR DE MARCAR':'MARCAR PONTO NO MAPA';});
     qs('#mpFit')?.addEventListener('click',fit);qs('#mpGoLS')?.addEventListener('click',()=>state.map?.setView(ll(900,-600),3));qs('#mpGoCayo')?.addEventListener('click',()=>{if(state.map&&state.cayoBounds)state.map.fitBounds(state.cayoBounds,{padding:[20,20]});});qs('#mpGenerateCircle')?.addEventListener('click',generateCircle);qs('#mpImport')?.addEventListener('click',importBulk);qs('#mpValidateBtn')?.addEventListener('click',validateSelected);qs('#mpAddCoord')?.addEventListener('click',addManual);qs('#mpClear')?.addEventListener('click',clearPoints);qs('#mpExportBtn')?.addEventListener('click',exportValidated);qs('#mpExportXYBtn')?.addEventListener('click',exportXY);qs('#mpGenerateRequest')?.addEventListener('click',generateRequest);qs('#mpCopyRequest')?.addEventListener('click',copyCurrentRequest);qs('#mpCaptureBtn')?.addEventListener('click',()=>captureSnapshot(true));
     setTimeout(()=>{state.map?.invalidateSize();fit();queueSnapshot();},180);
