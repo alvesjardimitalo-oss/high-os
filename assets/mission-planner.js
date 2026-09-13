@@ -1,4 +1,4 @@
-/* HIGH OS Planejador de Eventos V8 — Tipo > Evento > Zona */
+/* HIGH OS Planejador de Eventos V8.1 — Correção de vínculo de zonas */
 (() => {
   const qs=(s,r=document)=>r.querySelector(s);
   const qsa=(s,r=document)=>[...r.querySelectorAll(s)];
@@ -95,13 +95,40 @@
     return {id:uid(),eventId:eventId||eventUid(),name:'Zona Principal',event:eventName||(cat==='gas'?'Novo Evento de Gás':'Novo Evento de Dominação'),panel:'/ilegal',mode:'assistant',category:cat,center:{x:null,y:null,z:null,h:null,label:cat==='gas'?'Centro do Gás / Marco Zero':'Centro da Zona do Evento',status:'planned',validatedAt:null},circleRadius:1000,eventRadius:null,startAngle:0,spawnRadius:100,createdAt:nowIso(),updatedAt:nowIso(),points:[],requestText:'',requestKind:eventId?'create-zone':'create-event',official:false};
   }
 
+
+  function normalizeText(s){return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();}
+  function repairKnownZoneAssignments(){
+    // Corrige migração V8: a antiga missão "Hoje é dia de Guerra - Zona Cemiterio Praia"
+    // deve ser uma ZONA dentro do evento "Hoje é Dia de Guerra", e não um evento separado.
+    const gas=state.missions.filter(m=>(m.category||'dominacao')==='gas');
+    const candidates=gas.filter(m=>{
+      const t=normalizeText(`${m.event||''} ${m.name||''}`);
+      return t.includes('hoje')&&t.includes('dia')&&t.includes('guerra')&&t.includes('cemiterio')&&t.includes('praia');
+    });
+    if(!candidates.length)return;
+    const existing=gas.find(m=>{
+      const e=normalizeText(m.event||'');
+      const z=normalizeText(m.name||'');
+      return e.includes('hoje')&&e.includes('dia')&&e.includes('guerra')&&!e.includes('cemiterio')&&!e.includes('praia')&&!z.includes('cemiterio');
+    });
+    const targetEventId=existing?.eventId||'legacy_gas_hoje-e-dia-de-guerra';
+    const targetEventName=existing?.event||'Hoje é Dia de Guerra';
+    candidates.forEach(m=>{
+      m.eventId=targetEventId;
+      m.event=targetEventName;
+      m.name='Cemitério / Praia';
+      if(!m.requestKind||m.requestKind==='create-event')m.requestKind='create-zone';
+      m.updatedAt=nowIso();
+    });
+  }
+
   function saveStore(){
     try{localStorage.setItem(STORE,JSON.stringify(state.missions));localStorage.setItem(ACTIVE,state.activeId||'');}catch(e){console.warn('Planejador: falha ao salvar',e);}
   }
   function loadStore(){
     try{
       const raw=JSON.parse(localStorage.getItem(STORE)||'null');
-      if(Array.isArray(raw)&&raw.length){state.missions=raw;state.missions.forEach(m=>{normalizeCenter(m);if(!m.category)m.category=(String(m.event||'').toLowerCase().includes('domina')?'dominacao':'gas');inferLegacyStructure(m);});state.activeId=localStorage.getItem(ACTIVE)||raw[0].id;const am=state.missions.find(m=>m.id===state.activeId)||raw[0];state.libraryCategory=(am?.category||'dominacao');state.activeEventId=am?.eventId||null;saveStore();return;}
+      if(Array.isArray(raw)&&raw.length){state.missions=raw;state.missions.forEach(m=>{normalizeCenter(m);if(!m.category)m.category=(String(m.event||'').toLowerCase().includes('domina')?'dominacao':'gas');inferLegacyStructure(m);});repairKnownZoneAssignments();state.activeId=localStorage.getItem(ACTIVE)||raw[0].id;const am=state.missions.find(m=>m.id===state.activeId)||raw[0];state.libraryCategory=(am?.category||'dominacao');state.activeEventId=am?.eventId||null;saveStore();return;}
     }catch{}
     state.missions=presets.map(presetMission);state.activeId=state.missions[0].id;state.libraryCategory=state.missions[0]?.category||'dominacao';state.activeEventId=state.missions[0]?.eventId||null;saveStore();
   }
