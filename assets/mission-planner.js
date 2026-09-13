@@ -19,7 +19,7 @@
     {id:'facxfac-norte',name:'Fac x Fac — Norte',event:'Fac x Fac',panel:'/ilegal',mode:'assistant',center:{x:1692.36,y:4040.85,z:281.98,h:22.68,label:'Centro da área do gás'},radius:1000,points:FACXFAC_25}
   ];
 
-  const state={map:null,drawn:[],missions:[],activeId:null,initialized:false,placing:false,snapshotTimer:null,autosaveTimer:null};
+  const state={map:null,drawn:[],missions:[],activeId:null,initialized:false,placing:false,snapshotTimer:null,autosaveTimer:null,editing:false,editBackup:null,dirty:false};
   const f=n=>Number(n).toFixed(2);
   const num=v=>{const n=Number(v);return Number.isFinite(n)?n:null};
   const nowIso=()=>new Date().toISOString();
@@ -35,10 +35,10 @@
     return {id:i+1,x:num(p.x),y:num(p.y),z:num(p.z),h:num(p.h),status:p.status||statusDefault,validatedAt:p.validatedAt||null};
   }
   function presetMission(p){
-    return {id:p.id,name:p.name,event:p.event,panel:p.panel,mode:p.mode,center:{...p.center,status:'validated',validatedAt:nowIso()},circleRadius:p.radius,startAngle:0,spawnRadius:100,createdAt:nowIso(),updatedAt:nowIso(),points:p.points.map((v,i)=>normalizePoint({x:v[0],y:v[1],z:v[2],h:v[3],status:'validated',validatedAt:nowIso()},i,'validated')),requestText:'',official:true};
+    return {id:p.id,name:p.name,event:p.event,panel:p.panel,mode:p.mode,category:(p.event==='Dominação'?'dominacao':'gas'),center:{...p.center,status:'validated',validatedAt:nowIso()},circleRadius:p.radius,startAngle:0,spawnRadius:100,createdAt:nowIso(),updatedAt:nowIso(),points:p.points.map((v,i)=>normalizePoint({x:v[0],y:v[1],z:v[2],h:v[3],status:'validated',validatedAt:nowIso()},i,'validated')),requestText:'',official:true};
   }
   function newMission(){
-    return {id:uid(),name:'Novo Local de Evento',event:'Novo Evento',panel:'/ilegal',mode:'assistant',center:{x:null,y:null,z:null,h:null,label:'Coordenada central',status:'planned',validatedAt:null},circleRadius:1000,startAngle:0,spawnRadius:100,createdAt:nowIso(),updatedAt:nowIso(),points:[],requestText:'',official:false};
+    return {id:uid(),name:'Novo Local de Evento',event:'Novo Evento',panel:'/ilegal',mode:'assistant',category:'dominacao',center:{x:null,y:null,z:null,h:null,label:'Coordenada central',status:'planned',validatedAt:null},circleRadius:1000,startAngle:0,spawnRadius:100,createdAt:nowIso(),updatedAt:nowIso(),points:[],requestText:'',official:false};
   }
 
   function saveStore(){
@@ -47,7 +47,7 @@
   function loadStore(){
     try{
       const raw=JSON.parse(localStorage.getItem(STORE)||'null');
-      if(Array.isArray(raw)&&raw.length){state.missions=raw;state.missions.forEach(normalizeCenter);state.activeId=localStorage.getItem(ACTIVE)||raw[0].id;saveStore();return;}
+      if(Array.isArray(raw)&&raw.length){state.missions=raw;state.missions.forEach(m=>{normalizeCenter(m);if(!m.category)m.category=(String(m.event||'').toLowerCase().includes('domina')?'dominacao':'gas');});state.activeId=localStorage.getItem(ACTIVE)||raw[0].id;saveStore();return;}
     }catch{}
     state.missions=presets.map(presetMission);state.activeId=state.missions[0].id;saveStore();
   }
@@ -99,6 +99,7 @@
     state.map.on('mousemove',e=>{if(qs('#mpCursor'))qs('#mpCursor').textContent=`X ${f(e.latlng.lng)} | Y ${f(e.latlng.lat)}`;});
     state.map.on('click',e=>{
       const m=active();if(!m)return;
+      if(!state.editing){if(qs('#mpClicked'))qs('#mpClicked').textContent='Modo visualização: clique em EDITAR EVENTO para alterar posições.';return;}
       if(qs('#mpClicked'))qs('#mpClicked').textContent=`${f(e.latlng.lng)},${f(e.latlng.lat)}`;
       if(state.placing){m.points.push(normalizePoint({x:e.latlng.lng,y:e.latlng.lat,z:0,h:0,status:'planned'},m.points.length));commit('Ponto marcado no mapa');}
       else {m.center.x=e.latlng.lng;m.center.y=e.latlng.lat;m.center.z=0;m.center.h=0;m.center.status='planned';m.center.validatedAt=null;syncForm();commit('Centro ajustado no mapa — validação removida');}
@@ -112,14 +113,14 @@
     if(!state.map)return;clearLayers();const m=active();if(!m)return;
     if(validCoord(m.center.x)&&validCoord(m.center.y)){
       const cicon=L.divIcon({className:'',html:`<div class="mp-center-pin ${isCenterValidated(m)?'validated':'planned'}">◎</div>`,iconSize:[32,32],iconAnchor:[16,16]});
-      const center=L.marker(ll(m.center.x,m.center.y),{icon:cicon,draggable:true}).addTo(state.map).bindPopup(`<b>${m.center.label||'Centro'}</b><br>Status: <b>${isCenterValidated(m)?'VALIDADO':'PENDENTE'}</b><br>${f(m.center.x)},${f(m.center.y)}${isCenterValidated(m)?','+f(m.center.z)+','+f(m.center.h):',0.00,0.00'}<br><small>Arraste para ajustar o centro</small>`);
+      const center=L.marker(ll(m.center.x,m.center.y),{icon:cicon,draggable:state.editing}).addTo(state.map).bindPopup(`<b>${m.center.label||'Centro'}</b><br>Status: <b>${isCenterValidated(m)?'VALIDADO':'PENDENTE'}</b><br>${f(m.center.x)},${f(m.center.y)}${isCenterValidated(m)?','+f(m.center.z)+','+f(m.center.h):',0.00,0.00'}<br><small>${state.editing?'Arraste para ajustar o centro':'Visualização • ponto travado'}</small>`);
       center.on('dragend',ev=>{const n=ev.target.getLatLng();m.center.x=n.lng;m.center.y=n.lat;m.center.z=0;m.center.h=0;m.center.status='planned';m.center.validatedAt=null;commit('Centro movido no mapa — validação removida');});
       state.drawn.push(center);
     }
     m.points.forEach((p,i)=>{
       p.id=i+1;const valid=isValidated(p);const pos=ll(p.x,p.y);
       const circle=L.circle(pos,{radius:Number(m.spawnRadius)||100,weight:2,fillOpacity:.07,dashArray:valid?null:'6 5'}).addTo(state.map);
-      const marker=L.marker(pos,{icon:pinIcon(p),draggable:true}).addTo(state.map);
+      const marker=L.marker(pos,{icon:pinIcon(p),draggable:state.editing}).addTo(state.map);
       marker.bindPopup(`<b>Ponto ${String(p.id).padStart(2,'0')}</b><br>Status: <b>${valid?'VALIDADO':'PENDENTE'}</b><br>${f(p.x)},${f(p.y)}${valid?','+f(p.z)+','+f(p.h):''}`);
       marker.on('click',()=>selectPoint(p.id));
       marker.on('dragend',ev=>{const n=ev.target.getLatLng();p.x=n.lng;p.y=n.lat;p.z=0;p.status='planned';p.validatedAt=null;commit(`Ponto ${p.id} movido — validação removida`);selectPoint(p.id);});
@@ -130,7 +131,7 @@
 
   function renderMissionList(){
     const box=qs('#mpMissionList');if(!box)return;
-    box.innerHTML=state.missions.map(m=>`<button type="button" class="mp-mission-item ${m.id===state.activeId?'active':''}" data-mid="${m.id}"><b>${m.name}</b><small>${m.event} • ${m.points.length} pontos • ${m.points.filter(isValidated).length} validados</small></button>`).join('');
+    box.innerHTML=state.missions.map(m=>`<button type="button" class="mp-mission-item ${m.id===state.activeId?'active':''}" data-mid="${m.id}"><b>${m.name}</b><small>${m.category==='gas'?'ZONA DE GÁS':'DOMINAÇÃO'} • ${m.event} • ${m.points.length} pontos • ${m.points.filter(isValidated).length} validados</small></button>`).join('');
     qsa('[data-mid]',box).forEach(b=>b.onclick=()=>switchMission(b.dataset.mid));
   }
   function renderPointList(){
@@ -139,7 +140,7 @@
     box.innerHTML=m.points.map((p,i)=>{const valid=isValidated(p);return `<div class="mp-point-row ${valid?'validated':'planned'}" data-pidx="${i}"><div class="mp-point-num">${String(i+1).padStart(2,'0')}</div><div><b>Ponto ${i+1} <span class="mp-state ${valid?'ok':'warn'}">${valid?'VALIDADO':'PENDENTE'}</span></b><small>${valid?rawCds(p):tpCds(p)+' • Z provisório para TP/NC'}</small></div><div class="mp-row-actions"><button type="button" data-copy="${i}" title="${valid?'Copiar CDS validada':'Copiar CDS provisória para TPCDS'}">⧉</button><button type="button" data-del="${i}" title="Remover">×</button></div></div>`;}).join('');
     qsa('.mp-point-row',box).forEach(r=>r.onclick=e=>{if(e.target.dataset.copy!==undefined||e.target.dataset.del!==undefined)return;const i=Number(r.dataset.pidx);selectPoint(i+1);state.map?.setView(ll(m.points[i].x,m.points[i].y),5);});
     qsa('[data-copy]',box).forEach(b=>b.onclick=async e=>{e.stopPropagation();const p=m.points[Number(b.dataset.copy)];await copyText(isValidated(p)?rawCds(p):tpCds(p));b.textContent='✓';setTimeout(()=>b.textContent='⧉',800);});
-    qsa('[data-del]',box).forEach(b=>b.onclick=e=>{e.stopPropagation();m.points.splice(Number(b.dataset.del),1);commit('Ponto removido');});
+    qsa('[data-del]',box).forEach(b=>b.onclick=e=>{e.stopPropagation();if(!requireEdit())return;m.points.splice(Number(b.dataset.del),1);commit('Ponto removido');});
   }
   function selectPoint(id){
     const m=active(),p=m?.points[id-1],box=qs('#mpValidationTarget');
@@ -157,7 +158,7 @@
     qs('#mpValidateCenter')?.addEventListener('click',validateCenter);
   }
   function renderCenterValidation(){ensureCenterValidationUi();const m=active(),el=qs('#mpCenterValidationStatus');if(!m||!el)return;el.innerHTML=isCenterValidated(m)?`<b>CENTRO VALIDADO ✓</b><br>${rawCds(m.center)}`:(validCoord(m.center.x)&&validCoord(m.center.y)?`<b>CENTRO PENDENTE</b><br>${f(m.center.x)},${f(m.center.y)},0.00,0.00 • copie o TP, vá ao local e cole a CDS real.`:'Marque o centro no mapa para iniciar a validação.');}
-  function validateCenter(){
+  function validateCenter(){if(!requireEdit())return;
     const m=active();if(!m)return;const raw=String(qs('#mpCenterRealCds')?.value||'').trim().replace(/^tpcds\s+/i,'');const a=raw.split(',').map(v=>v.trim());const x=num(a[0]),y=num(a[1]),z=num(a[2]),h=num(a[3]);
     if(!validCoord(x)||!validCoord(y)||!validCoord(z)||h===null){alert('CDS inválida. Cole X,Y,Z,H completos e sem Z zero.');return;}
     m.center.x=x;m.center.y=y;m.center.z=z;m.center.h=h;m.center.status='validated';m.center.validatedAt=nowIso();if(qs('#mpCenterRealCds'))qs('#mpCenterRealCds').value='';commit('Centro validado com CDS real');state.map?.panTo(ll(x,y));
@@ -175,18 +176,31 @@
   function rawCds(p){return `${f(p.x)},${f(p.y)},${f(p.z)},${f(p.h)}`;}
   function tpCds(p){const z=Number.isFinite(Number(p?.z))?Number(p.z):0;const h=Number.isFinite(Number(p?.h))?Number(p.h):0;return `${f(p.x)},${f(p.y)},${f(z)},${f(h)}`;}
   function updateExport(){const m=active(),out=qs('#mpExport');if(out&&m)out.value=m.points.filter(isValidated).map((p,i)=>`${p.id||i+1} - ${rawCds(p)}`).join('\n');}
-  function render(){renderMissionList();renderPointList();renderMap();analyze();updateExport();syncForm();renderCenterValidation();loadSnapshotPreview();}
+  function render(){renderMissionList();renderPointList();renderMap();analyze();updateExport();syncForm();renderCenterValidation();const rt=qs('#mpRequestText'),m=active();if(rt&&document.activeElement!==rt)rt.value=m?.requestText||'';loadSnapshotPreview();}
 
   function syncForm(){
     const m=active();if(!m)return;
-    const vals={mpMissionName:m.name,mpEventType:m.event,mpPanel:m.panel,mpMode:m.mode,mpCenterLabel:m.center.label||'Coordenada central',mpCenterX:m.center.x??'',mpCenterY:m.center.y??'',mpCenterZ:m.center.z??'',mpCenterH:m.center.h??'',mpCircleRadius:m.circleRadius||1000,mpStartAngle:m.startAngle||0,mpRadius:m.spawnRadius||100};
+    const vals={mpMissionName:m.name,mpEventCategory:m.category||'dominacao',mpEventType:m.event,mpPanel:m.panel,mpMode:m.mode,mpCenterLabel:m.center.label||'Coordenada central',mpCenterX:m.center.x??'',mpCenterY:m.center.y??'',mpCenterZ:m.center.z??'',mpCenterH:m.center.h??'',mpCircleRadius:m.circleRadius||1000,mpStartAngle:m.startAngle||0,mpRadius:m.spawnRadius||100};
     Object.entries(vals).forEach(([id,v])=>{const el=qs('#'+id);if(el&&document.activeElement!==el)el.value=v;});
     if(qs('#mpRadiusValue'))qs('#mpRadiusValue').textContent=`${m.spawnRadius||100} m`;
     const assist=m.mode==='assistant';qs('#mpModeHint')&&(qs('#mpModeHint').textContent=assist?'ASSISTENTE: todo ponto novo começa PENDENTE (vermelho), recebe Z provisório 0.00 para TPCDS/NC e só fica verde após validação com a CDS real.':'MANUAL: CDS completa e não-zero pode ser adicionada já como validada.');
   }
 
-  function commit(reason='Alteração salva'){
-    const m=active();if(!m)return;m.updatedAt=nowIso();saveStore();render();setSaveState(`${reason} • salvo automaticamente`);queueSnapshot();
+  function commit(reason='Alteração'){
+    const m=active();if(!m)return;m.updatedAt=nowIso();
+    if(state.editing){state.dirty=true;render();setSaveState(`${reason} • NÃO SALVO`);return;}
+    saveStore();render();setSaveState(`${reason} • salvo`);queueSnapshot();
+  }
+  function requireEdit(){if(state.editing)return true;alert('Evento travado em modo visualização. Clique em EDITAR EVENTO para fazer alterações.');return false;}
+  function startEdit(){const m=active();if(!m||state.editing)return;state.editBackup=JSON.parse(JSON.stringify(m));state.editing=true;state.dirty=false;state.placing=false;render();updateEditUi();setSaveState('MODO EDIÇÃO • alterações ainda não salvas');}
+  function saveMission(){const m=active();if(!m)return;if(!state.editing){setSaveState('Nenhuma alteração para salvar');return;}m.updatedAt=nowIso();saveStore();state.editBackup=null;state.editing=false;state.dirty=false;state.placing=false;render();updateEditUi();setSaveState('Missão salva ✓');queueSnapshot();}
+  function cancelEdit(){if(!state.editing)return;const idx=state.missions.findIndex(x=>x.id===state.activeId);if(idx>=0&&state.editBackup)state.missions[idx]=state.editBackup;state.editBackup=null;state.editing=false;state.dirty=false;state.placing=false;render();updateEditUi();setSaveState('Alterações descartadas • visualização');}
+  function updateEditUi(){
+    const edit=state.editing;const eb=qs('#mpEditMission'),sb=qs('#mpSaveMission'),cb=qs('#mpCancelEdit');
+    if(eb)eb.style.display=edit?'none':'';if(sb)sb.style.display=edit?'':'none';if(cb)cb.style.display=edit?'':'none';
+    qsa('#page-planejador input:not(#mpRequestText),#page-planejador select,#page-planejador textarea:not(#mpRequestText):not(#mpExport)').forEach(el=>{if(!['mpValidateCds','mpCenterRealCds'].includes(el.id))el.disabled=!edit;});
+    ['mpPlaceBtn','mpGenerateCircle','mpImport','mpAddCoord','mpClear','mpValidateBtn','mpValidateCenter'].forEach(id=>{const el=qs('#'+id);if(el)el.disabled=!edit;});
+    if(qs('#missionPlannerMap'))qs('#missionPlannerMap').classList.toggle('mp-editing',edit);
   }
   function setSaveState(t){if(qs('#mpSaveState'))qs('#mpSaveState').textContent=t;}
   function queueSnapshot(){clearTimeout(state.snapshotTimer);state.snapshotTimer=setTimeout(()=>captureSnapshot(false),1100);}
@@ -205,7 +219,7 @@
   const safeName=s=>String(s||'missao').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/gi,'-').replace(/^-|-$/g,'').toLowerCase();
 
   function fit(){const m=active();if(!state.map||!m)return;const arr=m.points.map(p=>ll(p.x,p.y));if(validCoord(m.center.x)&&validCoord(m.center.y))arr.push(ll(m.center.x,m.center.y));if(arr.length)state.map.fitBounds(L.latLngBounds(arr).pad(.12));}
-  function generateCircle(){
+  function generateCircle(){if(!requireEdit())return;
     const m=active();if(!m)return;const cx=num(qs('#mpCenterX')?.value),cy=num(qs('#mpCenterY')?.value),qty=Math.max(2,Number(qs('#mpQty')?.value)||2),r=Math.max(1,Number(qs('#mpCircleRadius')?.value)||1000),start=Number(qs('#mpStartAngle')?.value)||0;
     if(cx===null||cy===null){alert('Defina a coordenada central no mapa ou informe X e Y.');return;}
     if(Number(m.center.x)!==cx||Number(m.center.y)!==cy){m.center.z=0;m.center.h=0;m.center.status='planned';m.center.validatedAt=null;}m.center.x=cx;m.center.y=cy;m.circleRadius=r;m.startAngle=start;m.points=[];
@@ -213,44 +227,72 @@
     commit(`${qty} pontos gerados como PENDENTES`);fit();
   }
   function parseBulk(text){const out=[];String(text||'').split(/\n+/).forEach(line=>{const c=line.replace(/^\s*\d+\s*[-–—:]\s*/,'').trim();if(!c)return;const p=c.split(',').map(v=>v.trim());const x=num(p[0]),y=num(p[1]);if(x===null||y===null)return;out.push({x,y,z:num(p[2]),h:num(p[3])});});return out;}
-  function importBulk(){
+  function importBulk(){if(!requireEdit())return;
     const m=active(),arr=parseBulk(qs('#mpBulk')?.value);if(!m||!arr.length){alert('Nenhuma coordenada válida encontrada.');return;}
     const manual=m.mode==='manual';arr.forEach(v=>{const can=manual&&validCoord(v.x)&&validCoord(v.y)&&validCoord(v.z)&&Number.isFinite(v.h);m.points.push(normalizePoint({...v,status:can?'validated':'planned',validatedAt:can?nowIso():null},m.points.length));});commit(`Importadas ${arr.length} CDS`);fit();
   }
-  function validateSelected(){
+  function validateSelected(){if(!requireEdit())return;
     const m=active(),id=m?.selectedId,p=id?m.points[id-1]:null;if(!p){alert('Selecione o ponto que você está conferindo no jogo.');return;}
     const raw=String(qs('#mpValidateCds')?.value||'').trim().replace(/^tpcds\s+/i,'');const a=raw.split(',').map(v=>v.trim());const x=num(a[0]),y=num(a[1]),z=num(a[2]),h=num(a[3]);
     if(!validCoord(x)||!validCoord(y)||!validCoord(z)||h===null){alert('CDS inválida. Cole X,Y,Z,H completos e sem valor zero.');return;}
     p.x=x;p.y=y;p.z=z;p.h=h;p.status='validated';p.validatedAt=nowIso();if(qs('#mpValidateCds'))qs('#mpValidateCds').value='';commit(`Ponto ${id} validado`);selectPoint(id);state.map?.panTo(ll(x,y));
   }
-  function addManual(){
+  function addManual(){if(!requireEdit())return;
     const m=active();if(!m)return;const x=num(qs('#mpX')?.value),y=num(qs('#mpY')?.value),z=num(qs('#mpZ')?.value),h=num(qs('#mpH')?.value);if(x===null||y===null){alert('Informe X e Y válidos.');return;}
     const can=m.mode==='manual'&&validCoord(x)&&validCoord(y)&&validCoord(z)&&h!==null;m.points.push(normalizePoint({x,y,z,h,status:can?'validated':'planned',validatedAt:can?nowIso():null},m.points.length));commit(can?'Ponto manual validado':'Ponto manual adicionado como PENDENTE');
   }
-  function createMission(){const m=newMission();state.missions.unshift(m);state.activeId=m.id;saveStore();render();state.map?.setView(ll(900,-600),3);setSaveState('Nova missão criada');}
-  function switchMission(id){state.activeId=id;saveStore();render();setTimeout(fit,80);}
+  function createMission(){if(state.editing&&state.dirty&&!confirm('Descartar alterações não salvas e criar um novo evento?'))return;if(state.editing)cancelEdit();const m=newMission();state.missions.unshift(m);state.activeId=m.id;saveStore();render();startEdit();state.map?.setView(ll(900,-600),3);setSaveState('Novo evento criado • configure e clique SALVAR EVENTO');}
+  function switchMission(id){if(state.editing&&state.dirty&&!confirm('Existem alterações não salvas. Deseja descartá-las?'))return;if(state.editing)cancelEdit();state.activeId=id;saveStore();render();updateEditUi();setTimeout(fit,80);}
   function deleteMission(){const m=active();if(!m||m.official){alert('Os dois eventos oficiais cadastrados não podem ser apagados. Duplique ou crie uma nova missão.');return;}if(!confirm(`Apagar a missão "${m.name}"?`))return;state.missions=state.missions.filter(x=>x.id!==m.id);state.activeId=state.missions[0]?.id||null;saveStore();render();fit();}
-  function duplicateMission(){const m=active();if(!m)return;const c=JSON.parse(JSON.stringify(m));c.id=uid();c.name=`${m.name} — Cópia`;c.official=false;c.createdAt=nowIso();c.updatedAt=nowIso();state.missions.unshift(c);state.activeId=c.id;commit('Missão duplicada');}
-  function clearPoints(){const m=active();if(!m||!confirm('Limpar todos os pontos desta missão?'))return;m.points=[];m.selectedId=null;commit('Pontos removidos');}
+  function duplicateMission(){const m=active();if(!m)return;if(state.editing&&state.dirty){alert('Salve ou cancele as alterações antes de clonar.');return;}const c=JSON.parse(JSON.stringify(m));c.id=uid();c.name=`${m.name} — Clone`;c.official=false;c.createdAt=nowIso();c.updatedAt=nowIso();c.requestText='';const toGas=confirm('CLONAR EVENTO\n\nOK = Zona de Gás\nCancelar = Dominação');c.category=toGas?'gas':'dominacao';if(toGas){c.center.status='planned';c.center.validatedAt=null;c.center.label='Centro do Gás / Marco Zero';}else{c.center.label='Centro da Zona do Evento';}state.missions.unshift(c);state.activeId=c.id;saveStore();render();startEdit();setSaveState(`Clone criado como ${toGas?'ZONA DE GÁS':'DOMINAÇÃO'} • valide apenas o que mudar e SALVE`);}
+  function clearPoints(){if(!requireEdit())return;const m=active();if(!m||!confirm('Limpar todos os pontos desta missão?'))return;m.points=[];m.selectedId=null;commit('Pontos removidos');}
   async function copyText(text){try{await navigator.clipboard.writeText(text);return true;}catch{}const ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();try{document.execCommand('copy');}catch{}ta.remove();return true;}
   async function exportValidated(){const m=active(),v=m?.points.filter(isValidated)||[];if(!v.length){alert('Nenhum ponto validado para exportar.');return;}const txt=v.map((p,i)=>`${p.id||i+1} - ${rawCds(p)}`).join('\n');if(qs('#mpExport'))qs('#mpExport').value=txt;await copyText(txt);}
   async function exportXY(){const m=active();if(!m?.points.length)return;await copyText(m.points.map((p,i)=>`${i+1} - ${isValidated(p)?rawCds(p):tpCds(p)}`).join('\n'));}
   function generateRequest(){
-    const m=active();if(!m)return;if(!isCenterValidated(m)){alert('Valide primeiro a CDS real do centro da missão/gás.');return;}const pts=m.points.filter(isValidated);const center=[m.center.x,m.center.y,m.center.z,m.center.h].every(v=>num(v)!==null)?`${f(m.center.x)},${f(m.center.y)},${f(m.center.z)},${f(m.center.h)}`:`${f(m.center.x)},${f(m.center.y)}`;
-    const title=m.event||m.name;let text=`Assunto:\n\n- Solicitação de Alteração de Local do Evento ${title}${m.panel?` - Painel ${m.panel}`:''};\n\nSolicitação:\n\n- Solicitamos a alteração do local de realização do evento ${title}${m.panel?` do painel ${m.panel}`:''}.\n\n${String(m.center.label||'Coordenada central').toUpperCase()}:\n\n- ${center}\n\nSPAWNS DAS ORGANIZAÇÕES:\n\n${pts.map((p,i)=>`${String(i+1).padStart(2,'0')} - ${rawCds(p)}`).join('\n')}\n\n- Os pontos de spawn deverão ser distribuídos entre as organizações de acordo com a quantidade de facções inscritas no evento, utilizando 1 ponto diferente para cada organização.\n\n- Caso haja menos organizações inscritas que a quantidade de pontos disponíveis, deverão ser utilizados somente os spawns necessários.\n\n- Todas as demais configurações, regras e funcionamento atualmente existentes no evento deverão permanecer inalterados.`;
-    m.requestText=text;if(qs('#mpRequestText'))qs('#mpRequestText').value=text;saveStore();
+    const m=active();if(!m)return;const pts=m.points.filter(isValidated);if(!pts.length){alert('Nenhum spawn validado para gerar a solicitação.');return;}
+    const category=m.category||'dominacao';
+    if(category==='gas'&&!isCenterValidated(m)){alert('Valide primeiro a CDS real do CENTRO DO GÁS / MARCO ZERO.');return;}
+    if(!validCoord(m.center.x)||!validCoord(m.center.y)){alert('Defina a coordenada central do evento.');return;}
+    const center=isCenterValidated(m)?rawCds(m.center):`${f(m.center.x)},${f(m.center.y)},${Number.isFinite(Number(m.center.z))?f(m.center.z):'0.00'},${Number.isFinite(Number(m.center.h))?f(m.center.h):'0.00'}`;
+    const title=m.event||m.name, panel=m.panel?` - Painel ${m.panel}`:'';
+    let intro,centerTitle,tail;
+    if(category==='gas'){
+      intro=`- Solicitamos a criação/alteração do local do evento ${title}${m.panel?` no painel ${m.panel}`:''}.\n\n- O evento pertence à categoria ZONA DE GÁS, com fechamento progressivo da safe a partir do Centro do Gás / Marco Zero informado abaixo.`;
+      centerTitle='CENTRO DO GÁS / MARCO ZERO';
+      tail='- O centro informado deverá ser utilizado como Marco Zero da zona de gás/safe do evento.\n\n- Todas as demais configurações, regras e funcionamento do evento deverão permanecer conforme o evento de referência.';
+    }else{
+      intro=`- Solicitamos a criação/alteração do local do evento ${title}${m.panel?` no painel ${m.panel}`:''}.\n\n- O evento pertence à categoria DOMINAÇÃO, mantendo uma zona fixa durante o evento, sem fechamento progressivo de gás.`;
+      centerTitle='COORDENADA CENTRAL DA ZONA';
+      tail='- A zona do evento deverá permanecer fixa, sem fechamento progressivo de gás.\n\n- Todas as demais configurações, regras e funcionamento do evento deverão permanecer conforme o evento de referência.';
+    }
+    const text=`Assunto:\n\n- Solicitação de ${category==='gas'?'Zona de Gás':'Dominação'} - ${title}${panel};\n\nSolicitação:\n\n${intro}\n\n${centerTitle}:\n\n- ${center}\n\nSPAWNS DAS ORGANIZAÇÕES:\n\n${pts.map((p,i)=>`${String(i+1).padStart(2,'0')} - ${rawCds(p)}`).join('\n')}\n\n- Os pontos de spawn deverão ser distribuídos entre as organizações de acordo com a quantidade de facções inscritas no evento, utilizando 1 ponto diferente para cada organização.\n\n- Caso haja menos organizações inscritas que a quantidade de pontos disponíveis, deverão ser utilizados somente os spawns necessários.\n\n${tail}`;
+    m.requestText=text;if(qs('#mpRequestText'))qs('#mpRequestText').value=text;
   }
+  async function copyCurrentRequest(){generateRequest();const m=active();if(!m?.requestText)return;await copyText(m.requestText);const b=qs('#mpCopyRequest');if(b){const old=b.textContent;b.textContent='COPIADO ✓';setTimeout(()=>b.textContent=old,900);}}
+
 
   function bindFormAutosave(){
-    const map={mpMissionName:['name'],mpEventType:['event'],mpPanel:['panel'],mpMode:['mode'],mpCenterLabel:['center','label'],mpCenterX:['center','x'],mpCenterY:['center','y'],mpCenterZ:['center','z'],mpCenterH:['center','h'],mpCircleRadius:['circleRadius'],mpStartAngle:['startAngle'],mpRadius:['spawnRadius']};
-    Object.entries(map).forEach(([id,path])=>qs('#'+id)?.addEventListener(id==='mpMode'?'change':'input',e=>{const m=active();if(!m)return;let v=e.target.value;if(['mpCenterX','mpCenterY','mpCenterZ','mpCenterH','mpCircleRadius','mpStartAngle','mpRadius'].includes(id))v=num(v);if(path.length===2){if((id==='mpCenterX'||id==='mpCenterY')&&Number(m.center[path[1]])!==Number(v)){m.center.z=0;m.center.h=0;m.center.status='planned';m.center.validatedAt=null;}m[path[0]][path[1]]=v;}else m[path[0]]=v;if(id==='mpMode'&&v==='assistant'){m.points.forEach(p=>{if(!p.validatedAt&&p.status!=='validated')p.status='planned';});}clearTimeout(state.autosaveTimer);state.autosaveTimer=setTimeout(()=>commit('Alteração'),250);if(id==='mpRadius'&&qs('#mpRadiusValue'))qs('#mpRadiusValue').textContent=`${v||100} m`; }));
+    const map={mpMissionName:['name'],mpEventCategory:['category'],mpEventType:['event'],mpPanel:['panel'],mpMode:['mode'],mpCenterLabel:['center','label'],mpCenterX:['center','x'],mpCenterY:['center','y'],mpCenterZ:['center','z'],mpCenterH:['center','h'],mpCircleRadius:['circleRadius'],mpStartAngle:['startAngle'],mpRadius:['spawnRadius']};
+    Object.entries(map).forEach(([id,path])=>qs('#'+id)?.addEventListener((id==='mpMode'||id==='mpEventCategory')?'change':'input',e=>{const m=active();if(!m||!state.editing)return;let v=e.target.value;const oldCategory=m.category;if(['mpCenterX','mpCenterY','mpCenterZ','mpCenterH','mpCircleRadius','mpStartAngle','mpRadius'].includes(id))v=num(v);if(path.length===2){if((id==='mpCenterX'||id==='mpCenterY')&&Number(m.center[path[1]])!==Number(v)){m.center.z=0;m.center.h=0;m.center.status='planned';m.center.validatedAt=null;}m[path[0]][path[1]]=v;}else m[path[0]]=v;if(id==='mpEventCategory'&&oldCategory!==v&&v==='gas'){m.center.status='planned';m.center.validatedAt=null;}if(id==='mpMode'&&v==='assistant'){m.points.forEach(p=>{if(!p.validatedAt&&p.status!=='validated')p.status='planned';});}state.dirty=true;setSaveState('Alteração • NÃO SALVO');renderMap();renderCenterValidation();if(id==='mpRadius'&&qs('#mpRadiusValue'))qs('#mpRadiusValue').textContent=`${v||100} m`; }));
   }
 
+
+  function ensurePlannerV2Ui(){
+    if(!qs('#mpEventCategory')){
+      const ev=qs('#mpEventType');if(ev){const lab=document.createElement('label');lab.innerHTML='Categoria do evento<select id="mpEventCategory"><option value="dominacao">DOMINAÇÃO — ZONA FIXA</option><option value="gas">ZONA DE GÁS — SAFE FECHANDO</option></select>';ev.closest('.mp-grid')?.insertAdjacentElement('beforebegin',lab);}
+    }
+    const actions=qs('.mp-top-actions');if(actions&&!qs('#mpEditMission')){
+      actions.insertAdjacentHTML('afterbegin','<button type="button" id="mpEditMission" class="btn-secondary compact">EDITAR EVENTO</button><button type="button" id="mpSaveMission" class="btn-primary compact" style="display:none">SALVAR EVENTO</button><button type="button" id="mpCancelEdit" class="btn-secondary compact" style="display:none">CANCELAR</button>');
+    }
+    const dup=qs('#mpDuplicateMission');if(dup)dup.textContent='CLONAR EVENTO';
+    const clicked=qs('#mpClicked');if(clicked&&!state.editing)clicked.textContent='MODO VISUALIZAÇÃO • pontos travados. Clique em EDITAR EVENTO para alterar o mapa.';
+  }
   function bind(){
-    if(state.initialized)return;state.initialized=true;loadStore();initMap();render();bindFormAutosave();
-    qs('#mpNewMission')?.addEventListener('click',createMission);qs('#mpDuplicateMission')?.addEventListener('click',duplicateMission);qs('#mpDeleteMission')?.addEventListener('click',deleteMission);
-    qs('#mpPlaceBtn')?.addEventListener('click',()=>{state.placing=!state.placing;qs('#missionPlannerMap')?.classList.toggle('mp-crosshair',state.placing);qs('#mpPlaceBtn').textContent=state.placing?'PARAR DE MARCAR':'MARCAR PONTO NO MAPA';});
-    qs('#mpFit')?.addEventListener('click',fit);qs('#mpGoLS')?.addEventListener('click',()=>state.map?.setView(ll(900,-600),3));qs('#mpGoCayo')?.addEventListener('click',()=>{if(state.map&&state.cayoBounds)state.map.fitBounds(state.cayoBounds,{padding:[20,20]});});qs('#mpGenerateCircle')?.addEventListener('click',generateCircle);qs('#mpImport')?.addEventListener('click',importBulk);qs('#mpValidateBtn')?.addEventListener('click',validateSelected);qs('#mpAddCoord')?.addEventListener('click',addManual);qs('#mpClear')?.addEventListener('click',clearPoints);qs('#mpExportBtn')?.addEventListener('click',exportValidated);qs('#mpExportXYBtn')?.addEventListener('click',exportXY);qs('#mpGenerateRequest')?.addEventListener('click',generateRequest);qs('#mpCopyRequest')?.addEventListener('click',()=>copyText(qs('#mpRequestText')?.value||''));qs('#mpCaptureBtn')?.addEventListener('click',()=>captureSnapshot(true));
+    if(state.initialized)return;state.initialized=true;loadStore();ensurePlannerV2Ui();initMap();render();bindFormAutosave();updateEditUi();
+    qs('#mpEditMission')?.addEventListener('click',startEdit);qs('#mpSaveMission')?.addEventListener('click',saveMission);qs('#mpCancelEdit')?.addEventListener('click',cancelEdit);qs('#mpNewMission')?.addEventListener('click',createMission);qs('#mpDuplicateMission')?.addEventListener('click',duplicateMission);qs('#mpDeleteMission')?.addEventListener('click',deleteMission);
+    qs('#mpPlaceBtn')?.addEventListener('click',()=>{if(!requireEdit())return;state.placing=!state.placing;qs('#missionPlannerMap')?.classList.toggle('mp-crosshair',state.placing);qs('#mpPlaceBtn').textContent=state.placing?'PARAR DE MARCAR':'MARCAR PONTO NO MAPA';});
+    qs('#mpFit')?.addEventListener('click',fit);qs('#mpGoLS')?.addEventListener('click',()=>state.map?.setView(ll(900,-600),3));qs('#mpGoCayo')?.addEventListener('click',()=>{if(state.map&&state.cayoBounds)state.map.fitBounds(state.cayoBounds,{padding:[20,20]});});qs('#mpGenerateCircle')?.addEventListener('click',generateCircle);qs('#mpImport')?.addEventListener('click',importBulk);qs('#mpValidateBtn')?.addEventListener('click',validateSelected);qs('#mpAddCoord')?.addEventListener('click',addManual);qs('#mpClear')?.addEventListener('click',clearPoints);qs('#mpExportBtn')?.addEventListener('click',exportValidated);qs('#mpExportXYBtn')?.addEventListener('click',exportXY);qs('#mpGenerateRequest')?.addEventListener('click',generateRequest);qs('#mpCopyRequest')?.addEventListener('click',copyCurrentRequest);qs('#mpCaptureBtn')?.addEventListener('click',()=>captureSnapshot(true));
     setTimeout(()=>{state.map?.invalidateSize();fit();queueSnapshot();},180);
   }
   function activate(){bind();setTimeout(()=>{state.map?.invalidateSize();fit();},100);}
