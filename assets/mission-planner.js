@@ -37,7 +37,10 @@
     const recommended=Math.ceil((max*1.02)/100)*100;
     return {count:pts.length,max,minimum,recommended,average:sum/pts.length,farthestIndex:maxIndex};
   }
-  function effectiveEventRadius(m){const s=coverageStats(m);const saved=Number(m?.eventRadius);return Number.isFinite(saved)&&saved>0?saved:(s?.recommended||0);}
+  function effectiveEventRadius(m){const saved=Number(m?.eventRadius),base=Number(m?.circleRadius),s=coverageStats(m);return Number.isFinite(saved)&&saved>0?saved:(Number.isFinite(base)&&base>0?base:(s?.recommended||1000));}
+  function pointDistanceFromCenter(m,p){return Math.hypot(Number(p.x)-Number(m.center.x),Number(p.y)-Number(m.center.y));}
+  function pointInsideZone(m,p){if(!m||!p||!validCoord(m.center?.x)||!validCoord(m.center?.y)||!validCoord(p.x)||!validCoord(p.y))return true;return pointDistanceFromCenter(m,p)<=effectiveEventRadius(m);}
+  function zoneCoverageCounts(m){const pts=(m?.points||[]).filter(p=>validCoord(p.x)&&validCoord(p.y));const radius=effectiveEventRadius(m);let inside=0,outside=0;pts.forEach(p=>{if(pointDistanceFromCenter(m,p)<=radius)inside++;else outside++;});return {inside,outside,total:pts.length,radius};}
 
   function validCoord(v){return Number.isFinite(Number(v)) && Number(v)!==0;}
   function isValidated(p){return p?.status==='validated' && validCoord(p.x) && validCoord(p.y) && validCoord(p.z) && Number.isFinite(Number(p.h));}
@@ -118,7 +121,7 @@
     });
   }
 
-  function pinIcon(p){const cls=isValidated(p)?'validated':'planned';return L.divIcon({className:'',html:`<div class="mp-pin ${cls}">${String(p.id).padStart(2,'0')}</div>`,iconSize:[28,28],iconAnchor:[14,14]});}
+  function pinIcon(p,outside=false){const cls=isValidated(p)?'validated':'planned';const warn=outside?' style="outline:3px solid #ff5252;box-shadow:0 0 0 5px rgba(255,82,82,.22)"':'';return L.divIcon({className:'',html:`<div class="mp-pin ${cls} ${outside?'outside':''}"${warn}>${outside?'!':''}${String(p.id).padStart(2,'0')}</div>`,iconSize:[outside?34:28,outside?34:28],iconAnchor:[outside?17:14,outside?17:14]});}
   function headingIcon(h){return L.divIcon({className:'',html:`<div class="mp-heading" style="transform:rotate(${Number(h)||0}deg)">↑</div>`,iconSize:[24,24],iconAnchor:[12,12]});}
   function clearLayers(){state.drawn.forEach(o=>{try{state.map.removeLayer(o)}catch{}});state.drawn=[];}
   function renderMap(){
@@ -135,10 +138,10 @@
       }
     }
     m.points.forEach((p,i)=>{
-      p.id=i+1;const valid=isValidated(p);const pos=ll(p.x,p.y);
-      const circle=L.circle(pos,{radius:Number(m.spawnRadius)||100,weight:2,fillOpacity:.07,dashArray:valid?null:'6 5'}).addTo(state.map);
-      const marker=L.marker(pos,{icon:pinIcon(p),draggable:state.editing}).addTo(state.map);
-      marker.bindPopup(`<b>Ponto ${String(p.id).padStart(2,'0')}</b><br>Status: <b>${valid?'VALIDADO':'PENDENTE'}</b><br>${f(p.x)},${f(p.y)}${valid?','+f(p.z)+','+f(p.h):''}`);
+      p.id=i+1;const valid=isValidated(p),outside=!pointInsideZone(m,p),pos=ll(p.x,p.y);
+      const circle=L.circle(pos,{radius:Number(m.spawnRadius)||100,weight:outside?3:2,fillOpacity:outside?.14:.07,dashArray:outside?'3 4':(valid?null:'6 5'),color:outside?'#ff5252':undefined,fillColor:outside?'#ff5252':undefined}).addTo(state.map);
+      const marker=L.marker(pos,{icon:pinIcon(p,outside),draggable:state.editing}).addTo(state.map);
+      marker.bindPopup(`<b>Ponto ${String(p.id).padStart(2,'0')}</b><br>Status: <b>${valid?'VALIDADO':'PENDENTE'}</b>${outside?'<br><b style="color:#ff7474">FORA DA ZONA ⚠</b>':''}<br>${f(p.x)},${f(p.y)}${valid?','+f(p.z)+','+f(p.h):''}`);
       marker.on('click',()=>selectPoint(p.id));
       marker.on('dragend',ev=>{const n=ev.target.getLatLng();p.x=n.lng;p.y=n.lat;p.z=0;p.status='planned';p.validatedAt=null;commit(`Ponto ${p.id} movido — validação removida`);selectPoint(p.id);});
       state.drawn.push(circle,marker);
@@ -184,19 +187,43 @@
   function ensureCoverageUi(){
     const anchor=qs('#mpCenterValidation');if(!anchor||qs('#mpCoverageBox'))return;
     const box=document.createElement('div');box.id='mpCoverageBox';box.style.marginTop='10px';
-    box.innerHTML=`<div class="mp-readout"><b id="mpCoverageTitle">COBERTURA DA ZONA</b><div id="mpCoverageStatus" style="margin-top:6px">—</div></div><label style="margin-top:8px">Raio usado na solicitação (m)<input id="mpEventRadius" type="number" min="1" step="10" placeholder="Automático"></label><div class="mp-actions"><button type="button" id="mpUseRecommendedRadius">USAR RAIO RECOMENDADO</button></div>`;
+    box.innerHTML=`<div class="mp-readout"><b id="mpCoverageTitle">COBERTURA DA ZONA</b><div id="mpCoverageStatus" style="margin-top:6px">—</div></div><label style="margin-top:8px">Raio visual da zona (m)<input id="mpEventRadius" type="number" min="50" step="50" placeholder="1000"></label><div class="mp-actions" style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" id="mpRadiusMinus50">-50</button><button type="button" id="mpRadiusPlus50">+50</button><button type="button" id="mpRadiusMinus100">-100</button><button type="button" id="mpRadiusPlus100">+100</button></div><div class="mp-actions" style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" id="mpUseRecommendedRadius">COBRIR TODOS</button><button type="button" id="mpFitZone">ENQUADRAR ZONA</button><button type="button" id="mpGenerateInsideZone">GERAR SPAWNS DENTRO DA ZONA</button></div><div class="mp-note" style="margin-top:6px">Defina primeiro o tamanho ideal da área. Spawns fora dela serão destacados; não aumente a zona só para caber em pontos ruins.</div>`;
     anchor.insertAdjacentElement('afterend',box);
-    qs('#mpEventRadius')?.addEventListener('input',e=>{if(!state.editing)return;const m=active();if(!m)return;const v=Number(e.target.value);m.eventRadius=Number.isFinite(v)&&v>0?v:null;state.dirty=true;setSaveState('Raio alterado • NÃO SALVO');renderMap();renderCoverage();});
-    qs('#mpUseRecommendedRadius')?.addEventListener('click',()=>{if(!requireEdit())return;const m=active(),s=coverageStats(m);if(!m||!s)return;m.eventRadius=s.recommended;state.dirty=true;setSaveState('Raio recomendado aplicado • NÃO SALVO');renderMap();renderCoverage();});
+    const applyRadius=v=>{if(!requireEdit())return;const m=active();if(!m)return;v=Math.max(50,Math.round(Number(v)/50)*50);m.eventRadius=v;state.dirty=true;setSaveState('Raio da zona alterado • NÃO SALVO');renderMap();renderCoverage();};
+    qs('#mpEventRadius')?.addEventListener('input',e=>{if(!state.editing)return;const v=Number(e.target.value);if(Number.isFinite(v)&&v>0)applyRadius(v);});
+    qs('#mpRadiusMinus50')?.addEventListener('click',()=>applyRadius(effectiveEventRadius(active())-50));
+    qs('#mpRadiusPlus50')?.addEventListener('click',()=>applyRadius(effectiveEventRadius(active())+50));
+    qs('#mpRadiusMinus100')?.addEventListener('click',()=>applyRadius(effectiveEventRadius(active())-100));
+    qs('#mpRadiusPlus100')?.addEventListener('click',()=>applyRadius(effectiveEventRadius(active())+100));
+    qs('#mpUseRecommendedRadius')?.addEventListener('click',()=>{if(!requireEdit())return;const m=active(),s=coverageStats(m);if(!m||!s)return;applyRadius(s.recommended);});
+    qs('#mpFitZone')?.addEventListener('click',fitZone);
+    qs('#mpGenerateInsideZone')?.addEventListener('click',generateInsideZone);
   }
   function renderCoverage(){
     ensureCoverageUi();const m=active(),el=qs('#mpCoverageStatus'),title=qs('#mpCoverageTitle'),inp=qs('#mpEventRadius'),btn=qs('#mpUseRecommendedRadius');if(!m||!el)return;
     const category=m.category||'dominacao';if(title)title.textContent=category==='gas'?'COBERTURA INICIAL DA SAFE / GÁS':'COBERTURA DA ZONA DE DOMINAÇÃO';
-    const s=coverageStats(m);
-    if(!s){el.innerHTML='Defina o centro e os spawns para calcular a cobertura.';if(inp&&document.activeElement!==inp)inp.value=m.eventRadius||'';if(btn)btn.disabled=!state.editing;return;}
-    const used=effectiveEventRadius(m),ok=used>=s.minimum;
-    el.innerHTML=`Spawn mais distante: <b>${s.farthestIndex>=0?String(s.farthestIndex+1).padStart(2,'0'):'—'}</b> • ${s.max.toFixed(0)} m<br>Raio mínimo: <b>${s.minimum} m</b><br>Raio recomendado: <b>${s.recommended} m</b><br>Raio atual: <b>${used} m</b> • ${ok?'COBERTURA OK ✓':'INSUFICIENTE ⚠'}`;
-    if(inp&&document.activeElement!==inp)inp.value=m.eventRadius||s.recommended;if(btn)btn.disabled=!state.editing;
+    const s=coverageStats(m),counts=zoneCoverageCounts(m),used=effectiveEventRadius(m);
+    if(!s){el.innerHTML=`Raio atual: <b>${used} m</b><br>Defina o centro e os spawns para calcular a cobertura.`;if(inp&&document.activeElement!==inp)inp.value=used;if(btn)btn.disabled=!state.editing;return;}
+    const ok=counts.outside===0;
+    el.innerHTML=`Dentro da zona: <b>${counts.inside}/${counts.total}</b> ${counts.outside?`• <b style="color:#ff7474">${counts.outside} FORA ⚠</b>`:'• TODOS DENTRO ✓'}<br>Spawn mais distante: <b>${s.farthestIndex>=0?String(s.farthestIndex+1).padStart(2,'0'):'—'}</b> • ${s.max.toFixed(0)} m<br>Raio necessário para todos: <b>${s.minimum} m</b><br>Raio para cobrir todos + margem: <b>${s.recommended} m</b><br>Raio escolhido: <b>${used} m</b> • ${ok?'COBERTURA OK ✓':'AJUSTE OS SPAWNS ⚠'}`;
+    if(inp&&document.activeElement!==inp)inp.value=used;if(btn)btn.disabled=!state.editing;
+    ['mpRadiusMinus50','mpRadiusPlus50','mpRadiusMinus100','mpRadiusPlus100','mpGenerateInsideZone'].forEach(id=>{const b=qs('#'+id);if(b)b.disabled=!state.editing;});
+  }
+
+  function fitZone(){
+    const m=active();if(!state.map||!m||!validCoord(m.center?.x)||!validCoord(m.center?.y))return;
+    const r=effectiveEventRadius(m);if(r<=0)return;
+    const temp=L.circle(ll(m.center.x,m.center.y),{radius:r});state.map.fitBounds(temp.getBounds(),{padding:[35,35]});
+  }
+  function generateInsideZone(){
+    if(!requireEdit())return;const m=active();if(!m||!validCoord(m.center?.x)||!validCoord(m.center?.y)){alert('Defina primeiro o centro da zona.');return;}
+    const zoneRadius=effectiveEventRadius(m),qty=Math.max(2,Number(qs('#mpQty')?.value)||m.points.length||25),spawnRing=Math.max(50,Math.floor((zoneRadius*.80)/50)*50);
+    if(!confirm(`Gerar ${qty} spawns distribuídos a aproximadamente 80% do raio da zona (${spawnRing} m)?
+
+Os pontos atuais serão substituídos e ficarão PENDENTES até validação no FiveM.`))return;
+    if(qs('#mpCircleRadius'))qs('#mpCircleRadius').value=spawnRing;m.circleRadius=spawnRing;
+    if(qs('#mpQty'))qs('#mpQty').value=qty;
+    generateCircle();renderCoverage();fitZone();
   }
 
   function analyze(){
@@ -234,7 +261,7 @@
     const edit=state.editing;const eb=qs('#mpEditMission'),sb=qs('#mpSaveMission'),cb=qs('#mpCancelEdit');
     if(eb)eb.style.display=edit?'none':'';if(sb)sb.style.display=edit?'':'none';if(cb)cb.style.display=edit?'':'none';
     qsa('#page-planejador input:not(#mpRequestText),#page-planejador select,#page-planejador textarea:not(#mpRequestText):not(#mpExport)').forEach(el=>{if(!['mpValidateCds','mpCenterRealCds'].includes(el.id))el.disabled=!edit;});
-    ['mpPlaceBtn','mpGenerateCircle','mpImport','mpAddCoord','mpClear','mpValidateBtn','mpValidateCenter'].forEach(id=>{const el=qs('#'+id);if(el)el.disabled=!edit;});
+    ['mpPlaceBtn','mpGenerateCircle','mpImport','mpAddCoord','mpClear','mpValidateBtn','mpValidateCenter','mpEventRadius','mpRadiusMinus50','mpRadiusPlus50','mpRadiusMinus100','mpRadiusPlus100','mpUseRecommendedRadius','mpGenerateInsideZone'].forEach(id=>{const el=qs('#'+id);if(el)el.disabled=!edit;});
     if(qs('#missionPlannerMap'))qs('#missionPlannerMap').classList.toggle('mp-editing',edit);
   }
   function setSaveState(t){if(qs('#mpSaveState'))qs('#mpSaveState').textContent=t;}
@@ -291,7 +318,7 @@
     if(pending>0){alert(`Existem ${pending} spawn(s) pendente(s). Valide todos antes de gerar a solicitação para evitar pontos faltando.`);return;}
     if(!isCenterValidated(m)){alert(`Valide primeiro a CDS real do ${(m.category||'dominacao')==='gas'?'CENTRO DO GÁS / MARCO ZERO':'CENTRO DA ZONA'}.`);return;}
     const stats=coverageStats(m);if(!stats){alert('Não foi possível calcular a cobertura da zona.');return;}
-    const radius=effectiveEventRadius(m);if(radius<stats.minimum){alert(`Raio insuficiente. O spawn ${String(stats.farthestIndex+1).padStart(2,'0')} está a ${stats.max.toFixed(0)} m do centro. Use no mínimo ${stats.minimum} m. Recomendado: ${stats.recommended} m.`);return;}
+    const radius=effectiveEventRadius(m);const counts=zoneCoverageCounts(m);if(counts.outside>0){alert(`${counts.outside} spawn(s) estão FORA do raio escolhido (${Math.round(radius)} m). Ajuste/realoque esses spawns ou altere conscientemente o tamanho da zona antes de gerar a solicitação.`);return;}
     const category=m.category||'dominacao',center=rawCds(m.center),title=m.event||m.name,panel=m.panel?` - ${m.panel}`:'';
     const action=m.official?'Alteração':'Criação';
     const radiusTitle=category==='gas'?'RAIO INICIAL DA SAFE / GÁS':'RAIO DA ZONA';
