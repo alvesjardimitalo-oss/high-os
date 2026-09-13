@@ -45,7 +45,7 @@
   function validCoord(v){return Number.isFinite(Number(v)) && Number(v)!==0;}
   function isValidated(p){return p?.status==='validated' && validCoord(p.x) && validCoord(p.y) && validCoord(p.z) && Number.isFinite(Number(p.h));}
   function isCenterValidated(m){const c=m?.center;return c?.status==='validated' && validCoord(c.x) && validCoord(c.y) && validCoord(c.z) && Number.isFinite(Number(c.h));}
-  function normalizeCenter(m){if(!m?.center)return;const c=m.center;if(!c.status){const complete=validCoord(c.x)&&validCoord(c.y)&&validCoord(c.z)&&Number.isFinite(Number(c.h));c.status=complete?'validated':'planned';c.validatedAt=complete?(c.validatedAt||nowIso()):null;}}
+  function normalizeCenter(m){if(!m?.center)return;const c=m.center;const complete=validCoord(c.x)&&validCoord(c.y)&&validCoord(c.z)&&Number.isFinite(Number(c.h));if(!c.status){c.status=complete?'validated':'planned';c.validatedAt=complete?(c.validatedAt||nowIso()):null;}else if(c.status==='planned'&&complete&&!c.validationReason){/* migração: clones antigos perdiam a validação apenas ao trocar de categoria */c.status='validated';c.validatedAt=c.validatedAt||nowIso();}}
   function normalizePoint(p,i,statusDefault='planned'){
     return {id:i+1,x:num(p.x),y:num(p.y),z:num(p.z),h:num(p.h),status:p.status||statusDefault,validatedAt:p.validatedAt||null};
   }
@@ -117,7 +117,7 @@
       if(!state.editing){if(qs('#mpClicked'))qs('#mpClicked').textContent='Modo visualização: clique em EDITAR EVENTO para alterar posições.';return;}
       if(qs('#mpClicked'))qs('#mpClicked').textContent=`${f(e.latlng.lng)},${f(e.latlng.lat)}`;
       if(state.placing){m.points.push(normalizePoint({x:e.latlng.lng,y:e.latlng.lat,z:0,h:0,status:'planned'},m.points.length));commit('Ponto marcado no mapa');}
-      else {m.center.x=e.latlng.lng;m.center.y=e.latlng.lat;m.center.z=0;m.center.h=0;m.center.status='planned';m.center.validatedAt=null;syncForm();commit('Centro ajustado no mapa — validação removida');}
+      else {m.center.x=e.latlng.lng;m.center.y=e.latlng.lat;m.center.z=0;m.center.h=0;m.center.status='planned';m.center.validatedAt=null;m.center.validationReason='coordinate-change';syncForm();commit('Centro ajustado no mapa — validação removida');}
     });
   }
 
@@ -129,7 +129,7 @@
     if(validCoord(m.center.x)&&validCoord(m.center.y)){
       const cicon=L.divIcon({className:'',html:`<div class="mp-center-pin ${isCenterValidated(m)?'validated':'planned'}">◎</div>`,iconSize:[32,32],iconAnchor:[16,16]});
       const center=L.marker(ll(m.center.x,m.center.y),{icon:cicon,draggable:state.editing}).addTo(state.map).bindPopup(`<b>${m.center.label||'Centro'}</b><br>Status: <b>${isCenterValidated(m)?'VALIDADO':'PENDENTE'}</b><br>${f(m.center.x)},${f(m.center.y)}${isCenterValidated(m)?','+f(m.center.z)+','+f(m.center.h):',0.00,0.00'}<br><small>${state.editing?'Arraste para ajustar o centro':'Visualização • ponto travado'}</small>`);
-      center.on('dragend',ev=>{const n=ev.target.getLatLng();m.center.x=n.lng;m.center.y=n.lat;m.center.z=0;m.center.h=0;m.center.status='planned';m.center.validatedAt=null;commit('Centro movido no mapa — validação removida');});
+      center.on('dragend',ev=>{const n=ev.target.getLatLng();m.center.x=n.lng;m.center.y=n.lat;m.center.z=0;m.center.h=0;m.center.status='planned';m.center.validatedAt=null;m.center.validationReason='coordinate-change';commit('Centro movido no mapa — validação removida');});
       state.drawn.push(center);
       const eventRadius=effectiveEventRadius(m);
       if(eventRadius>0){
@@ -192,7 +192,7 @@
   function validateCenter(){if(!requireEdit())return;
     const m=active();if(!m)return;const raw=String(qs('#mpCenterRealCds')?.value||'').trim().replace(/^tpcds\s+/i,'');const a=raw.split(',').map(v=>v.trim());const x=num(a[0]),y=num(a[1]),z=num(a[2]),h=num(a[3]);
     if(!validCoord(x)||!validCoord(y)||!validCoord(z)||h===null){alert('CDS inválida. Cole X,Y,Z,H completos e sem Z zero.');return;}
-    m.center.x=x;m.center.y=y;m.center.z=z;m.center.h=h;m.center.status='validated';m.center.validatedAt=nowIso();if(qs('#mpCenterRealCds'))qs('#mpCenterRealCds').value='';commit('Centro validado com CDS real');state.map?.panTo(ll(x,y));
+    m.center.x=x;m.center.y=y;m.center.z=z;m.center.h=h;m.center.status='validated';m.center.validatedAt=nowIso();delete m.center.validationReason;if(qs('#mpCenterRealCds'))qs('#mpCenterRealCds').value='';commit('Centro validado com CDS real');state.map?.panTo(ll(x,y));
   }
 
   function ensureCoverageUi(){
@@ -305,7 +305,7 @@ Os pontos atuais serão substituídos e ficarão PENDENTES até validação no F
   function generateCircle(){if(!requireEdit())return;
     const m=active();if(!m)return;const cx=num(qs('#mpCenterX')?.value),cy=num(qs('#mpCenterY')?.value),qty=Math.max(2,Number(qs('#mpQty')?.value)||2),r=Math.max(1,Number(qs('#mpCircleRadius')?.value)||1000),start=Number(qs('#mpStartAngle')?.value)||0;
     if(cx===null||cy===null){alert('Defina a coordenada central no mapa ou informe X e Y.');return;}
-    if(Number(m.center.x)!==cx||Number(m.center.y)!==cy){m.center.z=0;m.center.h=0;m.center.status='planned';m.center.validatedAt=null;}m.center.x=cx;m.center.y=cy;m.circleRadius=r;m.startAngle=start;m.points=[];
+    if(Number(m.center.x)!==cx||Number(m.center.y)!==cy){m.center.z=0;m.center.h=0;m.center.status='planned';m.center.validatedAt=null;m.center.validationReason='coordinate-change';}m.center.x=cx;m.center.y=cy;m.circleRadius=r;m.startAngle=start;m.points=[];
     for(let i=0;i<qty;i++){const deg=start+(360/qty)*i,a=deg*Math.PI/180;m.points.push(normalizePoint({x:cx+Math.sin(a)*r,y:cy+Math.cos(a)*r,z:0,h:(deg+180)%360,status:'planned'},i));}
     commit(`${qty} pontos gerados como PENDENTES`);fit();
   }
@@ -338,9 +338,14 @@ Os pontos atuais serão substituídos e ficarão PENDENTES até validação no F
     const c=JSON.parse(JSON.stringify(m));c.id=uid();c.category=targetCategory;c.name=`${m.name} — Clone ${targetCategory==='gas'?'Gás':'Dominação'}`;c.official=false;c.createdAt=nowIso();c.updatedAt=nowIso();c.requestText='';
     if(targetCategory==='gas'){
       c.event=(String(c.event||'').toLowerCase().includes('domina')?'Evento de Gás':c.event||'Evento de Gás');
-      c.center.status='planned';c.center.validatedAt=null;c.center.label='Centro do Gás / Marco Zero';
+      c.center.label='Centro do Gás / Marco Zero';
     }else{
       c.event='Dominação';c.center.label='Centro da Zona do Evento';
+    }
+    /* Clonar/trocar categoria não altera a posição física. Se a CDS já era validada,
+       ela continua válida. A validação só é removida quando X/Y realmente mudam. */
+    if(c.center&&validCoord(c.center.x)&&validCoord(c.center.y)&&validCoord(c.center.z)&&Number.isFinite(Number(c.center.h))){
+      c.center.status='validated';c.center.validatedAt=c.center.validatedAt||nowIso();delete c.center.validationReason;
     }
     state.missions.unshift(c);state.activeId=c.id;state.libraryCategory=targetCategory;saveStore();render();startEdit();setSaveState(`Clone criado em ${targetCategory==='gas'?'ZONA DE GÁS':'DOMINAÇÃO'} • evento original preservado`);
   }
@@ -377,7 +382,7 @@ Os pontos atuais serão substituídos e ficarão PENDENTES até validação no F
 
   function bindFormAutosave(){
     const map={mpMissionName:['name'],mpEventCategory:['category'],mpEventType:['event'],mpPanel:['panel'],mpMode:['mode'],mpCenterLabel:['center','label'],mpCenterX:['center','x'],mpCenterY:['center','y'],mpCenterZ:['center','z'],mpCenterH:['center','h'],mpCircleRadius:['circleRadius'],mpStartAngle:['startAngle'],mpRadius:['spawnRadius']};
-    Object.entries(map).forEach(([id,path])=>qs('#'+id)?.addEventListener((id==='mpMode'||id==='mpEventCategory')?'change':'input',e=>{const m=active();if(!m||!state.editing)return;let v=e.target.value;const oldCategory=m.category;if(['mpCenterX','mpCenterY','mpCenterZ','mpCenterH','mpCircleRadius','mpStartAngle','mpRadius'].includes(id))v=num(v);if(path.length===2){if((id==='mpCenterX'||id==='mpCenterY')&&Number(m.center[path[1]])!==Number(v)){m.center.z=0;m.center.h=0;m.center.status='planned';m.center.validatedAt=null;}m[path[0]][path[1]]=v;}else m[path[0]]=v;if(id==='mpEventCategory'&&oldCategory!==v){state.libraryCategory=v;if(v==='gas'){m.center.status='planned';m.center.validatedAt=null;m.center.label='Centro do Gás / Marco Zero';}else{m.center.label='Centro da Zona do Evento';}}if(id==='mpMode'&&v==='assistant'){m.points.forEach(p=>{if(!p.validatedAt&&p.status!=='validated')p.status='planned';});}state.dirty=true;setSaveState('Alteração • NÃO SALVO');renderMap();renderCenterValidation();renderCoverage();if(id==='mpRadius'&&qs('#mpRadiusValue'))qs('#mpRadiusValue').textContent=`${v||100} m`; }));
+    Object.entries(map).forEach(([id,path])=>qs('#'+id)?.addEventListener((id==='mpMode'||id==='mpEventCategory')?'change':'input',e=>{const m=active();if(!m||!state.editing)return;let v=e.target.value;const oldCategory=m.category;if(['mpCenterX','mpCenterY','mpCenterZ','mpCenterH','mpCircleRadius','mpStartAngle','mpRadius'].includes(id))v=num(v);if(path.length===2){if((id==='mpCenterX'||id==='mpCenterY')&&Number(m.center[path[1]])!==Number(v)){m.center.z=0;m.center.h=0;m.center.status='planned';m.center.validatedAt=null;m.center.validationReason='coordinate-change';}m[path[0]][path[1]]=v;}else m[path[0]]=v;if(id==='mpEventCategory'&&oldCategory!==v){state.libraryCategory=v;if(v==='gas'){m.center.label='Centro do Gás / Marco Zero';}else{m.center.label='Centro da Zona do Evento';}/* trocar categoria não muda a CDS; mantém validação existente */}if(id==='mpMode'&&v==='assistant'){m.points.forEach(p=>{if(!p.validatedAt&&p.status!=='validated')p.status='planned';});}state.dirty=true;setSaveState('Alteração • NÃO SALVO');renderMap();renderCenterValidation();renderCoverage();if(id==='mpRadius'&&qs('#mpRadiusValue'))qs('#mpRadiusValue').textContent=`${v||100} m`; }));
   }
 
 
