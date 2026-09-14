@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#09070d">
   <title>High OS • Gestão do Ilegal</title>
-  <link rel="stylesheet" href="assets/style.css?v=9.0.10">
+  <link rel="stylesheet" href="assets/style.css?v=9.1.1">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="assets/mission-planner.css?v=9.0.10">
+  <link rel="stylesheet" href="assets/mission-planner.css?v=9.1.1">
 <style>
 .rh-section-head{display:flex;justify-content:space-between;gap:18px;align-items:end;margin:18px 0}.rh-section-head h3{margin:3px 0}.rh-compare-controls{display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:end;margin:16px 0}.rh-compare-controls label{display:grid;gap:6px;font-size:11px;font-weight:800}.rh-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:14px 0}.rh-card{border:1px solid var(--line,#33283b);border-radius:14px;padding:14px;background:rgba(255,255,255,.025)}.rh-card span{display:block;font-size:10px;opacity:.65;font-weight:800}.rh-card b{display:block;font-size:24px;margin-top:5px}.rh-card small{opacity:.7}.rh-alert{padding:10px 12px;border:1px solid var(--line,#33283b);border-radius:10px;margin:7px 0}.rh-ranking-row{display:grid;grid-template-columns:45px 1fr repeat(4,110px);gap:10px;align-items:center;padding:11px;border-bottom:1px solid var(--line,#33283b)}.rh-ranking-row>span{text-align:right}.rh-compare-table{width:100%;border-collapse:collapse;margin-top:14px}.rh-compare-table th,.rh-compare-table td{padding:10px;border-bottom:1px solid var(--line,#33283b);text-align:center}.rh-compare-table th:first-child,.rh-compare-table td:first-child{text-align:left}@media(max-width:900px){.rh-grid{grid-template-columns:1fr 1fr}.rh-ranking-row{grid-template-columns:35px 1fr 80px}.rh-ranking-row .rh-extra{display:none}.rh-compare-controls{grid-template-columns:1fr}}
 </style>
@@ -83,7 +83,7 @@
       </aside>
       <div class="content">
         <section class="page active" id="page-dashboard">
-          <div class="page-head"><div><div class="eyebrow">CENTRAL DE COMANDO DO ILEGAL</div><h2>DASHBOARD</h2><p class="page-subtitle">Visão operacional para identificar rapidamente ocupação, contingente, pendências e movimentações da Staff.</p></div><span class="dev-badge">V8.36</span></div>
+          <div class="page-head"><div><div class="eyebrow">CENTRAL DE COMANDO DO ILEGAL</div><h2>DASHBOARD</h2><p class="page-subtitle">Visão operacional para identificar rapidamente ocupação, contingente, pendências e movimentações da Staff.</p></div><span class="dev-badge">V9.1.1</span></div>
           <div id="commandDashboard" class="command-dashboard"><div class="placeholder"><b>◆</b><h3>CARREGANDO CENTRAL DE COMANDO</h3></div></div>
           <span id="dashEmail" class="hidden">—</span><span id="dashRole" class="hidden">—</span>
         </section>
@@ -161,7 +161,7 @@
           <div class="metric-center-view" id="metricViewManagement">
             <div class="mgmt-head">
               <div><div class="eyebrow">INTELIGÊNCIA DE GESTÃO • SEMANAL + MENSAL</div><h3>CENTRAL DE GESTÃO DO ILEGAL</h3><p>Leitura automática de todas as organizações ocupadas. Compara semana, mês, tendência e qualidade dos dados para indicar onde agir.</p></div>
-              <div class="mgmt-actions"><button type="button" id="mgmtRefreshBtn" class="btn-primary compact">ATUALIZAR DIAGNÓSTICO</button><button type="button" id="mgmtCopyBtn" class="btn-secondary compact">COPIAR RESUMO DA CÚPULA</button></div>
+              <div class="mgmt-actions"><button type="button" id="mgmtReportBtn" class="btn-primary compact">GERAR RELATÓRIO GERAL</button><button type="button" id="mgmtRefreshBtn" class="btn-secondary compact">ATUALIZAR DIAGNÓSTICO</button><button type="button" id="mgmtCopyBtn" class="btn-secondary compact">COPIAR RESUMO DA CÚPULA</button></div>
             </div>
             <div id="mgmtExecutive" class="mgmt-executive"></div>
             <div class="mgmt-toolbar"><select id="mgmtSegment"><option value="">TODOS OS SEGMENTOS</option><option>ARMAS</option><option>MUNIÇÃO</option><option>LAVAGEM</option><option>DROGAS</option><option>DESMANCHE</option><option>OUTROS</option></select><select id="mgmtStatus"><option value="">TODOS OS STATUS</option><option value="OK">SAUDÁVEIS</option><option value="ATENCAO">ATENÇÃO</option><option value="CRITICA">CRÍTICAS</option><option value="SEM_DADOS">DADOS INSUFICIENTES</option></select><input id="mgmtSearch" placeholder="Buscar Group, facção ou líder..."></div>
@@ -169,6 +169,7 @@
             <div class="mgmt-columns"><section><div class="mgmt-section-title"><span>PLANO DE AÇÃO</span><small>Prioridade automática</small></div><div id="mgmtActions"></div></section><section><div class="mgmt-section-title"><span>DESTAQUES POSITIVOS</span><small>Lideranças para reconhecer</small></div><div id="mgmtRecognition"></div></section></div>
             <div class="mgmt-section-title"><span>MAPA GERAL DAS ORGANIZAÇÕES</span><small>Semanal e mensal lado a lado</small></div>
             <div id="mgmtTable" class="mgmt-table-wrap"></div>
+            <div id="mgmtReportModal" class="mgmt-message hidden"><div class="mgmt-message-card mgmt-report-card"><div class="mgmt-message-head"><div><div class="eyebrow">VISÃO GERAL • SEMANAL + MENSAL</div><b>RELATÓRIO GERAL DO ILEGAL</b></div><button type="button" id="mgmtReportClose">×</button></div><textarea id="mgmtReportText" class="mgmt-report-text" rows="28" readonly></textarea><div class="mgmt-report-actions"><button type="button" id="mgmtReportCopy" class="btn-primary">COPIAR RELATÓRIO</button><button type="button" id="mgmtReportDownload" class="btn-secondary">BAIXAR TXT</button><button type="button" id="mgmtReportPrint" class="btn-secondary">IMPRIMIR / SALVAR PDF</button></div></div></div>
             <div id="mgmtMessageModal" class="mgmt-message hidden"><div class="mgmt-message-card"><div class="mgmt-message-head"><b id="mgmtMessageTitle">MENSAGEM</b><button type="button" id="mgmtMessageClose">×</button></div><textarea id="mgmtMessageText" rows="12"></textarea><button type="button" id="mgmtMessageCopy" class="btn-primary">COPIAR PARA O DISCORD</button></div></div>
           </div>
           <div class="metric-center-view" id="metricViewReports">
@@ -779,7 +780,7 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <script src="assets/mission-planner.js?v=9.0.10"></script>
-  <script type="module" src="assets/app.js?v=9.0.11"></script>
+  <script type="module" src="assets/app.js?v=9.1.1"></script>
 
 <div id="newDeliveryModal" class="modal hidden"><div class="modal-card delivery-modal-v5"><button class="modal-x" id="newDeliveryClose">×</button>
   <div class="eyebrow">NOVA OCUPAÇÃO</div><h2>ENTREGA DE GROUP</h2><p class="delivery-help">O Group traz sua estrutura instalada. Personalize apenas o que será ativado para a nova facção.</p>
