@@ -2697,7 +2697,7 @@ function activityButtons(boxId,selectId,items,onChange){
  const active=sel.value||'';box.innerHTML=items.map(([value,label,icon])=>`<button type="button" class="${active===value?'active':''}" data-value="${value}">${icon} ${label}</button>`).join('');
  box.querySelectorAll('button').forEach(b=>b.onclick=()=>{sel.value=b.dataset.value||'';onChange()});
 }
-function renderFacActivityButtons(){activityButtons('facStatusButtons','facStatus',[['','TODOS','◉'],['ATIVA','OCUPADOS','●'],['INATIVA','DISPONÍVEIS','○']],renderFaccoes)}
+function renderFacActivityButtonsLegacy(){activityButtons('facStatusButtons','facStatus',[['','TODOS','◉'],['ATIVA','OCUPADOS','●'],['INATIVA','DISPONÍVEIS','○']],renderFaccoes)}
 function renderOrgActivityButtons(){activityButtons('orgStatusButtons','orgStatus',[['','AMBAS','◉'],['ACTIVE','ATIVAS','●'],['INATIVA','INATIVAS','○']],renderOrganizations)}
 
 
