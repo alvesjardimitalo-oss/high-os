@@ -3372,14 +3372,14 @@ function orgV92Filtered(){
  return all.filter(f=>(!seg||segmentKey(f.__orgSegment)===segmentKey(seg))&&(!st||f.__orgStatus===st)&&(!q||[f.group,f.faccao,f.qg,f.lider,f.staff,f.produto,f.dataEntrega].join(' ').toLowerCase().includes(q)));
 }
 function renderFacActivityButtons(){activityButtons('facStatusButtons','facStatus',[['','TODAS','◉'],['ASSUMIDA','ASSUMIDAS','●'],['DISPONIVEL','DISPONÍVEIS','◇'],['INDISPONIVEL','INDISPONÍVEIS','×']],renderFaccoes)}
-function renderFacSegmentChips(){renderVisualSegmentFilter({rows:orgV92Rows().map(f=>({...f,segmento:f.__orgSegment})),field:'segmento',selectId:'facSegment',boxId:'facSegmentChips',onChange:renderFaccoes})}
+renderFacSegmentChips=function(){renderVisualSegmentFilter({rows:orgV92Rows().map(f=>({...f,segmento:f.__orgSegment})),field:'segmento',selectId:'facSegment',boxId:'facSegmentChips',onChange:renderFaccoes})}
 function orgV92ActionMarkup(f){
  const s=f.__orgStatus,id=esc(f.id||f.group),group=esc(f.group||'');
  if(s==='ASSUMIDA')return `<button type="button" class="mini-btn org-v92-open" data-id="${id}">PERFIL</button><button type="button" class="mini-btn org-v92-request" data-group="${group}">SOLICITAÇÃO</button>`;
  if(s==='DISPONIVEL')return `<button type="button" class="mini-btn org-v92-open" data-id="${id}">PERFIL</button><button type="button" class="btn-primary compact org-v92-deliver" data-group="${group}">ASSUMIR</button>`;
  return `<button type="button" class="mini-btn org-v92-open" data-id="${id}">PERFIL</button><button type="button" class="mini-btn org-v92-open" data-id="${id}">CADASTRAR QG</button>`;
 }
-function renderFaccoes(){
+renderFaccoes=function(){
  const all=orgV92Rows(),rows=orgV92Filtered();renderFacActivityButtons();renderFacSegmentChips();
  const c=s=>all.filter(f=>f.__orgStatus===s).length;
  const summary=$('#orgV92Summary');if(summary)summary.innerHTML=`<article><span>TOTAL</span><b>${all.length}</b><small>Groups administrativos</small></article><article class="assumed"><span>ASSUMIDAS</span><b>${c('ASSUMIDA')}</b><small>com facção ocupante</small></article><article class="available"><span>DISPONÍVEIS</span><b>${c('DISPONIVEL')}</b><small>livres com QG/Favela</small></article><article class="unavailable"><span>INDISPONÍVEIS</span><b>${c('INDISPONIVEL')}</b><small>ausência de QG/Favela</small></article>`;
