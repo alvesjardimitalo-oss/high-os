@@ -88,10 +88,47 @@
           <span id="dashEmail" class="hidden">—</span><span id="dashRole" class="hidden">—</span>
         </section>
         <section class="page" id="page-faccoes">
-<div class="page-head v9-org-head"><div><div class="eyebrow">GROUP + OCUPAÇÃO</div><h2>ORGANIZAÇÕES</h2><p class="page-subtitle">Encontre o Group e trabalhe direto no perfil.</p></div><div class="profile-head-actions"><button id="unifiedFreeReportBtn" class="btn-secondary compact">RELATÓRIO DE LIVRES</button><button id="updateProfilesBtn" class="hidden">ATUALIZAR PERFIS</button><button id="seedBtn" class="hidden">IMPORTAR BASE INICIAL</button></div></div>
-<div class="fac-toolbar fac-toolbar-clickable"><input id="facSearch" placeholder="Buscar Group, facção, QG, líder..."><select id="facSegment" class="filter-native-hidden" aria-label="Segmento"><option value="">TODOS OS SEGMENTOS</option></select><select id="facStatus" class="filter-native-hidden"><option value="">TODOS</option><option value="ATIVA">OCUPADOS</option><option value="INATIVA">DISPONÍVEIS</option></select></div><div id="facStatusButtons" class="activity-filter" aria-label="Filtrar organizações por ocupação"></div><div id="facSegmentChips" class="segment-visual-grid" aria-label="Filtrar organizações por segmento"></div>
-<div id="facOverview" class="ops-overview v9-hidden-overview"></div><div id="facStats" class="fac-stats compact-stats v9-hidden-overview"></div><div id="facList" class="fac-grid"><div class="placeholder"><b>◆</b><h3>CARREGANDO</h3></div></div>
-</section>
+          <div class="page-head org-v92-head">
+            <div>
+              <div class="eyebrow">CENTRAL DE ORGANIZAÇÕES • GROUP + OCUPAÇÃO + QG/FAVELA</div>
+              <h2>ORGANIZAÇÕES</h2>
+              <p class="page-subtitle">Visão administrativa em lista. O status é calculado automaticamente pela ocupação e existência de QG/Favela.</p>
+            </div>
+            <div class="org-v92-report-actions">
+              <select id="orgV92ReportType" aria-label="Tipo de relatório">
+                <option value="GERAL">RELATÓRIO GERAL</option>
+                <option value="ASSUMIDA">ASSUMIDAS</option>
+                <option value="DISPONIVEL">DISPONÍVEIS</option>
+                <option value="INDISPONIVEL">INDISPONÍVEIS</option>
+              </select>
+              <button type="button" id="orgV92ReportBtn" class="btn-secondary compact">GERAR RELATÓRIO</button>
+              <button id="updateProfilesBtn" class="hidden">ATUALIZAR PERFIS</button>
+              <button id="seedBtn" class="hidden">IMPORTAR BASE INICIAL</button>
+            </div>
+          </div>
+
+          <div id="orgV92Summary" class="org-v92-summary">
+            <article><span>TOTAL</span><b>—</b><small>Groups administrativos</small></article>
+            <article class="assumed"><span>ASSUMIDAS</span><b>—</b><small>com facção ocupante</small></article>
+            <article class="available"><span>DISPONÍVEIS</span><b>—</b><small>livres com QG/Favela</small></article>
+            <article class="unavailable"><span>INDISPONÍVEIS</span><b>—</b><small>ausência de QG/Favela</small></article>
+          </div>
+
+          <div class="org-v92-toolbar">
+            <div class="org-v92-search"><span>⌕</span><input id="facSearch" placeholder="Buscar Group, facção, QG/Favela, líder, staff ou produto..."></div>
+            <select id="facSegment" class="filter-native-hidden" aria-label="Segmento"><option value="">TODOS OS SEGMENTOS</option></select>
+            <select id="facStatus" class="filter-native-hidden" aria-label="Situação"><option value="">TODAS</option><option value="ASSUMIDA">ASSUMIDAS</option><option value="DISPONIVEL">DISPONÍVEIS</option><option value="INDISPONIVEL">INDISPONÍVEIS</option></select>
+          </div>
+          <div id="facStatusButtons" class="org-v92-status-filter" aria-label="Filtrar organizações por situação"></div>
+          <div id="facSegmentChips" class="segment-visual-grid org-v92-segments" aria-label="Filtrar organizações por segmento"></div>
+
+          <div class="org-v92-list-head">
+            <div><b id="orgV92ListTitle">TODAS AS ORGANIZAÇÕES</b><small id="facStats">Carregando...</small></div>
+            <div class="org-v92-legend"><span class="dot assumed"></span>Assumida <span class="dot available"></span>Disponível <span class="dot unavailable"></span>Indisponível</div>
+          </div>
+          <div id="facOverview" class="hidden"></div>
+          <div id="facList" class="org-v92-table-wrap"><div class="placeholder"><b>◆</b><h3>CARREGANDO ORGANIZAÇÕES</h3></div></div>
+        </section>
         <section class="page" id="page-organizacoes">
           <div class="page-head"><div><div class="eyebrow">ORGANIZAÇÕES • OCUPANTES DOS GROUPS</div><h2>FACÇÕES</h2><p class="page-subtitle">Cadastro próprio das organizações. A facção mantém liderança, status e histórico mesmo quando troca de Group.</p></div><button id="newOrgBtn" class="btn-primary compact">NOVA FACÇÃO</button></div>
           <div class="org-toolbar org-toolbar-full org-toolbar-clickable"><input id="orgSearch" placeholder="Buscar facção, líder, Group ou QG..."><select id="orgStatus" class="filter-native-hidden"><option value="">AMBAS</option><option value="ACTIVE">ATIVAS</option><option value="INATIVA">INATIVAS</option></select><select id="orgSegment" class="filter-native-hidden" aria-label="Segmento"><option value="">TODOS OS SEGMENTOS</option></select></div><div id="orgStatusButtons" class="activity-filter" aria-label="Exibir facções ativas ou inativas"></div><div id="orgSegmentChips" class="segment-visual-grid" aria-label="Filtrar facções por segmento"></div>
