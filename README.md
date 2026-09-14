@@ -1,3 +1,7 @@
+## High OS V8.33
+
+Atualização do Planejador de Missões com missões salvas, validação assistida, snapshots do mapa e presets Dominação/Fac x Fac.
+
 # High OS DEV
 
 Ambiente de desenvolvimento separado do Mercado Negro público.
@@ -18,3 +22,9 @@ Após o GitHub Pages gerar o endereço, adicione o domínio `SEU-USUARIO.github.
 Firebase Console > Authentication > Settings > Authorized domains.
 
 O Mercado Negro atual não é alterado por este projeto.
+
+
+## V9.0.11
+- Facções disponíveis cadastradas voltam a aparecer em Organizações mesmo antes do recadastro das CDS V9.
+- Groups apenas detectados por métricas continuam ocultos até terem ocupação, cadastro de disponível ou QG/estrutura configurada.
+- Mantém integralmente o salvamento estável da V9.0.10.
