@@ -179,10 +179,10 @@
     state.map.createPane('cayoMapPane');state.map.getPane('cayoMapPane').style.zIndex=230;
     const cayoOceanBounds=L.latLngBounds(ll(3450,-6450),ll(6050,-3850));
     const cayoOcean=L.rectangle(cayoOceanBounds,{pane:'cayoOceanPane',stroke:false,fill:true,fillColor:'#174f70',fillOpacity:1,interactive:false}).addTo(state.map);
-    const cayo=L.imageOverlay(cayoUrl,cayoBounds,{pane:'cayoMapPane',opacity:1,interactive:false,crossOrigin:true}).addTo(state.map);
+    const cayo=L.imageOverlay(cayoUrl,cayoBounds,{pane:'cayoMapPane',opacity:1,interactive:false,crossOrigin:true});
     const cayoPostal=L.imageOverlay(cayoPostalUrl,cayoBounds,{pane:'cayoMapPane',opacity:1,interactive:false,crossOrigin:true});
     L.control.layers({'ATLAS':atlas,'SATELLITE':sat,'GRID':grid},{'CAYO PERICO — SATÉLITE':cayo,'CAYO PERICO — POSTAL':cayoPostal},{collapsed:false,position:'topright'}).addTo(state.map);
-    state.cayoBounds=cayoBounds;state.cayoOceanBounds=cayoOceanBounds;state.cayoOceanLayer=cayoOcean;state.cayoLayer=cayo;state.cayoPostalLayer=cayoPostal;
+    state.cayoBounds=cayoBounds;state.cayoOceanBounds=cayoOceanBounds;state.cayoOceanLayer=cayoOcean;state.cayoLayer=cayo;state.cayoPostalLayer=cayoPostal;state.atlasLayer=atlas;state.satLayer=sat;state.gridLayer=grid;
     state.map.setView(ll(900,-600),3);
     let okCount=0,errCount=0,fallbackUsed=false;
     const ok=()=>{okCount++;setStatus('Mapa GTA V carregado','ok');};
@@ -436,8 +436,17 @@ Os pontos atuais serão substituídos e ficarão PENDENTES até validação no F
     m.name=`Nova Zona ${zonesOfEvent(eid).length+1}`;m.panel=base.panel;m.mode=base.mode;m.requestKind='create-zone';m.eventRadius=base.eventRadius||null;m.circleRadius=base.circleRadius||1000;m.spawnRadius=base.spawnRadius||100;
     state.missions.unshift(m);state.activeId=m.id;state.activeEventId=eid;saveStore();render();startEdit();setSaveState('Nova zona criada • defina centro, raio e spawns');
   }
+  function syncMapRegion(m){
+    if(!state.map||!m)return;
+    const pts=[m.center,...(m.points||[])].filter(p=>validCoord(p?.x)&&validCoord(p?.y));
+    const isCayo=/cayo\s*perico/i.test(`${m.name||''} ${m.event||''}`)||pts.some(p=>Number(p.x)>3800&&Number(p.y)<-3800);
+    const overlays=[state.cayoLayer,state.cayoPostalLayer].filter(Boolean);
+    if(isCayo){
+      if(state.cayoLayer&&!state.map.hasLayer(state.cayoLayer)&&!state.map.hasLayer(state.cayoPostalLayer))state.cayoLayer.addTo(state.map);
+    }else overlays.forEach(l=>{if(state.map.hasLayer(l))state.map.removeLayer(l);});
+  }
   function focusActiveMission(scrollToMap=false){
-    const m=active();if(!state.map||!m)return;
+    const m=active();if(!state.map||!m)return;syncMapRegion(m);
     const run=()=>{state.map.invalidateSize();const arr=(m.points||[]).filter(p=>validCoord(p.x)&&validCoord(p.y)).map(p=>ll(p.x,p.y));if(validCoord(m.center?.x)&&validCoord(m.center?.y))arr.push(ll(m.center.x,m.center.y));if(arr.length>1)state.map.fitBounds(L.latLngBounds(arr).pad(.12),{animate:true,duration:.45,maxZoom:5});else if(arr.length===1)state.map.setView(arr[0],5,{animate:true});};
     setTimeout(run,70);setTimeout(run,260);
     if(scrollToMap){const el=qs('#missionPlannerMap')?.closest('.mission-planner-mapwrap')||qs('#missionPlannerMap');if(el)setTimeout(()=>el.scrollIntoView({behavior:'smooth',block:'center'}),40);}
