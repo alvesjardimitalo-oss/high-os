@@ -1161,6 +1161,7 @@ document.querySelectorAll('#alvesQuick [data-q]').forEach(b=>b.addEventListener(
 
 // ===== HIGH OS V5.8 · PARSER DA PLANILHA OFICIAL + GOOGLE SHEETS SOMENTE LEITURA =====
 let metricas=[],metricasCache=[],metricPeriodKey='',metricDateStart='',metricDateEnd='',metricSourceConfig={url:'',sheet:'',autoSync:true},metricSourceState={status:'SEM FONTE',lastSync:null,count:0,activeCount:0,error:''},sheetsAccessToken='',mercadoCatalogo=[],mercadoStatus='CARREGANDO';
+let metricLiveUnsub=null,metricLiveLastAt=0;
 const metricCol=collection(db,'highos','data','metricas');
 const metricConfigDoc=doc(db,'highos','metricas_config');
 const MARKET_CATALOG_URL='https://alvesjardimitalo-oss.github.io/high-mercado-negro/data/catalogo.json';
@@ -1348,7 +1349,7 @@ function renderMetricSourceStatus(){
  const el=$('#metricSourceStatus');if(!el)return;const has=metricSourceConfig.mode==='GOOGLE_APPS_SCRIPT_FREE'||!!extractSpreadsheetId(metricSourceConfig.url),srv=metricSourceConfig.serverSync||{};const serverState=String(srv.status||'').toUpperCase();const localState=metricSourceState.status;const online=serverState==='ONLINE'||localState==='ONLINE';const failed=serverState==='ERRO'||localState==='ERRO';el.classList.toggle('online',online);el.classList.toggle('error',failed);
  const last=metricTsToDate(srv.lastSuccessAt)||metricTsToDate(srv.lastRunAt)||(metricSourceState.lastSync?new Date(metricSourceState.lastSync):null);const when=last?last.toLocaleString('pt-BR'):'—';let desc='Informe o link da planilha oficial';
  if(has)desc=metricSourceConfig.autoSync===false?'Fonte configurada • sincronização automática pausada':'Apps Script permanente • sincronização automática 14:05, 16:05, 21:05 e 23:05 • sem Blaze';
- if(online)desc=`Base sincronizada • ${Number(srv.rows??metricSourceState.count??metricas.length)||0} registros históricos${srv.sheet?' • aba '+srv.sheet:''}`;
+ if(online)desc=`Base sincronizada • ${Number(srv.rows??metricSourceState.count??metricas.length)||0} registros históricos${srv.sheet?' • aba '+srv.sheet:''}${metricLiveLastAt?' • atualização em tempo real ativa':''}`;
  if(failed)desc=srv.error||metricSourceState.error||'Falha na sincronização automática';
  el.innerHTML=`<div><span class="metric-source-dot"></span><div><b>${has?'GOOGLE SHEETS • APPS SCRIPT GRATUITO':'FONTE NÃO CONFIGURADA'}</b><small>${esc(desc)}</small></div></div><span>${has?`Última sincronização: ${esc(when)}<br>AGENDA • 14:05 · 16:05 · 21:05 · 23:05`:'CONFIGURAR'}</span>`;
 }
@@ -1362,9 +1363,28 @@ async function persistMetricRows(rows,sheet=''){
  const chunks=[];for(let i=0;i<rows.length;i+=400)chunks.push(rows.slice(i,i+400));for(const chunk of chunks){const batch=writeBatch(db);chunk.forEach(r=>{r=metricSnapshot(r);const id=(r.group+'_'+r.data).replace(/[^a-zA-Z0-9_-]/g,'_');batch.set(doc(db,'highos','data','metricas',id),{...r,source:'GOOGLE_SHEETS_READONLY',sourceSheet:sheet||metricSourceConfig.sheet||'',updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true})});await batch.commit()}
  await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'SINCRONIZACAO_METRICAS',descricao:`${rows.length} registro(s) lidos em modo somente leitura da planilha oficial${sheet?' • aba '+sheet:''}`,usuario:currentUser.email,data:serverTimestamp()});metricasCache=rows.slice();
 }
+function applyMetricSnapshot(qs,{realtime=false}={}){
+ const previousKey=metricPeriodKey||currentMetricMonthKey();
+ metricasCache=qs.docs.map(d=>({id:d.id,...d.data()}));
+ metricas=metricasCache.slice();
+ metricPeriodKey=previousKey;
+ if(realtime){metricLiveLastAt=Date.now();metricSourceState={...metricSourceState,status:'ONLINE',lastSync:metricLiveLastAt,count:metricas.length,activeCount:activeMetricRows().length,error:''}}
+ refreshMetricPeriodOptions();renderMetrics();renderMetricSourceStatus();
+}
+function startMetricRealtime(){
+ if(metricLiveUnsub)return;
+ metricLiveUnsub=onSnapshot(metricCol,qs=>{
+  applyMetricSnapshot(qs,{realtime:true});
+  if(typeof renderCommandDashboard==='function')renderCommandDashboard();
+ },err=>{
+  console.warn('Falha na escuta em tempo real das métricas',err);
+  metricSourceState={...metricSourceState,status:'ERRO',error:err?.message||String(err)};
+  renderMetricSourceStatus();
+ });
+}
 async function loadMetrics(){
- try{const qs=await getDocs(metricCol);metricasCache=qs.docs.map(d=>({id:d.id,...d.data()}));metricas=metricasCache.slice();metricPeriodKey=currentMetricMonthKey()}catch(e){metricasCache=[];metricas=[];metricPeriodKey=currentMetricMonthKey()}
- await loadMetricSourceConfig();refreshMetricPeriodOptions();renderMetrics();renderMetricSourceStatus();
+ try{const qs=await getDocs(metricCol);applyMetricSnapshot(qs)}catch(e){metricasCache=[];metricas=[];metricPeriodKey=metricPeriodKey||currentMetricMonthKey()}
+ await loadMetricSourceConfig();refreshMetricPeriodOptions();renderMetrics();renderMetricSourceStatus();startMetricRealtime();
 }
 function metricIdentity(group,row=null){
  const f=faccoes.find(x=>alvesNorm(x.group)===alvesNorm(group))||SEED.find(x=>alvesNorm(x.group)===alvesNorm(group))||{};

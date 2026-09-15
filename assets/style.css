@@ -565,3 +565,80 @@ body[data-access-mode="custom"] .nav-item[style*="display: none"]{pointer-events
  #page-faccoes .org-v92-table th:nth-child(7){width:11%}
  #page-faccoes .org-v92-table th:nth-child(9){width:12%}
 }
+
+/* HIGH OS V9.2.4 · Métricas minimalistas + navegação compacta */
+#page-metricas{--metric-line:#2d2435;--metric-bg:#0e0b12;--metric-soft:#15101a}
+#page-metricas .page-head{margin-bottom:6px;align-items:flex-start}
+#page-metricas .page-head h2{font-size:24px;margin:3px 0 4px}
+#page-metricas .page-subtitle{font-size:10px;line-height:1.45;max-width:820px}
+#page-metricas .metric-head-actions{gap:6px}
+#page-metricas .metric-head-actions button{padding:8px 10px;font-size:8px}
+#page-metricas .metric-source-card{min-height:42px;padding:8px 11px;margin:7px 0 8px;border-radius:10px;background:#0e0b12}
+#page-metricas .metric-source-card b{font-size:9px}
+#page-metricas .metric-source-card small,#page-metricas .metric-source-card>span:last-child{font-size:8px;line-height:1.35}
+#page-metricas .metric-center-tabs{position:sticky;top:72px;z-index:34;margin:8px 0;padding:4px;gap:4px;border-radius:10px;background:rgba(12,9,16,.96);backdrop-filter:blur(12px);width:100%;box-sizing:border-box;overflow-x:auto;flex-wrap:nowrap}
+#page-metricas .metric-center-tab{flex:0 0 auto;padding:8px 11px;font-size:8px;white-space:nowrap}
+#page-metricas .metric-period-panel{padding:8px 10px;margin:8px 0 6px;gap:8px;border-radius:10px;background:#0e0b12}
+#page-metricas .metric-period-dates{gap:6px}
+#page-metricas .metric-period-dates label{font-size:8px}
+#page-metricas .metric-period-dates input{margin-top:4px;padding:7px 9px;font-size:10px}
+#page-metricas .metric-period-dates>span{padding-bottom:8px}
+#page-metricas .metric-period-shortcuts{gap:4px}
+#page-metricas .metric-period-shortcuts button{padding:7px 8px;font-size:8px}
+#page-metricas .metric-toolbar{margin:6px 0 8px;padding:7px;gap:6px;border-radius:10px;background:#0e0b12}
+#page-metricas .metric-toolbar input,#page-metricas .metric-toolbar select{padding:8px 9px;font-size:9px;border-radius:7px}
+#page-metricas .metric-overview{gap:7px;margin:8px 0}
+#page-metricas .metric-hero-kpi{min-height:82px;padding:11px 12px;border-radius:11px}
+#page-metricas .metric-hero-kpi span{font-size:8px}
+#page-metricas .metric-hero-kpi b{font-size:24px;margin-top:8px}
+#page-metricas .metric-hero-kpi small{font-size:8px;margin-top:6px}
+#page-metricas .compact-stats{margin:5px 0 8px;gap:5px}
+#page-metricas .compact-stats span{padding:6px 8px;font-size:8px;border-radius:7px}
+#page-metricas .metric-intel-actions{margin:6px 0 8px;gap:5px}
+#page-metricas .metric-intel-actions button{padding:7px 9px;font-size:8px;border-radius:7px}
+#page-metricas .metric-daily-intel,#page-metricas .metric-weekly-intel{margin:7px 0}
+#page-metricas .metric-daily-card,#page-metricas .metric-week-card{border-radius:11px}
+#page-metricas .metric-daily-card>header,#page-metricas .metric-week-card>header{padding:10px 12px;gap:12px}
+#page-metricas .metric-daily-card header h3,#page-metricas .metric-week-card header h3{font-size:14px}
+#page-metricas .metric-daily-card header b{font-size:16px}
+#page-metricas .metric-hour-cell{padding:10px 12px}
+#page-metricas .metric-hour-cell b{font-size:22px;margin:4px 0}
+#page-metricas .metric-hour-cell span{font-size:9px}
+#page-metricas .metric-hour-cell small{font-size:7px}
+#page-metricas .metric-week-svg{max-height:185px;padding-top:2px}
+#page-metricas .metric-week-days button{padding:7px 5px}
+#page-metricas .metric-week-days small{font-size:6px;line-height:1.35}
+#page-metricas .metric-visuals{gap:8px;margin:8px 0 10px}
+#page-metricas .metric-chart-card{padding:11px 12px;border-radius:11px}
+#page-metricas .metric-chart-head{margin-bottom:9px}
+#page-metricas .metric-chart-head b{font-size:10px}
+#page-metricas .metric-chart-head span{font-size:7px}
+#page-metricas .metric-quick-ranking{border-radius:11px}
+#page-metricas .metric-quick-ranking-list{max-height:310px}
+#page-metricas .metric-quick-row{padding:8px 11px;gap:8px;grid-template-columns:34px minmax(160px,1.4fr) minmax(90px,.7fr) 75px 95px}
+#page-metricas .metric-quick-row>strong{font-size:12px}
+#page-metricas .metric-quick-row div b{font-size:10px}
+#page-metricas .metric-quick-row .metric-main-value{font-size:13px}
+#page-metricas .metric-detail-toolbar{padding:9px 10px;margin:8px 0;border-radius:10px}
+#page-metricas .metric-faction-summary{gap:7px}
+#page-metricas .metric-faction-summary article{padding:10px;border-radius:10px}
+#page-metricas .metric-report-builder{padding:12px;margin:8px 0;border-radius:11px}
+#page-metricas .metric-report-controls{gap:7px;margin:10px 0 8px}
+#page-metricas .metric-report-controls select{padding:8px 9px}
+#page-metricas .mgmt-head{padding:14px 16px;border-radius:13px;margin:6px 0 9px}
+#page-metricas .mgmt-head h3{font-size:17px}
+#page-metricas .mgmt-head p{font-size:9px}
+#page-metricas .mgmt-executive{gap:6px;margin:8px 0}
+#page-metricas .mgmt-kpi{padding:9px;border-radius:9px}
+#page-metricas .mgmt-kpi b{font-size:18px}
+#page-metricas .mgmt-toolbar{margin:8px 0;gap:5px}
+#page-metricas .mgmt-columns{gap:8px;margin:8px 0 10px}
+#page-metricas .mgmt-columns>section{padding:9px;border-radius:10px}
+@media(min-width:1100px){
+ #page-metricas .metric-visuals{grid-template-columns:minmax(0,1.35fr) minmax(260px,.65fr)!important;align-items:stretch}
+ #page-metricas .metric-exec-chart{grid-row:span 2}
+}
+@media(max-width:900px){
+ #page-metricas .metric-center-tabs{top:8px}
+ #page-metricas .metric-center-tab{padding:8px 9px}
+}
