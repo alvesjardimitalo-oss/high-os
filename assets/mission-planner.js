@@ -14,9 +14,18 @@
     [2047.19,4793.20,41.72,337.33],[2077.90,5222.43,55.76,124.73],[2644.07,5300.08,44.15,90.71],[2944.20,4902.62,102.85,102.05],[2571.17,4494.00,36.90,195.60],[3255.45,4483.96,130.64,170.08],[2609.66,3990.06,41.52,170.08],[3316.00,4028.01,154.98,121.89],[3011.48,3606.78,71.16,28.35],[2814.98,3226.52,54.12,87.88],[2473.34,3344.27,50.21,85.04],[2395.52,3022.16,47.94,119.06],[2013.88,3232.94,43.69,331.66],[1900.16,2821.05,45.95,42.52],[1438.86,2946.04,44.74,39.69],[847.47,3047.33,41.40,48.19],[1378.44,3462.31,34.51,337.33],[718.54,3560.48,33.40,334.49],[-52.68,3705.38,36.21,343.00],[-259.45,4184.54,62.23,257.96],[203.94,4418.76,71.81,204.10],[728.34,4295.90,67.30,218.27],[1475.68,4942.80,76.04,226.78],[1240.82,4393.51,39.98,138.90],[711.38,4711.51,117.06,201.26]
   ];
 
+  const FACXFAC_SUL_CASSINO_25=[
+    [339.20,-242.94,53.92,161.58],[497.54,-118.50,61.13,229.61],[341.33,36.93,89.89,79.38],[503.29,104.06,96.30,59.53],[790.90,-107.32,80.42,65.20],[648.68,-12.07,82.60,221.11],[501.28,-357.41,43.15,141.74],[857.94,-325.51,60.52,164.41],[730.53,-467.26,16.82,164.41],[760.79,-705.41,28.49,184.26],[558.64,-790.44,11.09,178.59],[507.35,-631.81,24.75,175.75],[395.99,-884.87,29.42,175.75],[308.56,-729.71,29.32,195.60],[278.11,-589.13,43.30,175.75],[180.35,-855.66,30.94,172.92],[175.55,-412.31,41.15,172.92],[86.11,-673.27,31.64,150.24],[-38.08,-508.43,32.65,79.38],[-21.57,-320.65,45.49,249.45],[668.48,-253.63,44.75,354.34],[-61.42,-90.94,57.78,246.62],[100.74,-3.59,68.09,226.78],[130.37,-206.92,54.53,303.31],[205.79,164.27,105.48,0.00]
+  ];
+  const FACXFAC_SUL_CEMITERIO_25=[
+    [-1480.45,197.56,56.67,107.72],[-1315.17,292.78,64.67,153.08],[-1087.63,336.72,66.86,306.15],[-940.72,177.37,66.00,104.89],[-791.24,58.67,50.31,99.22],[-877.22,-156.40,37.66,79.38],[-1005.16,-312.81,37.86,116.23],[-742.64,-317.43,36.43,150.24],[-789.59,-640.07,28.91,175.75],[-988.14,-639.19,24.25,189.93],[-935.86,-822.64,15.20,189.93],[-1205.96,-686.59,40.36,5.67],[-1255.29,-960.52,2.61,150.24],[-1429.42,-787.66,21.96,215.44],[-1648.25,-971.98,7.70,68.04],[-1363.89,-565.80,30.13,48.19],[-1722.42,-718.11,10.09,300.48],[-1596.96,-552.42,34.81,8.51],[-1806.60,-500.47,39.71,260.79],[-1889.20,-280.31,49.32,246.62],[-2135.02,-305.49,13.19,246.62],[-1689.98,-326.20,50.09,280.63],[-1580.21,-130.82,55.82,82.21],[-1676.53,69.51,63.91,85.04],[-1225.30,-126.56,41.62,311.82]
+  ];
+
   const presets=[
     {id:'dominacao-sul',name:'Dominação — Sul',event:'Dominação',panel:'/ilegal',mode:'assistant',center:{x:116.48,y:-457.27,z:481.13,h:212.6,label:'Centro / área do evento'},radius:1000,points:DOMINACAO_30},
-    {id:'facxfac-norte',name:'Fac x Fac — Norte',event:'Fac x Fac',panel:'/ilegal',mode:'assistant',center:{x:1692.36,y:4040.85,z:281.98,h:22.68,label:'Centro da área do gás'},radius:1000,points:FACXFAC_25}
+    {id:'facxfac-norte',name:'Fac x Fac — Norte',event:'Fac x Fac',panel:'/ilegal',mode:'assistant',center:{x:1692.36,y:4040.85,z:281.98,h:22.68,label:'Centro da área do gás'},radius:1000,points:FACXFAC_25},
+    {id:'facxfac-sul-cassino-banco',eventId:'preset_gas_fac-x-fac-sul',name:'Cassino / Banco Central',event:'Fac x Fac Sul',category:'gas',panel:'/ilegal',mode:'assistant',center:{x:351.53,y:-357.41,z:0.00,h:0.00,label:'Centro do Gás / Marco Zero'},radius:1000,points:FACXFAC_SUL_CASSINO_25},
+    {id:'facxfac-sul-cemiterio-praia',eventId:'preset_gas_fac-x-fac-sul',name:'Cemitério / Praia',event:'Fac x Fac Sul',category:'gas',panel:'/ilegal',mode:'assistant',center:{x:-1422.15,y:-287.28,z:46.25,h:133.23,label:'Centro do Gás / Marco Zero'},radius:1000,points:FACXFAC_SUL_CEMITERIO_25}
   ];
 
   const state={map:null,drawn:[],missions:[],activeId:null,initialized:false,placing:false,snapshotTimer:null,autosaveTimer:null,editing:false,editBackup:null,dirty:false,libraryCategory:'dominacao',activeEventId:null};
@@ -84,11 +93,11 @@
     return {id:i+1,x:num(p.x),y:num(p.y),z:num(p.z),h:num(p.h),status:p.status||statusDefault,validatedAt:p.validatedAt||null};
   }
   function presetMission(p){
-    const category=(p.event==='Dominação'?'dominacao':'gas');
+    const category=p.category||(p.event==='Dominação'?'dominacao':'gas');
     let eventName=p.event, zoneName=p.name;
     if(category==='dominacao' && /Sul/i.test(p.name)){eventName='Dominação Sul';zoneName='Zona Principal';}
-    if(category==='gas' && /Fac x Fac/i.test(p.event||p.name)){eventName='Fac x Fac';zoneName=(/Norte/i.test(p.name)?'Norte':'Zona Principal');}
-    return {id:p.id,eventId:`preset_${category}_${slugify(eventName)}`,name:zoneName,event:eventName,panel:p.panel,mode:p.mode,category,center:{...p.center,status:'validated',validatedAt:nowIso()},circleRadius:p.radius,eventRadius:null,startAngle:0,spawnRadius:100,createdAt:nowIso(),updatedAt:nowIso(),points:p.points.map((v,i)=>normalizePoint({x:v[0],y:v[1],z:v[2],h:v[3],status:'validated',validatedAt:nowIso()},i,'validated')),requestText:'',requestKind:'alter-zone',official:true};
+    if(category==='gas' && /Fac x Fac/i.test(p.event||p.name) && !p.eventId){eventName='Fac x Fac';zoneName=(/Norte/i.test(p.name)?'Norte':'Zona Principal');}
+    return {id:p.id,eventId:p.eventId||`preset_${category}_${slugify(eventName)}`,name:zoneName,event:eventName,panel:p.panel,mode:p.mode,category,center:{...p.center,status:'validated',validatedAt:nowIso()},circleRadius:p.radius,eventRadius:null,startAngle:0,spawnRadius:100,createdAt:nowIso(),updatedAt:nowIso(),points:p.points.map((v,i)=>normalizePoint({x:v[0],y:v[1],z:v[2],h:v[3],status:'validated',validatedAt:nowIso()},i,'validated')),requestText:'',requestKind:'alter-zone',official:true};
   }
   function newMission(eventId=null,eventName=null,category=null){
     const cat=category||state.libraryCategory||'dominacao';
@@ -491,7 +500,8 @@ Os pontos atuais serão substituídos e ficarão PENDENTES até validação no F
     const category=m.category||'dominacao',all=m.points||[],pts=all.filter(isValidated),pending=all.length-pts.length;
     if(!pts.length){alert('Nenhum spawn validado para gerar a solicitação.');return;}
     if(pending>0){alert(`Existem ${pending} spawn(s) pendente(s). Valide todos antes de gerar a solicitação.`);return;}
-    if(!isCenterValidated(m)){alert(`Valide primeiro a CDS real do ${category==='gas'?'CENTRO DO GÁS / MARCO ZERO':'CENTRO DA ZONA'}.`);return;}
+    const centerReady=isCenterValidated(m)||(m.official&&validCoord(m.center?.x)&&validCoord(m.center?.y)&&Number.isFinite(Number(m.center?.z))&&Number.isFinite(Number(m.center?.h)));
+    if(!centerReady){alert(`Valide primeiro a CDS real do ${category==='gas'?'CENTRO DO GÁS / MARCO ZERO':'CENTRO DA ZONA'}.`);return;}
     const radius=effectiveEventRadius(m),counts=zoneCoverageCounts(m);
     if(category==='gas'&&counts.outside>0){alert(`${counts.outside} spawn(s) estão FORA da safe inicial (${Math.round(radius)} m). Todos precisam iniciar dentro da área segura.`);return;}
     const center=rawCds(m.center),panel=m.panel?` - ${m.panel}`:'',kind=m.requestKind||'alter-zone',eventName=m.event||'Evento',zoneName=m.name||'Zona Principal';
@@ -514,10 +524,27 @@ Os pontos atuais serão substituídos e ficarão PENDENTES até validação no F
     }
     const centerTitle=category==='gas'?'CENTRO DO GÁS / MARCO ZERO':'COORDENADA CENTRAL';
     const radiusTitle=category==='gas'?'RAIO INICIAL DA SAFE / GÁS':'RAIO DA ÁREA DE DOMINAÇÃO';
+    const isFacXFac=/fac\s*x\s*fac/i.test(eventName);
     const mechanic=category==='gas'
-      ? `- Todos os spawns deverão iniciar dentro da safe inicial.
+      ? (isFacXFac ? `- Cada facção deverá nascer em uma coordenada diferente da zona selecionada.
 
-- Após o início, o fechamento da safe/gás deverá seguir a configuração e funcionamento atuais do evento.`
+- Todos os participantes deverão receber automaticamente os itens necessários no inventário conforme o padrão atual do Fac x Fac.
+
+- Deverão existir caixas de loot espalhadas pelo mapa conforme o funcionamento atual do evento.
+
+- Após alguns minutos, a zona de vitória/safe deverá ser ativada e iniciar o fechamento progressivo.
+
+- Quem permanecer fora da zona deverá receber dano do gás conforme o sistema atual.
+
+- Ao morrer, o jogador deverá dropar uma caixa contendo seus itens, conforme o funcionamento atual do Fac x Fac.
+
+- O comando /evento deverá continuar permitindo escalar a facção de qualquer lugar do mapa, salvar a escalação e aguardar o horário do evento.
+
+- O sistema de ranking próprio e as premiações mensais do Fac x Fac deverão permanecer inalterados.
+
+- Os membros poderão utilizar o N para pingar o mapa para seus aliados, conforme o padrão atual do evento.` : `- Todos os spawns deverão iniciar dentro da safe inicial.
+
+- Após o início, o fechamento da safe/gás deverá seguir a configuração e funcionamento atuais do evento.`)
       : `- Os spawns poderão ficar dentro ou fora da área de Dominação conforme a distribuição planejada.
 
 - A área de Dominação deverá permanecer fixa, sem fechamento progressivo de gás/safe.`;
