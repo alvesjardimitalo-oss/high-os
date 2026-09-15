@@ -1349,7 +1349,7 @@ function renderMetricSourceStatus(){
  const el=$('#metricSourceStatus');if(!el)return;const has=metricSourceConfig.mode==='GOOGLE_APPS_SCRIPT_FREE'||!!extractSpreadsheetId(metricSourceConfig.url),srv=metricSourceConfig.serverSync||{};const serverState=String(srv.status||'').toUpperCase();const localState=metricSourceState.status;const online=serverState==='ONLINE'||localState==='ONLINE';const failed=serverState==='ERRO'||localState==='ERRO';el.classList.toggle('online',online);el.classList.toggle('error',failed);
  const last=metricTsToDate(srv.lastSuccessAt)||metricTsToDate(srv.lastRunAt)||(metricSourceState.lastSync?new Date(metricSourceState.lastSync):null);const when=last?last.toLocaleString('pt-BR'):'—';let desc='Informe o link da planilha oficial';
  if(has)desc=metricSourceConfig.autoSync===false?'Fonte configurada • sincronização automática pausada':'Apps Script permanente • sincronização automática 14:05, 16:05, 21:05 e 23:05 • sem Blaze';
- if(online)desc=`Base sincronizada • ${Number(srv.rows??metricSourceState.count??metricas.length)||0} registros históricos${srv.sheet?' • aba '+srv.sheet:''}${metricLiveLastAt?' • atualização em tempo real ativa':''}`;
+ if(online){desc=`Base sincronizada • ${Number(srv.rows??metricSourceState.count??metricas.length)||0} registros históricos${srv.sheet?' • aba '+srv.sheet:''}${metricLiveLastAt?' • atualização em tempo real ativa':''}`;const dc=metricSourceState.directCheck;if(dc?.sheetLast)desc+=` • Planilha ${dc.sheetLast.date} ${dc.sheetLast.slot} • Firestore ${dc.fireLast?.date||'—'} ${dc.fireLast?.slot||'—'}`;}
  if(failed)desc=srv.error||metricSourceState.error||'Falha na sincronização automática';
  el.innerHTML=`<div><span class="metric-source-dot"></span><div><b>${has?'GOOGLE SHEETS • APPS SCRIPT GRATUITO':'FONTE NÃO CONFIGURADA'}</b><small>${esc(desc)}</small></div></div><span>${has?`Última sincronização: ${esc(when)}<br>AGENDA • 14:05 · 16:05 · 21:05 · 23:05`:'CONFIGURAR'}</span>`;
 }
@@ -1660,9 +1660,47 @@ async function testMetricSource(){
 async function refreshMetricServerConfig(){
  try{const snap=await getDoc(metricConfigDoc);if(snap.exists())metricSourceConfig={...metricSourceConfig,...snap.data()};renderMetricSourceStatus()}catch(e){}
 }
+function metricRowKey(r={}){return alvesNorm(String(r.group||r.organizacao||r.faccao||'')).replace(/\s+/g,'')+'|'+normalizeMetricDate(r.data||r.date)}
+function metricLatestInfo(rows=[]){
+ const valid=rows.filter(r=>normalizeMetricDate(r.data||r.date));if(!valid.length)return {date:'—',slot:'—'};
+ valid.sort((a,b)=>metricDateValue(a)-metricDateValue(b));const lastDate=normalizeMetricDate(valid.at(-1).data||valid.at(-1).date);
+ const same=valid.filter(r=>normalizeMetricDate(r.data||r.date)===lastDate),slots=[...new Set(same.flatMap(r=>Object.keys(metricSlots(r))))].sort((a,b)=>metricSlotMinutes(a)-metricSlotMinutes(b));
+ return {date:lastDate,slot:slots.at(-1)||'—'};
+}
+function compareMetricSources(sheetRows=[],fireRows=[]){
+ const fire=new Map(fireRows.map(r=>[metricRowKey(r),r]));let newRows=0,changedRows=0,newSlots=0;
+ for(const s of sheetRows){const f=fire.get(metricRowKey(s));if(!f){newRows++;newSlots+=Object.keys(metricSlots(s)).length;continue}const fs=metricSlots(f),ss=metricSlots(s);let changed=false;for(const [k,v] of Object.entries(ss)){if(!(k in fs)||Number(fs[k])!==Number(v)){newSlots++;changed=true}}if(changed)changedRows++}
+ return {newRows,changedRows,newSlots,pendingRows:newRows+changedRows};
+}
 async function requestServerMetricSync({quiet=false}={}){
- const btn=$('#syncMetricBtn'),old=btn?.textContent;if(btn){btn.disabled=true;btn.textContent='ATUALIZANDO...'}
- try{await refreshMetricServerConfig();await loadMetrics();if(!quiet)alert(`Central atualizada. ${metricas.length} registro(s) carregado(s) do Firestore. A sincronização da planilha é automática pelo Apps Script.`);return true}catch(e){if(!quiet)alert('Erro ao atualizar a Central: '+(e.message||e));return false}finally{if(btn){btn.disabled=false;btn.textContent=old||'ATUALIZAR CENTRAL'}}
+ const btn=$('#syncMetricBtn'),old=btn?.textContent;if(btn){btn.disabled=true;btn.textContent='COMPARANDO...'}
+ try{
+  await refreshMetricServerConfig();
+  // Primeiro obtém a fotografia atual do Firestore para comparar com a fonte oficial.
+  const qs=await getDocs(metricCol),fireRows=qs.docs.map(d=>({id:d.id,...d.data()}));
+  if(!extractSpreadsheetId(metricSourceConfig.url)){
+   applyMetricSnapshot(qs);if(!quiet)alert(`Central atualizada pelo Firestore (${fireRows.length} registros). Configure o link da planilha em FONTE para habilitar a recuperação direta.`);return true;
+  }
+  if(btn)btn.textContent='LENDO PLANILHA...';
+  const result=await readMetricsDirect({authorize:true});
+  const sheetRows=result.rows.map(metricSnapshot),diff=compareMetricSources(sheetRows,fireRows);
+  if(btn)btn.textContent=diff.pendingRows?'RECUPERANDO...':'ATUALIZANDO...';
+  if(diff.pendingRows)await persistMetricRows(sheetRows,result.sheet);
+  // Recarrega do Firestore após a recuperação para manter a Central e o realtime na mesma fonte.
+  const after=await getDocs(metricCol);applyMetricSnapshot(after);
+  const sheetLast=metricLatestInfo(sheetRows),fireLast=metricLatestInfo(metricas);
+  metricSourceState={...metricSourceState,status:'ONLINE',lastSync:Date.now(),count:metricas.length,activeCount:activeMetricRows().length,error:'',sheet:result.sheet,directCheck:{sheetLast,fireLast,diff}};
+  renderMetricSourceStatus();
+  if(!quiet){
+   const action=diff.pendingRows?`RECUPERAÇÃO CONCLUÍDA\n${diff.pendingRows} registro(s) novo(s)/alterado(s) • ${diff.newSlots} coleta(s) atualizada(s)`:'CENTRAL JÁ ESTAVA ATUALIZADA';
+   alert(`${action}\n\nPLANILHA: até ${sheetLast.date} • ${sheetLast.slot}\nFIRESTORE: até ${fireLast.date} • ${fireLast.slot}\nAba: ${result.sheet}`);
+  }
+  return true;
+ }catch(e){
+  // Se a leitura direta falhar, não apaga o que já existe no Firestore.
+  try{await loadMetrics()}catch(_){}
+  if(!quiet)alert('Erro ao comparar Planilha × Firestore: '+(e.message||e));return false;
+ }finally{if(btn){btn.disabled=false;btn.textContent=old||'ATUALIZAR CENTRAL'}}
 }
 async function saveMetricSource(){
  const cfg={url:$('#metricSourceUrl')?.value?.trim()||metricSourceConfig.url||'',sheet:$('#metricSourceSheet')?.value?.trim()||metricSourceConfig.sheet||'',autoSync:true,mode:'GOOGLE_APPS_SCRIPT_FREE',schedule:'14:05,16:05,21:05,23:05',timeZone:'America/Sao_Paulo',updatedAt:serverTimestamp(),updatedBy:currentUser.email};
