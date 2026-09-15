@@ -89,3 +89,19 @@
 .mp-map-item{display:flex!important;flex-direction:column;align-items:flex-start!important;gap:3px;min-height:54px;padding:9px 11px!important;border:1px solid rgba(163,83,220,.28)!important;border-radius:10px!important;background:rgba(255,255,255,.025)!important;color:#f7f3ff!important;text-align:left}
 .mp-map-item b{font-size:12px}.mp-map-item small{font-size:9px;color:#a9a1b8}.mp-map-item.active{border-color:#b95cff!important;background:linear-gradient(135deg,rgba(145,43,204,.28),rgba(78,31,105,.20))!important;box-shadow:inset 3px 0 0 #b95cff}
 .mp-level-title.map-title{margin-top:9px}
+
+
+/* V9.3.0 — Fac x Fac segue o mesmo padrão do Hoje é Dia de Guerra: evento > zonas */
+.mp-scenario-selector{margin:0 0 14px;padding:12px;border:1px solid rgba(181,74,255,.28);border-radius:12px;background:rgba(87,30,130,.08)}
+.mp-scenario-title{display:flex;flex-direction:column;gap:3px;margin-bottom:9px}.mp-scenario-title b{font-size:11px;letter-spacing:.08em}.mp-scenario-title small{font-size:10px;color:#a9a4b8}
+.mp-scenario-buttons{display:flex;gap:7px;flex-wrap:wrap}.mp-scenario-buttons button{flex:1 1 150px;min-height:34px;border-radius:9px;border:1px solid rgba(181,74,255,.25);background:rgba(255,255,255,.025);color:#ddd;font-size:10px;font-weight:800}.mp-scenario-buttons button.active{background:linear-gradient(135deg,rgba(124,45,170,.82),rgba(166,54,205,.82));border-color:#c65bff;color:#fff}
+
+/* V9.3.1 — Replicador inteligente de zonas */
+.mp-replicate-backdrop{position:fixed;inset:0;z-index:99999;background:rgba(4,5,9,.78);backdrop-filter:blur(6px);display:grid;place-items:center;padding:22px}
+.mp-replicate-modal{width:min(720px,96vw);max-height:90vh;overflow:auto;background:#111219;border:1px solid rgba(181,74,255,.35);border-radius:16px;box-shadow:0 28px 90px rgba(0,0,0,.55);padding:18px;color:#eee}
+.mp-replicate-head{display:flex;justify-content:space-between;gap:15px;align-items:flex-start;border-bottom:1px solid rgba(255,255,255,.08);padding-bottom:12px}.mp-replicate-head>div{display:grid;gap:4px}.mp-replicate-head b{font-size:14px}.mp-replicate-head small{color:#9ca4b2}.mp-replicate-head button{border:0;background:transparent;color:#bbb;font-size:24px;cursor:pointer}
+.mp-replicate-origin{display:grid;gap:4px;margin:14px 0;padding:12px;border-radius:11px;background:rgba(150,63,196,.10);border:1px solid rgba(181,74,255,.18)}.mp-replicate-origin span{font-size:9px;letter-spacing:.12em;color:#a8a0b2;font-weight:900}.mp-replicate-origin small{color:#9ca4b2}
+.mp-replicate-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.mp-replicate-grid label{display:grid;gap:6px;font-size:10px;color:#aaa;font-weight:800}.mp-replicate-grid input,.mp-replicate-grid select{height:38px;border-radius:9px;border:1px solid rgba(255,255,255,.12);background:#191a22;color:#eee;padding:0 10px}
+.mp-replicate-status{display:grid;gap:6px;margin-top:14px;padding:12px;border-radius:11px;background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.08)}.mp-replicate-status b{color:#d7a9ef}.mp-replicate-status span{font-size:10px;color:#aeb6c3}.mp-replicate-status .ok{color:#8fe2ae}.mp-replicate-status .bad{color:#ff8d95}
+.mp-replicate-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}.mp-replicate-actions button{height:38px;border-radius:9px;border:1px solid rgba(255,255,255,.12);background:#1a1b23;color:#eee;padding:0 14px;font-weight:900}.mp-replicate-actions .primary{background:#70258f;border-color:#a452c8}.mp-replicate-actions button:disabled{opacity:.35;cursor:not-allowed}
+@media(max-width:650px){.mp-replicate-grid{grid-template-columns:1fr}}
