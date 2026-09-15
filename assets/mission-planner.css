@@ -83,3 +83,9 @@
 #page-planejador .leaflet-control-layers{max-height:190px;overflow:auto;background:rgba(12,13,18,.94);color:#fff;border-radius:10px}
 @media(max-width:1250px){#page-planejador .mp-mission-select-wrap{grid-template-columns:190px minmax(230px,.8fr) minmax(300px,1.2fr)}#page-planejador .mp-mission-list{grid-template-columns:1fr}#page-planejador .mp-top-actions.mp-actions-v8{grid-template-columns:1fr 1fr}.mp-action-section.edit{grid-column:1/-1}}
 @media(max-width:900px){#page-planejador .mp-mission-select-wrap{grid-template-columns:1fr 1fr;grid-template-areas:"head head" "type events" "zones zones"}#page-planejador .mp-mission-list{grid-template-columns:repeat(2,minmax(180px,1fr))}#page-planejador .mp-top-actions.mp-actions-v8{grid-template-columns:1fr}.mp-action-section.edit{grid-column:auto}#page-planejador .mission-planner-shell{grid-template-columns:1fr}}
+
+/* V9.2.9 — nível MAPA/LOCAL no Planejador */
+.mp-map-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px;margin:7px 0 10px;max-height:118px;overflow:auto;padding-right:3px}
+.mp-map-item{display:flex!important;flex-direction:column;align-items:flex-start!important;gap:3px;min-height:54px;padding:9px 11px!important;border:1px solid rgba(163,83,220,.28)!important;border-radius:10px!important;background:rgba(255,255,255,.025)!important;color:#f7f3ff!important;text-align:left}
+.mp-map-item b{font-size:12px}.mp-map-item small{font-size:9px;color:#a9a1b8}.mp-map-item.active{border-color:#b95cff!important;background:linear-gradient(135deg,rgba(145,43,204,.28),rgba(78,31,105,.20))!important;box-shadow:inset 3px 0 0 #b95cff}
+.mp-level-title.map-title{margin-top:9px}

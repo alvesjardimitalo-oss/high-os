@@ -1,4 +1,4 @@
-/* HIGH OS Planejador de Eventos V8.1 — Correção de vínculo de zonas */
+/* HIGH OS Planejador de Eventos V9.2.9 — Hierarquia Fac x Fac: Evento > Mapa > Zona */
 (() => {
   const qs=(s,r=document)=>r.querySelector(s);
   const qsa=(s,r=document)=>[...r.querySelectorAll(s)];
@@ -23,12 +23,13 @@
 
   const presets=[
     {id:'dominacao-sul',name:'Dominação — Sul',event:'Dominação',panel:'/ilegal',mode:'assistant',center:{x:116.48,y:-457.27,z:481.13,h:212.6,label:'Centro / área do evento'},radius:1000,points:DOMINACAO_30},
-    {id:'facxfac-norte',name:'Fac x Fac — Norte',event:'Fac x Fac',panel:'/ilegal',mode:'assistant',center:{x:1692.36,y:4040.85,z:281.98,h:22.68,label:'Centro da área do gás'},radius:1000,points:FACXFAC_25},
-    {id:'facxfac-sul-cassino-banco',eventId:'preset_gas_fac-x-fac-sul',name:'Cassino / Banco Central',event:'Fac x Fac Sul',category:'gas',panel:'/ilegal',mode:'assistant',center:{x:351.53,y:-357.41,z:0.00,h:0.00,label:'Centro do Gás / Marco Zero'},radius:1000,points:FACXFAC_SUL_CASSINO_25},
-    {id:'facxfac-sul-cemiterio-praia',eventId:'preset_gas_fac-x-fac-sul',name:'Cemitério / Praia',event:'Fac x Fac Sul',category:'gas',panel:'/ilegal',mode:'assistant',center:{x:-1422.15,y:-287.28,z:46.25,h:133.23,label:'Centro do Gás / Marco Zero'},radius:1000,points:FACXFAC_SUL_CEMITERIO_25}
+    {id:'facxfac-norte',eventId:'preset_gas_fac-x-fac',mapName:'Norte',name:'Zona Principal',event:'Fac x Fac',category:'gas',panel:'/ilegal',mode:'assistant',center:{x:1692.36,y:4040.85,z:281.98,h:22.68,label:'Centro da área do gás'},radius:1000,points:FACXFAC_25},
+    {id:'facxfac-sul-cassino-banco',eventId:'preset_gas_fac-x-fac',mapName:'Sul',name:'Cassino / Banco Central',event:'Fac x Fac',category:'gas',panel:'/ilegal',mode:'assistant',center:{x:351.53,y:-357.41,z:0.00,h:0.00,label:'Centro do Gás / Marco Zero'},radius:1000,points:FACXFAC_SUL_CASSINO_25},
+    {id:'facxfac-sul-cemiterio-praia',eventId:'preset_gas_fac-x-fac',mapName:'Sul',name:'Cemitério / Praia',event:'Fac x Fac',category:'gas',panel:'/ilegal',mode:'assistant',center:{x:-1422.15,y:-287.28,z:46.25,h:133.23,label:'Centro do Gás / Marco Zero'},radius:1000,points:FACXFAC_SUL_CEMITERIO_25},
+    {id:'facxfac-cayo-perico',eventId:'preset_gas_fac-x-fac',mapName:'Cayo Perico',name:'Zona Principal',event:'Fac x Fac',category:'gas',panel:'/ilegal',mode:'assistant',center:{x:4787.64,y:-5150.00,z:0.00,h:351.50,label:'Centro do Gás / Marco Zero'},radius:1000,points:[]}
   ];
 
-  const state={map:null,drawn:[],missions:[],activeId:null,initialized:false,placing:false,snapshotTimer:null,autosaveTimer:null,editing:false,editBackup:null,dirty:false,libraryCategory:'dominacao',activeEventId:null};
+  const state={map:null,drawn:[],missions:[],activeId:null,initialized:false,placing:false,snapshotTimer:null,autosaveTimer:null,editing:false,editBackup:null,dirty:false,libraryCategory:'dominacao',activeEventId:null,activeMapName:null};
   const f=n=>Number(n).toFixed(2);
   const num=v=>{const n=Number(v);return Number.isFinite(n)?n:null};
   const nowIso=()=>new Date().toISOString();
@@ -38,6 +39,9 @@
   const eventUid=()=>`e_${Date.now()}_${Math.random().toString(36).slice(2,7)}`;
   const activeEventId=()=>active()?.eventId||state.activeEventId||null;
   const zonesOfEvent=(eventId)=>state.missions.filter(m=>m.eventId===eventId);
+  const mapNameOf=(m)=>m?.mapName||'Mapa Principal';
+  const mapsOfEvent=(eventId)=>[...new Set(zonesOfEvent(eventId).map(mapNameOf))];
+  const zonesOfMap=(eventId,mapName)=>zonesOfEvent(eventId).filter(m=>mapNameOf(m)===mapName);
   const eventsOfCategory=(category)=> {
     const seen=new Map();
     state.missions.filter(m=>(m.category||'dominacao')===category).forEach(m=>{
@@ -97,11 +101,11 @@
     let eventName=p.event, zoneName=p.name;
     if(category==='dominacao' && /Sul/i.test(p.name)){eventName='Dominação Sul';zoneName='Zona Principal';}
     if(category==='gas' && /Fac x Fac/i.test(p.event||p.name) && !p.eventId){eventName='Fac x Fac';zoneName=(/Norte/i.test(p.name)?'Norte':'Zona Principal');}
-    return {id:p.id,eventId:p.eventId||`preset_${category}_${slugify(eventName)}`,name:zoneName,event:eventName,panel:p.panel,mode:p.mode,category,center:{...p.center,status:'validated',validatedAt:nowIso()},circleRadius:p.radius,eventRadius:null,startAngle:0,spawnRadius:100,createdAt:nowIso(),updatedAt:nowIso(),points:p.points.map((v,i)=>normalizePoint({x:v[0],y:v[1],z:v[2],h:v[3],status:'validated',validatedAt:nowIso()},i,'validated')),requestText:'',requestKind:'alter-zone',official:true};
+    return {id:p.id,eventId:p.eventId||`preset_${category}_${slugify(eventName)}`,mapName:p.mapName||'Mapa Principal',name:zoneName,event:eventName,panel:p.panel,mode:p.mode,category,center:{...p.center,status:'validated',validatedAt:nowIso()},circleRadius:p.radius,eventRadius:null,startAngle:0,spawnRadius:100,createdAt:nowIso(),updatedAt:nowIso(),points:p.points.map((v,i)=>normalizePoint({x:v[0],y:v[1],z:v[2],h:v[3],status:'validated',validatedAt:nowIso()},i,'validated')),requestText:'',requestKind:'alter-zone',official:true};
   }
   function newMission(eventId=null,eventName=null,category=null){
     const cat=category||state.libraryCategory||'dominacao';
-    return {id:uid(),eventId:eventId||eventUid(),name:'Zona Principal',event:eventName||(cat==='gas'?'Novo Evento de Gás':'Novo Evento de Dominação'),panel:'/ilegal',mode:'assistant',category:cat,center:{x:null,y:null,z:null,h:null,label:cat==='gas'?'Centro do Gás / Marco Zero':'Centro da Zona do Evento',status:'planned',validatedAt:null},circleRadius:1000,eventRadius:null,startAngle:0,spawnRadius:100,createdAt:nowIso(),updatedAt:nowIso(),points:[],requestText:'',requestKind:eventId?'create-zone':'create-event',official:false};
+    return {id:uid(),eventId:eventId||eventUid(),mapName:'Mapa Principal',name:'Zona Principal',event:eventName||(cat==='gas'?'Novo Evento de Gás':'Novo Evento de Dominação'),panel:'/ilegal',mode:'assistant',category:cat,center:{x:null,y:null,z:null,h:null,label:cat==='gas'?'Centro do Gás / Marco Zero':'Centro da Zona do Evento',status:'planned',validatedAt:null},circleRadius:1000,eventRadius:null,startAngle:0,spawnRadius:100,createdAt:nowIso(),updatedAt:nowIso(),points:[],requestText:'',requestKind:eventId?'create-zone':'create-event',official:false};
   }
 
 
@@ -131,6 +135,27 @@
     });
   }
 
+  function repairFacxFacHierarchy(){
+    const all=state.missions.filter(m=>normalizeText(m.event||'').includes('fac x fac')||normalizeText(m.event||'').includes('facxfac'));
+    if(!all.length)return false;
+    let changed=false;
+    all.forEach(m=>{
+      const t=normalizeText(`${m.event||''} ${m.name||''} ${m.mapName||''}`);
+      if(m.event!=='Fac x Fac'){m.event='Fac x Fac';changed=true;}
+      if(m.eventId!=='preset_gas_fac-x-fac'){m.eventId='preset_gas_fac-x-fac';changed=true;}
+      let map=m.mapName;
+      if(!map||map==='Mapa Principal'){
+        if(t.includes('cayo')) map='Cayo Perico';
+        else if(t.includes('sul')||m.id.includes('sul-')) map='Sul';
+        else map='Norte';
+      }
+      if(m.mapName!==map){m.mapName=map;changed=true;}
+      if(map==='Norte' && normalizeText(m.name).includes('norte')){m.name='Zona Principal';changed=true;}
+      if(map==='Cayo Perico' && normalizeText(m.name).includes('cayo')){m.name='Zona Principal';changed=true;}
+    });
+    return changed;
+  }
+
   function saveStore(){
     try{localStorage.setItem(STORE,JSON.stringify(state.missions));localStorage.setItem(ACTIVE,state.activeId||'');}catch(e){console.warn('Planejador: falha ao salvar',e);}
   }
@@ -138,7 +163,12 @@
     const byId=new Set(state.missions.map(m=>m.id));
     let changed=false;
     presets.forEach(p=>{
-      if(byId.has(p.id))return;
+      const existing=state.missions.find(m=>m.id===p.id);
+      if(existing){
+        const fresh=presetMission(p);
+        ['eventId','event','mapName','name','category','panel'].forEach(k=>{if(existing[k]!==fresh[k]){existing[k]=fresh[k];changed=true;}});
+        return;
+      }
       state.missions.push(presetMission(p));
       byId.add(p.id);changed=true;
     });
@@ -148,7 +178,7 @@
   function loadStore(){
     try{
       const raw=JSON.parse(localStorage.getItem(STORE)||'null');
-      if(Array.isArray(raw)&&raw.length){state.missions=raw;state.missions.forEach(m=>{normalizeCenter(m);if(!m.category)m.category=(String(m.event||'').toLowerCase().includes('domina')?'dominacao':'gas');inferLegacyStructure(m);});repairKnownZoneAssignments();mergeOfficialPresets();state.activeId=localStorage.getItem(ACTIVE)||raw[0].id;const am=state.missions.find(m=>m.id===state.activeId)||raw[0];state.libraryCategory=(am?.category||'dominacao');state.activeEventId=am?.eventId||null;saveStore();return;}
+      if(Array.isArray(raw)&&raw.length){state.missions=raw;state.missions.forEach(m=>{normalizeCenter(m);if(!m.category)m.category=(String(m.event||'').toLowerCase().includes('domina')?'dominacao':'gas');inferLegacyStructure(m);});repairKnownZoneAssignments();repairFacxFacHierarchy();mergeOfficialPresets();state.activeId=localStorage.getItem(ACTIVE)||raw[0].id;const am=state.missions.find(m=>m.id===state.activeId)||raw[0];state.libraryCategory=(am?.category||'dominacao');state.activeEventId=am?.eventId||null;saveStore();return;}
     }catch{}
     state.missions=presets.map(presetMission);state.activeId=state.missions[0].id;state.libraryCategory=state.missions[0]?.category||'dominacao';state.activeEventId=state.missions[0]?.eventId||null;saveStore();
   }
@@ -252,7 +282,10 @@
     const box=qs('#mpMissionList');if(!box)return;
     renderEventList();
     const eid=activeEventId();
-    const zones=eid?zonesOfEvent(eid):[];
+    const maps=eid?mapsOfEvent(eid):[];
+    if(!maps.includes(state.activeMapName)) state.activeMapName=maps[0]||null;
+    const mapBox=qs('#mpMapList');if(mapBox){mapBox.innerHTML=maps.map(n=>`<button type="button" class="mp-map-item ${n===state.activeMapName?'active':''}" data-map="${n.replace(/"/g,'&quot;')}"><b>${n}</b><small>${zonesOfMap(eid,n).length} zona${zonesOfMap(eid,n).length===1?'':'s'}</small></button>`).join('');qsa('[data-map]',mapBox).forEach(b=>b.onclick=()=>{state.activeMapName=b.dataset.map;const z=zonesOfMap(eid,state.activeMapName)[0];if(z)state.activeId=z.id;render();focusActiveMission(false);});}
+    const zones=eid&&state.activeMapName?zonesOfMap(eid,state.activeMapName):[];
     box.innerHTML=zones.length?zones.map(m=>{
       const total=m.points.length,validated=m.points.filter(isValidated).length;
       const gas=(m.category||'dominacao')==='gas', coverage=gas?zoneCoverageCounts(m):null;
@@ -265,7 +298,7 @@
   function renderLibraryCategoryUi(){
     const host=qs('#mpCategoryLibrary');if(!host)return;
     const cat=state.libraryCategory||'dominacao';
-    host.innerHTML=`<div class="mp-hierarchy-head"><div><span>TIPO DE EVENTO</span><strong>${cat==='gas'?'ZONA DE GÁS':'DOMINAÇÃO'}</strong></div><div class="mp-hierarchy-path">${active()?.event||'Selecione um evento'} <b>›</b> ${active()?.name||'Selecione uma zona'}</div></div><div class="mp-type-tabs"><button type="button" id="mpLibDominacao" class="${cat==='dominacao'?'primary':''}">DOMINAÇÃO</button><button type="button" id="mpLibGas" class="${cat==='gas'?'primary':''}">ZONA DE GÁS</button></div><div class="mp-note">${cat==='gas'?'Safe inicial + fechamento progressivo. Os spawns devem iniciar dentro da safe.':'Área fixa de disputa. Os spawns podem ficar dentro ou fora da área de Dominação.'}</div>`;
+    host.innerHTML=`<div class="mp-hierarchy-head"><div><span>TIPO DE EVENTO</span><strong>${cat==='gas'?'ZONA DE GÁS':'DOMINAÇÃO'}</strong></div><div class="mp-hierarchy-path">${active()?.event||'Selecione um evento'} <b>›</b> ${active()?.mapName||'Mapa Principal'} <b>›</b> ${active()?.name||'Selecione uma zona'}</div></div><div class="mp-type-tabs"><button type="button" id="mpLibDominacao" class="${cat==='dominacao'?'primary':''}">DOMINAÇÃO</button><button type="button" id="mpLibGas" class="${cat==='gas'?'primary':''}">ZONA DE GÁS</button></div><div class="mp-note">${cat==='gas'?'Safe inicial + fechamento progressivo. Os spawns devem iniciar dentro da safe.':'Área fixa de disputa. Os spawns podem ficar dentro ou fora da área de Dominação.'}</div>`;
     const change=(next)=>{if(next===state.libraryCategory)return;if(state.editing&&state.dirty&&!confirm('Existem alterações não salvas. Deseja descartá-las para trocar de tipo?'))return;if(state.editing)cancelEdit();state.libraryCategory=next;const first=state.missions.find(m=>(m.category||'dominacao')===next);if(first){state.activeId=first.id;state.activeEventId=first.eventId;}saveStore();render();updateEditUi();setTimeout(()=>focusActiveMission(false),80);};
     qs('#mpLibDominacao')?.addEventListener('click',()=>change('dominacao'));
     qs('#mpLibGas')?.addEventListener('click',()=>change('gas'));
@@ -464,9 +497,9 @@ Os pontos atuais serão substituídos e ficarão PENDENTES até validação no F
     if(state.editing&&state.dirty&&!confirm('Existem alterações não salvas. Deseja descartá-las?'))return;
     if(state.editing)cancelEdit();
     const zones=zonesOfEvent(eventId);if(!zones.length)return;
-    state.activeEventId=eventId;state.activeId=zones[0].id;state.libraryCategory=zones[0].category||state.libraryCategory;saveStore();render();updateEditUi();focusActiveMission(false);
+    state.activeEventId=eventId;state.activeMapName=mapNameOf(zones[0]);state.activeId=zones[0].id;state.libraryCategory=zones[0].category||state.libraryCategory;saveStore();render();updateEditUi();focusActiveMission(false);
   }
-  function switchMission(id){if(state.editing&&state.dirty&&!confirm('Existem alterações não salvas. Deseja descartá-las?'))return;if(state.editing)cancelEdit();state.activeId=id;const m=state.missions.find(m=>m.id===id);state.activeEventId=m?.eventId||state.activeEventId;state.libraryCategory=(m?.category||state.libraryCategory||'dominacao');saveStore();render();updateEditUi();focusActiveMission(true);}
+  function switchMission(id){if(state.editing&&state.dirty&&!confirm('Existem alterações não salvas. Deseja descartá-las?'))return;if(state.editing)cancelEdit();state.activeId=id;const m=state.missions.find(m=>m.id===id);state.activeEventId=m?.eventId||state.activeEventId;state.activeMapName=mapNameOf(m);state.libraryCategory=(m?.category||state.libraryCategory||'dominacao');saveStore();render();updateEditUi();focusActiveMission(true);}
   function deleteZone(){const m=active();if(!m)return;const zones=zonesOfEvent(m.eventId);if(zones.length<=1){alert('Este é o único mapa/zona do evento. Para removê-lo, exclua o evento inteiro.');return;}if(!confirm(`Apagar somente a zona "${m.name}" do evento "${m.event}"?`))return;state.missions=state.missions.filter(x=>x.id!==m.id);const next=zones.find(x=>x.id!==m.id);state.activeId=next?.id||null;saveStore();render();focusActiveMission(false);}
   function deleteEvent(){
     const m=active();if(!m)return;const zones=zonesOfEvent(m.eventId);
@@ -596,7 +629,7 @@ ${mechanic}
   function ensurePlannerV2Ui(){
     const list=qs('#mpMissionList');
     if(list&&!qs('#mpCategoryLibrary')){const cat=document.createElement('div');cat.id='mpCategoryLibrary';list.insertAdjacentElement('beforebegin',cat);}
-    if(list&&!qs('#mpEventList')){const eventWrap=document.createElement('div');eventWrap.innerHTML='<div class="mp-level-title"><span>2</span><div><b>EVENTOS</b><small>Selecione o evento deste tipo</small></div></div><div id="mpEventList" class="mp-event-list"></div><div class="mp-level-title zone-title"><span>3</span><div><b>ZONAS DO EVENTO</b><small>Cada zona possui centro, raio e spawns próprios</small></div></div>';list.insertAdjacentElement('beforebegin',eventWrap);}
+    if(list&&!qs('#mpEventList')){const eventWrap=document.createElement('div');eventWrap.innerHTML='<div class="mp-level-title"><span>2</span><div><b>EVENTOS</b><small>Selecione o evento deste tipo</small></div></div><div id="mpEventList" class="mp-event-list"></div><div class="mp-level-title map-title"><span>3</span><div><b>MAPAS / LOCAIS</b><small>Norte, Sul, Cayo Perico...</small></div></div><div id="mpMapList" class="mp-map-list"></div><div class="mp-level-title zone-title"><span>4</span><div><b>ZONAS DO MAPA</b><small>Cada zona possui centro, raio e spawns próprios</small></div></div>';list.insertAdjacentElement('beforebegin',eventWrap);}
     if(!qs('#mpEventCategory')){
       const ev=qs('#mpEventType');if(ev){const lab=document.createElement('label');lab.innerHTML='Tipo de evento<select id="mpEventCategory"><option value="dominacao">DOMINAÇÃO — ÁREA FIXA</option><option value="gas">ZONA DE GÁS — SAFE FECHANDO</option></select>';ev.closest('.mp-grid')?.insertAdjacentElement('beforebegin',lab);}
     }
