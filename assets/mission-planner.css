@@ -328,3 +328,23 @@
 .mpc-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:10px 0 12px}.mpc-filters{display:flex;gap:6px;padding:4px;border:1px solid rgba(255,255,255,.07);border-radius:10px;background:#0e0d14}.mpc-filters button,.mpc-event-actions button,.mpc-primary{height:34px;border-radius:8px;border:1px solid transparent;padding:0 12px;background:transparent;color:#9e94a8;font-size:9px;font-weight:900;cursor:pointer}.mpc-filters button.active{background:#7025c1;color:white;box-shadow:0 5px 18px rgba(112,37,193,.22)}.mpc-primary{background:linear-gradient(135deg,#7426c7,#9630df);color:#fff}
 .mpc-events{display:flex;flex-direction:column;gap:9px}.mpc-event{border:1px solid rgba(255,255,255,.075);border-radius:13px;background:linear-gradient(180deg,#121019,#0e0d14);overflow:hidden}.mpc-event>header{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid rgba(255,255,255,.055)}.mpc-event header span{display:block;font-size:8px;letter-spacing:.12em;font-weight:900;color:#9f67c8;margin-bottom:3px}.mpc-event h3{margin:0;color:#fff;font-size:13px}.mpc-event header small{display:block;margin-top:3px;color:#776f80;font-size:9px}.mpc-event-actions{display:flex;gap:6px}.mpc-event-actions button{border-color:rgba(255,255,255,.08);background:#17151d;color:#bdb3c5}.mpc-zones{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;padding:10px}.mpc-zone{min-height:58px;display:flex;align-items:center;justify-content:space-between;gap:10px;text-align:left;padding:9px 10px;border-radius:9px;border:1px solid rgba(255,255,255,.065);background:rgba(255,255,255,.025);color:#fff;cursor:pointer}.mpc-zone:hover{background:rgba(137,54,196,.09);border-color:rgba(157,69,218,.3)}.mpc-zone b{display:block;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mpc-zone small{display:block;margin-top:5px;color:#777080;font-size:8px}.mpc-zone em{font-style:normal;color:#8c8194;font-size:14px}.mpc-zone em.ok{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;background:rgba(35,181,107,.12);color:#4dd28d}.mpc-empty{padding:18px;color:#756d7d;font-size:9px}.mpc-empty.big{text-align:center;padding:45px;border:1px dashed rgba(255,255,255,.08);border-radius:12px}
 @media(max-width:1200px){.mpc-zones{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:850px){.mpc-zones{grid-template-columns:repeat(2,minmax(0,1fr))}.mpc-head,.mpc-toolbar{align-items:flex-start;flex-direction:column}.mpc-head{width:100%}}@media(max-width:560px){.mpc-zones{grid-template-columns:1fr}.mpc-filters{width:100%;overflow:auto}.mpc-toolbar>.mpc-primary{width:100%}}
+
+
+/* ================================================================
+   V9.5.4 — PLANEJADOR CANÔNICO
+   Remove a navegação legada Tipo > Evento > Zona. Há somente dois
+   estados: Central de Missões e Editor da Zona.
+   ================================================================ */
+#page-planejador #mpCentralV954{display:none}
+#page-planejador.mp-library-mode #mpCentralV954{display:block}
+#page-planejador.mp-library-mode .mission-planner-shell{display:none!important}
+#page-planejador.mp-library-mode #mpWorkspaceBar{display:none!important}
+#page-planejador:not(.mp-library-mode) #mpCentralV954{display:none!important}
+#page-planejador:not(.mp-library-mode) .mission-planner-shell{display:grid!important}
+#page-planejador .mpc-event-actions .danger{color:#ff9aac;border-color:rgba(255,87,118,.28);background:rgba(255,70,105,.07)}
+#page-planejador .mpc-zone em{font-style:normal;font-size:9px;font-weight:900;letter-spacing:.06em;color:#bfa9ca}
+#page-planejador .mpc-zone em.ok{color:#64e6aa}
+#page-planejador .mp-workspace-bar{display:flex;align-items:center;gap:10px}
+#page-planejador #mpBackLibrary{white-space:nowrap}
+#page-planejador .mp-editor-actions{display:flex;align-items:center;gap:6px;margin-left:auto}
+#page-planejador .mp-cloud-state{white-space:nowrap}

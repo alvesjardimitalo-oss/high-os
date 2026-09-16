@@ -3721,4 +3721,4 @@ window.HighOSMissionCloud={
  }
 };
 
-console.info('HIGH OS V9.5.5 · sistema carregado');
+console.info('HIGH OS V9.5.6 · sistema carregado');
