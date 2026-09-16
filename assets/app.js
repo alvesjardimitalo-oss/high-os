@@ -187,6 +187,7 @@ onAuthStateChanged(auth,async user=>{
   await loadDashboardConfig();
   await loadFaccoes();
   await loadMetrics();
+  startMetricAutoRecovery();
   if(canViewModule('spotify'))await loadSpotifyConfig();
   if(canViewModule('chat'))startChat();
   if(canViewModule('economia'))loadMarketCatalog();
@@ -1672,34 +1673,79 @@ function compareMetricSources(sheetRows=[],fireRows=[]){
  for(const s of sheetRows){const f=fire.get(metricRowKey(s));if(!f){newRows++;newSlots+=Object.keys(metricSlots(s)).length;continue}const fs=metricSlots(f),ss=metricSlots(s);let changed=false;for(const [k,v] of Object.entries(ss)){if(!(k in fs)||Number(fs[k])!==Number(v)){newSlots++;changed=true}}if(changed)changedRows++}
  return {newRows,changedRows,newSlots,pendingRows:newRows+changedRows};
 }
-async function requestServerMetricSync({quiet=false}={}){
- const btn=$('#syncMetricBtn'),old=btn?.textContent;if(btn){btn.disabled=true;btn.textContent='COMPARANDO...'}
+function metricTimeout(promise,ms=15000,label='operação'){
+ let timer;return Promise.race([promise,new Promise((_,rej)=>timer=setTimeout(()=>rej(new Error(`Tempo limite ao executar ${label}.`)),ms))]).finally(()=>clearTimeout(timer));
+}
+function parseCsvRows(text=''){
+ const rows=[];let row=[],cell='',q=false;
+ for(let i=0;i<text.length;i++){const c=text[i];if(q){if(c==='"'&&text[i+1]==='"'){cell+='"';i++}else if(c==='"')q=false;else cell+=c}else if(c==='"')q=true;else if(c===','){row.push(cell);cell=''}else if(c==='\n'){row.push(cell.replace(/\r$/,''));rows.push(row);row=[];cell=''}else cell+=c}
+ if(cell||row.length){row.push(cell.replace(/\r$/,''));rows.push(row)}return rows;
+}
+async function readMetricsWithoutPopup(){
+ const id=extractSpreadsheetId(metricSourceConfig.url);if(!id)throw new Error('Fonte da planilha não configurada.');
+ const sheet=(metricSourceConfig.sheet||'MÉTRICAS').trim();
+ // Primeiro tenta a leitura pública/compartilhada. Não abre popup e não interfere no login do High OS.
+ const csvUrl=`https://docs.google.com/spreadsheets/d/${encodeURIComponent(id)}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheet)}&_=${Date.now()}`;
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),12000);
  try{
-  await refreshMetricServerConfig();
-  // Primeiro obtém a fotografia atual do Firestore para comparar com a fonte oficial.
-  const qs=await getDocs(metricCol),fireRows=qs.docs.map(d=>({id:d.id,...d.data()}));
-  if(!extractSpreadsheetId(metricSourceConfig.url)){
-   applyMetricSnapshot(qs);if(!quiet)alert(`Central atualizada pelo Firestore (${fireRows.length} registros). Configure o link da planilha em FONTE para habilitar a recuperação direta.`);return true;
-  }
-  if(btn)btn.textContent='LENDO PLANILHA...';
-  const result=await readMetricsDirect({authorize:true});
-  const sheetRows=result.rows.map(metricSnapshot),diff=compareMetricSources(sheetRows,fireRows);
-  if(btn)btn.textContent=diff.pendingRows?'RECUPERANDO...':'ATUALIZANDO...';
-  if(diff.pendingRows)await persistMetricRows(sheetRows,result.sheet);
-  // Recarrega do Firestore após a recuperação para manter a Central e o realtime na mesma fonte.
-  const after=await getDocs(metricCol);applyMetricSnapshot(after);
-  const sheetLast=metricLatestInfo(sheetRows),fireLast=metricLatestInfo(metricas);
-  metricSourceState={...metricSourceState,status:'ONLINE',lastSync:Date.now(),count:metricas.length,activeCount:activeMetricRows().length,error:'',sheet:result.sheet,directCheck:{sheetLast,fireLast,diff}};
-  renderMetricSourceStatus();
+  console.info('[MÉTRICAS AUTO] consultando planilha sem popup:',sheet);
+  const r=await fetch(csvUrl,{cache:'no-store',signal:controller.signal,credentials:'omit'});
+  if(!r.ok)throw new Error(`Planilha respondeu HTTP ${r.status}`);
+  const text=await r.text();const rows=parseMetricSheet(parseCsvRows(text));
+  if(!rows.length)throw new Error(`A aba “${sheet}” não retornou métricas reconhecíveis.`);
+  return {rows,sheet};
+ }finally{clearTimeout(timer)}
+}
+async function recoverMetricsAutomatically({quiet=true}={}){
+ console.info('[MÉTRICAS AUTO] verificação iniciada');
+ await refreshMetricServerConfig();
+ const qs=await metricTimeout(getDocs(metricCol),12000,'leitura do Firestore'),fireRows=qs.docs.map(d=>({id:d.id,...d.data()}));
+ if(!extractSpreadsheetId(metricSourceConfig.url)){applyMetricSnapshot(qs);console.warn('[MÉTRICAS AUTO] fonte da planilha não configurada');return {ok:true,source:'firestore',diff:null}}
+ let result;
+ try{result=await metricTimeout(readMetricsWithoutPopup(),15000,'leitura automática da planilha')}
+ catch(e){
+  // Se já houve autorização manual nesta sessão, usa o token existente sem abrir nova janela.
+  if(sheetsAccessToken){console.warn('[MÉTRICAS AUTO] leitura sem popup falhou; tentando token já existente');result=await metricTimeout(readMetricsDirect({authorize:false}),15000,'leitura autenticada da planilha')}
+  else {applyMetricSnapshot(qs);throw e}
+ }
+ const sheetRows=result.rows.map(metricSnapshot),diff=compareMetricSources(sheetRows,fireRows);
+ console.info('[MÉTRICAS AUTO] comparação concluída',diff);
+ if(diff.pendingRows){
+  console.info('[MÉTRICAS AUTO] gravando diferenças no Firestore');
+  await metricTimeout(persistMetricRows(sheetRows,result.sheet),25000,'gravação das métricas');
+ }
+ const after=await metricTimeout(getDocs(metricCol),12000,'releitura do Firestore');applyMetricSnapshot(after);
+ const sheetLast=metricLatestInfo(sheetRows),fireLast=metricLatestInfo(metricas);
+ metricSourceState={...metricSourceState,status:'ONLINE',lastSync:Date.now(),count:metricas.length,activeCount:activeMetricRows().length,error:'',sheet:result.sheet,directCheck:{sheetLast,fireLast,diff}};renderMetricSourceStatus();
+ console.info('[MÉTRICAS AUTO] concluído', {planilha:sheetLast,firestore:fireLast,diff});
+ return {ok:true,source:'sheet',diff,sheetLast,fireLast,sheet:result.sheet};
+}
+let metricAutoRecoveryTimer=null,metricAutoRecoveryBusy=false;
+async function runMetricAutoRecovery({quiet=true}={}){
+ if(metricAutoRecoveryBusy)return false;metricAutoRecoveryBusy=true;
+ try{return await recoverMetricsAutomatically({quiet})}catch(e){console.warn('[MÉTRICAS AUTO] planilha indisponível; mantendo Firestore:',e?.message||e);metricSourceState={...metricSourceState,error:''};renderMetricSourceStatus();return false}finally{metricAutoRecoveryBusy=false}
+}
+function startMetricAutoRecovery(){
+ if(metricAutoRecoveryTimer)return;
+ setTimeout(()=>runMetricAutoRecovery({quiet:true}),1800);
+ metricAutoRecoveryTimer=setInterval(()=>{if(!document.hidden)runMetricAutoRecovery({quiet:true})},5*60*1000);
+ document.addEventListener('visibilitychange',()=>{if(!document.hidden)runMetricAutoRecovery({quiet:true})});
+}
+async function requestServerMetricSync({quiet=false}={}){
+ const btn=$('#syncMetricBtn'),old=btn?.textContent;if(btn){btn.disabled=true;btn.textContent='ATUALIZANDO...'}
+ try{
+  const result=await recoverMetricsAutomatically({quiet:true});
   if(!quiet){
-   const action=diff.pendingRows?`RECUPERAÇÃO CONCLUÍDA\n${diff.pendingRows} registro(s) novo(s)/alterado(s) • ${diff.newSlots} coleta(s) atualizada(s)`:'CENTRAL JÁ ESTAVA ATUALIZADA';
-   alert(`${action}\n\nPLANILHA: até ${sheetLast.date} • ${sheetLast.slot}\nFIRESTORE: até ${fireLast.date} • ${fireLast.slot}\nAba: ${result.sheet}`);
+   if(result.source==='sheet'){
+    const d=result.diff||{},action=d.pendingRows?`Sincronização recuperada: ${d.pendingRows} registro(s) e ${d.newSlots} coleta(s) atualizada(s).`:'A Central já estava sincronizada com a planilha.';
+    alert(`${action}\n\nPLANILHA: até ${result.sheetLast.date} • ${result.sheetLast.slot}\nFIRESTORE: até ${result.fireLast.date} • ${result.fireLast.slot}`);
+   }else alert(`Central carregada do Firestore. ${metricas.length} registro(s) disponíveis.`)
   }
   return true;
  }catch(e){
-  // Se a leitura direta falhar, não apaga o que já existe no Firestore.
+  console.warn('[MÉTRICAS AUTO] atualização manual caiu para Firestore:',e);
   try{await loadMetrics()}catch(_){}
-  if(!quiet)alert('Erro ao comparar Planilha × Firestore: '+(e.message||e));return false;
+  if(!quiet)alert('A planilha não respondeu agora. A Central foi mantida com os dados do Firestore e tentará sincronizar novamente automaticamente.\n\nDetalhe: '+(e.message||e));return false;
  }finally{if(btn){btn.disabled=false;btn.textContent=old||'ATUALIZAR CENTRAL'}}
 }
 async function saveMetricSource(){
