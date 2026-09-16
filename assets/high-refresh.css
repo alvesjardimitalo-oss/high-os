@@ -747,3 +747,50 @@
 .rtc-audio-brand{position:relative;z-index:1;text-align:center;pointer-events:none}.rtc-audio-brand span{width:84px;height:84px;border-radius:50%;display:grid;place-items:center;margin:0 auto 14px;background:rgba(155,82,209,.14);border:1px solid rgba(155,82,209,.35);font-size:34px;font-weight:900;color:#c68ef1}.rtc-audio-brand b,.rtc-audio-brand small{display:block}.rtc-audio-brand small{color:#8e8495;margin-top:5px}
 .rtc-controls{display:flex;justify-content:center;gap:10px;padding:14px;background:#100c14;border-top:1px solid rgba(255,255,255,.07)}.rtc-controls button,.call-accept,.call-reject{border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:9px 14px;background:#201828;color:#eee;font-weight:800;cursor:pointer}.call-accept{background:#226b49;border-color:#328862}.call-reject{background:#762c3d;border-color:#9d4055}.rtc-controls button:disabled{opacity:.4;cursor:not-allowed}
 @media(max-width:700px){.incoming-call-bar{left:12px;right:12px;top:70px}.incoming-call-bar>div{min-width:0;flex:1}.rtc-local-video{width:130px!important;height:90px!important}.rtc-controls{flex-wrap:wrap}}
+
+/* =========================================================
+   PAINEL DE CONSUMO DO FIREBASE (V9.6)
+   ========================================================= */
+.metric-quota-panel{
+  margin:12px 0 16px;
+  background:linear-gradient(180deg,#151020,#100c18);
+  border:1px solid var(--hm-line-2);
+  border-radius:16px;
+  padding:15px 17px;
+}
+.metric-quota-panel.bloqueado{border-color:rgba(255,91,118,.5);background:linear-gradient(180deg,#22121a,#150d14)}
+.mq-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:13px}
+.mq-head b{font-size:10px;letter-spacing:.13em;color:#fff}
+.mq-head span{font-size:9.5px;letter-spacing:.06em;color:var(--hm-text-3)}
+.metric-quota-panel.bloqueado .mq-head span{color:#ff8a9c;font-weight:900}
+.mq-bars{display:grid;gap:11px}
+.mq-bar span{display:block;font-size:10px;letter-spacing:.04em;color:var(--hm-text-3);margin-bottom:5px}
+.mq-bar span b{color:#fff;font-size:12px;font-variant-numeric:tabular-nums;margin-right:2px}
+.mq-bar i{display:block;height:6px;border-radius:20px;background:rgba(255,255,255,.07);overflow:hidden}
+.mq-bar u{
+  display:block;height:100%;border-radius:20px;text-decoration:none;
+  background:linear-gradient(90deg,#8d35ff,#b878ff);transition:width 400ms ease;
+}
+.mq-bar u.w{background:linear-gradient(90deg,#f4a425,#ffcf5c)}
+.mq-foot{
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  margin-top:14px;padding-top:12px;border-top:1px solid var(--hm-line);
+  font-size:10px;color:var(--hm-text-3);
+}
+.mq-foot > span{flex:1;min-width:190px}
+.mq-switch{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:10px;color:var(--hm-text-2)}
+.mq-switch input{position:absolute;opacity:0;width:0;height:0}
+.mq-switch i{position:relative;width:32px;height:18px;flex:0 0 32px;border-radius:20px;background:rgba(255,255,255,.12);border:1px solid var(--hm-line);transition:background 160ms ease}
+.mq-switch i::after{content:"";position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#8a7f99;transition:transform 160ms ease,background 160ms ease}
+.mq-switch input:checked + i{background:rgba(141,53,255,.5);border-color:rgba(141,53,255,.6)}
+.mq-switch input:checked + i::after{transform:translateX(14px);background:#fff}
+#metricSyncNow{
+  background:linear-gradient(135deg,#8d35ff,#6321b8);border:none;border-radius:9px;
+  color:#fff;padding:9px 14px;font-size:9.5px;font-weight:900;letter-spacing:.08em;cursor:pointer;
+}
+#metricSyncNow:disabled{opacity:.5;cursor:wait}
+.mq-alerta{
+  margin-top:13px;padding:11px 13px;border-radius:11px;
+  background:rgba(255,91,118,.1);border:1px solid rgba(255,91,118,.32);
+  color:#ffc3cc;font-size:11px;line-height:1.55;
+}

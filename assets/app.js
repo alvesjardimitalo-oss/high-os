@@ -125,7 +125,14 @@ function renderSessionClock(email=''){
  if(elapsed>=SESSION_MAX_MS){alert('Sua sessão atingiu o limite máximo de 8 horas e será encerrada. Faça login novamente para iniciar uma nova sessão.');logout('TIMEOUT_8H');}
 }
 function startSessionClock(email=''){if(sessionTimer)clearInterval(sessionTimer);renderSessionClock(email);sessionTimer=setInterval(()=>renderSessionClock(email),1000)}
-async function touchSession(){if(!currentUser||!currentSessionId)return;try{await setDoc(doc(db,'highos','data','sessoes_usuario',currentSessionId),{lastActivityAt:serverTimestamp(),lastActivityText:new Date().toISOString()},{merge:true})}catch(e){}}
+let lastTouchAt=0;
+/* V9.6 - gravava a cada troca de aba do navegador; agora no maximo a cada 5 min. */
+async function touchSession(force=false){
+ if(!currentUser||!currentSessionId)return;
+ if(!force&&Date.now()-lastTouchAt<5*60*1000)return;
+ lastTouchAt=Date.now();
+ try{await setDoc(doc(db,'highos','data','sessoes_usuario',currentSessionId),{lastActivityAt:serverTimestamp(),lastActivityText:new Date().toISOString()},{merge:true})}catch(e){}
+}
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')touchSession()});
 window.addEventListener('beforeunload',()=>{try{if(currentUser&&currentSessionId)localStorage.setItem(sessionStorageKey(currentUser.email),JSON.stringify({id:currentSessionId,start:currentSessionStart,email:currentUser.email}))}catch(e){}});
 $('#loginBtn').onclick=login;$('#loginBtnCard').onclick=login;$('#logoutBtn')?.addEventListener('click',()=>logout('LOGOUT'));$('#logoutDenied').onclick=logout;
@@ -1361,8 +1368,25 @@ function metricAnalysis(group){
  return {rows,avg,peak,predominant:predHour&&predHour[1]?predHour[0]:'—',predCount:predHour?.[1]||0,predominance,nightPredominance,dailyPeakAvg,hourAvg,strongestHour:strongestHour[0],strongestHourAvg:strongestHour[1]};
 }
 
+/* V9.6.1 - A URL de "Publicar na web" tem o formato
+   /spreadsheets/d/e/2PACX-.../pub?output=csv . O regex antigo parava no
+   primeiro segmento depois de /d/ e devolvia a letra "e" como ID, o que
+   gerava a URL /spreadsheets/d/e/gviz/... e o HTTP 404. */
+function isPublishedSheetUrl(value=''){
+ return /\/spreadsheets\/d\/e\/[a-zA-Z0-9-_]+/.test(String(value||''));
+}
+function publishedCsvUrl(value='',sheet=''){
+ let u=String(value||'').trim();
+ if(!/output=csv/.test(u)){
+  u=u.replace(/\/(pubhtml|pub|edit)(\?.*)?$/,'/pub');
+  if(!/\/pub$/.test(u))u=u.replace(/\/$/,'')+'/pub';
+  u+= (u.includes('?')?'&':'?')+'output=csv&single=true';
+ }
+ return u+(u.includes('?')?'&':'?')+'_='+Date.now();
+}
 function extractSpreadsheetId(value=''){
  const v=String(value||'').trim();if(!v)return '';
+ if(isPublishedSheetUrl(v)){const p=v.match(/\/spreadsheets\/d\/e\/([a-zA-Z0-9-_]+)/);return p?'e/'+p[1]:'';}
  const m=v.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);if(m)return m[1];
  return /^[a-zA-Z0-9-_]{20,}$/.test(v)?v:'';
 }
@@ -1501,9 +1525,80 @@ async function fetchMetricsFromSource({persist=false,quiet=false,authorize=true}
  try{const result=await readMetricsDirect({authorize});const rows=result.rows.map(metricSnapshot);metricas=rows;metricPeriodKey=currentMetricMonthKey();metricSourceState={status:'ONLINE',lastSync:Date.now(),count:rows.length,activeCount:activeMetricRows().length,error:'',sheet:result.sheet};renderMetricSourceStatus();refreshMetricPeriodOptions();renderMetrics();if(persist)await persistMetricRows(rows,result.sheet);if(!quiet)alert(`${rows.length} registro(s) históricos lidos da aba ${result.sheet}. Exibindo ${activeMetricRows().length} registro(s) de ${metricPeriodLabel(metricPeriodKey)}. A planilha não foi alterada.`);return true
  }catch(e){metricas=metricasCache.slice();if(e.message==='AUTORIZAÇÃO NECESSÁRIA'){metricSourceState={...metricSourceState,status:'AGUARDANDO',error:''};renderMetricSourceStatus();return false}metricSourceState={...metricSourceState,status:'ERRO',error:e.message};renderMetricSourceStatus();renderMetrics();if(!quiet)alert('Erro ao sincronizar métricas: '+e.message);return false}
 }
-async function persistMetricRows(rows,sheet=''){
- const chunks=[];for(let i=0;i<rows.length;i+=400)chunks.push(rows.slice(i,i+400));for(const chunk of chunks){const batch=writeBatch(db);chunk.forEach(r=>{r=metricSnapshot(r);const id=(r.group+'_'+r.data).replace(/[^a-zA-Z0-9_-]/g,'_');batch.set(doc(db,'highos','data','metricas',id),{...r,source:'GOOGLE_SHEETS_READONLY',sourceSheet:sheet||metricSourceConfig.sheet||'',updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true})});await batch.commit()}
- await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'SINCRONIZACAO_METRICAS',descricao:`${rows.length} registro(s) lidos em modo somente leitura da planilha oficial${sheet?' • aba '+sheet:''}`,usuario:currentUser.email,data:serverTimestamp()});metricasCache=rows.slice();
+/* =====================================================================
+   HIGH OS V9.6 - ECONOMIA DE COTA DAS METRICAS
+   ---------------------------------------------------------------------
+   A versao anterior regravava TODAS as linhas da planilha a cada
+   sincronizacao, mesmo quando nada tinha mudado, e relia a colecao
+   inteira antes e depois de gravar. Com alguns milhares de linhas e um
+   ciclo a cada 5 minutos, o plano gratuito (50 mil leituras e 20 mil
+   gravacoes por dia) era consumido em poucas horas - e a partir dai as
+   metricas simplesmente paravam de ser alimentadas.
+
+   Agora: compara linha a linha, grava so o que mudou, nao rele a
+   colecao depois de gravar e trava a rotina quando a cota estoura.
+   ===================================================================== */
+let metricWriteCount=0, metricQuotaBlocked=false, metricQuotaAt=null;
+
+function isQuotaError(e){
+ const c=String(e?.code||'').toLowerCase(), m=String(e?.message||'').toLowerCase();
+ return c.includes('resource-exhausted')||c.includes('quota')||m.includes('quota')||m.includes('resource-exhausted')||m.includes('exhausted');
+}
+function enterQuotaMode(e){
+ if(metricQuotaBlocked)return;
+ metricQuotaBlocked=true;metricQuotaAt=new Date();
+ stopMetricAutoRecovery();
+ try{metricLiveUnsub?.();metricLiveUnsub=null}catch(err){}
+ metricSourceState={...metricSourceState,status:'COTA ESGOTADA',error:'Limite diário gratuito do Firebase atingido.'};
+ renderMetricSourceStatus();renderMetricQuotaPanel();
+ try{window.highToast?.('Cota diária do Firebase esgotada. As métricas seguem visíveis com a última cópia; a gravação volta após a virada do dia (meia-noite no Pacífico, 4h/5h em Brasília).','err',12000)}catch(err){}
+ console.warn('[MÉTRICAS] cota esgotada:',e?.message||e);
+}
+
+/* Devolve apenas as linhas novas ou alteradas em relacao ao que ja esta gravado. */
+function metricRowsPendentes(sheetRows=[],fireRows=[]){
+ const fire=new Map(fireRows.map(r=>[metricRowKey(r),r]));
+ const pendentes=[];
+ for(const s of sheetRows){
+  const f=fire.get(metricRowKey(s));
+  if(!f){pendentes.push(s);continue}
+  const fs=metricSlots(f), ss=metricSlots(s);
+  let mudou=false;
+  for(const [k,v] of Object.entries(ss)){if(!(k in fs)||Number(fs[k])!==Number(v)){mudou=true;break}}
+  if(mudou)pendentes.push(s);
+ }
+ return pendentes;
+}
+
+async function persistMetricRows(rows,sheet='',{jaFiltrado=false}={}){
+ if(metricQuotaBlocked)return {gravadas:0,bloqueado:true};
+ const pendentes=jaFiltrado?rows:metricRowsPendentes(rows,metricasCache);
+ if(!pendentes.length){
+  metricasCache=rows.slice();
+  return {gravadas:0,bloqueado:false};
+ }
+ try{
+  const chunks=[];for(let i=0;i<pendentes.length;i+=400)chunks.push(pendentes.slice(i,i+400));
+  for(const chunk of chunks){
+   const batch=writeBatch(db);
+   chunk.forEach(r=>{
+    r=metricSnapshot(r);
+    const id=(r.group+'_'+r.data).replace(/[^a-zA-Z0-9_-]/g,'_');
+    batch.set(doc(db,'highos','data','metricas',id),{...r,source:'GOOGLE_SHEETS_READONLY',sourceSheet:sheet||metricSourceConfig.sheet||'',updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true});
+   });
+   await batch.commit();
+   metricWriteCount+=chunk.length;
+  }
+  // historico so quando houve mudanca de verdade (antes gravava a cada ciclo)
+  await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'SINCRONIZACAO_METRICAS',descricao:`${pendentes.length} registro(s) atualizados a partir da planilha oficial${sheet?' • aba '+sheet:''}`,usuario:currentUser.email,data:serverTimestamp()});
+  metricWriteCount++;
+  metricasCache=rows.slice();
+  renderMetricQuotaPanel();
+  return {gravadas:pendentes.length,bloqueado:false};
+ }catch(e){
+  if(isQuotaError(e))enterQuotaMode(e); else console.warn('[MÉTRICAS] falha ao gravar:',e?.message||e);
+  return {gravadas:0,bloqueado:metricQuotaBlocked,erro:e?.message||String(e)};
+ }
 }
 function applyMetricSnapshot(qs,{realtime=false}={}){
  const previousKey=metricPeriodKey||currentMetricMonthKey();
@@ -1513,12 +1608,93 @@ function applyMetricSnapshot(qs,{realtime=false}={}){
  if(realtime){metricLiveLastAt=Date.now();metricSourceState={...metricSourceState,status:'ONLINE',lastSync:metricLiveLastAt,count:metricas.length,activeCount:activeMetricRows().length,error:''}}
  refreshMetricPeriodOptions();renderMetrics();renderMetricSourceStatus();
 }
+
+/* =====================================================================
+   PAINEL DE CONSUMO DO FIREBASE (V9.6)
+   Mostra, na propria tela de Metricas, quanto da cota diaria gratuita
+   ja foi usado nesta sessao e o estado da sincronizacao. Sem isso o
+   sistema falhava em silencio quando o limite estourava.
+   ===================================================================== */
+function metricReadCount(){
+ try{return [...firestoreStats.values()].reduce((a,s)=>a+(s.docs||0),0)}catch(e){return 0}
+}
+function ensureMetricQuotaPanel(){
+ const host=document.getElementById('metricSourceStatus');
+ if(!host||document.getElementById('metricQuotaPanel'))return null;
+ const box=document.createElement('div');
+ box.id='metricQuotaPanel';box.className='metric-quota-panel';
+ host.insertAdjacentElement('afterend',box);
+ return box;
+}
+function renderMetricQuotaPanel(){
+ const box=ensureMetricQuotaPanel()||document.getElementById('metricQuotaPanel');
+ if(!box)return;
+ const leituras=metricReadCount(), gravacoes=metricWriteCount;
+ const pctL=Math.min(100,Math.round(leituras/50000*100));
+ const pctG=Math.min(100,Math.round(gravacoes/20000*100));
+ const proximo=(()=>{
+  try{
+   const ultimo=Number(localStorage.getItem(METRIC_SYNC_LOCK)||0);
+   if(!ultimo)return 'a qualquer momento';
+   const falta=Math.max(0,METRIC_SYNC_INTERVALO-(Date.now()-ultimo));
+   return falta?`em ${Math.ceil(falta/60000)} min`:'a qualquer momento';
+  }catch(e){return '—'}
+ })();
+ const aoVivo=metricRealtimeAtivo();
+ box.className='metric-quota-panel'+(metricQuotaBlocked?' bloqueado':'');
+ box.innerHTML=`
+  <div class="mq-head">
+    <b>CONSUMO DO FIREBASE • SESSÃO ATUAL</b>
+    <span>${metricQuotaBlocked?'COTA DIÁRIA ESGOTADA':'dentro do limite gratuito'}</span>
+  </div>
+  <div class="mq-bars">
+    <div class="mq-bar">
+      <span>LEITURAS <b>${leituras.toLocaleString('pt-BR')}</b> / 50.000 por dia</span>
+      <i><u style="width:${pctL}%"></u></i>
+    </div>
+    <div class="mq-bar">
+      <span>GRAVAÇÕES DE MÉTRICAS <b>${gravacoes.toLocaleString('pt-BR')}</b> / 20.000 por dia</span>
+      <i><u class="w" style="width:${pctG}%"></u></i>
+    </div>
+  </div>
+  <div class="mq-foot">
+    <span>Sincronização automática a cada 30 min • próxima ${proximo}</span>
+    <label class="mq-switch"><input type="checkbox" id="metricLiveToggle" ${aoVivo?'checked':''}><i></i><span>Tempo real</span></label>
+    <button type="button" id="metricSyncNow">SINCRONIZAR AGORA</button>
+  </div>
+  ${metricQuotaBlocked?'<div class="mq-alerta">O limite gratuito do dia acabou. As métricas continuam visíveis com a última cópia lida, mas nada será gravado até a virada do dia (meia-noite no Pacífico, 4h/5h em Brasília). Para não depender disso, ative o plano Blaze com teto de gastos.</div>':''}
+ `;
+ document.getElementById('metricLiveToggle')?.addEventListener('change',e=>setMetricRealtime(e.target.checked));
+ document.getElementById('metricSyncNow')?.addEventListener('click',async()=>{
+  const btn=document.getElementById('metricSyncNow');
+  if(btn){btn.disabled=true;btn.textContent='SINCRONIZANDO...'}
+  try{localStorage.setItem(METRIC_SYNC_LOCK,String(Date.now()))}catch(e){}
+  await runMetricAutoRecovery({quiet:false});
+  renderMetricQuotaPanel();
+ });
+}
+
+/* V9.6 - a escuta em tempo real da colecao inteira cobra uma leitura por
+   documento a cada alteracao. Com a sincronizacao de 30 em 30 minutos ela
+   deixou de compensar: fica desligada por padrao e pode ser ligada na tela
+   de Métricas quando alguem estiver acompanhando ao vivo. */
+function metricRealtimeAtivo(){
+ try{return localStorage.getItem('highos_metric_realtime')==='1'}catch(e){return false}
+}
+function setMetricRealtime(on){
+ try{localStorage.setItem('highos_metric_realtime',on?'1':'0')}catch(e){}
+ if(on)startMetricRealtime();
+ else{try{metricLiveUnsub?.()}catch(e){}metricLiveUnsub=null}
+ renderMetricQuotaPanel();
+}
 function startMetricRealtime(){
+ if(!metricRealtimeAtivo()||metricQuotaBlocked)return;
  if(metricLiveUnsub)return;
  metricLiveUnsub=onSnapshot(metricCol,qs=>{
   applyMetricSnapshot(qs,{realtime:true});
   if(typeof renderCommandDashboard==='function')renderCommandDashboard();
  },err=>{
+  if(isQuotaError(err))return enterQuotaMode(err);
   console.warn('Falha na escuta em tempo real das métricas',err);
   metricSourceState={...metricSourceState,status:'ERRO',error:err?.message||String(err)};
   renderMetricSourceStatus();
@@ -1526,7 +1702,7 @@ function startMetricRealtime(){
 }
 async function loadMetrics(){
  try{const qs=await getDocsCached(metricCol,'metricas',{ttl:120000});applyMetricSnapshot(qs)}catch(e){metricasCache=[];metricas=[];metricPeriodKey=metricPeriodKey||currentMetricMonthKey()}
- await loadMetricSourceConfig();refreshMetricPeriodOptions();renderMetrics();renderMetricSourceStatus();startMetricRealtime();
+ await loadMetricSourceConfig();refreshMetricPeriodOptions();renderMetrics();renderMetricSourceStatus();renderMetricQuotaPanel();startMetricRealtime();
 }
 function metricIdentity(group,row=null){
  const f=faccoes.find(x=>alvesNorm(x.group)===alvesNorm(group))||SEED.find(x=>alvesNorm(x.group)===alvesNorm(group))||{};
@@ -1826,7 +2002,9 @@ async function readMetricsWithoutPopup(){
  const id=extractSpreadsheetId(metricSourceConfig.url);if(!id)throw new Error('Fonte da planilha não configurada.');
  const sheet=(metricSourceConfig.sheet||'MÉTRICAS').trim();
  // Primeiro tenta a leitura pública/compartilhada. Não abre popup e não interfere no login do High OS.
- const csvUrl=`https://docs.google.com/spreadsheets/d/${encodeURIComponent(id)}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheet)}&_=${Date.now()}`;
+ const csvUrl=isPublishedSheetUrl(metricSourceConfig.url)
+   ? publishedCsvUrl(metricSourceConfig.url,sheet)
+   : `https://docs.google.com/spreadsheets/d/${encodeURIComponent(id)}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheet)}&_=${Date.now()}`;
  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),12000);
  try{
 
@@ -1840,22 +2018,34 @@ async function readMetricsWithoutPopup(){
 async function recoverMetricsAutomatically({quiet=true}={}){
 
  await refreshMetricServerConfig();
- const qs=await metricTimeout(getDocs(metricCol),12000,'leitura do Firestore'),fireRows=qs.docs.map(d=>({id:d.id,...d.data()}));
- if(!extractSpreadsheetId(metricSourceConfig.url)){applyMetricSnapshot(qs);return {ok:true,source:'firestore',diff:null}}
+ /* V9.6 - antes lia a colecao inteira aqui e DE NOVO depois de gravar.
+    Agora usa a copia que ja esta em memoria (carregada no loadMetrics). */
+ let fireRows=metricasCache.slice();
+ if(!fireRows.length){
+  const qs=await metricTimeout(getDocsCached(metricCol,'metricas',{ttl:120000}),12000,'leitura do Firestore');
+  fireRows=qs.docs.map(d=>({id:d.id,...d.data()}));
+  applyMetricSnapshot(qs);
+ }
+ if(!extractSpreadsheetId(metricSourceConfig.url))return {ok:true,source:'firestore',diff:null};
  let result;
  try{result=await metricTimeout(readMetricsWithoutPopup(),15000,'leitura automática da planilha')}
  catch(e){
   // Se já houve autorização manual nesta sessão, usa o token existente sem abrir nova janela.
   if(sheetsAccessToken){console.warn('[MÉTRICAS AUTO] leitura sem popup falhou; tentando token já existente');result=await metricTimeout(readMetricsDirect({authorize:false}),15000,'leitura autenticada da planilha')}
-  else {applyMetricSnapshot(qs);throw e}
+  else throw e;
  }
  const sheetRows=result.rows.map(metricSnapshot),diff=compareMetricSources(sheetRows,fireRows);
 
- if(diff.pendingRows){
-
-  await metricTimeout(persistMetricRows(sheetRows,result.sheet),25000,'gravação das métricas');
+ if(diff.pendingRows&&!metricQuotaBlocked){
+  const pendentes=metricRowsPendentes(sheetRows,fireRows);
+  await metricTimeout(persistMetricRows(pendentes,result.sheet,{jaFiltrado:true}),25000,'gravação das métricas');
  }
- const after=await metricTimeout(getDocs(metricCol),12000,'releitura do Firestore');applyMetricSnapshot(after);
+ /* V9.6 - nada de reler a colecao: a planilha ja e a versao mais nova,
+    entao aplicamos localmente e economizamos N leituras por ciclo. */
+ metricasCache=sheetRows.slice();
+ metricas=sheetRows.slice();
+ metricPeriodKey=metricPeriodKey||currentMetricMonthKey();
+ refreshMetricPeriodOptions();renderMetrics();renderMetricQuotaPanel();
  const sheetLast=metricLatestInfo(sheetRows),fireLast=metricLatestInfo(metricas);
  metricSourceState={...metricSourceState,status:'ONLINE',lastSync:Date.now(),count:metricas.length,activeCount:activeMetricRows().length,error:'',sheet:result.sheet,directCheck:{sheetLast,fireLast,diff}};renderMetricSourceStatus();
 
@@ -1866,12 +2056,33 @@ async function runMetricAutoRecovery({quiet=true}={}){
  if(metricAutoRecoveryBusy)return false;metricAutoRecoveryBusy=true;
  try{return await recoverMetricsAutomatically({quiet})}catch(e){console.warn('[MÉTRICAS AUTO] planilha indisponível; mantendo Firestore:',e?.message||e);metricSourceState={...metricSourceState,error:''};renderMetricSourceStatus();return false}finally{metricAutoRecoveryBusy=false}
 }
+/* V9.6 - o ciclo rodava de 5 em 5 minutos EM CADA ABA ABERTA e ainda
+   disparava a cada troca de aba do navegador. Tres abas abertas
+   multiplicavam por tres o consumo. Agora: 30 minutos, trava
+   compartilhada entre abas e nada de disparar por visibilidade. */
+const METRIC_SYNC_INTERVALO=30*60*1000;
+const METRIC_SYNC_LOCK='highos_metric_sync_at';
+function podeSincronizarAgora(){
+ if(metricQuotaBlocked)return false;
+ try{
+  const ultimo=Number(localStorage.getItem(METRIC_SYNC_LOCK)||0);
+  if(Date.now()-ultimo<METRIC_SYNC_INTERVALO)return false;
+  localStorage.setItem(METRIC_SYNC_LOCK,String(Date.now()));
+  return true;
+ }catch(e){return true}
+}
+function stopMetricAutoRecovery(){
+ if(metricAutoRecoveryTimer){clearInterval(metricAutoRecoveryTimer);metricAutoRecoveryTimer=null}
+}
 function startMetricAutoRecovery(){
  if(metricAutoRecoveryTimer)return;
  if(!extractSpreadsheetId(metricSourceConfig.url))return;
- setTimeout(()=>runMetricAutoRecovery({quiet:true}),1800);
- metricAutoRecoveryTimer=setInterval(()=>{if(!document.hidden)runMetricAutoRecovery({quiet:true})},5*60*1000);
- document.addEventListener('visibilitychange',()=>{if(!document.hidden)runMetricAutoRecovery({quiet:true})});
+ setTimeout(()=>{if(podeSincronizarAgora())runMetricAutoRecovery({quiet:true})},2500);
+ metricAutoRecoveryTimer=setInterval(()=>{
+  if(document.hidden)return;
+  if(!podeSincronizarAgora())return;
+  runMetricAutoRecovery({quiet:true});
+ },METRIC_SYNC_INTERVALO);
 }
 async function requestServerMetricSync({quiet=false}={}){
  const btn=$('#syncMetricBtn'),old=btn?.textContent;if(btn){btn.disabled=true;btn.textContent='ATUALIZANDO...'}
