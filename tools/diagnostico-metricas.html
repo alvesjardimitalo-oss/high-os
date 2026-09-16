@@ -30,7 +30,7 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>Diagnóstico da planilha de métricas <span style="font-size:11px;color:#50f5a0;letter-spacing:.1em">v3</span></h1>
+  <h1>Diagnóstico da planilha de métricas <span style="font-size:11px;color:#50f5a0;letter-spacing:.1em">v4</span></h1>
   <p class="sub">Lê a planilha publicada exatamente como o High OS lê e mostra o que foi reconhecido.</p>
 
   <div class="card">
@@ -263,6 +263,25 @@ async function analisar(){
   });
   tb+='</tbody></table>';
   $('#tabela').innerHTML+=tb;
+
+  // ---- detalhe do ultimo bloco: como as colunas viram datas ----
+  if(runs.length){
+    const hi=runs[runs.length-1], di=nearestDateRow(values,hi);
+    const header=values[hi]||[], dateRow=di>=0?(values[di]||[]):[];
+    const mapa=buildColumnDateMap(header,dateRow);
+    const cols=Object.keys(mapa).map(Number).sort((a,b)=>a-b);
+    const distintas=new Set(Object.values(mapa));
+    let td=`<h3 style="font-size:10px;letter-spacing:.11em;color:#d9c4eb;margin:18px 0 6px">MAPA COLUNA → DATA (bloco da linha ${hi})</h3>`;
+    td+=`<div class="verdict">Colunas com horário: <b>${cols.length}</b> &nbsp;•&nbsp; datas distintas no mapa: <b>${distintas.size}</b> &nbsp;•&nbsp; datas na linha ${di}: <b>${dateRow.map(normalizeDate).filter(Boolean).length}</b></div>`;
+    td+='<pre style="max-height:220px">'+cols.slice(0,60).map(c=>`col ${String(c).padStart(3)} | ${slotLabel(header[c]).padEnd(4)} | ${mapa[c]}`).join('\n')+'</pre>';
+    // amostra crua das 3 linhas-chave
+    td+=`<h3 style="font-size:10px;letter-spacing:.11em;color:#d9c4eb;margin:14px 0 6px">CÉLULAS CRUAS</h3>`;
+    const amostra=(rotulo,arr)=>`<div style="font-size:10px;color:#a79db6;margin-top:6px">${rotulo}</div><pre style="max-height:120px">${(arr||[]).slice(0,40).map((v,i)=>i+':'+String(v).slice(0,14)).join(' | ')}</pre>`;
+    td+=amostra(`linha ${di} (datas)`,dateRow);
+    td+=amostra(`linha ${hi} (horários)`,header);
+    td+=amostra(`linha ${hi+1} (primeira de dados)`,values[hi+1]);
+    $('#tabela').innerHTML+=td;
+  }
 
   // ---- o que o app REALMENTE extrairia ----
   const linhas=extrair(values,cabecalhos);
