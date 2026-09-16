@@ -194,3 +194,43 @@
   .mp-tabbar{grid-template-columns:repeat(2,1fr)}
   .mp-tab{padding:11px 4px}
 }
+
+/* =========================================================
+   HIGH OS V9.5.0 · CENTRAL DE MISSÕES COMPACTA
+   A biblioteca decide o que abrir; o editor só aparece depois.
+   ========================================================= */
+#page-planejador .mp-cloud-state{font-size:9px;font-weight:900;letter-spacing:.07em;padding:5px 8px;border-radius:999px;border:1px solid rgba(255,255,255,.09);white-space:nowrap}
+#page-planejador .mp-cloud-state.ok{color:#63e7a0;background:rgba(48,190,112,.08);border-color:rgba(72,218,137,.22)}
+#page-planejador .mp-cloud-state.sync{color:#e2bdff;background:rgba(147,70,205,.10);border-color:rgba(169,91,224,.24)}
+#page-planejador .mp-cloud-state.local{color:#ffc96d;background:rgba(255,185,72,.08);border-color:rgba(255,185,72,.22)}
+#page-planejador #mpCloudStateTop{margin-left:auto}
+#page-planejador .mp-workspace-bar{display:flex;align-items:center;gap:10px;margin:0 0 10px;padding:8px 10px;border:1px solid rgba(255,255,255,.07);border-radius:11px;background:rgba(15,13,20,.86)}
+#page-planejador .mp-workspace-bar[hidden]{display:none!important}
+#page-planejador #mpBackLibrary{border:1px solid rgba(166,89,210,.28);background:rgba(126,45,169,.12);color:#e7c9f8;border-radius:8px;padding:7px 10px;font-size:9px;font-weight:900;cursor:pointer}
+#page-planejador .mp-workspace-path{display:flex;align-items:center;gap:7px;min-width:0;font-size:11px}.mp-workspace-path b,.mp-workspace-path strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mp-workspace-path span{opacity:.45}.mp-workspace-path strong{color:#fff}
+#page-planejador .mp-workspace-bar .mp-cloud-state{margin-left:auto}
+
+/* Entrada no módulo = biblioteca, sem formulário/mapa competindo pela atenção */
+#page-planejador.mp-library-mode .mission-planner-shell,#page-planejador.mp-library-mode .mp-workspace-bar{display:none!important}
+#page-planejador.mp-library-mode .mp-topbar{margin-bottom:0;min-height:0;padding:12px!important}
+#page-planejador.mp-library-mode .mp-mission-select-wrap{grid-template-columns:150px minmax(210px,.65fr) minmax(360px,1.5fr);gap:8px 10px}
+#page-planejador.mp-library-mode .mp-hierarchy-head{min-height:0;margin-bottom:5px}
+#page-planejador.mp-library-mode .mp-hierarchy-path,#page-planejador.mp-library-mode #mpCategoryLibrary>.mp-note{display:none}
+#page-planejador.mp-library-mode .mp-type-tabs button{min-height:38px;padding:7px 9px}
+#page-planejador.mp-library-mode .mp-event-list,#page-planejador.mp-library-mode .mp-mission-list{max-height:250px}
+#page-planejador.mp-library-mode .mp-mission-list{grid-template-columns:repeat(3,minmax(150px,1fr))}
+#page-planejador.mp-library-mode .mp-event-item,#page-planejador.mp-library-mode .mp-mission-item{min-height:48px}
+#page-planejador.mp-library-mode .mp-top-actions.mp-actions-v8{display:flex;justify-content:flex-start;border-top:1px solid rgba(255,255,255,.06);padding-top:9px}
+#page-planejador.mp-library-mode .mp-action-section{display:none}
+#page-planejador.mp-library-mode .mp-action-section:first-child{display:flex;padding:0;border:0;background:transparent}
+#page-planejador.mp-library-mode .mp-action-section:first-child>span,#page-planejador.mp-library-mode #mpDeleteEvent{display:none}
+#page-planejador.mp-library-mode #mpNewMission{padding:9px 13px}
+
+/* Dentro do editor a biblioteca vira apenas contexto: mapa e etapa ativa dominam */
+#page-planejador:not(.mp-library-mode) .mp-topbar{display:none}
+#page-planejador:not(.mp-library-mode) .mission-planner-shell{grid-template-columns:340px minmax(0,1fr);gap:12px}
+#page-planejador:not(.mp-library-mode) .mission-planner-side{max-height:calc(100vh - 128px)}
+#page-planejador:not(.mp-library-mode) .mission-planner-mapwrap{min-height:690px}
+#page-planejador:not(.mp-library-mode) #missionPlannerMap{min-height:690px}
+@media(max-width:1100px){#page-planejador.mp-library-mode .mp-mission-select-wrap{grid-template-columns:1fr 1fr;grid-template-areas:"head head" "type events" "zones zones"}#page-planejador.mp-library-mode .mp-mission-list{grid-template-columns:repeat(2,minmax(150px,1fr))}#page-planejador:not(.mp-library-mode) .mission-planner-shell{grid-template-columns:1fr}}
+@media(max-width:680px){#page-planejador.mp-library-mode .mp-mission-select-wrap{grid-template-columns:1fr;grid-template-areas:"head" "type" "events" "zones"}#page-planejador.mp-library-mode .mp-mission-list{grid-template-columns:1fr}.mp-workspace-path{font-size:10px!important}}

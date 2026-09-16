@@ -29,7 +29,7 @@
     {id:'facxfac-cayo-perico',eventId:'preset_gas_fac-x-fac',name:'Cayo Perico',event:'Fac x Fac',category:'gas',panel:'/ilegal',mode:'assistant',center:{x:4787.64,y:-5150.00,z:0.00,h:351.50,label:'Centro do Gás / Marco Zero'},radius:1000,points:[]}
   ];
 
-  const state={map:null,drawn:[],missions:[],activeId:null,initialized:false,placing:false,snapshotTimer:null,autosaveTimer:null,editing:false,editBackup:null,dirty:false,libraryCategory:'dominacao',activeEventId:null,activeMapName:null};
+  const state={map:null,drawn:[],missions:[],activeId:null,initialized:false,placing:false,snapshotTimer:null,autosaveTimer:null,editing:false,editBackup:null,dirty:false,libraryCategory:'dominacao',activeEventId:null,activeMapName:null,workspaceOpen:false,cloudState:'local'};
   const f=n=>Number(n).toFixed(2);
   const num=v=>{const n=Number(v);return Number.isFinite(n)?n:null};
   const nowIso=()=>new Date().toISOString();
@@ -276,17 +276,26 @@
     return mergeMissions(list)>0;
   }
 
+  function setCloudState(kind,text){
+    state.cloudState=kind;
+    const els=[qs('#mpCloudState'),qs('#mpCloudStateTop')].filter(Boolean);if(!els.length)return;
+    els.forEach(el=>{el.className='mp-cloud-state '+kind;el.textContent=text||(kind==='ok'?'☁ SINCRONIZADO':kind==='sync'?'↻ SINCRONIZANDO...':'⚠ MODO LOCAL');});
+  }
   function syncMissionsFromCloud(tries=0){
     const cloud=window.HighOSMissionCloud;
-    if(!cloud||!cloud.pull){if(tries<12)setTimeout(()=>syncMissionsFromCloud(tries+1),1500);return;}
-    cloud.pull().then(res=>{
-      if(!res||!Array.isArray(res.missions)||!res.missions.length)return;
-      /* V9.4.2 - a versao anterior TROCAVA a lista local pela da nuvem quando a
-         remota parecia mais nova. Isso podia esconder missoes locais. Agora a
-         nuvem so ACRESCENTA o que falta aqui; nada local e removido. */
-      const add=mergeMissions(res.missions);
+    if(!cloud||!cloud.pull){if(tries<12)setTimeout(()=>syncMissionsFromCloud(tries+1),1500);else setCloudState('local');return;}
+    setCloudState('sync');
+    cloud.pull().then(async res=>{
+      const remote=Array.isArray(res?.missions)?res.missions:[];
+      const add=mergeMissions(remote);
+      // V9.5: primeira sincronizacao e sempre uma UNIAO segura. O navegador
+      // nunca e substituido pela nuvem; depois da fusao, a lista completa volta
+      // ao Firestore para que outros computadores recebam as zonas que so
+      // existiam localmente.
+      if(cloud.pushNow){await cloud.pushNow(state.missions);}else cloud.push?.(state.missions);
+      setCloudState('ok',`☁ SINCRONIZADO · ${new Set(state.missions.map(m=>m.eventId).filter(Boolean)).size} eventos · ${state.missions.length} zonas`);
       if(add)setStatus(`${add} missao(oes) da equipe adicionadas.`,'ok');
-    }).catch(()=>{});
+    }).catch(()=>setCloudState('local'));
   }
 
   function mergeOfficialPresets(){
@@ -715,7 +724,7 @@ Os pontos atuais serão substituídos e ficarão PENDENTES até validação no F
   function rawCds(p){return `${f(p.x)},${f(p.y)},${f(p.z)},${f(p.h)}`;}
   function tpCds(p){const z=Number.isFinite(Number(p?.z))?Number(p.z):0;const h=Number.isFinite(Number(p?.h))?Number(p.h):0;return `${f(p.x)},${f(p.y)},${f(z)},${f(h)}`;}
   function updateExport(){const m=active(),out=qs('#mpExport');if(out&&m)out.value=m.points.filter(isValidated).map((p,i)=>`${p.id||i+1} - ${rawCds(p)}`).join('\n');}
-  function render(){adoptStrayCards();renderMissionList();renderPointList();renderMap();analyze();updateExport();syncForm();renderCenterValidation();renderCoverage();renderPlannerBadges();renderBackupList();const rt=qs('#mpRequestText'),m=active();if(rt&&document.activeElement!==rt)rt.value=m?.requestText||'';loadSnapshotPreview();}
+  function render(){adoptStrayCards();renderMissionList();renderPointList();renderMap();analyze();updateExport();syncForm();renderCenterValidation();renderCoverage();renderPlannerBadges();renderWorkspaceBar();renderBackupList();const rt=qs('#mpRequestText'),m=active();if(rt&&document.activeElement!==rt)rt.value=m?.requestText||'';loadSnapshotPreview();}
 
   function syncForm(){
     const m=active();if(!m)return;
@@ -850,7 +859,7 @@ Os pontos atuais serão substituídos e ficarão PENDENTES até validação no F
     if(state.editing)cancelEdit();
     const m=newMission(null,null,state.libraryCategory||'dominacao');
     m.name='Zona Principal';m.requestKind='create-event';
-    state.missions.unshift(m);state.activeId=m.id;state.activeEventId=m.eventId;saveStore();render();startEdit();state.map?.setView(ll(900,-600),3);setSaveState('Novo evento criado • configure a Zona Principal e clique SALVAR EVENTO');
+    state.missions.unshift(m);state.activeId=m.id;state.activeEventId=m.eventId;saveStore();setWorkspace(true);render();startEdit();state.map?.setView(ll(900,-600),3);setSaveState('Novo evento criado • configure a Zona Principal e clique SALVAR EVENTO');
   }
   function createZone(){
     if(state.editing&&state.dirty&&!confirm('Descartar alterações não salvas e criar uma nova zona?'))return;
@@ -859,7 +868,7 @@ Os pontos atuais serão substituídos e ficarão PENDENTES até validação no F
     if(!eid||!base){alert('Selecione primeiro um evento.');return;}
     const m=newMission(eid,base.event,base.category);
     m.name=`Nova Zona ${zonesOfEvent(eid).length+1}`;m.panel=base.panel;m.mode=base.mode;m.requestKind='create-zone';m.eventRadius=base.eventRadius||null;m.circleRadius=base.circleRadius||1000;m.spawnRadius=base.spawnRadius||100;
-    state.missions.unshift(m);state.activeId=m.id;state.activeEventId=eid;saveStore();render();startEdit();setSaveState('Nova zona criada • defina centro, raio e spawns');
+    state.missions.unshift(m);state.activeId=m.id;state.activeEventId=eid;saveStore();setWorkspace(true);render();startEdit();setSaveState('Nova zona criada • defina centro, raio e spawns');
   }
   function syncMapRegion(m){
     if(!state.map||!m)return;
@@ -882,7 +891,7 @@ Os pontos atuais serão substituídos e ficarão PENDENTES até validação no F
     const zones=zonesOfEvent(eventId);if(!zones.length)return;
     state.activeEventId=eventId;state.activeId=zones[0].id;state.libraryCategory=zones[0].category||state.libraryCategory;saveStore();render();updateEditUi();focusActiveMission(false);
   }
-  function switchMission(id){if(state.editing&&state.dirty&&!confirm('Existem alterações não salvas. Deseja descartá-las?'))return;if(state.editing)cancelEdit();state.activeId=id;const m=state.missions.find(m=>m.id===id);state.activeEventId=m?.eventId||state.activeEventId;state.libraryCategory=(m?.category||state.libraryCategory||'dominacao');saveStore();render();updateEditUi();focusActiveMission(true);}
+  function switchMission(id){if(state.editing&&state.dirty&&!confirm('Existem alterações não salvas. Deseja descartá-las?'))return;if(state.editing)cancelEdit();state.activeId=id;const m=state.missions.find(m=>m.id===id);state.activeEventId=m?.eventId||state.activeEventId;state.libraryCategory=(m?.category||state.libraryCategory||'dominacao');saveStore();setWorkspace(true);render();updateEditUi();focusActiveMission(true);}
   function deleteZone(){const m=active();if(!m)return;const zones=zonesOfEvent(m.eventId);if(zones.length<=1){alert('Este é o único mapa/zona do evento. Para removê-lo, exclua o evento inteiro.');return;}if(!confirm(`Apagar somente a zona "${m.name}" do evento "${m.event}"?`))return;state.missions=state.missions.filter(x=>x.id!==m.id);const next=zones.find(x=>x.id!==m.id);state.activeId=next?.id||null;saveStore();render();focusActiveMission(false);}
   function deleteEvent(){
     const m=active();if(!m)return;const zones=zonesOfEvent(m.eventId);
@@ -1029,8 +1038,26 @@ ${mechanic}
   }
 
 
+  function setWorkspace(open){
+    state.workspaceOpen=!!open;
+    const page=qs('#page-planejador');if(page)page.classList.toggle('mp-library-mode',!state.workspaceOpen);
+    const bar=qs('#mpWorkspaceBar');if(bar)bar.hidden=!state.workspaceOpen;
+    if(state.workspaceOpen)setTimeout(()=>{try{state.map?.invalidateSize();focusActiveMission(false)}catch(e){}},100);
+  }
+  function ensureWorkspaceBar(){
+    const shell=qs('.mission-planner-shell');if(!shell||qs('#mpWorkspaceBar'))return;
+    const bar=document.createElement('div');bar.id='mpWorkspaceBar';bar.className='mp-workspace-bar';
+    bar.innerHTML=`<button type="button" id="mpBackLibrary">← MISSÕES</button><div class="mp-workspace-path"><b id="mpWorkspaceEvent">Evento</b><span>›</span><strong id="mpWorkspaceZone">Zona</strong></div><span id="mpCloudState" class="mp-cloud-state local">⚠ MODO LOCAL</span>`;
+    shell.insertAdjacentElement('beforebegin',bar);
+    qs('#mpBackLibrary')?.addEventListener('click',()=>{if(state.editing&&state.dirty&&!confirm('Existem alterações não salvas. Deseja voltar às missões?'))return;if(state.editing)cancelEdit();setWorkspace(false);});
+  }
+  function renderWorkspaceBar(){
+    const m=active();const ev=qs('#mpWorkspaceEvent'),zn=qs('#mpWorkspaceZone');if(ev)ev.textContent=m?.event||'Evento';if(zn)zn.textContent=m?.name||'Zona';
+  }
+
   function ensurePlannerV2Ui(){
     const list=qs('#mpMissionList');
+    if(list&&!qs('#mpCloudStateTop')){const top=qs('.mp-top-title');if(top){const cloud=document.createElement('span');cloud.id='mpCloudStateTop';cloud.className='mp-cloud-state local';cloud.textContent='⚠ MODO LOCAL';top.appendChild(cloud);}}
     if(list&&!qs('#mpCategoryLibrary')){const cat=document.createElement('div');cat.id='mpCategoryLibrary';list.insertAdjacentElement('beforebegin',cat);}
     if(list&&!qs('#mpEventList')){const eventWrap=document.createElement('div');eventWrap.className='mp-level-wrap';eventWrap.innerHTML='<div class="mp-level-title"><span>2</span><div><b>EVENTOS</b><small>Selecione o evento deste tipo</small></div></div><div id="mpEventList" class="mp-event-list"></div><div class="mp-level-title zone-title"><span>3</span><div><b>ZONAS DO EVENTO</b><small>Cada zona possui centro, raio e spawns próprios</small></div></div>';list.insertAdjacentElement('beforebegin',eventWrap);}
     if(!qs('#mpEventCategory')){
@@ -1050,7 +1077,7 @@ ${mechanic}
     renderLibraryCategoryUi();
   }
   function bind(){
-    if(state.initialized)return;state.initialized=true;loadStore();state.activeEventId=active()?.eventId||state.activeEventId;ensurePlannerV2Ui();ensureBackupCard();ensurePlannerTabs();ensureMapKpis();initMap();render();bindFormAutosave();updateEditUi();
+    if(state.initialized)return;state.initialized=true;loadStore();state.activeEventId=active()?.eventId||state.activeEventId;ensurePlannerV2Ui();ensureWorkspaceBar();ensureBackupCard();ensurePlannerTabs();ensureMapKpis();initMap();render();renderWorkspaceBar();setWorkspace(false);bindFormAutosave();updateEditUi();
     qs('#mpEditMission')?.addEventListener('click',startEdit);qs('#mpSaveMission')?.addEventListener('click',saveMission);qs('#mpCancelEdit')?.addEventListener('click',cancelEdit);qs('#mpNewMission')?.addEventListener('click',createEvent);qs('#mpNewZone')?.addEventListener('click',createZone);qs('#mpCloneZone')?.addEventListener('click',cloneZone);qs('#mpReplicateZone')?.addEventListener('click',openReplicator);qs('#mpDeleteMission')?.addEventListener('click',deleteZone);qs('#mpDeleteEvent')?.addEventListener('click',deleteEvent);
     qs('#mpPlaceBtn')?.addEventListener('click',()=>{if(!requireEdit())return;state.placing=!state.placing;qs('#missionPlannerMap')?.classList.toggle('mp-crosshair',state.placing);qs('#mpPlaceBtn').textContent=state.placing?'PARAR DE MARCAR':'MARCAR PONTO NO MAPA';});
     qs('#mpFit')?.addEventListener('click',fit);qs('#mpGoLS')?.addEventListener('click',()=>state.map?.setView(ll(900,-600),3));qs('#mpGoCayo')?.addEventListener('click',()=>{if(state.map&&state.cayoBounds)state.map.fitBounds(state.cayoBounds,{padding:[20,20]});});qs('#mpGenerateCircle')?.addEventListener('click',generateCircle);qs('#mpImport')?.addEventListener('click',importBulk);qs('#mpValidateBtn')?.addEventListener('click',()=>validateSelected());

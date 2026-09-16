@@ -3703,14 +3703,17 @@ async function pushMissionsToCloud(missions=[]){
  if(missionCloudBusy)return false;
  missionCloudBusy=true;
  try{
+  window.dispatchEvent(new CustomEvent('highos:mission-cloud',{detail:{state:'sync'}}));
   await setDoc(missionsDoc,{missions,updatedAt:serverTimestamp(),updatedAtText:new Date().toISOString(),updatedBy:currentUser.email||''},{merge:true});
+  window.dispatchEvent(new CustomEvent('highos:mission-cloud',{detail:{state:'ok',missions:missions.length}}));
   return true;
- }catch(e){console.warn('Missoes: falha ao salvar na nuvem',e);return false}
+ }catch(e){console.warn('Missoes: falha ao salvar na nuvem',e);window.dispatchEvent(new CustomEvent('highos:mission-cloud',{detail:{state:'local'}}));return false}
  finally{missionCloudBusy=false}
 }
 window.HighOSMissionCloud={
  canEdit:()=>!!currentUser&&canEditModule('planejador'),
  pull:pullMissionsFromCloud,
+ pushNow:pushMissionsToCloud,
  push(missions){
   clearTimeout(missionCloudTimer);
   missionCloudTimer=setTimeout(()=>pushMissionsToCloud(missions),2500);

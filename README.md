@@ -1,3 +1,13 @@
+# HIGH OS
+
+## V9.5.0 (atual)
+- Planejador abre em **Central de Missões compacta**; formulário e mapa só aparecem depois de escolher uma zona.
+- Editor ganhou breadcrumb `MISSÕES > EVENTO > ZONA`, mantendo as abas ZONA / PONTOS / VALIDAÇÃO / ENTREGA.
+- Firestore passa a receber na primeira sincronização a **união segura Local + Nuvem**, preservando zonas que existiam somente em um navegador e redistribuindo-as para os demais.
+- Estado de nuvem visível: `SINCRONIZANDO`, `SINCRONIZADO` e `MODO LOCAL`.
+- `localStorage` continua como cache/backup; a sincronização de equipe é consolidada no Firestore.
+- Interface reduz ações concorrentes: na Central fica em destaque apenas `+ NOVO EVENTO`; ações de zona/edição aparecem somente no contexto do editor.
+
 
 ## V9.4.1 (atual)
 - **Correcao critica das regras**: a V9.4 bloqueava o chat inteiro ("Missing or insufficient permissions"). Numa consulta de lista o Firestore valida a regra contra os FILTROS, nao documento a documento. Agora cada mensagem carrega `participants` e a consulta usa `array-contains`.
