@@ -339,7 +339,20 @@
 
   function makeCrs(){return L.extend({},L.CRS.Simple,{projection:L.Projection.LonLat,scale:z=>Math.pow(2,z),zoom:s=>Math.log(s)/Math.LN2,distance:(a,b)=>Math.hypot(b.lng-a.lng,b.lat-a.lat),transformation:new L.Transformation(0.02072,117.3,-0.0205,172.8),infinite:true});}
   const remoteBases=['https://cdn.jsdelivr.net/gh/Trusted-Studios/mapStyles@main','https://raw.githubusercontent.com/Trusted-Studios/mapStyles/main'];
-  function layer(style,ext='jpg',maxZoom=5,baseIndex=0){return L.tileLayer(`${remoteBases[baseIndex]}/${style}/{z}/{x}/{y}.${ext}`,{minZoom:0,maxZoom,noWrap:true,continuousWorld:false,updateWhenIdle:true,keepBuffer:3,crossOrigin:'anonymous'});}
+  const TRANSPARENT_TILE='data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
+  function layer(style,ext='jpg',maxZoom=5,baseIndex=0){
+    // V9.5.3: o repositorio usa matriz XYZ padrao (0..2^z-1). O CRS customizado
+    // pode pedir x/y fora dessa matriz; antes isso gerava dezenas de 404/403 no console.
+    const base=`${remoteBases[baseIndex]}/${style}`;
+    const SafeTiles=L.TileLayer.extend({
+      getTileUrl(coords){
+        const max=Math.pow(2,coords.z)-1;
+        if(coords.x<0||coords.y<0||coords.x>max||coords.y>max)return TRANSPARENT_TILE;
+        return `${base}/${coords.z}/${coords.x}/${coords.y}.${ext}`;
+      }
+    });
+    return new SafeTiles('',{minZoom:0,maxZoom,noWrap:true,continuousWorld:false,updateWhenIdle:true,keepBuffer:2,crossOrigin:'anonymous',errorTileUrl:TRANSPARENT_TILE});
+  }
   function setStatus(text,type='ok'){const el=qs('#mpTileStatus');if(el){el.textContent=text;el.className=type;}}
 
   /* ---------------------------------------------------------------

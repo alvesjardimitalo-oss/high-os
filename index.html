@@ -12,9 +12,9 @@
   <title>High OS • Gestão do Ilegal</title>
   <link rel="stylesheet" href="assets/style.css?v=9.5.0">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="assets/mission-planner.css?v=9.5.2">
+  <link rel="stylesheet" href="assets/mission-planner.css?v=9.5.3">
   <link rel="stylesheet" href="assets/ui-kit.css?v=9.5.0">
-  <link rel="stylesheet" href="assets/high-refresh.css?v=9.5.0">
+  <link rel="stylesheet" href="assets/high-refresh.css?v=9.5.3">
   <link rel="icon" type="image/png" href="assets/high_logo.png?v=9.0.9">
 </head>
 <body>
@@ -87,7 +87,7 @@
       </aside>
       <div class="content">
         <section class="page active" id="page-dashboard">
-          <div class="page-head"><div><div class="eyebrow">CENTRAL DE COMANDO DO ILEGAL</div><h2>DASHBOARD</h2><p class="page-subtitle">Visão operacional para identificar rapidamente ocupação, contingente, pendências e movimentações da Staff.</p></div><span class="dev-badge">V9.5.2</span></div>
+          <div class="page-head"><div><div class="eyebrow">CENTRAL DE COMANDO DO ILEGAL</div><h2>DASHBOARD</h2><p class="page-subtitle">Visão operacional para identificar rapidamente ocupação, contingente, pendências e movimentações da Staff.</p></div><span class="dev-badge">V9.5.3</span></div>
           <div id="commandDashboard" class="command-dashboard"><div class="placeholder"><b>◆</b><h3>CARREGANDO CENTRAL DE COMANDO</h3></div></div>
           <span id="dashEmail" class="hidden">—</span><span id="dashRole" class="hidden">—</span>
         </section>
@@ -235,7 +235,7 @@
           </div>
         </section>
         <section class="page" id="page-planejador">
-          <div class="page-head"><div><div class="eyebrow">MAPA GTA V • EVENTOS • MISSÕES</div><h2>PLANEJADOR DE MISSÕES</h2><p class="page-subtitle">Crie novos locais de evento, gere spawns em círculo, valide CDS uma a uma e mantenha cada missão salva com o último print do mapa.</p></div><span class="dev-badge">V9.5.2</span></div>
+          <div class="page-head"><div><div class="eyebrow">MAPA GTA V • EVENTOS • MISSÕES</div><h2>PLANEJADOR DE MISSÕES</h2><p class="page-subtitle">Crie novos locais de evento, gere spawns em círculo, valide CDS uma a uma e mantenha cada missão salva com o último print do mapa.</p></div><span class="dev-badge">V9.5.3</span></div>
 
           <div class="mp-topbar">
             <div class="mp-mission-select-wrap">
@@ -838,8 +838,8 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <script src="assets/ui-kit.js?v=9.5.0"></script>
-  <script src="assets/mission-planner.js?v=9.5.2"></script>
-  <script type="module" src="assets/app.js?v=9.5.2"></script>
+  <script src="assets/mission-planner.js?v=9.5.3"></script>
+  <script type="module" src="assets/app.js?v=9.5.3"></script>
 
 <div id="newDeliveryModal" class="modal hidden"><div class="modal-card delivery-modal-v5"><button class="modal-x" id="newDeliveryClose">×</button>
   <div class="eyebrow">NOVA OCUPAÇÃO</div><h2>ENTREGA DE GROUP</h2><p class="delivery-help">O Group traz sua estrutura instalada. Personalize apenas o que será ativado para a nova facção.</p>
@@ -894,11 +894,8 @@ Armas02;08/09/2026;7;8;9;10;11;12;10;8"></textarea><div class="modal-actions"><b
         <div class="hm-section-head"><span>MENSAGENS DIRETAS</span><button type="button" id="hmNewDmBtn" title="Nova conversa">＋</button></div>
         <input id="hmContactSearch" class="hm-search" placeholder="Buscar usuário..." autocomplete="off">
         <div id="hmContactList" class="hm-contact-list"><div class="chat-empty">Carregando equipe...</div></div>
-        <div class="hm-section-head hm-voice-head"><span>CANAIS DE VOZ</span></div>
-        <div id="hmVoiceChannels" class="hm-voice-list">
-          <button type="button" class="hm-voice-channel" data-voice-channel="ilegal1"><span>🔊</span><div><b>Equipe do Ilegal 1</b><small>voz • vídeo • tela • arquivos</small></div><i>ENTRAR</i></button>
-          <button type="button" class="hm-voice-channel" data-voice-channel="ilegal2"><span>🔊</span><div><b>Equipe do Ilegal 2</b><small>voz • vídeo • tela • arquivos</small></div><i>ENTRAR</i></button>
-        </div>
+        <div class="hm-section-head hm-voice-head"><span>HIGH CALL</span></div>
+        <div class="hm-webrtc-note"><b>WebRTC direto</b><small>Selecione um usuário e use áudio ou vídeo. Sem serviço externo.</small></div>
       </aside>
       <section class="hm-conversation">
         <header class="hm-conversation-head">
@@ -921,23 +918,28 @@ Armas02;08/09/2026;7;8;9;10;11;12;10;8"></textarea><div class="modal-actions"><b
       </section>
     </div>
   </aside>
+  <div id="incomingCallBar" class="incoming-call-bar hidden">
+    <div><b id="incomingCallName">Chamada recebida</b><small id="incomingCallType">CHAMADA DE ÁUDIO</small></div>
+    <button type="button" id="incomingCallReject" class="call-reject">RECUSAR</button>
+    <button type="button" id="incomingCallAccept" class="call-accept">ATENDER</button>
+  </div>
   <div id="teamMeetingOverlay" class="team-meeting-overlay hidden">
-    <div class="team-meeting-card">
+    <div class="team-meeting-card rtc-call-card">
       <header class="team-meeting-head">
-        <div><b id="teamMeetingTitle">HIGH CALL</b><small id="teamMeetingRoomLabel">Áudio • vídeo • tela • arquivos</small></div>
-        <div class="team-call-status"><span class="team-call-live-dot"></span><span>EM CHAMADA</span></div>
-        <button type="button" id="teamMeetingClose" class="team-call-close" title="Sair da chamada">×</button>
+        <div><b id="teamMeetingTitle">HIGH CALL</b><small id="teamMeetingRoomLabel">WebRTC direto</small></div>
+        <div class="team-call-status"><span class="team-call-live-dot"></span><span id="teamCallConnectionStatus">CONECTANDO…</span></div>
+        <button type="button" id="teamMeetingClose" class="team-call-close" title="Encerrar chamada">×</button>
       </header>
-      <div class="team-meeting-body">
-        <div class="team-meeting-stage"><iframe id="teamMeetingFrame" allow="camera; microphone; fullscreen; display-capture; autoplay" referrerpolicy="no-referrer"></iframe></div>
-        <aside class="team-call-side">
-          <div class="team-call-side-head"><b>ITENS DA CALL</b><small>fotos • GIFs • PDFs • arquivos</small></div>
-          <div id="teamCallFiles" class="team-call-files"><div class="chat-empty">Nenhum item compartilhado nesta chamada.</div></div>
-          <div id="teamCallFilePreview" class="chat-attachment-preview hidden"></div>
-          <label class="team-call-file-btn">＋ COMPARTILHAR ARQUIVO<input id="teamCallFileInput" type="file" hidden></label>
-          <small class="team-call-file-note">Os participantes são identificados pelo nome de usuário + cargo.</small>
-        </aside>
+      <div class="rtc-stage">
+        <video id="teamCallRemoteVideo" autoplay playsinline></video>
+        <video id="teamCallLocalVideo" autoplay muted playsinline class="rtc-local-video hidden"></video>
+        <div class="rtc-audio-brand"><span>H</span><b>HIGH CALL</b><small>conexão direta entre os participantes</small></div>
       </div>
+      <footer class="rtc-controls">
+        <button type="button" id="teamCallMic">🎙 MIC</button>
+        <button type="button" id="teamCallCam">◉ CÂMERA</button>
+        <button type="button" class="call-reject" onclick="document.getElementById('teamMeetingClose').click()">ENCERRAR</button>
+      </footer>
     </div>
   </div>
   </div>

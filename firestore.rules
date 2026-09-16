@@ -1,7 +1,7 @@
 rules_version = '2';
 
 /* =============================================================
-   HIGH OS · REGRAS DE SEGURANCA DO FIRESTORE (V9.4)
+   HIGH OS · REGRAS DE SEGURANCA DO FIRESTORE (V9.5.3)
    -------------------------------------------------------------
    Ate a V9.3 nao existia arquivo de regras no repositorio: toda a
    autorizacao era feita apenas no navegador (isAdmin / canEditModule),
@@ -135,6 +135,24 @@ service cloud.firestore {
                     && request.resource.data.get('texto', '').size() <= 1000;
       allow update: if false;            // mensagem enviada nao se edita
       allow delete: if isAdmin();        // moderacao
+    }
+
+    // ---------- High Call WebRTC: sinalizacao somente entre os 2 participantes ----------
+    match /highos/data/call_signals/{docId} {
+      function callParticipant() {
+        return resource.data.get('caller', '').lower() == myEmail()
+            || resource.data.get('callee', '').lower() == myEmail();
+      }
+      function newCallParticipant() {
+        return request.resource.data.get('caller', '').lower() == myEmail()
+            || request.resource.data.get('callee', '').lower() == myEmail();
+      }
+      allow read: if activeUser() && canView('chat') && callParticipant();
+      allow create: if activeUser() && canEdit('chat')
+                    && request.resource.data.caller.lower() == myEmail()
+                    && request.resource.data.callee is string;
+      allow update: if activeUser() && canEdit('chat') && callParticipant() && newCallParticipant();
+      allow delete: if isAdmin();
     }
 
     // ---------- configuracoes ----------

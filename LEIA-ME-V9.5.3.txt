@@ -1,0 +1,19 @@
+HIGH OS V9.5.3 · ESTABILIDADE + COMUNICAÇÃO
+
+1. Publique TODOS os arquivos afetados.
+2. OBRIGATÓRIO: publique firestore.rules antes de testar o High Call.
+   firebase deploy --only firestore:rules
+3. Faça Ctrl+F5.
+
+MUDANÇAS
+- High Call antigo via meet.ffmuc.net/Jitsi removido completamente.
+- Nova chamada direta de áudio/vídeo com WebRTC nativo.
+- Firestore é usado apenas para sinalização da chamada.
+- Chamadas recebidas aparecem no topo do High OS com ATENDER/RECUSAR.
+- Controles de microfone, câmera e encerramento.
+- Chat direto continua no Firestore e registra chamadas no histórico da conversa.
+- Canais de voz antigos removidos nesta versão; não ficam mais anunciando recurso quebrado.
+- Planejador: bloqueio de tiles XYZ fora da matriz válida, eliminando avalanche de 404/403 causada por x/y inexistentes.
+
+LIMITAÇÃO IMPORTANTE
+WebRTC P2P pode falhar em redes corporativas/CGNAT muito restritivas sem um servidor TURN. A versão usa STUN público gratuito e é indicada para chamadas diretas. Não foi prometida sala grande nesta versão.
