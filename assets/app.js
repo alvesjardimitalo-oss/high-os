@@ -1463,16 +1463,24 @@ function parseMetricSheet(values=[]){
   return best;
  }
 
+ /* V9.7 - Mapeamento por POSICAO, nao por contagem.
+    O codigo anterior contava as ocorrencias de 14H e usava o contador como
+    indice na lista de datas. Bastava uma irregularidade na planilha - e a aba
+    MÉTRICAS tem varias, como a coluna "M" ausente no dia 8 e no dia 18 - para
+    a contagem desalinhar e todo o resto do mes ser descartado. Foi o que
+    aconteceu com setembro a partir do dia 07.
+
+    Agora cada coluna de horario recebe a data que esta na propria coluna ou na
+    coluna anterior mais proxima, que e como o Google exporta celula mesclada. */
  function buildColumnDateMap(header,dateRow){
-  const orderedDates=(dateRow||[]).map(normalizeMetricDate).filter(Boolean);
-  if(!orderedDates.length)return {};
-  const map={};let dayIndex=-1,lastSlot='';
-  for(let c=0;c<header.length;c++){
-   const h=metricSlotLabel(header[c]);if(!h)continue;
-   // Cada novo 14H inicia um novo dia. Se o bloco começar desalinhado, inicia no primeiro horário.
-   if(h==='14H'||dayIndex<0||(['16H','21H','23H'].indexOf(h)<=['16H','21H','23H'].indexOf(lastSlot)&&lastSlot))dayIndex++;
-   if(dayIndex>=0&&dayIndex<orderedDates.length)map[c]=orderedDates[dayIndex];
-   lastSlot=h;
+  const map={};
+  let dataAtual='';
+  const largura=Math.max((header||[]).length,(dateRow||[]).length);
+  for(let c=0;c<largura;c++){
+   const d=normalizeMetricDate((dateRow||[])[c]);
+   if(d)dataAtual=d;
+   const h=metricSlotLabel((header||[])[c]);
+   if(h&&dataAtual)map[c]=dataAtual;
   }
   return map;
  }

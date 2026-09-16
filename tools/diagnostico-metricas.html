@@ -30,7 +30,7 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>Diagnóstico da planilha de métricas <span style="font-size:11px;color:#50f5a0;letter-spacing:.1em">v4</span></h1>
+  <h1>Diagnóstico da planilha de métricas <span style="font-size:11px;color:#50f5a0;letter-spacing:.1em">v6</span></h1>
   <p class="sub">Lê a planilha publicada exatamente como o High OS lê e mostra o que foi reconhecido.</p>
 
   <div class="card">
@@ -126,24 +126,15 @@ function nearestDateRow(values,headerIndex){
   return best;
 }
 function buildColumnDateMap(header,dateRow){
-  const ordered=(dateRow||[]).map(normalizeDate).filter(Boolean);
-  if(!ordered.length)return {};
-  const map={};let dayIndex=-1,lastSlot='';
-  for(let c=0;c<header.length;c++){
-    const h=slotLabel(header[c]);if(!h)continue;
-    if(h==='14H'||dayIndex<0||(['16H','21H','23H'].indexOf(h)<=['16H','21H','23H'].indexOf(lastSlot)&&lastSlot))dayIndex++;
-    if(dayIndex>=0&&dayIndex<ordered.length)map[c]=ordered[dayIndex];
-    lastSlot=h;
+  const map={};let dataAtual='';
+  const largura=Math.max((header||[]).length,(dateRow||[]).length);
+  for(let c=0;c<largura;c++){
+    const d=normalizeDate((dateRow||[])[c]);
+    if(d)dataAtual=d;
+    const h=slotLabel((header||[])[c]);
+    if(h&&dataAtual)map[c]=dataAtual;
   }
   return map;
-}
-function colapsar(indices){
-  const runs=[];
-  for(const i of indices){
-    if(runs.length&&i-runs[runs.length-1]<=1)runs[runs.length-1]=i;
-    else runs.push(i);
-  }
-  return runs;
 }
 function extrair(values,cabecalhosBrutos){
   const cabecalhos=colapsar(cabecalhosBrutos);
@@ -243,7 +234,7 @@ async function analisar(){
   // ---- raio-x de cada bloco ----
   const runs=colapsar(cabecalhos);
   let tb='<h3 style="font-size:10px;letter-spacing:.11em;color:#d9c4eb;margin:18px 0 6px">RAIO-X DOS BLOCOS</h3>';
-  tb+='<table><thead><tr><th>CABEÇALHO</th><th>LINHA DAS DATAS</th><th class="num">DATAS</th><th class="num">LINHAS DE DADOS</th><th>PERÍODO</th></tr></thead><tbody>';
+  tb+='<table><thead><tr><th>CABEÇALHO</th><th>LINHA DAS DATAS</th><th class="num">DATAS</th><th class="num">LINHAS</th><th class="num">COLS MAP</th><th class="num">DATAS MAP</th><th class="num">REGISTROS</th><th class="num">VALORES&gt;0</th><th>PERÍODO</th></tr></thead><tbody>';
   runs.forEach((hi,bi)=>{
     const fim=runs[bi+1]??values.length;
     const di=nearestDateRow(values,hi);
@@ -256,9 +247,29 @@ async function analisar(){
       for(const cell of row.slice(0,20)){g=groupLabel(cell);if(g)break}
       if(g)linhasDados++;
     }
+    const mapa=di>=0?buildColumnDateMap(header,dateRow):{};
+    const nCols=Object.keys(mapa).length;
+    const nDatas=new Set(Object.values(mapa)).size;
+    let registros=0,comValor=0;
+    for(let r=hi+1;r<fim;r++){
+      const row=values[r]||[];let g='';
+      for(const cell of row.slice(0,20)){g=groupLabel(cell);if(g)break}
+      if(!g)continue;
+      const vistos=new Set();
+      for(const c of Object.keys(mapa)){
+        const h=slotLabel(header[c]);if(!h)continue;
+        const n=num(row[c]);if(n===null)continue;
+        vistos.add(mapa[c]);if(n>0)comValor++;
+      }
+      registros+=vistos.size;
+    }
     tb+=`<tr><td>linha ${hi}</td><td>${di>=0?('linha '+di):'<span class="err">não achou</span>'}</td>`+
         `<td class="num">${datas.length}</td>`+
         `<td class="num ${linhasDados?'':'err'}">${linhasDados}</td>`+
+        `<td class="num">${nCols}</td>`+
+        `<td class="num ${nDatas>6?'':'err'}">${nDatas}</td>`+
+        `<td class="num ${registros?'':'err'}">${registros}</td>`+
+        `<td class="num ${comValor?'':'err'}">${comValor}</td>`+
         `<td>${datas.length?fmt(datas[0])+' → '+fmt(datas[datas.length-1]):'—'}</td></tr>`;
   });
   tb+='</tbody></table>';
@@ -266,7 +277,17 @@ async function analisar(){
 
   // ---- detalhe do ultimo bloco: como as colunas viram datas ----
   if(runs.length){
-    const hi=runs[runs.length-1], di=nearestDateRow(values,hi);
+    let hi=runs[runs.length-1],melhor=-1;
+    runs.forEach(idx=>{
+      const f=runs[runs.indexOf(idx)+1]??values.length;
+      const d=nearestDateRow(values,idx);if(d<0)return;
+      const mp=buildColumnDateMap(values[idx]||[],values[d]||[]);
+      let v=0;
+      for(let r=idx+1;r<f;r++){const row=values[r]||[];
+        for(const c of Object.keys(mp)){const n=num(row[c]);if(n!==null&&n>0)v++}}
+      if(v>melhor){melhor=v;hi=idx}
+    });
+    const di=nearestDateRow(values,hi);
     const header=values[hi]||[], dateRow=di>=0?(values[di]||[]):[];
     const mapa=buildColumnDateMap(header,dateRow);
     const cols=Object.keys(mapa).map(Number).sort((a,b)=>a-b);
