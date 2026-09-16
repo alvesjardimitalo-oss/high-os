@@ -90,6 +90,52 @@
   function zoneCoverageCounts(m){const pts=(m?.points||[]).filter(p=>validCoord(p.x)&&validCoord(p.y));const radius=effectiveEventRadius(m);let inside=0,outside=0;pts.forEach(p=>{if(pointDistanceFromCenter(m,p)<=radius)inside++;else outside++;});return {inside,outside,total:pts.length,radius};}
 
   function validCoord(v){return Number.isFinite(Number(v)) && Number(v)!==0;}
+
+  /* ---------------------------------------------------------------
+     V9.4.1 - Leitor de CDS tolerante.
+     Aceita, entre outros:
+       123.4,-56.7,8.9,180
+       tpcds 123.4, -56.7, 8.9, 180
+       {123.4,-56.7,8.9,180}   vector4(123.4,-56.7,8.9,180)
+       [123.4 -56.7 8.9 180]   123.4; -56.7; 8.9; 180
+       x=123.4 y=-56.7 z=8.9 h=180
+     Retorna {ok,x,y,z,h,motivo}.
+  --------------------------------------------------------------- */
+  function parseCds(raw){
+    let t=String(raw||'').trim();
+    if(!t)return {ok:false,motivo:'Cole a CDS copiada do jogo.'};
+    t=t.replace(/^\s*(tpcds|tp|nc|setcoords|coords?)\s*[:=]?\s*/i,'');
+    t=t.replace(/vector4|vector3|vec4|vec3/gi,'');
+    t=t.replace(/[{}\[\]()]/g,' ');
+    t=t.replace(/\b[xyzh]\s*[:=]\s*/gi,' ');
+    t=t.replace(/heading|head|rot/gi,' ');
+    const nums=t.match(/-?\d+(?:[.,]\d+)?/g)||[];
+    const vals=nums.map(v=>Number(String(v).replace(',','.'))).filter(v=>Number.isFinite(v));
+    if(vals.length<2)return {ok:false,motivo:'Nao encontrei X e Y na CDS colada.'};
+    const [x,y,z,h]=vals;
+    return {
+      ok:true,
+      x,y,
+      z:Number.isFinite(z)?z:null,
+      h:Number.isFinite(h)?h:null,
+      total:vals.length
+    };
+  }
+  function cdsProblemas(r,{exigeZ=true,exigeH=true}={}){
+    const out=[];
+    if(!validCoord(r.x)||!validCoord(r.y))out.push('X e Y precisam ser numeros diferentes de zero.');
+    if(exigeZ&&!validCoord(r.z))out.push('Z ausente ou igual a zero - va ate o local no jogo e copie a CDS real.');
+    if(exigeH&&r.h===null)out.push('Heading ausente.');
+    if(r.h!==null&&(r.h<-360||r.h>360))out.push('Heading fora da faixa -360..360.');
+    return out;
+  }
+  function distXY(a,b){return Math.hypot(Number(b.x)-Number(a.x),Number(b.y)-Number(a.y));}
+  function nextPendingId(m,fromId=0){
+    if(!m||!m.points?.length)return 0;
+    for(let i=fromId;i<m.points.length;i++)if(!isValidated(m.points[i]))return i+1;
+    for(let i=0;i<fromId;i++)if(!isValidated(m.points[i]))return i+1;
+    return 0;
+  }
   function isValidated(p){return p?.status==='validated' && validCoord(p.x) && validCoord(p.y) && validCoord(p.z) && Number.isFinite(Number(p.h));}
   function isCenterValidated(m){const c=m?.center;return c?.status==='validated' && validCoord(c.x) && validCoord(c.y) && validCoord(c.z) && Number.isFinite(Number(c.h));}
   function normalizeCenter(m){if(!m?.center)return;const c=m.center;const complete=validCoord(c.x)&&validCoord(c.y)&&validCoord(c.z)&&Number.isFinite(Number(c.h));if(!c.status){c.status=complete?'validated':'planned';c.validatedAt=complete?(c.validatedAt||nowIso()):null;}else if(c.status==='planned'&&complete&&!c.validationReason){/* migração: clones antigos perdiam a validação apenas ao trocar de categoria */c.status='validated';c.validatedAt=c.validatedAt||nowIso();}}
@@ -253,6 +299,50 @@
   const remoteBases=['https://cdn.jsdelivr.net/gh/Trusted-Studios/mapStyles@main','https://raw.githubusercontent.com/Trusted-Studios/mapStyles/main'];
   function layer(style,ext='jpg',maxZoom=5,baseIndex=0){return L.tileLayer(`${remoteBases[baseIndex]}/${style}/{z}/{x}/{y}.${ext}`,{minZoom:0,maxZoom,noWrap:true,continuousWorld:false,updateWhenIdle:true,keepBuffer:3,crossOrigin:'anonymous'});}
   function setStatus(text,type='ok'){const el=qs('#mpTileStatus');if(el){el.textContent=text;el.className=type;}}
+
+  /* ---------------------------------------------------------------
+     V9.4.1 - O mar de Cayo Perico e um retangulo desenhado por nos,
+     enquanto o mar de Los Santos vem pintado dentro dos tiles. Antes
+     usavamos um azul fixo e a emenda ficava visivel. Agora lemos um
+     pixel de oceano do proprio tile carregado e aplicamos a mesma cor
+     no retangulo e no fundo do mapa - funciona para Atlas, Satelite e
+     Grid, e se ajusta sozinho ao trocar de camada.
+  --------------------------------------------------------------- */
+  const OCEAN_FALLBACK='#0d1b2a';
+  function applyOceanColor(hex){
+    if(!hex)return;
+    state.oceanColor=hex;
+    try{state.cayoOceanLayer?.setStyle({fillColor:hex});}catch(e){}
+    const box=qs('#missionPlannerMap');
+    if(box)box.style.setProperty('--mp-ocean',hex);
+  }
+  function sampleOceanFromTile(img){
+    try{
+      if(!img||!img.naturalWidth)return null;
+      const c=document.createElement('canvas');c.width=img.naturalWidth;c.height=img.naturalHeight;
+      const ctx=c.getContext('2d',{willReadFrequently:true});
+      ctx.drawImage(img,0,0);
+      const pts=[[2,2],[c.width-3,2],[2,c.height-3],[c.width-3,c.height-3],[c.width>>1,2]];
+      const cores=pts.map(([x,y])=>{const d=ctx.getImageData(x,y,1,1).data;return [d[0],d[1],d[2],d[3]];}).filter(d=>d[3]>200);
+      if(cores.length<4)return null;
+      const media=[0,1,2].map(i=>cores.reduce((a,c2)=>a+c2[i],0)/cores.length);
+      // so aceita se as amostras forem parecidas entre si (tile uniforme = mar aberto)
+      const desvio=Math.max(...[0,1,2].map(i=>Math.max(...cores.map(c2=>Math.abs(c2[i]-media[i])))));
+      if(desvio>14)return null;
+      const [r,g,b]=media.map(v=>Math.round(v));
+      // e se realmente parecer agua (azul/verde dominante e nao muito claro)
+      if(b<40||b<r||(r+g+b)/3>190)return null;
+      return '#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');
+    }catch(e){return null;}
+  }
+  function watchOcean(layer){
+    if(!layer||layer._mpOceanWatch)return;layer._mpOceanWatch=true;
+    layer.on('tileload',ev=>{
+      if(state.oceanLocked)return;
+      const hex=sampleOceanFromTile(ev.tile);
+      if(hex){state.oceanLocked=true;applyOceanColor(hex);}
+    });
+  }
   function initMap(){
     if(state.map||!qs('#missionPlannerMap'))return;
     if(typeof L==='undefined'){setStatus('Leaflet não carregou','warn');return;}
@@ -268,7 +358,7 @@
     state.map.createPane('cayoOceanPane');state.map.getPane('cayoOceanPane').style.zIndex=220;
     state.map.createPane('cayoMapPane');state.map.getPane('cayoMapPane').style.zIndex=230;
     const cayoOceanBounds=L.latLngBounds(ll(3450,-6450),ll(6050,-3850));
-    const cayoOcean=L.rectangle(cayoOceanBounds,{pane:'cayoOceanPane',stroke:false,fill:true,fillColor:'#174f70',fillOpacity:1,interactive:false}).addTo(state.map);
+    const cayoOcean=L.rectangle(cayoOceanBounds,{pane:'cayoOceanPane',stroke:false,fill:true,fillColor:OCEAN_FALLBACK,fillOpacity:1,interactive:false}).addTo(state.map);
     const cayo=L.imageOverlay(cayoUrl,cayoBounds,{pane:'cayoMapPane',opacity:1,interactive:false,crossOrigin:true});
     const cayoPostal=L.imageOverlay(cayoPostalUrl,cayoBounds,{pane:'cayoMapPane',opacity:1,interactive:false,crossOrigin:true});
     L.control.layers({'ATLAS':atlas,'SATELLITE':sat,'GRID':grid},{'CAYO PERICO — SATÉLITE':cayo,'CAYO PERICO — POSTAL':cayoPostal},{collapsed:false,position:'topright'}).addTo(state.map);
@@ -277,7 +367,9 @@
     let okCount=0,errCount=0,fallbackUsed=false;
     const ok=()=>{okCount++;setStatus('Mapa GTA V carregado','ok');};
     const err=()=>{errCount++;if(okCount===0&&errCount>4&&!fallbackUsed){fallbackUsed=true;setStatus('Alternando servidor do mapa…','warn');try{state.map.removeLayer(atlas);}catch{}atlas=layer('styleAtlas','jpg',5,1);atlas.on('tileload',ok);atlas.addTo(state.map);}};
-    [atlas,sat,grid].forEach(x=>{x.on('tileload',ok);x.on('tileerror',err);});
+    [atlas,sat,grid].forEach(x=>{x.on('tileload',ok);x.on('tileerror',err);watchOcean(x);});
+    applyOceanColor(OCEAN_FALLBACK);
+    state.map.on('baselayerchange',ev=>{state.oceanLocked=false;watchOcean(ev.layer);setTimeout(()=>{if(!state.oceanLocked)applyOceanColor(OCEAN_FALLBACK);},1200);});
     state.map.on('mousemove',e=>{if(qs('#mpCursor'))qs('#mpCursor').textContent=`X ${f(e.latlng.lng)} | Y ${f(e.latlng.lat)}`;});
     state.map.on('click',e=>{
       const m=active();if(!m)return;
@@ -388,8 +480,11 @@
   }
   function renderCenterValidation(){ensureCenterValidationUi();const m=active(),el=qs('#mpCenterValidationStatus');if(!m||!el)return;el.innerHTML=isCenterValidated(m)?`<b>CENTRO VALIDADO ✓</b><br>${rawCds(m.center)}`:(validCoord(m.center.x)&&validCoord(m.center.y)?`<b>CENTRO PENDENTE</b><br>${f(m.center.x)},${f(m.center.y)},0.00,0.00 • copie o TP, vá ao local e cole a CDS real.`:'Marque o centro no mapa para iniciar a validação.');}
   function validateCenter(){if(!requireEdit())return;
-    const m=active();if(!m)return;const raw=String(qs('#mpCenterRealCds')?.value||'').trim().replace(/^tpcds\s+/i,'');const a=raw.split(',').map(v=>v.trim());const x=num(a[0]),y=num(a[1]),z=num(a[2]),h=num(a[3]);
-    if(!validCoord(x)||!validCoord(y)||!validCoord(z)||h===null){alert('CDS inválida. Cole X,Y,Z,H completos e sem Z zero.');return;}
+    const m=active();if(!m)return;const r=parseCds(qs('#mpCenterRealCds')?.value);
+    if(!r.ok){alert('CDS do centro nao reconhecida. '+r.motivo);return;}
+    const probsC=cdsProblemas(r);
+    if(probsC.length){alert('CDS do centro incompleta:\n\n'+probsC.join('\n'));return;}
+    const x=r.x,y=r.y,z=r.z,h=r.h===null?0:r.h;
     m.center.x=x;m.center.y=y;m.center.z=z;m.center.h=h;m.center.status='validated';m.center.validatedAt=nowIso();delete m.center.validationReason;if(qs('#mpCenterRealCds'))qs('#mpCenterRealCds').value='';commit('Centro validado com CDS real');state.map?.panTo(ll(x,y));
   }
 
@@ -457,7 +552,7 @@ Os pontos atuais serão substituídos e ficarão PENDENTES até validação no F
   function rawCds(p){return `${f(p.x)},${f(p.y)},${f(p.z)},${f(p.h)}`;}
   function tpCds(p){const z=Number.isFinite(Number(p?.z))?Number(p.z):0;const h=Number.isFinite(Number(p?.h))?Number(p.h):0;return `${f(p.x)},${f(p.y)},${f(z)},${f(h)}`;}
   function updateExport(){const m=active(),out=qs('#mpExport');if(out&&m)out.value=m.points.filter(isValidated).map((p,i)=>`${p.id||i+1} - ${rawCds(p)}`).join('\n');}
-  function render(){renderMissionList();renderPointList();renderMap();analyze();updateExport();syncForm();renderCenterValidation();renderCoverage();const rt=qs('#mpRequestText'),m=active();if(rt&&document.activeElement!==rt)rt.value=m?.requestText||'';loadSnapshotPreview();}
+  function render(){adoptStrayCards();renderMissionList();renderPointList();renderMap();analyze();updateExport();syncForm();renderCenterValidation();renderCoverage();renderPlannerBadges();const rt=qs('#mpRequestText'),m=active();if(rt&&document.activeElement!==rt)rt.value=m?.requestText||'';loadSnapshotPreview();}
 
   function syncForm(){
     const m=active();if(!m)return;
@@ -507,16 +602,81 @@ Os pontos atuais serão substituídos e ficarão PENDENTES até validação no F
     for(let i=0;i<qty;i++){const deg=start+(360/qty)*i,a=deg*Math.PI/180;m.points.push(normalizePoint({x:cx+Math.sin(a)*r,y:cy+Math.cos(a)*r,z:0,h:(deg+180)%360,status:'planned'},i));}
     commit(`${qty} pontos gerados como PENDENTES`);fit();
   }
-  function parseBulk(text){const out=[];String(text||'').split(/\n+/).forEach(line=>{const c=line.replace(/^\s*\d+\s*[-–—:]\s*/,'').trim();if(!c)return;const p=c.split(',').map(v=>v.trim());const x=num(p[0]),y=num(p[1]);if(x===null||y===null)return;out.push({x,y,z:num(p[2]),h:num(p[3])});});return out;}
+  function parseBulk(text){const out=[];String(text||'').split(/\n+/).forEach(line=>{const c=line.replace(/^\s*\d+\s*[-–—:)]\s*/,'').trim();if(!c)return;const r=parseCds(c);if(!r.ok)return;out.push({x:r.x,y:r.y,z:r.z,h:r.h});});return out;}
   function importBulk(){if(!requireEdit())return;
     const m=active(),arr=parseBulk(qs('#mpBulk')?.value);if(!m||!arr.length){alert('Nenhuma coordenada válida encontrada.');return;}
     const manual=m.mode==='manual';arr.forEach(v=>{const can=manual&&validCoord(v.x)&&validCoord(v.y)&&validCoord(v.z)&&Number.isFinite(v.h);m.points.push(normalizePoint({...v,status:can?'validated':'planned',validatedAt:can?nowIso():null},m.points.length));});commit(`Importadas ${arr.length} CDS`);fit();
   }
-  function validateSelected(){if(!requireEdit())return;
-    const m=active(),id=m?.selectedId,p=id?m.points[id-1]:null;if(!p){alert('Selecione o ponto que você está conferindo no jogo.');return;}
-    const raw=String(qs('#mpValidateCds')?.value||'').trim().replace(/^tpcds\s+/i,'');const a=raw.split(',').map(v=>v.trim());const x=num(a[0]),y=num(a[1]),z=num(a[2]),h=num(a[3]);
-    if(!validCoord(x)||!validCoord(y)||!validCoord(z)||h===null){alert('CDS inválida. Cole X,Y,Z,H completos e sem valor zero.');return;}
-    p.x=x;p.y=y;p.z=z;p.h=h;p.status='validated';p.validatedAt=nowIso();if(qs('#mpValidateCds'))qs('#mpValidateCds').value='';commit(`Ponto ${id} validado`);selectPoint(id);state.map?.panTo(ll(x,y));
+  function setValidationFeedback(html,tipo='info'){
+    const el=qs('#mpValidationFeedback');
+    if(el){el.className='mp-validation-feedback '+tipo;el.innerHTML=html;}
+  }
+  function validateSelected(opts={}){if(!requireEdit())return false;
+    const m=active();let id=m?.selectedId;
+    if(!id){id=nextPendingId(m);if(id)selectPoint(id);}
+    const p=id?m.points[id-1]:null;
+    if(!p){setValidationFeedback('Selecione na lista o ponto que voce esta conferindo no jogo.','erro');return false;}
+    const campo=qs('#mpValidateCds');
+    const r=parseCds(campo?.value);
+    if(!r.ok){setValidationFeedback(`<b>CDS nao reconhecida</b><span>${r.motivo}</span>`,'erro');return false;}
+    const probs=cdsProblemas(r);
+    if(probs.length){setValidationFeedback(`<b>CDS incompleta</b><span>${probs.join('<br>')}</span>`,'erro');return false;}
+    const desvio=distXY(p,r);
+    if(desvio>250&&!opts.forcar){
+      setValidationFeedback(`<b>Desvio de ${desvio.toFixed(0)} m</b><span>A CDS colada esta longe do ponto ${id} planejado. Confira se selecionou o ponto certo.</span><button type="button" id="mpForceValidate" class="mp-mini-danger">VALIDAR ASSIM MESMO</button>`,'alerta');
+      qs('#mpForceValidate')?.addEventListener('click',()=>validateSelected({forcar:true,avancar:opts.avancar}));
+      return false;
+    }
+    p.x=r.x;p.y=r.y;p.z=r.z;p.h=r.h===null?0:r.h;p.status='validated';p.validatedAt=nowIso();delete p.validationReason;
+    if(campo)campo.value='';
+    commit(`Ponto ${id} validado`);
+    state.map?.panTo(ll(r.x,r.y));
+    const restantes=(m.points||[]).filter(x=>!isValidated(x)).length;
+    const prox=opts.avancar!==false?nextPendingId(m,id):0;
+    if(prox){selectPoint(prox);setTimeout(()=>qs('#mpValidateCds')?.focus(),60);}
+    setValidationFeedback(
+      `<b>Ponto ${id} validado &#10003;</b><span>Desvio de ${desvio.toFixed(1)} m &bull; Z ${f(r.z)} &bull; H ${f(p.h)}</span>`+
+      (restantes?`<span>${restantes} ponto(s) pendente(s).${prox?` Selecionei o ponto ${prox} - cole a proxima CDS.`:''}</span>`:'<span>Todos os pontos desta zona estao validados.</span>'),
+      'ok');
+    return true;
+  }
+  /* valida varios pontos de uma vez: "12 - x,y,z,h" por linha */
+  function validateBulk(){if(!requireEdit())return;
+    const m=active();if(!m)return;
+    const texto=String(qs('#mpValidateBulk')?.value||'');
+    const linhas=texto.split(/\n+/).map(l=>l.trim()).filter(Boolean);
+    if(!linhas.length){setValidationFeedback('Cole uma CDS por linha, no formato <b>numero - x,y,z,h</b>.','erro');return;}
+    let ok=0;const erros=[];
+    linhas.forEach((linha,i)=>{
+      const mm=linha.match(/^\s*(\d+)\s*[-–—:)]\s*(.+)$/);
+      const idx=mm?Number(mm[1]):(i+1);
+      const r=parseCds(mm?mm[2]:linha);
+      const alvo=m.points[idx-1];
+      if(!alvo){erros.push(`Linha ${i+1}: nao existe ponto ${idx}.`);return;}
+      if(!r.ok){erros.push(`Linha ${i+1}: ${r.motivo}`);return;}
+      const probs=cdsProblemas(r);
+      if(probs.length){erros.push(`Ponto ${idx}: ${probs[0]}`);return;}
+      alvo.x=r.x;alvo.y=r.y;alvo.z=r.z;alvo.h=r.h===null?0:r.h;
+      alvo.status='validated';alvo.validatedAt=nowIso();delete alvo.validationReason;ok++;
+    });
+    if(ok)commit(`${ok} ponto(s) validado(s) em lote`);
+    setValidationFeedback(
+      `<b>${ok} ponto(s) validado(s)</b>`+(erros.length?`<span>${erros.slice(0,6).join('<br>')}${erros.length>6?`<br>+${erros.length-6} outros`:''}</span>`:''),
+      erros.length?(ok?'alerta':'erro'):'ok');
+    if(ok&&qs('#mpValidateBulk'))qs('#mpValidateBulk').value='';
+  }
+  function invalidateSelected(){if(!requireEdit())return;
+    const m=active(),id=m?.selectedId,p=id?m.points[id-1]:null;
+    if(!p){setValidationFeedback('Selecione um ponto na lista.','erro');return;}
+    p.status='planned';p.z=0;p.validatedAt=null;p.validationReason='manual-reset';
+    commit(`Ponto ${id} voltou para PENDENTE`);
+    setValidationFeedback(`<b>Ponto ${id} voltou para pendente</b><span>Z zerado para permitir TPCDS + NC.</span>`,'alerta');
+  }
+  async function copySelectedTp(){
+    const m=active(),id=m?.selectedId,p=id?m.points[id-1]:null;
+    if(!p){setValidationFeedback('Selecione um ponto na lista.','erro');return;}
+    await copyText(`${f(p.x)},${f(p.y)},0.00,${Number.isFinite(Number(p.h))?f(p.h):'0.00'}`);
+    setValidationFeedback(`<b>TP do ponto ${id} copiado</b><span>Va ate o local no jogo e cole a CDS real aqui.</span>`,'ok');
   }
   function addManual(){if(!requireEdit())return;
     const m=active();if(!m)return;const x=num(qs('#mpX')?.value),y=num(qs('#mpY')?.value),z=num(qs('#mpZ')?.value),h=num(qs('#mpH')?.value);if(x===null||y===null){alert('Informe X e Y válidos.');return;}
@@ -727,12 +887,89 @@ ${mechanic}
     renderLibraryCategoryUi();
   }
   function bind(){
-    if(state.initialized)return;state.initialized=true;loadStore();state.activeEventId=active()?.eventId||state.activeEventId;ensurePlannerV2Ui();initMap();render();bindFormAutosave();updateEditUi();
+    if(state.initialized)return;state.initialized=true;loadStore();state.activeEventId=active()?.eventId||state.activeEventId;ensurePlannerV2Ui();ensurePlannerTabs();ensureMapKpis();initMap();render();bindFormAutosave();updateEditUi();
     qs('#mpEditMission')?.addEventListener('click',startEdit);qs('#mpSaveMission')?.addEventListener('click',saveMission);qs('#mpCancelEdit')?.addEventListener('click',cancelEdit);qs('#mpNewMission')?.addEventListener('click',createEvent);qs('#mpNewZone')?.addEventListener('click',createZone);qs('#mpCloneZone')?.addEventListener('click',cloneZone);qs('#mpReplicateZone')?.addEventListener('click',openReplicator);qs('#mpDeleteMission')?.addEventListener('click',deleteZone);qs('#mpDeleteEvent')?.addEventListener('click',deleteEvent);
     qs('#mpPlaceBtn')?.addEventListener('click',()=>{if(!requireEdit())return;state.placing=!state.placing;qs('#missionPlannerMap')?.classList.toggle('mp-crosshair',state.placing);qs('#mpPlaceBtn').textContent=state.placing?'PARAR DE MARCAR':'MARCAR PONTO NO MAPA';});
-    qs('#mpFit')?.addEventListener('click',fit);qs('#mpGoLS')?.addEventListener('click',()=>state.map?.setView(ll(900,-600),3));qs('#mpGoCayo')?.addEventListener('click',()=>{if(state.map&&state.cayoBounds)state.map.fitBounds(state.cayoBounds,{padding:[20,20]});});qs('#mpGenerateCircle')?.addEventListener('click',generateCircle);qs('#mpImport')?.addEventListener('click',importBulk);qs('#mpValidateBtn')?.addEventListener('click',validateSelected);qs('#mpAddCoord')?.addEventListener('click',addManual);qs('#mpClear')?.addEventListener('click',clearPoints);qs('#mpExportBtn')?.addEventListener('click',exportValidated);qs('#mpExportXYBtn')?.addEventListener('click',exportXY);qs('#mpGenerateRequest')?.addEventListener('click',generateRequest);qs('#mpCopyRequest')?.addEventListener('click',copyCurrentRequest);qs('#mpCaptureBtn')?.addEventListener('click',()=>captureSnapshot(true));
+    qs('#mpFit')?.addEventListener('click',fit);qs('#mpGoLS')?.addEventListener('click',()=>state.map?.setView(ll(900,-600),3));qs('#mpGoCayo')?.addEventListener('click',()=>{if(state.map&&state.cayoBounds)state.map.fitBounds(state.cayoBounds,{padding:[20,20]});});qs('#mpGenerateCircle')?.addEventListener('click',generateCircle);qs('#mpImport')?.addEventListener('click',importBulk);qs('#mpValidateBtn')?.addEventListener('click',()=>validateSelected());
+    qs('#mpValidateBulkBtn')?.addEventListener('click',validateBulk);
+    qs('#mpInvalidateBtn')?.addEventListener('click',invalidateSelected);
+    qs('#mpCopyPointTp')?.addEventListener('click',copySelectedTp);
+    qs('#mpJumpPending')?.addEventListener('click',()=>{const m=active();const id=nextPendingId(m,m?.selectedId||0);if(!id){setValidationFeedback('<b>Nenhum ponto pendente nesta zona.</b>','ok');return;}selectPoint(id);const p=m.points[id-1];if(p)state.map?.setView(ll(p.x,p.y),5);qs('#mpValidateCds')?.focus();});
+    qs('#mpValidateCds')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();validateSelected();}});qs('#mpAddCoord')?.addEventListener('click',addManual);qs('#mpClear')?.addEventListener('click',clearPoints);qs('#mpExportBtn')?.addEventListener('click',exportValidated);qs('#mpExportXYBtn')?.addEventListener('click',exportXY);qs('#mpGenerateRequest')?.addEventListener('click',generateRequest);qs('#mpCopyRequest')?.addEventListener('click',copyCurrentRequest);qs('#mpCaptureBtn')?.addEventListener('click',()=>captureSnapshot(true));
     setTimeout(()=>{state.map?.invalidateSize();fit();queueSnapshot();},180);
     setTimeout(()=>syncMissionsFromCloud(),1200);
+  }
+  /* ---------------------------------------------------------------
+     V9.4.1 - A lateral tinha 11 cards empilhados e exigia rolagem
+     constante. Aqui os MESMOS cards sao reorganizados em 4 abas, sem
+     recriar elemento nenhum (os listeners continuam valendo).
+  --------------------------------------------------------------- */
+  const PLANNER_TABS=[
+    {id:'zona',label:'ZONA'},
+    {id:'pontos',label:'PONTOS'},
+    {id:'validacao',label:'VALIDAÇÃO'},
+    {id:'entrega',label:'ENTREGA'}
+  ];
+  function cardTabKey(card){
+    const t=(card.querySelector('h3')?.textContent||'').toUpperCase();
+    if(card.classList.contains('mp-validation-card')||t.includes('VALIDA'))return 'validacao';
+    if(t.includes('EXPORT')||t.includes('SOLICITA')||t.includes('PRINT'))return 'entrega';
+    if(t.includes('PONTO')||t.includes('SPAWN')||t.includes('LOTE')||t.includes('IMPORT')||t.includes('STATUS'))return 'pontos';
+    return 'zona';
+  }
+  function plannerPanel(id){return qs(`.mp-tabpanel[data-tab="${id}"]`);}
+  function adoptStrayCards(){
+    const side=qs('.mission-planner-side');if(!side||!qs('#mpTabBar'))return;
+    Array.from(side.children).forEach(el=>{
+      if(!el.classList||!el.classList.contains('mp-card'))return;
+      plannerPanel(cardTabKey(el))?.appendChild(el);
+    });
+  }
+  function setPlannerTab(id){
+    qsa('.mp-tab').forEach(b=>{const on=b.dataset.tab===id;b.classList.toggle('active',on);b.setAttribute('aria-selected',on?'true':'false');});
+    qsa('.mp-tabpanel').forEach(p=>p.classList.toggle('active',p.dataset.tab===id));
+    state.plannerTab=id;
+    try{localStorage.setItem('highos_mp_tab',id);}catch(e){}
+  }
+  function ensurePlannerTabs(){
+    const side=qs('.mission-planner-side');
+    if(!side||qs('#mpTabBar'))return;
+    const cards=Array.from(side.querySelectorAll(':scope > .mp-card'));
+    if(!cards.length)return;
+    const bar=document.createElement('div');bar.id='mpTabBar';bar.className='mp-tabbar';bar.setAttribute('role','tablist');
+    const panels={};
+    PLANNER_TABS.forEach(t=>{
+      const b=document.createElement('button');
+      b.type='button';b.className='mp-tab';b.dataset.tab=t.id;b.setAttribute('role','tab');
+      b.innerHTML=`<span>${t.label}</span><i class="mp-tab-badge" data-badge="${t.id}"></i>`;
+      b.addEventListener('click',()=>setPlannerTab(t.id));
+      bar.appendChild(b);
+      const panel=document.createElement('div');panel.className='mp-tabpanel';panel.dataset.tab=t.id;
+      panels[t.id]=panel;
+    });
+    side.insertBefore(bar,side.firstChild);
+    PLANNER_TABS.forEach(t=>side.appendChild(panels[t.id]));
+    cards.forEach(card=>panels[cardTabKey(card)].appendChild(card));
+    let salva='zona';try{salva=localStorage.getItem('highos_mp_tab')||'zona';}catch(e){}
+    setPlannerTab(PLANNER_TABS.some(t=>t.id===salva)?salva:'zona');
+  }
+  function renderPlannerBadges(){
+    const m=active();if(!m)return;
+    const pend=(m.points||[]).filter(p=>!isValidated(p)).length;
+    const total=(m.points||[]).length;
+    const set=(id,txt,warn)=>{const el=qs(`[data-badge="${id}"]`);if(!el)return;el.textContent=txt||'';el.classList.toggle('warn',!!warn);el.classList.toggle('hidden',!txt);};
+    set('pontos',total?String(total):'',false);
+    set('validacao',pend?String(pend):'✓',!!pend);
+    set('zona','',false);
+    set('entrega','',false);
+    const kpi=qs('#mpMapKpis');
+    if(kpi)kpi.innerHTML=`<span><b>${total-pend}</b> validados</span><span class="${pend?'warn':''}"><b>${pend}</b> pendentes</span><span><b>${total}</b> pontos</span>`;
+  }
+  function ensureMapKpis(){
+    const status=qs('.mp-map-status');
+    if(!status||qs('#mpMapKpis'))return;
+    const box=document.createElement('div');box.id='mpMapKpis';box.className='mp-map-kpis';
+    status.appendChild(box);
   }
   function activate(){bind();setTimeout(()=>{state.map?.invalidateSize();fit();},100);}
   window.HighMissionPlanner={activate,fit,captureSnapshot,syncCloud:syncMissionsFromCloud,applyCloudMissions};

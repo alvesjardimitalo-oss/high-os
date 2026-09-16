@@ -1,5 +1,13 @@
 
-## V9.4.0 (atual)
+## V9.4.1 (atual)
+- **Correcao critica das regras**: a V9.4 bloqueava o chat inteiro ("Missing or insufficient permissions"). Numa consulta de lista o Firestore valida a regra contra os FILTROS, nao documento a documento. Agora cada mensagem carrega `participants` e a consulta usa `array-contains`.
+- Rode `tools/migrar-chat.html` uma vez, como ADMIN, para preencher `participants` nas mensagens antigas.
+- Republique regras e indice: `firebase deploy --only firestore:rules,firestore:indexes` (o indice mudou: conversationId + participants + createdAt).
+- Camada de resiliencia: espelho local de cada colecao, janela de 20s e MODO LOCAL quando o Firebase cai ou bate a cota. `highOSRotinas()` no console mostra o consumo. Detalhes em `ROTINAS-FIREBASE.md`.
+- Planejador reorganizado em abas (ZONA / PONTOS / VALIDACAO / ENTREGA), KPIs sobre o mapa e mar de Cayo Perico na mesma cor de Los Santos.
+- Validador de CDS refeito: aceita tpcds, chaves, vector4, ponto e virgula ou espaco; avisa desvio em metros; Enter valida e pula para o proximo pendente; validacao em lote.
+
+## V9.4.0
 - Chat passa a escutar somente a conversa aberta (`where conversationId` + `limit 80`): acabou o vazamento de DMs entre usuarios.
 - Novo `firestore.rules` + `firestore.indexes.json`. **Publique antes de usar a V9.4**, senao o chat nao carrega:
   `firebase deploy --only firestore:rules,firestore:indexes`

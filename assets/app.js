@@ -1,6 +1,6 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js';
-import { getFirestore, doc, getDoc, collection, getDocs, setDoc, addDoc, serverTimestamp, writeBatch, deleteDoc, onSnapshot, query, where, orderBy, limit } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
+import { getFirestore, doc, getDoc, collection, getDocs, setDoc as _setDoc, addDoc as _addDoc, serverTimestamp, writeBatch as _writeBatch, deleteDoc as _deleteDoc, onSnapshot, query, where, orderBy, limit } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
 
 const firebaseConfig={apiKey:'AIzaSyBKtl3rCA9Id1RDMwGch-yi4hxAs83DraU',authDomain:'high-os.firebaseapp.com',projectId:'high-os',storageBucket:'high-os.firebasestorage.app',messagingSenderId:'471862600170',appId:'1:471862600170:web:ff55af6f7e808ff393d293'};
 const app=initializeApp(firebaseConfig), auth=getAuth(app), db=getFirestore(app), provider=new GoogleAuthProvider();
@@ -48,7 +48,7 @@ async function saveDashboardConfig(){
  try{await setDoc(dashboardConfigDoc,{...dashboardConfig,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true});await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'DASHBOARD_PARAMETROS',descricao:'Parâmetros semanais NORMAL / ATENÇÃO / CRÍTICO alterados',antes:before,depois:dashboardConfig,usuario:currentUser.email,data:serverTimestamp()});renderDashboardConfigAdmin();renderCommandDashboard();alert('Parâmetros semanais do Dashboard salvos.');}
  catch(e){dashboardConfig=before;alert('Não foi possível salvar os parâmetros: '+e.message)}
 }
-async function loadDashboardAlertStates(){try{const qs=await getDocs(dashboardAlertCol);dashboardAlertStates=qs.docs.map(d=>({id:d.id,...d.data()}))}catch(e){dashboardAlertStates=[];console.warn('Falha ao carregar status dos alertas',e)}}
+async function loadDashboardAlertStates(){try{const qs=await getDocsCached(dashboardAlertCol,'alertas_dashboard');dashboardAlertStates=qs.docs.map(d=>({id:d.id,...d.data()}))}catch(e){dashboardAlertStates=[];console.warn('Falha ao carregar status dos alertas',e)}}
 function alertStateId(group,weekKey){return `CONTINGENTE_${String(group||'').replace(/[^a-zA-Z0-9_-]/g,'_')}_${weekKey}`}
 function findDashboardAlertState(group,weekKey){return dashboardAlertStates.find(x=>x.id===alertStateId(group,weekKey))||null}
 async function setDashboardAlertState(group,weekKey,status){
@@ -219,7 +219,7 @@ $('#groupProfileBack')?.addEventListener('click',closeGroupProfilePage);
 
 
 async function loadFaccoes(){
- try{const qs=await getDocs(facCol);faccoes=qs.docs.map(d=>({id:d.id,...d.data()}));faccoes.sort((a,b)=>(a.numero||999)-(b.numero||999));renderFaccoes();renderAvailableFaccoes()}catch(e){$('#facList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR</h3><p>${e.message}</p></div>`}
+ try{const qs=await getDocsCached(facCol,'faccoes');faccoes=qs.docs.map(d=>({id:d.id,...d.data()}));faccoes.sort((a,b)=>(a.numero||999)-(b.numero||999));renderFaccoes();renderAvailableFaccoes()}catch(e){$('#facList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR</h3><p>${e.message}</p></div>`}
 }
 function renderFaccoes(){
  const q=($('#facSearch').value||'').toLowerCase(),seg=$('#facSegment').value,st=$('#facStatus').value;
@@ -231,6 +231,146 @@ function renderFaccoes(){
  document.querySelectorAll('.fac-card').forEach(c=>c.onclick=(e)=>{if(e.target.closest('.req-from-fac'))return;openFac(c.dataset.id)});document.querySelectorAll('.req-from-fac').forEach(b=>b.onclick=(e)=>{e.stopPropagation();openRequestModal('',b.dataset.group)});
 }
 const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+
+/* =====================================================================
+   HIGH OS V9.4.1 - CAMADA DE RESILIENCIA DO FIRESTORE
+   ---------------------------------------------------------------------
+   Problema: toda tela lia a colecao inteira com getDocs() a cada
+   navegacao. Isso gastava cota, deixava o painel lento e, se o Firebase
+   atingisse o limite (ou caisse a internet), o sistema simplesmente nao
+   abria.
+
+   Esta camada resolve em tres niveis:
+     1. JANELA (ttl)  - a mesma colecao nao e relida em sequencia dentro
+                        da janela de tempo; devolve o que ja esta na
+                        memoria. Corta a maior parte das leituras.
+     2. ESPELHO LOCAL - toda leitura bem sucedida e copiada para o
+                        localStorage. Se o Firestore falhar (cota,
+                        offline, permissao), o painel abre com o ultimo
+                        espelho em MODO LOCAL, somente leitura.
+     3. CONTADOR      - registra quantas leituras cada rotina fez na
+                        sessao. Digite highOSRotinas() no console para
+                        ver a tabela.
+
+   Os dados voltam no mesmo formato de um QuerySnapshot (.docs, .size,
+   .forEach), entao nenhuma tela precisou ser reescrita.
+   ===================================================================== */
+/* Qualquer gravacao limpa a janela de cache: assim uma tela nunca mostra
+   dado velho logo depois de salvar. */
+const setDoc=(...a)=>{cacheMemoria.clear();return _setDoc(...a)};
+const addDoc=(...a)=>{cacheMemoria.clear();return _addDoc(...a)};
+const deleteDoc=(...a)=>{cacheMemoria.clear();return _deleteDoc(...a)};
+const writeBatch=(...a)=>{const b=_writeBatch(...a);const commit=b.commit.bind(b);b.commit=()=>{cacheMemoria.clear();return commit()};return b};
+
+const CACHE_PREFIX='highos_cache_';
+const CACHE_TTL_PADRAO=20000;          // janela curta: agrupa a rajada de leituras da navegacao
+const CACHE_LIMITE_BYTES=1200000;      // nao espelha colecao gigante
+const cacheMemoria=new Map();          // nome -> {at, rows}
+const firestoreStats=new Map();        // nome -> {leituras, docs, cache, falhas, ultimaAt}
+
+function statBump(nome,campo,qtd=1){
+ const s=firestoreStats.get(nome)||{leituras:0,docs:0,cache:0,falhas:0,ultimaAt:null};
+ s[campo]+=qtd;s.ultimaAt=new Date().toLocaleTimeString('pt-BR');
+ firestoreStats.set(nome,s);
+}
+window.highOSRotinas=function(){
+ const linhas=[...firestoreStats.entries()].map(([nome,s])=>({
+  colecao:nome,'leituras no Firestore':s.leituras,'documentos lidos':s.docs,
+  'respostas do cache':s.cache,falhas:s.falhas,'ultima vez':s.ultimaAt
+ }));
+ console.table(linhas);
+ console.info('MODO LOCAL ativo:',!!window.HighOSOffline?.ativo);
+ return linhas;
+};
+
+/* Timestamp do Firestore nao sobrevive ao JSON: guardamos como {__ts}
+   e reconstruimos com .toDate() na volta, para as telas nao quebrarem. */
+function packCache(v){
+ if(v===null||v===undefined)return v;
+ if(typeof v?.toDate==='function'&&typeof v?.seconds==='number')return {__ts:v.seconds};
+ if(Array.isArray(v))return v.map(packCache);
+ if(typeof v==='object'){const o={};for(const k in v)o[k]=packCache(v[k]);return o}
+ return v;
+}
+function unpackCache(v){
+ if(v===null||v===undefined)return v;
+ if(typeof v==='object'&&!Array.isArray(v)&&Object.prototype.hasOwnProperty.call(v,'__ts')){
+  const d=new Date(v.__ts*1000);
+  return {seconds:v.__ts,nanoseconds:0,toDate:()=>d};
+ }
+ if(Array.isArray(v))return v.map(unpackCache);
+ if(typeof v==='object'){const o={};for(const k in v)o[k]=unpackCache(v[k]);return o}
+ return v;
+}
+function cacheEscrever(nome,rows){
+ try{
+  const txt=JSON.stringify({at:Date.now(),rows:rows.map(r=>packCache(r))});
+  if(txt.length>CACHE_LIMITE_BYTES)return;
+  localStorage.setItem(CACHE_PREFIX+nome,txt);
+ }catch(e){/* cota do navegador cheia: o espelho e opcional */}
+}
+function cacheLer(nome){
+ try{
+  const raw=localStorage.getItem(CACHE_PREFIX+nome);
+  if(!raw)return null;
+  const data=JSON.parse(raw);
+  if(!Array.isArray(data?.rows))return null;
+  return {at:data.at,rows:data.rows.map(r=>unpackCache(r))};
+ }catch(e){return null}
+}
+function comoSnapshot(rows=[]){
+ const docs=rows.map(r=>{const {id,...resto}=r;return {id,data:()=>resto,exists:()=>true}});
+ return {docs,size:docs.length,empty:!docs.length,forEach:fn=>docs.forEach(fn)};
+}
+
+window.HighOSOffline={ativo:false,desde:null,motivo:''};
+function entrarModoLocal(motivo=''){
+ if(window.HighOSOffline.ativo)return;
+ window.HighOSOffline={ativo:true,desde:new Date(),motivo:String(motivo||'')};
+ document.body.classList.add('modo-local');
+ mostrarFaixaModoLocal();
+ try{window.highToast?.('Modo local ativo: o Firebase nao respondeu, mostrando a ultima copia salva. Nada sera gravado ate a conexao voltar.','warn',9000)}catch(e){}
+}
+function sairModoLocal(){
+ if(!window.HighOSOffline.ativo)return;
+ window.HighOSOffline={ativo:false,desde:null,motivo:''};
+ document.body.classList.remove('modo-local');
+ document.getElementById('highLocalBanner')?.remove();
+ try{window.highToast?.('Conexao com o Firebase restabelecida.','ok')}catch(e){}
+}
+function mostrarFaixaModoLocal(){
+ if(document.getElementById('highLocalBanner'))return;
+ const b=document.createElement('div');
+ b.id='highLocalBanner';
+ b.innerHTML='<b>MODO LOCAL</b><span>O Firebase nao respondeu (cota, queda ou permissao). Voce esta vendo a ultima copia salva neste navegador e as alteracoes nao serao gravadas.</span><button type="button" id="highLocalRetry">TENTAR DE NOVO</button>';
+ document.body.appendChild(b);
+ document.getElementById('highLocalRetry')?.addEventListener('click',()=>{cacheMemoria.clear();location.reload()});
+}
+
+/* Substitui getDocs() nas rotinas de leitura completa. */
+async function getDocsCached(colRef,nome,opts={}){
+ const ttl=Number.isFinite(opts.ttl)?opts.ttl:CACHE_TTL_PADRAO;
+ const mem=cacheMemoria.get(nome);
+ if(mem&&ttl>0&&(Date.now()-mem.at)<ttl){statBump(nome,'cache');return comoSnapshot(mem.rows)}
+ try{
+  const qs=await getDocs(colRef);
+  const rows=qs.docs.map(d=>({id:d.id,...d.data()}));
+  cacheMemoria.set(nome,{at:Date.now(),rows});
+  cacheEscrever(nome,rows);
+  statBump(nome,'leituras');statBump(nome,'docs',rows.length);
+  sairModoLocal();
+  return qs;
+ }catch(e){
+  statBump(nome,'falhas');
+  const espelho=mem||cacheLer(nome);
+  console.warn(`[HIGH OS] Falha ao ler ${nome} no Firestore:`,e?.message||e);
+  if(espelho?.rows?.length){
+   entrarModoLocal(e?.message||'');
+   return comoSnapshot(espelho.rows);
+  }
+  throw e;
+ }
+}
 ['facSearch','facSegment','facStatus'].forEach(id=>$('#'+id).addEventListener(id==='facSearch'?'input':'change',renderFaccoes));
 
 $('#seedBtn').onclick=async()=>{
@@ -621,7 +761,7 @@ function openRequestModal(id='',group=''){
 }
 async function loadRequests(){
  try{
-   const qs=await getDocs(reqCol),all=qs.docs.map(d=>({id:d.id,...d.data()}));
+   const qs=await getDocsCached(reqCol,'solicitacoes'),all=qs.docs.map(d=>({id:d.id,...d.data()}));
    solicitacoes=all.filter(x=>x.isModelo===true);
    requestRecords=all.filter(x=>x.isModelo!==true);
    solicitacoes.sort((a,b)=>(a.nome||a.assunto||'').localeCompare(b.nome||b.assunto||'','pt-BR'));
@@ -740,7 +880,7 @@ function assertAdmin(){if(String(currentProfile?.role||'').toUpperCase()!=='ADMI
 async function loadUsers(){
  if(!assertAdmin())return;
  try{
-  const qs=await getDocs(usersCol);
+  const qs=await getDocsCached(usersCol,'usuarios');
   usuarios=qs.docs.map(d=>({email:d.id,...d.data()})).sort((a,b)=>(a.name||a.email).localeCompare(b.name||b.email,'pt-BR'));
   renderUsers();
  }catch(e){$('#userList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR</h3><p>${esc(e.message)}</p></div>`}
@@ -821,8 +961,8 @@ function sessionDuration(sess){return Math.min(SESSION_MAX_MS,Math.max(0,Number(
 function isSameLocalDay(ms,base=Date.now()){if(!ms)return false;const a=new Date(ms),b=new Date(base);return a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate()}
 async function loadUserAudit(){
  if(!isAdmin()||!$('#adminSessionList'))return;
- try{if(!historico.length){const hq=await getDocs(histCol);historico=hq.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(historyDateValue(b)?.getTime()||0)-(historyDateValue(a)?.getTime()||0));}
- const qs=await getDocs(sessionCol);userSessions=qs.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>sessionStartMs(b)-sessionStartMs(a));renderUserAudit();}catch(e){$('#adminSessionList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR AUDITORIA</h3><p>${esc(e.message)}</p></div>`}
+ try{if(!historico.length){const hq=await getDocsCached(histCol,'historico');historico=hq.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(historyDateValue(b)?.getTime()||0)-(historyDateValue(a)?.getTime()||0));}
+ const qs=await getDocsCached(sessionCol,'sessoes_usuario');userSessions=qs.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>sessionStartMs(b)-sessionStartMs(a));renderUserAudit();}catch(e){$('#adminSessionList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR AUDITORIA</h3><p>${esc(e.message)}</p></div>`}
 }
 function renderUserAudit(){
  const box=$('#adminSessionList');if(!box)return;const q=String($('#adminAuditSearch')?.value||'').toLowerCase(),user=String($('#adminAuditUser')?.value||'').toLowerCase(),status=$('#adminAuditStatus')?.value||'',day=$('#adminAuditDate')?.value||'';
@@ -919,7 +1059,7 @@ function derivedOrganizations(){
  return [...map.values()].map(o=>({...o,status:o.groupAtual?'ATIVA':'INATIVA'})).sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
 }
 async function loadOrganizations(){
- try{const qs=await getDocs(orgCol);organizacoes=qs.docs.map(d=>({id:d.id,...d.data()}));renderOrganizations();syncOrgOptions()}catch(e){if($('#orgList'))$('#orgList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR</h3><p>${esc(e.message)}</p></div>`}
+ try{const qs=await getDocsCached(orgCol,'organizacoes');organizacoes=qs.docs.map(d=>({id:d.id,...d.data()}));renderOrganizations();syncOrgOptions()}catch(e){if($('#orgList'))$('#orgList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR</h3><p>${esc(e.message)}</p></div>`}
 }
 function syncOrgOptions(){const dl=$('#orgOptions');if(!dl)return;dl.innerHTML=derivedOrganizations().filter(o=>o.status!=='INATIVA').map(o=>`<option value="${esc(o.nome)}">${esc(o.groupAtual||'SEM GROUP')}</option>`).join('')}
 function orgSegmentValue(o={}){return o.segmentoVinculado||o.segmentoAtual||''}
@@ -950,7 +1090,7 @@ function renderOrganizations(){
 }
 
 async function orgHistory(name){
- try{const qs=await getDocs(histCol),key=String(name||'').toLowerCase();return qs.docs.map(d=>({id:d.id,...d.data()})).filter(h=>String(h.faccao||h.depois?.faccao||h.antes?.faccao||'').toLowerCase()===key).sort((a,b)=>historyMillis(b)-historyMillis(a)).slice(0,8)}catch{return[]}
+ try{const qs=await getDocsCached(histCol,'historico'),key=String(name||'').toLowerCase();return qs.docs.map(d=>({id:d.id,...d.data()})).filter(h=>String(h.faccao||h.depois?.faccao||h.antes?.faccao||'').toLowerCase()===key).sort((a,b)=>historyMillis(b)-historyMillis(a)).slice(0,8)}catch{return[]}
 }
 async function openOrganizationByName(name=''){
  const o=derivedOrganizations().find(x=>String(x.nome).toLowerCase()===String(name).toLowerCase())||{id:'',nome:name,status:'SEM_GROUP'};
@@ -970,7 +1110,7 @@ async function upsertOrganizationFromDelivery(payload,f){
  await setDoc(doc(db,'highos','data','organizacoes',id),{nome:payload.faccao,status:'ATIVA',lider:payload.lider||existing.lider||'',contato:existing.contato||'',discord:existing.discord||'',desde:existing.desde||payload.dataEntrega||'',observacoes:existing.observacoes||'',groupAtual:f.group,segmentoAtual:f.segmento||'',segmentoVinculado:f.segmento||existing.segmentoVinculado||'',qgAtual:f.qg||'',updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true});
 }
 async function loadDeliveries(){
- try{const qs=await getDocs(deliveryCol);entregas=qs.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(b.createdAtText||b.dataEntrega||'').localeCompare(String(a.createdAtText||a.dataEntrega||'')));renderDeliveries()}catch(e){if($('#deliveryList'))$('#deliveryList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR</h3><p>${esc(e.message)}</p></div>`}
+ try{const qs=await getDocsCached(deliveryCol,'entregas');entregas=qs.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(b.createdAtText||b.dataEntrega||'').localeCompare(String(a.createdAtText||a.dataEntrega||'')));renderDeliveries()}catch(e){if($('#deliveryList'))$('#deliveryList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR</h3><p>${esc(e.message)}</p></div>`}
 }
 function renderDeliveries(){
  if(!$('#deliveryList'))return;const q=($('#deliverySearch').value||'').toLowerCase(),st=$('#deliveryStatus').value;
@@ -1065,7 +1205,7 @@ function changedSummary(h){
 async function loadHistory(){
  if(!$('#historyList')&&!$('#groupHistoryPreview'))return;
  try{
-  const qs=await getDocs(histCol);historico=qs.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(historyDateValue(b)?.getTime()||0)-(historyDateValue(a)?.getTime()||0));renderHistory();
+  const qs=await getDocsCached(histCol,'historico');historico=qs.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(historyDateValue(b)?.getTime()||0)-(historyDateValue(a)?.getTime()||0));renderHistory();
  }catch(e){if($('#historyList'))$('#historyList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR</h3><p>${esc(e.message)}</p></div>`}
 }
 async function openRecollectEvidence(evidenceId,historyId=''){if(!evidenceId)return;const modal=$('#recollectEvidenceModal'),img=$('#recollectEvidenceImage'),meta=$('#recollectEvidenceMeta');if(!modal||!img)return;img.removeAttribute('src');meta.textContent='Carregando evidência...';modal.classList.remove('hidden');try{const snap=await getDoc(doc(db,'highos','data','evidencias_recolhimento',evidenceId));if(!snap.exists())throw new Error('Evidência não encontrada.');const e=snap.data(),h=historico.find(x=>x.id===historyId)||{};img.src=e.imagemDataUrl||'';meta.innerHTML=`<span><b>${esc(e.group||h.group||'—')}</b> • ${esc(e.faccao||h.faccao||'—')}</span><span>${esc(h.motivoLabel||recollectReasonLabel(e.motivo)||'Recolhimento')} • ${esc(h.dataRecolhimento||'')}</span>`}catch(err){meta.textContent='Não foi possível abrir a evidência: '+err.message}}
@@ -1384,7 +1524,7 @@ function startMetricRealtime(){
  });
 }
 async function loadMetrics(){
- try{const qs=await getDocs(metricCol);applyMetricSnapshot(qs)}catch(e){metricasCache=[];metricas=[];metricPeriodKey=metricPeriodKey||currentMetricMonthKey()}
+ try{const qs=await getDocsCached(metricCol,'metricas',{ttl:120000});applyMetricSnapshot(qs)}catch(e){metricasCache=[];metricas=[];metricPeriodKey=metricPeriodKey||currentMetricMonthKey()}
  await loadMetricSourceConfig();refreshMetricPeriodOptions();renderMetrics();renderMetricSourceStatus();startMetricRealtime();
 }
 function metricIdentity(group,row=null){
@@ -2939,6 +3079,11 @@ function chatAttachmentHtml(m){const a=m.anexo;if(!a)return '';if(String(a.type|
 function chatStickerHtml(m){return m.sticker?`<div class="hm-sticker" title="Figurinha">${esc(m.sticker)}</div>`:''}
 function chatMeetingHtml(m){if(!m.reuniao?.url)return '';const mine=String(m.email||'').toLowerCase()===String(currentUser?.email||'').toLowerCase();return `<div class="chat-call-card"><div class="chat-call-icon">☎</div><div class="chat-call-info"><b>${mine?'Você iniciou uma chamada':`${esc(m.nome||'Usuário')} iniciou uma chamada`}</b><small>Áudio • vídeo • tela • arquivos</small></div><button type="button" class="chat-meeting-invite" data-meeting-url="${esc(m.reuniao.url)}" data-room="${esc(m.reuniao.room||'Sala')}" data-meeting-title="${esc('Chamada com '+(mine?(hmUserName(hmUser(chatRecipientEmail))||'usuário'):(m.nome||'usuário')))}">${mine?'ENTRAR':'ATENDER'}</button></div>`}
 function chatConversationId(a='',b=''){return [String(a).toLowerCase(),String(b).toLowerCase()].sort().join('::')}
+/* V9.4.1 - as regras do Firestore so conseguem autorizar uma CONSULTA de lista
+   quando ela filtra pelo mesmo campo que a regra verifica. Por isso toda
+   mensagem passa a carregar participants:[remetente,destinatario] e a consulta
+   usa array-contains no proprio e-mail. */
+function chatParticipants(a='',b=''){return [String(a||'').toLowerCase(),String(b||'').toLowerCase()].filter(Boolean).sort()}
 function populateChatRecipients(){const sel=$('#chatRecipientSelect');if(!sel||!currentUser)return;const me=(currentUser.email||'').toLowerCase(),keep=chatRecipientEmail||sel.value;const list=usuarios.filter(u=>String(u.email||'').toLowerCase()!==me&&u.active!==false);sel.innerHTML='<option value="">Selecione um usuário</option>'+list.map(u=>`<option value="${esc(u.email)}">${esc(hmUserName(u))} • ${esc(hmUserRole(u))}</option>`).join('');if(keep&&list.some(u=>String(u.email||'').toLowerCase()===String(keep).toLowerCase())){sel.value=keep;chatRecipientEmail=keep}renderHmContacts()}
 function privateChatItems(items=[]){if(!chatRecipientEmail||!currentUser)return [];const cid=chatConversationId(currentUser.email,chatRecipientEmail);return items.filter(m=>m.conversationId===cid||(m.recipientEmail&&chatConversationId(m.email,m.recipientEmail)===cid))}
 function hmLastMessageFor(email){const cid=chatConversationId(currentUser?.email||'',email);return [...chatItems].reverse().find(m=>m.conversationId===cid||(m.recipientEmail&&chatConversationId(m.email,m.recipientEmail)===cid))}
@@ -2947,8 +3092,13 @@ function selectChatRecipient(email){chatRecipientEmail=email||'';const sel=$('#c
 function renderChatMessages(items=[]){chatItems=items;populateChatRecipients();const me=(currentUser?.email||'').toLowerCase(),visible=privateChatItems(items),target=hmUser(chatRecipientEmail),title=$('#teamChatTitle'),presence=$('#teamChatPresence'),av=$('#hmActiveAvatar');if(title)title.textContent=target?hmUserName(target):'Selecione uma conversa';if(presence)presence.textContent=target?`${hmUserRole(target)} • mensagens disponíveis mesmo offline`:'Usuários cadastrados aparecem mesmo offline';if(av){av.innerHTML=target?.photoURL?`<img src="${esc(target.photoURL)}" alt="">`:esc(hmInitials(target?hmUserName(target):'High'));}const body=!chatRecipientEmail?'<div class="chat-empty hm-empty"><b>Mensagens diretas</b><span>Selecione um membro da equipe. A conversa fica salva mesmo quando ele estiver offline.</span></div>':visible.length?visible.map(m=>`<article class="chat-message ${String(m.email||'').toLowerCase()===me?'mine':''}"><div class="chat-message-avatar">${m.photoURL?`<img src="${esc(m.photoURL)}" alt="">`:esc(hmInitials(m.nome||m.email))}</div><div class="chat-message-bubble"><header><b>${esc(m.nome||m.email||'Usuário')}</b><small>${esc(m.cargo||'')} • ${esc(chatTime(m.createdAt||m))}</small></header>${m.texto?`<p>${esc(m.texto)}</p>`:''}${chatStickerHtml(m)}${chatAttachmentHtml(m)}${chatMeetingHtml(m)}${isAdmin()?`<button type="button" class="chat-delete" data-chat-delete="${esc(m.id)}" title="Excluir mensagem">×</button>`:''}</div></article>`).join(''):'<div class="chat-empty hm-empty"><b>Nenhuma mensagem ainda</b><span>Envie texto, emoji, GIF, figurinha, foto ou arquivo.</span></div>';['#chatMessages','#floatingChatMessages'].forEach(sel=>{const b=$(sel);if(!b)return;b.innerHTML=body;b.scrollTop=b.scrollHeight;b.querySelectorAll('[data-chat-delete]').forEach(x=>x.onclick=()=>deleteChatMessage(x.dataset.chatDelete));b.querySelectorAll('[data-meeting-url]').forEach(x=>x.onclick=()=>openTeamMeeting(x.dataset.meetingUrl,x.dataset.room,'',x.dataset.meetingTitle||'HIGH CALL'))});renderHmContacts()}
 const CHAT_PAGE_SIZE=80;
 function chatConversationQuery(){
- const cid=chatConversationId(currentUser?.email||'',chatRecipientEmail||'');
- return query(chatCol,where('conversationId','==',cid),orderBy('createdAt','desc'),limit(CHAT_PAGE_SIZE));
+ const me=String(currentUser?.email||'').toLowerCase();
+ const cid=chatConversationId(me,chatRecipientEmail||'');
+ return query(chatCol,
+  where('conversationId','==',cid),
+  where('participants','array-contains',me),
+  orderBy('createdAt','desc'),
+  limit(CHAT_PAGE_SIZE));
 }
 function stopChat(){if(chatUnsubscribe){try{chatUnsubscribe()}catch(e){}chatUnsubscribe=null}}
 function subscribeChatConversation(){
@@ -2971,7 +3121,7 @@ function subscribeChatConversation(){
  }catch(e){console.warn(e)}
 }
 function startChat(){if(!currentUser||!canViewModule('chat'))return;$('#teamChatLauncher')?.classList.remove('hidden');subscribeChatConversation()}
-async function sendChatMessage(inputSelector='#floatingChatInput',extra={}){if(!canEditModule('chat'))return permissionDeniedMessage('chat',true);if(!chatRecipientEmail)return alert('Selecione com quem deseja conversar.');const input=$(inputSelector),texto=input?.value.trim()||'';if(!texto&&!chatPendingAttachment&&!extra.sticker)return;if(texto.length>1000)return alert('Mensagem muito longa. Limite: 1000 caracteres.');try{await addDoc(chatCol,{texto,sticker:extra.sticker||'',anexo:chatPendingAttachment||null,recipientEmail:chatRecipientEmail,conversationId:chatConversationId(currentUser.email,chatRecipientEmail),email:currentUser.email||'',nome:currentProfile?.name||currentUser.displayName||currentUser.email,cargo:currentProfile?.cargo||currentProfile?.role||'',photoURL:currentProfile?.photoURL||currentUser.photoURL||'',sessionId:currentSessionId||'',createdAt:serverTimestamp(),createdAtText:new Date().toISOString()});if(input)input.value='';chatPendingAttachment=null;renderChatAttachmentPreview();toggleHmPicker(false)}catch(e){alert('Erro ao enviar mensagem: '+e.message)}}
+async function sendChatMessage(inputSelector='#floatingChatInput',extra={}){if(!canEditModule('chat'))return permissionDeniedMessage('chat',true);if(!chatRecipientEmail)return alert('Selecione com quem deseja conversar.');const input=$(inputSelector),texto=input?.value.trim()||'';if(!texto&&!chatPendingAttachment&&!extra.sticker)return;if(texto.length>1000)return alert('Mensagem muito longa. Limite: 1000 caracteres.');try{await addDoc(chatCol,{texto,sticker:extra.sticker||'',anexo:chatPendingAttachment||null,recipientEmail:chatRecipientEmail,conversationId:chatConversationId(currentUser.email,chatRecipientEmail),participants:chatParticipants(currentUser.email,chatRecipientEmail),email:currentUser.email||'',nome:currentProfile?.name||currentUser.displayName||currentUser.email,cargo:currentProfile?.cargo||currentProfile?.role||'',photoURL:currentProfile?.photoURL||currentUser.photoURL||'',sessionId:currentSessionId||'',createdAt:serverTimestamp(),createdAtText:new Date().toISOString()});if(input)input.value='';chatPendingAttachment=null;renderChatAttachmentPreview();toggleHmPicker(false)}catch(e){alert('Erro ao enviar mensagem: '+e.message)}}
 async function deleteChatMessage(id){if(!isAdmin())return;try{await deleteDoc(doc(db,'highos','data','chat_mensagens',id));await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'CHAT_EXCLUSAO',descricao:'Mensagem removida do chat interno',usuario:currentUser.email,data:serverTimestamp()})}catch(e){alert('Erro ao excluir mensagem: '+e.message)}}
 function toggleFloatingChat(force){const p=$('#teamChatFloat');if(!p)return;const show=force===undefined?p.classList.contains('hidden'):!!force;p.classList.toggle('hidden',!show);if(show){renderHmContacts();setTimeout(()=>$('#floatingChatInput')?.focus(),50)}}
 function renderChatAttachmentPreview(){const p=$('#chatAttachmentPreview');if(!p)return;if(!chatPendingAttachment){p.classList.add('hidden');p.innerHTML='';return}p.classList.remove('hidden');p.innerHTML=`<span>📎 ${esc(chatPendingAttachment.name)} • ${Math.round(chatPendingAttachment.size/1024)} KB</span><button type="button" id="chatAttachmentClear">×</button>`;$('#chatAttachmentClear').onclick=()=>{chatPendingAttachment=null;renderChatAttachmentPreview()}}
@@ -2980,12 +3130,12 @@ function hmDisplayName(){const n=currentProfile?.name||currentUser?.displayName|
 const HIGH_CALL_HOST='meet.ffmuc.net';
 function jitsiUrl(room){const display=encodeURIComponent(hmDisplayName());return `https://${HIGH_CALL_HOST}/${room}#userInfo.displayName=${display}&config.prejoinConfig.enabled=false&config.prejoinPageEnabled=false&config.startWithAudioMuted=false&config.startWithVideoMuted=true&config.disableDeepLinking=true&config.enableWelcomePage=false&config.enableLobby=false`}
 
-async function startTeamMeeting(mode='video'){if(!canEditModule('chat'))return permissionDeniedMessage('chat',true);if(!chatRecipientEmail)return alert('Selecione o usuário que deseja chamar.');const room=`high-os-dm-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,url=`https://${HIGH_CALL_HOST}/${room}`;try{await addDoc(chatCol,{texto:'',reuniao:{room,url,status:'calling',mode},recipientEmail:chatRecipientEmail,conversationId:chatConversationId(currentUser.email,chatRecipientEmail),email:currentUser.email||'',nome:currentProfile?.name||currentUser.displayName||currentUser.email,cargo:currentProfile?.cargo||currentProfile?.role||'',photoURL:currentProfile?.photoURL||currentUser.photoURL||'',createdAt:serverTimestamp(),createdAtText:new Date().toISOString()});const target=hmUser(chatRecipientEmail);openTeamMeeting(url,room,'',`Chamada • ${target?hmUserName(target):'Equipe'}`,mode==='audio')}catch(e){alert('Não foi possível iniciar a chamada: '+e.message)}}
+async function startTeamMeeting(mode='video'){if(!canEditModule('chat'))return permissionDeniedMessage('chat',true);if(!chatRecipientEmail)return alert('Selecione o usuário que deseja chamar.');const room=`high-os-dm-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,url=`https://${HIGH_CALL_HOST}/${room}`;try{await addDoc(chatCol,{texto:'',reuniao:{room,url,status:'calling',mode},recipientEmail:chatRecipientEmail,conversationId:chatConversationId(currentUser.email,chatRecipientEmail),participants:chatParticipants(currentUser.email,chatRecipientEmail),email:currentUser.email||'',nome:currentProfile?.name||currentUser.displayName||currentUser.email,cargo:currentProfile?.cargo||currentProfile?.role||'',photoURL:currentProfile?.photoURL||currentUser.photoURL||'',createdAt:serverTimestamp(),createdAtText:new Date().toISOString()});const target=hmUser(chatRecipientEmail);openTeamMeeting(url,room,'',`Chamada • ${target?hmUserName(target):'Equipe'}`,mode==='audio')}catch(e){alert('Não foi possível iniciar a chamada: '+e.message)}}
 const HM_VOICE_CHANNELS={ilegal1:{name:'Equipe do Ilegal 1',room:'high-os-equipe-ilegal-1'},ilegal2:{name:'Equipe do Ilegal 2',room:'high-os-equipe-ilegal-2'}};
 function joinTeamVoiceChannel(id){if(!canViewModule('chat'))return permissionDeniedMessage('chat');const c=HM_VOICE_CHANNELS[id];if(!c)return;openTeamMeeting(`https://${HIGH_CALL_HOST}/${c.room}`,c.room,id,c.name,false)}
 function renderTeamCallFiles(){const box=$('#teamCallFiles');if(!box)return;let rows=[];if(activeMeetingChannel)rows=chatItems.filter(m=>m.callFile&&m.callChannel===activeMeetingChannel&&m.reuniao?.room===activeMeetingRoom);else rows=privateChatItems(chatItems).filter(m=>m.callFile&&m.reuniao?.room===activeMeetingRoom);box.innerHTML=rows.length?rows.map(m=>`<a class="team-call-file-item" href="${esc(m.callFile.dataUrl)}" ${String(m.callFile.type||'').startsWith('image/')?'target="_blank"':`download="${esc(m.callFile.name||'arquivo')}"`}><span class="team-call-file-type">${String(m.callFile.type||'').startsWith('image/')?'▧':'⇩'}</span><span><b>${esc(m.callFile.name||'arquivo')}</b><small>${esc(m.nome||m.email||'Usuário')} • ${esc(m.cargo||'')} • ${Math.round((m.callFile.size||0)/1024)} KB</small></span></a>`).join(''):'<div class="chat-empty">Nenhum item compartilhado nesta chamada.</div>'}
 function renderTeamCallFilePreview(){const p=$('#teamCallFilePreview');if(!p)return;if(!teamCallPendingFile){p.classList.add('hidden');p.innerHTML='';return}p.classList.remove('hidden');p.innerHTML=`<span>📎 ${esc(teamCallPendingFile.name)} • ${Math.round(teamCallPendingFile.size/1024)} KB</span><button type="button" id="teamCallFileClear">×</button>`;$('#teamCallFileClear').onclick=()=>{teamCallPendingFile=null;renderTeamCallFilePreview()}}
-async function sendTeamCallFile(file){if(!file||!activeMeetingRoom)return;if(!activeMeetingChannel&&!chatRecipientEmail)return alert('Não foi possível identificar a conversa desta call.');if(file.size>600*1024)return alert('Arquivo muito grande. Limite atual: 600 KB.');const dataUrl=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(file)});teamCallPendingFile={name:file.name,type:file.type||'application/octet-stream',size:file.size,dataUrl};renderTeamCallFilePreview();try{const payload={texto:'',callFile:teamCallPendingFile,reuniao:{room:activeMeetingRoom,url:activeMeetingUrl},callChannel:activeMeetingChannel||'',email:currentUser.email||'',nome:currentProfile?.name||currentUser.displayName||currentUser.email,cargo:currentProfile?.cargo||currentProfile?.role||'',photoURL:currentProfile?.photoURL||currentUser.photoURL||'',createdAt:serverTimestamp(),createdAtText:new Date().toISOString()};if(!activeMeetingChannel){payload.recipientEmail=chatRecipientEmail;payload.conversationId=chatConversationId(currentUser.email,chatRecipientEmail)}await addDoc(chatCol,payload);teamCallPendingFile=null;renderTeamCallFilePreview()}catch(e){alert('Erro ao compartilhar arquivo: '+e.message)}}
+async function sendTeamCallFile(file){if(!file||!activeMeetingRoom)return;if(!activeMeetingChannel&&!chatRecipientEmail)return alert('Não foi possível identificar a conversa desta call.');if(file.size>600*1024)return alert('Arquivo muito grande. Limite atual: 600 KB.');const dataUrl=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(file)});teamCallPendingFile={name:file.name,type:file.type||'application/octet-stream',size:file.size,dataUrl};renderTeamCallFilePreview();try{const payload={texto:'',callFile:teamCallPendingFile,reuniao:{room:activeMeetingRoom,url:activeMeetingUrl},callChannel:activeMeetingChannel||'',email:currentUser.email||'',nome:currentProfile?.name||currentUser.displayName||currentUser.email,cargo:currentProfile?.cargo||currentProfile?.role||'',photoURL:currentProfile?.photoURL||currentUser.photoURL||'',createdAt:serverTimestamp(),createdAtText:new Date().toISOString()};if(!activeMeetingChannel){payload.recipientEmail=chatRecipientEmail;payload.conversationId=chatConversationId(currentUser.email,chatRecipientEmail);payload.participants=chatParticipants(currentUser.email,chatRecipientEmail)}if(!payload.participants)payload.participants=chatParticipants(currentUser.email,chatRecipientEmail);await addDoc(chatCol,payload);teamCallPendingFile=null;renderTeamCallFilePreview()}catch(e){alert('Erro ao compartilhar arquivo: '+e.message)}}
 function openTeamMeeting(url,room='Sala High OS',channel='',title='HIGH CALL',audioOnly=false){const o=$('#teamMeetingOverlay'),f=$('#teamMeetingFrame');if(!o||!f)return;activeMeetingRoom=room;activeMeetingUrl=url;activeMeetingChannel=channel||'';const ttl=$('#teamMeetingTitle');if(ttl)ttl.textContent=title;$('#teamMeetingRoomLabel').textContent=channel?'Canal de equipe • várias pessoas • voz • vídeo • tela • arquivos':'Chamada direta • voz • vídeo • tela • arquivos';const finalUrl=jitsiUrl(room)+(audioOnly?'&config.startWithVideoMuted=true':'');f.src=finalUrl;o.classList.remove('hidden');renderTeamCallFiles()}
 function closeTeamMeeting(){const o=$('#teamMeetingOverlay'),f=$('#teamMeetingFrame');if(f)f.src='about:blank';o?.classList.add('hidden');activeMeetingRoom='';activeMeetingUrl='';activeMeetingChannel='';teamCallPendingFile=null;renderTeamCallFilePreview()}
 function toggleHmPicker(force,type='emoji'){const p=$('#hmPicker');if(!p)return;const show=force===undefined?p.classList.contains('hidden'):!!force;if(!show){p.classList.add('hidden');p.innerHTML='';return}const emojis=['👍','✅','🔥','👀','📌','🚨','😂','💜','👏','🤝','🎯','💡','⚡','🫡','😎','🥳'];const stickers=['🔥','💜','🚨','✅','👑','🎯','🫡','😂','🤝','⚡','📢','🏆'];if(type==='emoji')p.innerHTML=`<div class="hm-picker-title">EMOJIS</div><div class="hm-picker-grid">${emojis.map(x=>`<button type="button" data-hm-emoji="${x}">${x}</button>`).join('')}</div>`;else p.innerHTML=`<div class="hm-picker-title">FIGURINHAS</div><div class="hm-sticker-grid">${stickers.map(x=>`<button type="button" data-hm-sticker="${x}">${x}</button>`).join('')}</div>`;p.classList.remove('hidden');p.querySelectorAll('[data-hm-emoji]').forEach(b=>b.onclick=()=>{const i=$('#floatingChatInput');if(i){i.value+=b.dataset.hmEmoji;i.focus()}toggleHmPicker(false)});p.querySelectorAll('[data-hm-sticker]').forEach(b=>b.onclick=()=>sendChatMessage('#floatingChatInput',{sticker:b.dataset.hmSticker}))}

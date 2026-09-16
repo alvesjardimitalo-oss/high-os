@@ -10,10 +10,10 @@
   <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
   <link rel="preconnect" href="https://unpkg.com" crossorigin>
   <title>High OS • Gestão do Ilegal</title>
-  <link rel="stylesheet" href="assets/style.css?v=9.4.0">
+  <link rel="stylesheet" href="assets/style.css?v=9.4.1">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="assets/mission-planner.css?v=9.4.0">
-  <link rel="stylesheet" href="assets/ui-kit.css?v=9.4.0">
+  <link rel="stylesheet" href="assets/mission-planner.css?v=9.4.1">
+  <link rel="stylesheet" href="assets/ui-kit.css?v=9.4.1">
   <link rel="icon" type="image/png" href="assets/high_logo.png?v=9.0.9">
 </head>
 <body>
@@ -86,7 +86,7 @@
       </aside>
       <div class="content">
         <section class="page active" id="page-dashboard">
-          <div class="page-head"><div><div class="eyebrow">CENTRAL DE COMANDO DO ILEGAL</div><h2>DASHBOARD</h2><p class="page-subtitle">Visão operacional para identificar rapidamente ocupação, contingente, pendências e movimentações da Staff.</p></div><span class="dev-badge">V9.4.0</span></div>
+          <div class="page-head"><div><div class="eyebrow">CENTRAL DE COMANDO DO ILEGAL</div><h2>DASHBOARD</h2><p class="page-subtitle">Visão operacional para identificar rapidamente ocupação, contingente, pendências e movimentações da Staff.</p></div><span class="dev-badge">V9.4.1</span></div>
           <div id="commandDashboard" class="command-dashboard"><div class="placeholder"><b>◆</b><h3>CARREGANDO CENTRAL DE COMANDO</h3></div></div>
           <span id="dashEmail" class="hidden">—</span><span id="dashRole" class="hidden">—</span>
         </section>
@@ -311,8 +311,25 @@
               <div class="mp-card mp-validation-card">
                 <h3>ASSISTENTE DE VALIDAÇÃO</h3>
                 <div id="mpValidationTarget" class="mp-readout">Selecione um ponto pendente.</div>
-                <label style="margin-top:8px">Cole a CDS real do FiveM<input id="mpValidateCds" placeholder="123.17,-456.34,31.72,180.00"></label>
-                <div class="mp-actions"><button type="button" id="mpValidateBtn" class="primary">VALIDAR PONTO SELECIONADO</button></div>
+                <div class="mp-actions mp-actions-tight">
+                  <button type="button" id="mpCopyPointTp">COPIAR TP DESTE PONTO</button>
+                  <button type="button" id="mpJumpPending">IR AO PRÓXIMO PENDENTE</button>
+                </div>
+                <label style="margin-top:8px">Cole a CDS real do FiveM
+                  <input id="mpValidateCds" autocomplete="off" placeholder="123.17,-456.34,31.72,180.00">
+                </label>
+                <p class="mp-note mp-note-compact">Aceita <b>tpcds</b>, chaves, vector4, ponto e vírgula ou espaço. Enter valida e já pula para o próximo pendente.</p>
+                <div class="mp-actions">
+                  <button type="button" id="mpValidateBtn" class="primary">VALIDAR E AVANÇAR</button>
+                  <button type="button" id="mpInvalidateBtn">VOLTAR A PENDENTE</button>
+                </div>
+                <div id="mpValidationFeedback" class="mp-validation-feedback info">Copie o TP do ponto, vá até o local no jogo e cole aqui a CDS real.</div>
+                <details class="mp-details">
+                  <summary>VALIDAR VÁRIOS DE UMA VEZ</summary>
+                  <textarea id="mpValidateBulk" rows="5" placeholder="1 - 998.81,-436.32,64.08,232.45
+2 - 728.29,-348.61,43.88,243.78"></textarea>
+                  <div class="mp-actions"><button type="button" id="mpValidateBulkBtn">VALIDAR LOTE</button></div>
+                </details>
                 <p class="mp-note">Ponto pendente usa Z provisório 0.00 para permitir TPCDS + NC. Ele continua vermelho até você colar a CDS real com Z válido. Ao mover um ponto validado, ele volta para PENDENTE e recebe Z provisório 0.00.</p>
               </div>
 
@@ -819,9 +836,9 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-  <script src="assets/ui-kit.js?v=9.4.0"></script>
-  <script src="assets/mission-planner.js?v=9.4.0"></script>
-  <script type="module" src="assets/app.js?v=9.4.0"></script>
+  <script src="assets/ui-kit.js?v=9.4.1"></script>
+  <script src="assets/mission-planner.js?v=9.4.1"></script>
+  <script type="module" src="assets/app.js?v=9.4.1"></script>
 
 <div id="newDeliveryModal" class="modal hidden"><div class="modal-card delivery-modal-v5"><button class="modal-x" id="newDeliveryClose">×</button>
   <div class="eyebrow">NOVA OCUPAÇÃO</div><h2>ENTREGA DE GROUP</h2><p class="delivery-help">O Group traz sua estrutura instalada. Personalize apenas o que será ativado para a nova facção.</p>

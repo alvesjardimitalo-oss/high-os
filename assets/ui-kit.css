@@ -238,3 +238,30 @@ button[disabled],.btn-primary[disabled],.btn-secondary[disabled]{
   .content{padding:0}
   .metric-report-preview,.mgmt-table-wrap{break-inside:avoid}
 }
+
+/* =========================================================
+   8. MODO LOCAL (V9.4.1)
+   Faixa exibida quando o Firestore não respondeu e o painel
+   está servindo o último espelho salvo neste navegador.
+   ========================================================= */
+#highLocalBanner{
+  position:fixed;left:0;right:0;bottom:0;z-index:99998;
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  padding:11px 18px;
+  background:linear-gradient(90deg,#3a2a0c,#241a08);
+  border-top:2px solid var(--warn,#ffcf5c);
+  color:#ffe9b8;font-size:12px;
+}
+#highLocalBanner b{
+  background:var(--warn,#ffcf5c);color:#231a05;
+  padding:3px 9px;border-radius:20px;font-size:10px;letter-spacing:.09em;
+}
+#highLocalBanner span{flex:1;min-width:240px;line-height:1.45}
+#highLocalRetry{
+  background:transparent;border:1px solid var(--warn,#ffcf5c);color:var(--warn,#ffcf5c);
+  border-radius:var(--r-sm,8px);padding:7px 13px;font-weight:800;font-size:10px;letter-spacing:.07em;cursor:pointer;
+}
+#highLocalRetry:hover{background:rgba(255,207,92,.16)}
+/* em modo local as ações de gravação ficam visivelmente desencorajadas */
+body.modo-local .btn-primary{filter:saturate(.6)}
+@media(max-width:620px){#highLocalBanner{font-size:11px;padding:10px 12px}}

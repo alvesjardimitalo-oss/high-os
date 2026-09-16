@@ -105,3 +105,92 @@
 .mp-replicate-status{display:grid;gap:6px;margin-top:14px;padding:12px;border-radius:11px;background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.08)}.mp-replicate-status b{color:#d7a9ef}.mp-replicate-status span{font-size:10px;color:#aeb6c3}.mp-replicate-status .ok{color:#8fe2ae}.mp-replicate-status .bad{color:#ff8d95}
 .mp-replicate-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}.mp-replicate-actions button{height:38px;border-radius:9px;border:1px solid rgba(255,255,255,.12);background:#1a1b23;color:#eee;padding:0 14px;font-weight:900}.mp-replicate-actions .primary{background:#70258f;border-color:#a452c8}.mp-replicate-actions button:disabled{opacity:.35;cursor:not-allowed}
 @media(max-width:650px){.mp-replicate-grid{grid-template-columns:1fr}}
+
+/* =========================================================
+   HIGH OS V9.4.1 · PLANEJADOR REORGANIZADO
+   Abas na lateral, assistente de validação com diagnóstico,
+   KPIs sobre o mapa e cor do mar unificada.
+   ========================================================= */
+
+/* --- abas da lateral --- */
+.mp-tabbar{
+  position:sticky;top:0;z-index:5;
+  display:grid;grid-template-columns:repeat(4,1fr);gap:4px;
+  padding:4px;margin:-4px -4px 10px;
+  background:rgba(12,10,17,.96);
+  border:1px solid rgba(255,255,255,.07);
+  border-radius:11px;
+  backdrop-filter:blur(6px);
+}
+.mp-tab{
+  display:flex;align-items:center;justify-content:center;gap:5px;
+  background:transparent;border:none;border-radius:8px;
+  color:#9a90a8;font:800 9.5px/1 inherit;letter-spacing:.06em;
+  padding:9px 4px;cursor:pointer;white-space:nowrap;
+  transition:background 140ms ease,color 140ms ease;
+}
+.mp-tab:hover{background:rgba(255,255,255,.05);color:#e6dcf2}
+.mp-tab.active{background:linear-gradient(180deg,#7b2fd6,#5d21a8);color:#fff;box-shadow:0 2px 10px rgba(123,47,214,.35)}
+.mp-tab-badge{
+  font-style:normal;font-size:9px;font-weight:900;
+  min-width:16px;padding:2px 4px;border-radius:20px;
+  background:rgba(255,255,255,.14);color:inherit;
+}
+.mp-tab-badge.warn{background:#ff5b76;color:#fff}
+.mp-tab-badge.hidden{display:none}
+.mp-tabpanel{display:none}
+.mp-tabpanel.active{display:block;animation:mp-fade 160ms ease}
+@keyframes mp-fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+/* --- assistente de validação --- */
+.mp-actions-tight{margin-top:6px;gap:6px}
+.mp-note-compact{font-size:10px;margin-top:5px;opacity:.75}
+.mp-validation-feedback{
+  margin-top:9px;padding:10px 11px;border-radius:9px;
+  border:1px solid rgba(255,255,255,.1);
+  background:rgba(255,255,255,.03);
+  font-size:11px;line-height:1.5;
+}
+.mp-validation-feedback b{display:block;font-size:11px;letter-spacing:.04em}
+.mp-validation-feedback span{display:block;margin-top:3px;opacity:.85}
+.mp-validation-feedback.ok{border-color:rgba(80,245,160,.4);background:rgba(80,245,160,.08)}
+.mp-validation-feedback.ok b{color:#50f5a0}
+.mp-validation-feedback.alerta{border-color:rgba(255,207,92,.45);background:rgba(255,207,92,.08)}
+.mp-validation-feedback.alerta b{color:#ffcf5c}
+.mp-validation-feedback.erro{border-color:rgba(255,91,118,.45);background:rgba(255,91,118,.08)}
+.mp-validation-feedback.erro b{color:#ff8a9c}
+.mp-mini-danger{
+  margin-top:8px;background:rgba(255,91,118,.16);border:1px solid rgba(255,91,118,.5);
+  color:#ffc3cc;border-radius:7px;padding:7px 10px;font-weight:800;font-size:10px;cursor:pointer;
+}
+.mp-mini-danger:hover{background:rgba(255,91,118,.26)}
+.mp-details{margin-top:10px;border-top:1px solid rgba(255,255,255,.07);padding-top:9px}
+.mp-details summary{
+  cursor:pointer;font-size:10px;font-weight:800;letter-spacing:.07em;
+  color:#b9a8cc;list-style:none;padding:4px 0;
+}
+.mp-details summary::-webkit-details-marker{display:none}
+.mp-details summary::before{content:"▸ ";transition:transform 120ms ease}
+.mp-details[open] summary::before{content:"▾ "}
+.mp-details textarea{margin-top:7px}
+
+/* --- KPIs sobre o mapa --- */
+.mp-map-status{flex-wrap:wrap;gap:10px}
+.mp-map-kpis{display:flex;gap:12px;margin-left:auto;font-size:10px;letter-spacing:.05em}
+.mp-map-kpis span{color:#a99cb8}
+.mp-map-kpis b{color:#f3ecfa;font-size:12px;margin-right:3px}
+.mp-map-kpis span.warn b{color:#ffcf5c}
+
+/* --- mapa: fundo do oceano igual ao dos tiles (definido em runtime) --- */
+#missionPlannerMap{background:var(--mp-ocean,#0d1b2a)}
+.leaflet-container{background:var(--mp-ocean,#0d1b2a)}
+
+/* --- lateral um pouco mais alta agora que há abas --- */
+@media(min-width:1101px){
+  #page-planejador .mission-planner-side{max-height:calc(100vh - 150px)}
+  #page-planejador .mission-planner-mapwrap{position:sticky;top:16px}
+}
+@media(max-width:620px){
+  .mp-tabbar{grid-template-columns:repeat(2,1fr)}
+  .mp-tab{padding:11px 4px}
+}
