@@ -171,8 +171,44 @@
     return changed;
   }
 
+  const SAVED_AT='highos_mission_planner_saved_at';
   function saveStore(){
-    try{localStorage.setItem(STORE,JSON.stringify(state.missions));localStorage.setItem(ACTIVE,state.activeId||'');}catch(e){console.warn('Planejador: falha ao salvar',e);}
+    try{
+      localStorage.setItem(STORE,JSON.stringify(state.missions));
+      localStorage.setItem(ACTIVE,state.activeId||'');
+      if(!state.applyingCloud)localStorage.setItem(SAVED_AT,new Date().toISOString());
+    }catch(e){console.warn('Planejador: falha ao salvar',e);}
+    if(state.applyingCloud)return;
+    try{window.HighOSMissionCloud?.push?.(state.missions);}catch(e){console.warn('Planejador: falha ao enfileirar sincronizacao',e);}
+  }
+  function applyCloudMissions(list){
+    if(!Array.isArray(list)||!list.length)return false;
+    state.applyingCloud=true;
+    try{
+      state.missions=list;
+      state.missions.forEach(m=>{normalizeCenter(m);if(!m.category)m.category=(String(m.event||'').toLowerCase().includes('domina')?'dominacao':'gas');inferLegacyStructure(m);});
+      mergeOfficialPresets();
+      if(!state.missions.some(m=>m.id===state.activeId))state.activeId=state.missions[0]?.id||'';
+      state.activeEventId=active()?.eventId||state.activeEventId;
+      saveStore();
+      render();
+      return true;
+    }catch(e){console.warn('Planejador: falha ao aplicar missoes da nuvem',e);return false;}
+    finally{state.applyingCloud=false;}
+  }
+  function syncMissionsFromCloud(tries=0){
+    const cloud=window.HighOSMissionCloud;
+    if(!cloud||!cloud.pull){if(tries<12)setTimeout(()=>syncMissionsFromCloud(tries+1),1500);return;}
+    cloud.pull().then(res=>{
+      if(!res||!Array.isArray(res.missions)||!res.missions.length)return;
+      let localAt='';try{localAt=localStorage.getItem(SAVED_AT)||'';}catch(e){}
+      const remoteAt=String(res.updatedAtText||'');
+      if(localAt&&remoteAt&&remoteAt<=localAt)return;
+      if(applyCloudMissions(res.missions)){
+        try{localStorage.setItem(SAVED_AT,remoteAt||new Date().toISOString());}catch(e){}
+        setStatus('Missoes sincronizadas com a equipe.','ok');
+      }
+    }).catch(()=>{});
   }
   function mergeOfficialPresets(){
     const byId=new Set(state.missions.map(m=>m.id));
@@ -696,8 +732,9 @@ ${mechanic}
     qs('#mpPlaceBtn')?.addEventListener('click',()=>{if(!requireEdit())return;state.placing=!state.placing;qs('#missionPlannerMap')?.classList.toggle('mp-crosshair',state.placing);qs('#mpPlaceBtn').textContent=state.placing?'PARAR DE MARCAR':'MARCAR PONTO NO MAPA';});
     qs('#mpFit')?.addEventListener('click',fit);qs('#mpGoLS')?.addEventListener('click',()=>state.map?.setView(ll(900,-600),3));qs('#mpGoCayo')?.addEventListener('click',()=>{if(state.map&&state.cayoBounds)state.map.fitBounds(state.cayoBounds,{padding:[20,20]});});qs('#mpGenerateCircle')?.addEventListener('click',generateCircle);qs('#mpImport')?.addEventListener('click',importBulk);qs('#mpValidateBtn')?.addEventListener('click',validateSelected);qs('#mpAddCoord')?.addEventListener('click',addManual);qs('#mpClear')?.addEventListener('click',clearPoints);qs('#mpExportBtn')?.addEventListener('click',exportValidated);qs('#mpExportXYBtn')?.addEventListener('click',exportXY);qs('#mpGenerateRequest')?.addEventListener('click',generateRequest);qs('#mpCopyRequest')?.addEventListener('click',copyCurrentRequest);qs('#mpCaptureBtn')?.addEventListener('click',()=>captureSnapshot(true));
     setTimeout(()=>{state.map?.invalidateSize();fit();queueSnapshot();},180);
+    setTimeout(()=>syncMissionsFromCloud(),1200);
   }
   function activate(){bind();setTimeout(()=>{state.map?.invalidateSize();fit();},100);}
-  window.HighMissionPlanner={activate,fit,captureSnapshot};
+  window.HighMissionPlanner={activate,fit,captureSnapshot,syncCloud:syncMissionsFromCloud,applyCloudMissions};
   document.addEventListener('DOMContentLoaded',()=>{if(qs('#missionPlannerMap'))bind();});
 })();

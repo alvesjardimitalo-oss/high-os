@@ -1,0 +1,167 @@
+rules_version = '2';
+
+/* =============================================================
+   HIGH OS · REGRAS DE SEGURANCA DO FIRESTORE (V9.4)
+   -------------------------------------------------------------
+   Ate a V9.3 nao existia arquivo de regras no repositorio: toda a
+   autorizacao era feita apenas no navegador (isAdmin / canEditModule),
+   o que qualquer usuario logado conseguia contornar pelo console.
+   Estas regras replicam o mesmo modelo de permissoes NO SERVIDOR.
+
+   PUBLICAR:
+     firebase deploy --only firestore:rules,firestore:indexes
+   ou cole o conteudo em: Firebase Console > Firestore > Regras.
+
+   Modelo de usuario esperado em users/{email}:
+     { role: 'ADMIN' | 'CONSULTA' | 'RH_METRICAS' | ...,
+       active: true,
+       permissions: { metricas: 'EDIT', historico: 'VIEW', ... } }
+   ============================================================= */
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- identidade ----------
+    function signedIn() {
+      return request.auth != null && request.auth.token.email != null;
+    }
+    function myEmail() {
+      return request.auth.token.email.lower();
+    }
+    function userPath() {
+      return /databases/$(database)/documents/users/$(myEmail());
+    }
+    function registered() {
+      return signedIn() && exists(userPath());
+    }
+    function profile() {
+      return get(userPath()).data;
+    }
+    function activeUser() {
+      return registered() && profile().get('active', true) != false;
+    }
+    function role() {
+      return activeUser() ? profile().get('role', 'CONSULTA').upper() : 'NONE';
+    }
+    function isAdmin() {
+      return role() == 'ADMIN';
+    }
+    function metricOnly() {
+      return role() in ['RH_METRICAS', 'RH_VISUALIZADOR', 'RH_ANALISTA', 'RH_GESTOR'];
+    }
+
+    // ---------- permissoes por modulo (espelha defaultPermissionsForRole) ----------
+    function defaultPerm(mod) {
+      return isAdmin()
+        ? 'EDIT'
+        : metricOnly()
+          ? ((mod == 'metricas' || mod == 'dashboard') ? 'VIEW' : 'NONE')
+          : role() == 'CONSULTA'
+            ? 'VIEW'
+            : (mod == 'historico' ? 'VIEW' : 'EDIT');
+    }
+    function permFor(mod) {
+      return isAdmin()
+        ? 'EDIT'
+        : (activeUser()
+            && profile().get('permissions', {}).keys().hasAll([mod]))
+          ? profile().permissions[mod].upper()
+          : defaultPerm(mod);
+    }
+    function canView(mod) { return permFor(mod) in ['VIEW', 'EDIT']; }
+    function canEdit(mod) { return permFor(mod) == 'EDIT'; }
+
+    // ---------- usuarios ----------
+    match /users/{email} {
+      // cada um le o proprio cadastro; ADMIN le todos (tela de Usuarios)
+      allow get: if signedIn() && (email.lower() == myEmail() || isAdmin());
+      allow list: if isAdmin();
+      // somente ADMIN cria, altera cargo/permissoes ou desativa
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ---------- dados operacionais ----------
+    match /highos/data/faccoes/{docId} {
+      allow read: if canView('faccoes');
+      allow write: if canEdit('faccoes');
+    }
+    match /highos/data/organizacoes/{docId} {
+      allow read: if canView('faccoes');
+      allow write: if canEdit('faccoes');
+    }
+    match /highos/data/entregas/{docId} {
+      allow read: if canView('faccoes');
+      allow write: if canEdit('faccoes');
+    }
+    match /highos/data/solicitacoes/{docId} {
+      allow read: if canView('solicitacoes');
+      allow write: if canEdit('solicitacoes');
+    }
+    match /highos/data/metricas/{docId} {
+      allow read: if canView('metricas');
+      allow write: if canEdit('metricas');
+    }
+
+    // Historico e auditoria: quem enxerga o modulo le;
+    // qualquer usuario ativo pode ACRESCENTAR evento (o app registra tudo),
+    // mas ninguem altera ou apaga registro passado, exceto ADMIN.
+    match /highos/data/historico/{docId} {
+      allow read: if canView('historico') || isAdmin();
+      allow create: if activeUser();
+      allow update, delete: if isAdmin();
+    }
+    match /highos/data/sessoes_usuario/{docId} {
+      allow read: if isAdmin();
+      allow create, update: if activeUser();
+      allow delete: if isAdmin();
+    }
+    match /highos/data/alertas_dashboard/{docId} {
+      allow read: if canView('dashboard');
+      allow write: if canEdit('dashboard');
+    }
+
+    // ---------- chat interno: so os dois participantes ----------
+    match /highos/data/chat_mensagens/{docId} {
+      function isParticipant() {
+        return resource.data.get('email', '').lower() == myEmail()
+            || resource.data.get('recipientEmail', '').lower() == myEmail();
+      }
+      // a consulta do app filtra por conversationId; cada documento
+      // retornado ainda precisa ter o usuario como remetente ou destinatario
+      allow read: if activeUser() && canView('chat') && isParticipant();
+      allow create: if activeUser() && canEdit('chat')
+                    && request.resource.data.email.lower() == myEmail()
+                    && request.resource.data.recipientEmail is string
+                    && request.resource.data.get('texto', '').size() <= 1000;
+      allow update: if false;            // mensagem enviada nao se edita
+      allow delete: if isAdmin();        // moderacao
+    }
+
+    // ---------- configuracoes ----------
+    match /highos/data/config/segmentos {
+      allow read: if activeUser();
+      allow write: if isAdmin();
+    }
+    match /highos/data/config/dashboard {
+      allow read: if activeUser();
+      allow write: if isAdmin();
+    }
+    match /highos/data/config/spotify {
+      allow read: if activeUser();
+      allow write: if isAdmin();
+    }
+    match /highos/data/config/missoes_planejador {
+      allow read: if canView('planejador');
+      allow write: if canEdit('planejador');
+    }
+    match /highos/data/config/{outro} {
+      allow read: if activeUser();
+      allow write: if isAdmin();
+    }
+
+    // ---------- tudo que nao foi previsto fica fechado ----------
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

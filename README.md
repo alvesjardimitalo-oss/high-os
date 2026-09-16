@@ -1,3 +1,14 @@
+
+## V9.4.0 (atual)
+- Chat passa a escutar somente a conversa aberta (`where conversationId` + `limit 80`): acabou o vazamento de DMs entre usuarios.
+- Novo `firestore.rules` + `firestore.indexes.json`. **Publique antes de usar a V9.4**, senao o chat nao carrega:
+  `firebase deploy --only firestore:rules,firestore:indexes`
+- Planejador de Missoes sincroniza com o Firestore (`highos/data/config/missoes_planejador`) mantendo o localStorage como cache.
+- Novos `assets/ui-kit.css` e `assets/ui-kit.js`: toasts no lugar dos alert(), menu lateral em drawer no celular, skeletons, foco visivel e rotulos de acessibilidade.
+- Imagens otimizadas: 892 KB -> 213 KB.
+- Correcoes: atributo `class` duplicado no item Spotify do menu, CSS inline do `<head>` movido para o `style.css`, listener do chat encerrado no logout.
+- Detalhes completos em `CHANGELOG-V9.4.0.md`.
+
 ## High OS V8.33
 
 Atualização do Planejador de Missões com missões salvas, validação assistida, snapshots do mapa e presets Dominação/Fac x Fac.
