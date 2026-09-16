@@ -30,7 +30,7 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>Diagnóstico da planilha de métricas <span style="font-size:11px;color:#50f5a0;letter-spacing:.1em">v6</span></h1>
+  <h1>Diagnóstico da planilha de métricas <span style="font-size:11px;color:#50f5a0;letter-spacing:.1em">v7</span></h1>
   <p class="sub">Lê a planilha publicada exatamente como o High OS lê e mostra o que foi reconhecido.</p>
 
   <div class="card">
@@ -135,6 +135,14 @@ function buildColumnDateMap(header,dateRow){
     if(h&&dataAtual)map[c]=dataAtual;
   }
   return map;
+}
+function colapsar(indices){
+  const runs=[];
+  for(const i of indices){
+    if(runs.length&&i-runs[runs.length-1]<=1)runs[runs.length-1]=i;
+    else runs.push(i);
+  }
+  return runs;
 }
 function extrair(values,cabecalhosBrutos){
   const cabecalhos=colapsar(cabecalhosBrutos);
