@@ -477,3 +477,77 @@
   box-shadow:0 4px 14px rgba(141,53,255,.4);
 }
 #page-planejador .mp-map-retry:hover{filter:brightness(1.12)}
+
+/* =========================================================
+   CONTROLE DE CAMADAS PRÓPRIO (V9.4.5)
+   Substitui a lista de radios/checkboxes padrão do Leaflet.
+   ========================================================= */
+.mp-layer-control{
+  position:absolute;right:14px;bottom:14px;z-index:600;
+  width:196px;
+  background:rgba(11,8,16,.93);
+  border:1px solid rgba(255,255,255,.13);
+  border-radius:14px;
+  box-shadow:0 16px 40px rgba(0,0,0,.55);
+  backdrop-filter:blur(10px);
+  overflow:hidden;
+  font-family:inherit;
+  transition:width 180ms ease;
+}
+.mp-layer-toggle{
+  display:flex;align-items:center;gap:8px;width:100%;
+  background:linear-gradient(120deg,rgba(141,53,255,.26),transparent 70%);
+  border:none;border-bottom:1px solid rgba(255,255,255,.08);
+  color:#e9dcfa;padding:10px 12px;cursor:pointer;
+  font-size:9.5px;font-weight:900;letter-spacing:.13em;
+}
+.mp-layer-toggle:hover{background:linear-gradient(120deg,rgba(141,53,255,.4),transparent 70%)}
+.mp-layer-icon{font-size:12px;color:#b878ff}
+.mp-layer-body{padding:11px 12px 12px;display:grid;gap:12px}
+.mp-layer-control.collapsed{width:52px}
+.mp-layer-control.collapsed .mp-layer-body,
+.mp-layer-control.collapsed .mp-layer-label{display:none}
+.mp-layer-control.collapsed .mp-layer-toggle{justify-content:center;border-bottom:none;padding:12px 0}
+
+.mp-layer-title{
+  display:block;font-size:8.5px;font-weight:900;letter-spacing:.13em;
+  color:#8a7f99;margin-bottom:7px;
+}
+.mp-segment{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:3px;
+  background:rgba(255,255,255,.05);border-radius:9px;padding:3px;
+}
+.mp-segment button{
+  background:transparent;border:none;border-radius:7px;
+  color:#a79db6;font-size:8.5px;font-weight:900;letter-spacing:.05em;
+  padding:7px 2px;cursor:pointer;transition:background 140ms ease,color 140ms ease;
+}
+.mp-segment button:hover{color:#fff;background:rgba(255,255,255,.07)}
+.mp-segment button.active{
+  background:linear-gradient(135deg,#8d35ff,#6321b8);color:#fff;
+  box-shadow:0 2px 8px rgba(141,53,255,.4);
+}
+.mp-switch{
+  display:flex;align-items:center;gap:9px;
+  padding:5px 0;cursor:pointer;
+  font-size:11px;color:#c3b9d1;
+}
+.mp-switch input{position:absolute;opacity:0;width:0;height:0}
+.mp-switch i{
+  position:relative;flex:0 0 32px;width:32px;height:18px;border-radius:20px;
+  background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.1);
+  transition:background 160ms ease;
+}
+.mp-switch i::after{
+  content:"";position:absolute;top:2px;left:2px;
+  width:12px;height:12px;border-radius:50%;background:#8a7f99;
+  transition:transform 160ms ease,background 160ms ease;
+}
+.mp-switch input:checked + i{background:rgba(141,53,255,.5);border-color:rgba(141,53,255,.6)}
+.mp-switch input:checked + i::after{transform:translateX(14px);background:#fff}
+.mp-switch input:focus-visible + i{outline:2px solid #b878ff;outline-offset:2px}
+.mp-switch:hover span{color:#fff}
+
+@media(max-width:1100px){
+  .mp-layer-control{right:10px;bottom:10px;width:172px}
+}

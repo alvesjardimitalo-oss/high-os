@@ -443,6 +443,66 @@
     };
     state.mapWatchdog=setTimeout(tick,2500);
   }
+
+  /* ---------------------------------------------------------------
+     V9.4.5 - Controle de camadas proprio. O padrao do Leaflet (lista
+     de radios e checkboxes) destoava do resto do painel. Aqui as
+     bases viram um seletor segmentado e os overlays de Cayo viram
+     interruptores, tudo no mesmo tema do High OS.
+  --------------------------------------------------------------- */
+  function buildLayerControl(bases,overlays){
+    const host=qs('.mission-planner-mapwrap');
+    if(!host||qs('#mpLayerControl'))return;
+    const box=document.createElement('div');
+    box.id='mpLayerControl';box.className='mp-layer-control';
+    box.innerHTML=`
+      <button type="button" class="mp-layer-toggle" aria-expanded="true" title="Camadas do mapa">
+        <span class="mp-layer-icon">◧</span><span class="mp-layer-label">CAMADAS</span>
+      </button>
+      <div class="mp-layer-body">
+        <div class="mp-layer-group">
+          <span class="mp-layer-title">BASE</span>
+          <div class="mp-segment" role="group">
+            <button type="button" data-base="atlas" class="active">ATLAS</button>
+            <button type="button" data-base="sat">SATÉLITE</button>
+            <button type="button" data-base="grid">GRID</button>
+          </div>
+        </div>
+        <div class="mp-layer-group">
+          <span class="mp-layer-title">CAYO PERICO</span>
+          <label class="mp-switch"><input type="checkbox" data-over="cayo" checked><i></i><span>Satélite</span></label>
+          <label class="mp-switch"><input type="checkbox" data-over="cayoPostal" checked><i></i><span>Postal</span></label>
+        </div>
+      </div>`;
+    host.appendChild(box);
+    if(window.L?.DomEvent){L.DomEvent.disableClickPropagation(box);L.DomEvent.disableScrollPropagation(box);}
+
+    const trocarBase=chave=>{
+      Object.entries(bases).forEach(([k,l])=>{
+        try{if(k===chave){if(!state.map.hasLayer(l))l.addTo(state.map);}else if(state.map.hasLayer(l))state.map.removeLayer(l);}catch(e){}
+      });
+      qsa('[data-base]',box).forEach(b=>b.classList.toggle('active',b.dataset.base===chave));
+      state.oceanLocked=false;state.oceanTries=0;
+      watchOcean(bases[chave]);
+    };
+    qsa('[data-base]',box).forEach(b=>b.addEventListener('click',()=>trocarBase(b.dataset.base)));
+
+    // overlays de Cayo comecam visiveis, como antes
+    Object.values(overlays).forEach(l=>{try{l.addTo(state.map)}catch(e){}});
+    qsa('[data-over]',box).forEach(inp=>inp.addEventListener('change',()=>{
+      const l=overlays[inp.dataset.over];if(!l)return;
+      try{inp.checked?l.addTo(state.map):state.map.removeLayer(l)}catch(e){}
+    }));
+
+    const alternar=()=>{
+      const aberto=box.classList.toggle('collapsed');
+      box.querySelector('.mp-layer-toggle')?.setAttribute('aria-expanded',aberto?'false':'true');
+      try{localStorage.setItem('highos_mp_layers_collapsed',aberto?'1':'0')}catch(e){}
+    };
+    box.querySelector('.mp-layer-toggle')?.addEventListener('click',alternar);
+    try{if(localStorage.getItem('highos_mp_layers_collapsed')==='1')box.classList.add('collapsed');}catch(e){}
+  }
+
   function initMap(){
     if(state.map||!qs('#missionPlannerMap'))return;
     if(typeof L==='undefined'){setStatus('Leaflet não carregou','warn');return;}
@@ -461,7 +521,7 @@
     const cayoOcean=L.rectangle(cayoOceanBounds,{pane:'cayoOceanPane',stroke:false,fill:true,fillColor:OCEAN_FALLBACK,fillOpacity:1,interactive:false}).addTo(state.map);
     const cayo=L.imageOverlay(cayoUrl,cayoBounds,{pane:'cayoMapPane',opacity:1,interactive:false,crossOrigin:true});
     const cayoPostal=L.imageOverlay(cayoPostalUrl,cayoBounds,{pane:'cayoMapPane',opacity:1,interactive:false,crossOrigin:true});
-    L.control.layers({'ATLAS':atlas,'SATELLITE':sat,'GRID':grid},{'CAYO PERICO — SATÉLITE':cayo,'CAYO PERICO — POSTAL':cayoPostal},{collapsed:false,position:'topright'}).addTo(state.map);
+    buildLayerControl({atlas,sat,grid},{cayo,cayoPostal});
     state.cayoBounds=cayoBounds;state.cayoOceanBounds=cayoOceanBounds;state.cayoOceanLayer=cayoOcean;state.cayoLayer=cayo;state.cayoPostalLayer=cayoPostal;state.atlasLayer=atlas;state.satLayer=sat;state.gridLayer=grid;
     state.map.setView(ll(900,-600),3);
     let okCount=0,errCount=0,fallbackUsed=false;
