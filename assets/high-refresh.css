@@ -466,3 +466,14 @@
   #page-planejador .mp-map-status{position:static!important;backdrop-filter:none}
   #page-planejador #missionPlannerMap{min-height:460px}
 }
+
+/* botão de recuperação do mapa (V9.4.4) */
+#page-planejador .mp-map-status{pointer-events:none}
+#page-planejador .mp-map-retry{
+  pointer-events:auto;margin-left:auto;
+  background:linear-gradient(135deg,#8d35ff,#6321b8);
+  border:none;border-radius:9px;color:#fff;
+  padding:7px 13px;font-size:9.5px;font-weight:900;letter-spacing:.08em;cursor:pointer;
+  box-shadow:0 4px 14px rgba(141,53,255,.4);
+}
+#page-planejador .mp-map-retry:hover{filter:brightness(1.12)}

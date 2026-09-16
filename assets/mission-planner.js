@@ -289,6 +289,30 @@
     }).catch(()=>{});
   }
 
+  function mergeOfficialPresets(){
+    const byId=new Set(state.missions.map(m=>m.id));
+    let changed=false;
+    presets.forEach(p=>{
+      const existing=state.missions.find(m=>m.id===p.id);
+      if(existing){
+        const fresh=presetMission(p);
+        ['eventId','event','name','category','panel'].forEach(k=>{if(existing[k]!==fresh[k]){existing[k]=fresh[k];changed=true;}});
+        if(fresh.facxfacScenarios&&!existing.facxfacScenarios){existing.facxfacScenarios=fresh.facxfacScenarios;existing.activeScenario=0;changed=true;}return;
+      }
+      state.missions.push(presetMission(p));
+      byId.add(p.id);changed=true;
+    });
+    return changed;
+  }
+
+  function loadStore(){
+    try{
+      const raw=JSON.parse(localStorage.getItem(STORE)||'null');
+      if(Array.isArray(raw)&&raw.length){state.missions=raw;state.missions.forEach(m=>{normalizeCenter(m);if(!m.category)m.category=(String(m.event||'').toLowerCase().includes('domina')?'dominacao':'gas');inferLegacyStructure(m);});repairKnownZoneAssignments();repairFacxFacHierarchy();mergeOfficialPresets();state.activeId=localStorage.getItem(ACTIVE)||raw[0].id;const am=state.missions.find(m=>m.id===state.activeId)||raw[0];state.libraryCategory=(am?.category||'dominacao');state.activeEventId=am?.eventId||null;saveStore();return;}
+    }catch{}
+    state.missions=presets.map(presetMission);state.activeId=state.missions[0].id;state.libraryCategory=state.missions[0]?.category||'dominacao';state.activeEventId=state.missions[0]?.eventId||null;saveStore();
+  }
+
   function openDb(){
     return new Promise((resolve,reject)=>{
       const req=indexedDB.open(DB_NAME,1);
@@ -347,10 +371,77 @@
   function watchOcean(layer){
     if(!layer||layer._mpOceanWatch)return;layer._mpOceanWatch=true;
     layer.on('tileload',ev=>{
-      if(state.oceanLocked)return;
-      const hex=sampleOceanFromTile(ev.tile);
-      if(hex){state.oceanLocked=true;applyOceanColor(hex);}
+      // desiste depois de algumas tentativas: e so cosmetico, nunca pode
+      // atrapalhar o carregamento do mapa em si
+      if(state.oceanLocked||state.oceanTries>=8)return;
+      state.oceanTries=(state.oceanTries||0)+1;
+      try{
+        const hex=sampleOceanFromTile(ev.tile);
+        if(hex){state.oceanLocked=true;applyOceanColor(hex);}
+      }catch(e){state.oceanTries=99;}
     });
+  }
+  /* ---------------------------------------------------------------
+     V9.4.4 - Se nenhum tile chegar, o mapa ficava eternamente em
+     "Carregando mapa GTA V...". Agora existe um vigia: ele diz o que
+     esta acontecendo, tenta o servidor alternativo sozinho e oferece
+     um botao de recarregar sem precisar atualizar a pagina inteira.
+  --------------------------------------------------------------- */
+  function mapNotice(texto,tipo='warn',comBotao=false){
+    setStatus(texto,tipo);
+    const barra=qs('.mp-map-status');if(!barra)return;
+    let acao=qs('#mpMapRetry');
+    if(!comBotao){acao?.remove();return;}
+    if(!acao){
+      acao=document.createElement('button');
+      acao.type='button';acao.id='mpMapRetry';acao.className='mp-map-retry';
+      acao.textContent='RECARREGAR MAPA';
+      acao.addEventListener('click',reloadMapTiles);
+      barra.appendChild(acao);
+    }
+  }
+  function reloadMapTiles(){
+    if(!state.map)return;
+    state.tileBase=((state.tileBase||0)+1)%remoteBases.length;
+    mapNotice('Tentando outro servidor do mapa...','warn',false);
+    try{
+      Object.values(state.mapLayers||{}).forEach(l=>{try{state.map.removeLayer(l)}catch(e){}});
+    }catch(e){}
+    const atlas=layer('styleAtlas','jpg',5,state.tileBase);
+    const sat=layer('styleSatelite','jpg',5,state.tileBase);
+    const grid=layer('styleGrid','png',5,state.tileBase);
+    state.mapLayers={atlas,sat,grid};
+    let ok=0,err=0;
+    atlas.on('tileload',()=>{ok++;mapNotice('Mapa GTA V carregado','ok',false)});
+    [atlas,sat,grid].forEach(l=>{l.on('tileerror',()=>err++);watchOcean(l)});
+    atlas.addTo(state.map);
+    state.map.invalidateSize();
+    startMapWatchdog(()=>ok,()=>err);
+  }
+  function startMapWatchdog(getOk,getErr){
+    clearTimeout(state.mapWatchdog);
+    let ciclos=0;
+    const tick=()=>{
+      ciclos++;
+      if(!state.map)return;
+      if(getOk()>0){mapNotice('Mapa GTA V carregado','ok',false);return;}
+      const box=qs('#missionPlannerMap');
+      const semTamanho=box&&(box.clientWidth<40||box.clientHeight<40);
+      if(semTamanho){
+        // causa mais comum: o mapa foi criado com a aba ainda escondida
+        state.map.invalidateSize();
+        if(ciclos<6)return void(state.mapWatchdog=setTimeout(tick,1200));
+        mapNotice('O mapa abriu sem espaço na tela. Recarregue.','warn',true);
+        return;
+      }
+      if(getErr()>0){
+        mapNotice(`Servidor do mapa não respondeu (${getErr()} tiles falharam).`,'warn',true);
+        return;
+      }
+      if(ciclos<6)return void(state.mapWatchdog=setTimeout(tick,1200));
+      mapNotice('Nenhum tile chegou. Verifique a conexão ou o bloqueador.','warn',true);
+    };
+    state.mapWatchdog=setTimeout(tick,2500);
   }
   function initMap(){
     if(state.map||!qs('#missionPlannerMap'))return;
@@ -377,6 +468,9 @@
     const ok=()=>{okCount++;setStatus('Mapa GTA V carregado','ok');};
     const err=()=>{errCount++;if(okCount===0&&errCount>4&&!fallbackUsed){fallbackUsed=true;setStatus('Alternando servidor do mapa…','warn');try{state.map.removeLayer(atlas);}catch{}atlas=layer('styleAtlas','jpg',5,1);atlas.on('tileload',ok);atlas.addTo(state.map);}};
     [atlas,sat,grid].forEach(x=>{x.on('tileload',ok);x.on('tileerror',err);watchOcean(x);});
+    state.mapLayers={atlas,sat,grid};
+    state.tileCounters={get ok(){return okCount},get err(){return errCount}};
+    startMapWatchdog(()=>okCount,()=>errCount);
     applyOceanColor(OCEAN_FALLBACK);
     state.map.on('baselayerchange',ev=>{state.oceanLocked=false;watchOcean(ev.layer);setTimeout(()=>{if(!state.oceanLocked)applyOceanColor(OCEAN_FALLBACK);},1200);});
     state.map.on('mousemove',e=>{if(qs('#mpCursor'))qs('#mpCursor').textContent=`X ${f(e.latlng.lng)} | Y ${f(e.latlng.lat)}`;});
@@ -1042,7 +1136,20 @@ ${mechanic}
     const box=document.createElement('div');box.id='mpMapKpis';box.className='mp-map-kpis';
     status.appendChild(box);
   }
-  function activate(){bind();setTimeout(()=>{state.map?.invalidateSize();fit();},100);}
+  function activate(){
+    bind();
+    // o mapa e criado dentro de uma secao que pode estar escondida: varias
+    // remedidas garantem que o Leaflet enxergue o tamanho real
+    [80,300,700,1400].forEach(ms=>setTimeout(()=>{try{state.map?.invalidateSize()}catch(e){}},ms));
+    setTimeout(()=>{fit();},320);
+    if(!state.resizeWatch&&window.ResizeObserver){
+      const box=qs('#missionPlannerMap');
+      if(box){
+        state.resizeWatch=new ResizeObserver(()=>{try{state.map?.invalidateSize()}catch(e){}});
+        state.resizeWatch.observe(box);
+      }
+    }
+  }
   window.HighMissionPlanner={activate,fit,captureSnapshot,syncCloud:syncMissionsFromCloud,applyCloudMissions};
   document.addEventListener('DOMContentLoaded',()=>{if(qs('#missionPlannerMap'))bind();});
 })();
