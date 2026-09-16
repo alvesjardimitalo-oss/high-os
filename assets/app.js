@@ -1375,14 +1375,27 @@ function metricAnalysis(group){
 function isPublishedSheetUrl(value=''){
  return /\/spreadsheets\/d\/e\/[a-zA-Z0-9-_]+/.test(String(value||''));
 }
-function publishedCsvUrl(value='',sheet=''){
- let u=String(value||'').trim();
- if(!/output=csv/.test(u)){
-  u=u.replace(/\/(pubhtml|pub|edit)(\?.*)?$/,'/pub');
-  if(!/\/pub$/.test(u))u=u.replace(/\/$/,'')+'/pub';
-  u+= (u.includes('?')?'&':'?')+'output=csv&single=true';
+function publishedCsvUrl(value=''){
+ /* V9.6.2 - o link salvo costuma ser o "pubhtml?gid=...&single=true".
+    A versao anterior trocava o final por /pub e perdia o gid, entao o Google
+    devolvia a PRIMEIRA aba publicada em vez da aba de metricas. Agora o gid e
+    preservado e so o formato muda para CSV. */
+ try{
+  const u=new URL(String(value||'').trim());
+  const gid=u.searchParams.get('gid')||'';
+  u.pathname=u.pathname.replace(/\/(pubhtml|pub|edit)\/?$/,'/pub');
+  if(!/\/pub$/.test(u.pathname))u.pathname=u.pathname.replace(/\/$/,'')+'/pub';
+  const q=new URLSearchParams();
+  if(gid)q.set('gid',gid);
+  q.set('single','true');
+  q.set('output','csv');
+  q.set('_',String(Date.now()));
+  u.search=q.toString();
+  return u.toString();
+ }catch(e){
+  const base=String(value||'').trim().split('?')[0].replace(/\/(pubhtml|pub|edit)\/?$/,'/pub');
+  return base+'?output=csv&single=true&_='+Date.now();
  }
- return u+(u.includes('?')?'&':'?')+'_='+Date.now();
 }
 function extractSpreadsheetId(value=''){
  const v=String(value||'').trim();if(!v)return '';
