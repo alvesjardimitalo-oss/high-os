@@ -1828,7 +1828,7 @@ async function readMetricsWithoutPopup(){
  const csvUrl=`https://docs.google.com/spreadsheets/d/${encodeURIComponent(id)}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheet)}&_=${Date.now()}`;
  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),12000);
  try{
-  console.info('[MÉTRICAS AUTO] consultando planilha sem popup:',sheet);
+
   const r=await fetch(csvUrl,{cache:'no-store',signal:controller.signal,credentials:'omit'});
   if(!r.ok)throw new Error(`Planilha respondeu HTTP ${r.status}`);
   const text=await r.text();const rows=parseMetricSheet(parseCsvRows(text));
@@ -1837,10 +1837,10 @@ async function readMetricsWithoutPopup(){
  }finally{clearTimeout(timer)}
 }
 async function recoverMetricsAutomatically({quiet=true}={}){
- console.info('[MÉTRICAS AUTO] verificação iniciada');
+
  await refreshMetricServerConfig();
  const qs=await metricTimeout(getDocs(metricCol),12000,'leitura do Firestore'),fireRows=qs.docs.map(d=>({id:d.id,...d.data()}));
- if(!extractSpreadsheetId(metricSourceConfig.url)){applyMetricSnapshot(qs);console.warn('[MÉTRICAS AUTO] fonte da planilha não configurada');return {ok:true,source:'firestore',diff:null}}
+ if(!extractSpreadsheetId(metricSourceConfig.url)){applyMetricSnapshot(qs);return {ok:true,source:'firestore',diff:null}}
  let result;
  try{result=await metricTimeout(readMetricsWithoutPopup(),15000,'leitura automática da planilha')}
  catch(e){
@@ -1849,15 +1849,15 @@ async function recoverMetricsAutomatically({quiet=true}={}){
   else {applyMetricSnapshot(qs);throw e}
  }
  const sheetRows=result.rows.map(metricSnapshot),diff=compareMetricSources(sheetRows,fireRows);
- console.info('[MÉTRICAS AUTO] comparação concluída',diff);
+
  if(diff.pendingRows){
-  console.info('[MÉTRICAS AUTO] gravando diferenças no Firestore');
+
   await metricTimeout(persistMetricRows(sheetRows,result.sheet),25000,'gravação das métricas');
  }
  const after=await metricTimeout(getDocs(metricCol),12000,'releitura do Firestore');applyMetricSnapshot(after);
  const sheetLast=metricLatestInfo(sheetRows),fireLast=metricLatestInfo(metricas);
  metricSourceState={...metricSourceState,status:'ONLINE',lastSync:Date.now(),count:metricas.length,activeCount:activeMetricRows().length,error:'',sheet:result.sheet,directCheck:{sheetLast,fireLast,diff}};renderMetricSourceStatus();
- console.info('[MÉTRICAS AUTO] concluído', {planilha:sheetLast,firestore:fireLast,diff});
+
  return {ok:true,source:'sheet',diff,sheetLast,fireLast,sheet:result.sheet};
 }
 let metricAutoRecoveryTimer=null,metricAutoRecoveryBusy=false;
@@ -1867,6 +1867,7 @@ async function runMetricAutoRecovery({quiet=true}={}){
 }
 function startMetricAutoRecovery(){
  if(metricAutoRecoveryTimer)return;
+ if(!extractSpreadsheetId(metricSourceConfig.url))return;
  setTimeout(()=>runMetricAutoRecovery({quiet:true}),1800);
  metricAutoRecoveryTimer=setInterval(()=>{if(!document.hidden)runMetricAutoRecovery({quiet:true})},5*60*1000);
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)runMetricAutoRecovery({quiet:true})});
@@ -2285,7 +2286,6 @@ $('#fOpTelaoTipo')?.addEventListener('change',()=>{syncOperationalLegacy();getTe
 const _alvesAnswerV71=alvesAnswer;alvesAnswer=function(question=''){const q=alvesNorm(question),g=alvesFindGroup(question);if(g){const o=mergedTechProfile(g).operacional||opBlank();if(q.includes('garagem')){const xs=o.garagens||[];return {text:xs.length?`Garagens de ${g.group}:\n${xs.map(x=>`• ${x.tipo}: Blip ${x.blip||'—'} | Spawn ${x.spawn||'—'}${x.veiculos?' | Veículos '+x.veiculos:''}`).join('\n')}`:`${g.group} não possui garagem cadastrada.`,refs:[g.group,'Perfil Operacional','Garagens']};}if(q.includes('telao')||q.includes('telão')){const t=o.telao||{};return {text:t.ativo?`Telão de ${g.group}:\n• Tipo: ${t.tipo||'—'}\n• Modelo: ${t.modelo||'—'}\n• Post-it: ${t.postit||'—'}\n• CDS: ${t.cds||'—'}\n• Sons: ${(t.sons||[]).filter(Boolean).length} ponto(s)\n${(t.sons||[]).filter(Boolean).map((x,i)=>`  Som ${i+1}: ${x}`).join('\n')}`:`${g.group} não possui telão cadastrado.`,refs:[g.group,'Perfil Operacional','Telão']};}if(q.includes('mapa')||q.includes('localizacao')||q.includes('localização')||q.includes('qg')){return {text:`${g.group} — ${o.localizacao?.nome||g.qg||'QG sem nome'}\nCDS principal do mapa: ${o.localizacao?.cdsPrincipal||g.cds||'—'}`,refs:[g.group,'Perfil Operacional','Mapa']};}}
  return _alvesAnswerV71(question)};
 
-console.info('HIGH OS DEV V7.2 · Perfil Operacional carregado');
 
 // HIGH OS V7.5 · Benefícios e Setagens realmente isolados em página própria.
 let groupBenefitsHome=null;
@@ -2339,11 +2339,7 @@ const _openFacV74=openFac;openFac=function(id){_openFacV74(id);const raw=faccoes
  renderGroupOverview({...current,status:$('#fStatus')?.value||current.status,faccao:$('#fFaccao')?.value.trim()||'',qg:$('#fQG')?.value.trim()||'',produto:$('#fProduto')?.value.trim()||'',lider:$('#fLider')?.value.trim()||'',staff:$('#fStaff')?.value.trim()||'',cds:$('#fCds')?.value.trim()||''});
  const d=$('#groupIdentityDetails');if(d)d.open=true;
 }));
-console.info('HIGH OS DEV V7.4 · Perfil clean carregado');
 
-console.info('HIGH OS DEV V7.5 · Perfil clean + setagens isoladas + liderança restaurada');
-console.info('HIGH OS V8.4 · Métricas objetivas carregadas');
-console.info('HIGH OS V8.12 · Filtros visuais por segmento + ativas/inativas carregados');
 
 
 // ===== HIGH OS · TRANSFERÊNCIA DE PAINEL, TROCA DE QG E ADMINISTRAÇÃO =====
@@ -2601,7 +2597,6 @@ $('#facSheetPushAllBtn')?.addEventListener('click',facSheetPushAll);
 $('#facSheetDiffClose')?.addEventListener('click',()=>$('#facSheetDiffModal')?.classList.add('hidden'));
 $('#facSheetDiffCancel')?.addEventListener('click',()=>$('#facSheetDiffModal')?.classList.add('hidden'));
 $('#facSheetDiffConfirm')?.addEventListener('click',facSheetApplyConfirmed);
-console.info('HIGH OS V8.0 · Sincronização bidirecional com Documento das Facções pronta');
 
 // ===== HIGH OS V7.8 · CENTRAL DE COMANDO + PERFIL DE FACÇÃO EM PÁGINA =====
 function showOrganizationProfilePage(o={},current=null){
@@ -2663,7 +2658,6 @@ function renderCommandDashboard(){
 const _loadMetricsV78=loadMetrics;loadMetrics=async function(){await _loadMetricsV78();renderCommandDashboard()};
 const _renderHistoryV78=renderHistory;renderHistory=function(){_renderHistoryV78();renderCommandDashboard()};
 const _renderOrganizationsV78=renderOrganizations;renderOrganizations=function(){_renderOrganizationsV78();renderCommandDashboard()};
-console.info('HIGH OS V8.23 · Alertas semanais + métricas ocupadas + Chat + Spotify');
 
 // HIGH OS V8.6 — solicitação automática ao salvar Craft adquirido/extra
 function craftRecipeKey(r={}){return String(r.spawn||r.id||r.nome||'').trim().toLowerCase()}
@@ -2903,9 +2897,7 @@ function showFreeFacReport(){
 ['availableSearch','availableSegment','availableDiscord'].forEach(id=>$('#'+id)?.addEventListener(id==='availableSearch'?'input':'change',renderAvailableFaccoes));
 $('#availableReportBtn')?.addEventListener('click',showFreeFacReport);
 
-console.info('HIGH OS V8.7 · Persistência de Craft/Farm corrigida');
 
-console.info('HIGH OS V8.8 · Correção Perfil Operacional/garagens + persistência de Craft carregada');
 
 
 // HIGH OS V8.12 · FILTROS VISUAIS UNIVERSAIS
@@ -2985,9 +2977,7 @@ async function applyCoreSegmentMap(){
 $('#segmentCreateBtn')?.addEventListener('click',createSegment);$('#segmentAssignType')?.addEventListener('change',refreshSegmentAssignEntities);$('#segmentAssignBtn')?.addEventListener('click',assignSegment);
 const _loadFaccoesV813=loadFaccoes;loadFaccoes=async function(){await _loadFaccoesV813();if(String(currentProfile?.role||'').toUpperCase()==='ADMIN'){await applyCoreSegmentMap();renderFaccoes();renderOrganizations();renderAvailableFaccoes();renderSegmentAdmin();renderAdminGroupManager()}};
 
-console.info('HIGH OS V8.13 · Segmentos gerenciáveis + filtros visuais carregados');
 
-console.info('HIGH OS V8.14 · Solicitações bidirecionais + arquivo por Group carregado');
 
 
 
@@ -3024,7 +3014,6 @@ $('#dashCfgSave')?.addEventListener('click',saveDashboardConfig);
 ['dashCfgAtencao','dashCfgCritico','dashCfgMinComparacoes'].forEach(id=>$('#'+id)?.addEventListener('input',()=>{const raw={quedaAtencaoPct:Number($('#dashCfgAtencao')?.value)||15,quedaCriticaPct:Number($('#dashCfgCritico')?.value)||30,minComparacoes:Number($('#dashCfgMinComparacoes')?.value)||4};const old=dashboardConfig;dashboardConfig=sanitizeDashboardConfig(raw);renderDashboardConfigAdmin();dashboardConfig=old;}));
 $('#adminOpenUsersBtn')?.addEventListener('click',()=>activateAppPage('usuarios'));
 
-console.info('HIGH OS V8.20 · Facções livres: status obrigatório Discord + relatórios + status ativo por ocupação');
 
 // HIGH OS V8.20 · status da facção é determinado pela ocupação do Group.
 async function normalizeOccupationStatusV820(){
@@ -3145,7 +3134,6 @@ $('#chatRecipientSelect')?.addEventListener('change',e=>selectChatRecipient(e.ta
 
 $('#metricDailyReportBtn')?.addEventListener('click',printMetricDailyReport);$('#metricTodayBtn')?.addEventListener('click',()=>{const d=new Date(),iso=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;metricDateStart=iso;metricDateEnd=iso;syncMetricDateInputs();renderMetrics()});$('#metricWeekBtn')?.addEventListener('click',()=>{const b=metricWeekBounds(new Date()),iso=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;metricDateStart=iso(b.start);metricDateEnd=iso(b.end);syncMetricDateInputs();renderMetrics()});
 
-console.info('HIGH OS V8.29 · High Call sem espera de anfitrião + canais imediatos');
 
 // ===== HIGH OS V8.35 · ROTA EXCLUSIVA + MAPA OPERACIONAL DO GROUP =====
 let grMap=null,grRouteLayer=null,grStructureLayer=null,grRouteDirty=false;
@@ -3239,7 +3227,6 @@ const _grRenderRouteUiV836=grRenderRouteUi;grRenderRouteUi=function(loadSaved=tr
 const _activateAppPageV836=activateAppPage;activateAppPage=function(page){if(['organizacoes','disponiveis','entregas'].includes(page))page='faccoes';return _activateAppPageV836(page)};
 
 const _loadFaccoesV836=loadFaccoes;loadFaccoes=async function(){await _loadFaccoesV836();faccoes.forEach(f=>{const pts=v836RoutePoints(f);if(!pts.length&&f.beneficios){f.beneficios.rotaExclusiva=false;f.beneficios.rotaBlips=''} });renderFaccoes();renderCommandDashboard?.();};
-console.info('HIGH OS V8.36 · Organizações unificadas + rota padrão implícita + fluxos legados preservados');
 
 /* ===== HIGH OS V8.36.1 · Estrutura administrativa + mapa operacional ===== */
 const GS_TYPES=['CRAFT','FARM','LOJA','BAÚ','RÁDIO','AMENIDADE','GARAGEM','QG','OUTRO'];
@@ -3268,7 +3255,6 @@ v836CardImage=function(f){const url=v8361CardImageUrl(f);return url?`<div class=
 
 // O mapa da Rota Exclusiva também passa a enxergar o catálogo administrativo novo.
 const _grCollectStructuresV8361=grCollectStructures;grCollectStructures=function(f){const base=_grCollectStructuresV8361(f),seen=new Set(base.map(x=>`${x.p.x.toFixed(2)},${x.p.y.toFixed(2)},${x.p.z.toFixed(2)}`));const cat=mergedTechProfile(f)?.estruturaCatalogo||[];cat.forEach(x=>{const p=gsCoord(x.cds);if(!p)return;const k=`${p.x.toFixed(2)},${p.y.toFixed(2)},${p.z.toFixed(2)}`;if(seen.has(k))return;seen.add(k);base.push({label:`${x.tipo} · ${x.nome||'Sem nome'}`,p,kind:x.tipo==='QG'?'QG':'ESTRUTURA'})});return base};
-console.info('HIGH OS V8.36.1 · Cards de divulgação + Estrutura /fac manual + Mapa Operacional unificado');
 document.querySelector('[data-tech-tab="estrutura-mapa"]')?.addEventListener('click',()=>setTimeout(()=>gsRender(false),80));
 
 /* ===== HIGH OS V8.36.2 · ESTRUTURA ÚNICA + LIMPEZA DE LEGADOS ===== */
@@ -3317,7 +3303,6 @@ $('#gsAdd')?.replaceWith($('#gsAdd').cloneNode(true));$('#gsAdd')?.addEventListe
 
 gsRenderMap=function(fit=false){gsEnsureMap();if(!gsMap)return;gsLayer.clearLayers();gsRouteLayer.clearLayers();const bounds=[],visible=gsRows().map((x,i)=>({...x,_i:i})).filter(x=>gsFilter==='TODOS'||x.tipo===gsFilter);let pointCount=0;visible.forEach(x=>{[['cds','Principal / Blip'],['secondary','Spawn / Secundária']].forEach(([field,label])=>{const p=gsCoord(x[field]);if(!p)return;pointCount++;const ll=L.latLng(p.y,p.x);bounds.push(ll);const st=x.status||'ATIVO',cls=st==='PENDENTE'?'pending':st==='ALTERACAO_PENDENTE'?'change':st==='REMOCAO_PENDENTE'?'remove':'';const glyph=({CRAFT:'C',FARM:'F',LOJA:'L','BAÚ':'B','RÁDIO':'R',AMENIDADE:'A',GARAGEM:'G',HELIPONTO:'H',BLINDADO:'B',TELÃO:'T',QG:'Q',OUTRO:'•'}[x.tipo]||'•');const icon=L.divIcon({className:'',html:`<div class="gs-map-marker ${cls}">${glyph}</div>`,iconSize:[24,24],iconAnchor:[12,12]});L.marker(ll,{icon}).bindPopup(`<b>${esc(x.nome||x.tipo)}</b><br>${esc(x.tipo)} • ${label}<br>${esc(x[field]||'')}<br><small>${esc(st.replaceAll('_',' '))}</small><br><button onclick="navigator.clipboard?.writeText('${String(x[field]||'').replaceAll("'","\\'")}')">Copiar CDS</button> <button onclick="gsMapEdit(${x._i})">Editar</button> <button onclick="gsMapRemove(${x._i})">Remover</button>`).addTo(gsLayer)})});if($('#gsShowRoute')?.checked){const pts=grSavedPoints(grCurrent()),ls=pts.map(p=>L.latLng(p.y,p.x));ls.forEach((ll,i)=>{bounds.push(ll);L.marker(ll,{icon:grRouteIcon(i+1)}).bindPopup(`<b>Rota Exclusiva • ${i+1}</b>`).addTo(gsRouteLayer)});if(ls.length>1)L.polyline(ls,{weight:4,opacity:.85,dashArray:'8 5'}).addTo(gsRouteLayer)}$('#gsLegend').innerHTML=`<span>${pointCount} pontos estruturais</span><span>${visible.filter(x=>!gsCoord(x.cds)&&!gsCoord(x.secondary)).length} sem CDS</span><span>Verde ativo • Roxo novo • Amarelo alteração • Vermelho remoção</span>`;if((fit||!gsMap._gsFitted)&&bounds.length){try{gsMap.fitBounds(L.latLngBounds(bounds).pad(.15),{maxZoom:4});gsMap._gsFitted=true}catch{}}setTimeout(()=>gsMap.invalidateSize(),80)};
 
-console.info('HIGH OS V8.36.2 · Perfil Operacional/Resumo removidos da interface; dados legados consolidados em Estrutura + Mapa');
 
 /* ===== HIGH OS V8.37 · Fluxo único de Estruturas ===== */
 let gsView='LISTA';
@@ -3342,7 +3327,6 @@ window.gsOpenEditor=gsOpenEditor;window.gsSetView=gsSetView;
 ['gsAdd','gsViewList','gsViewMap'].forEach(id=>{const old=$('#'+id);if(old){const n=old.cloneNode(true);old.replaceWith(n)}});$('#gsAdd')?.addEventListener('click',()=>gsOpenEditor(-1));$('#gsViewList')?.addEventListener('click',()=>gsSetView('LISTA'));$('#gsViewMap')?.addEventListener('click',()=>gsSetView('MAPA'));
 // O botão de migração continua apenas como compatibilidade e não cria nova lógica paralela.
 const gm=$('#gsMigrate');if(gm){const n=gm.cloneNode(true);gm.replaceWith(n);n.addEventListener('click',()=>gsMigrateCurrent(true))}
-console.info('HIGH OS V8.37 · Estruturas: lista em cards, mapa operacional, atualizar base x planejar alteração, confirmação de execução e limpeza de salvamentos concorrentes');
 // V8.37 mapa usa as mesmas ações da lista e mostra planejamento sem substituir a posição atual.
 gsRenderMap=function(fit=false){gsEnsureMap();if(!gsMap)return;gsLayer.clearLayers();gsRouteLayer.clearLayers();const bounds=[],visible=gsRows().map((x,i)=>({...x,_i:i})).filter(x=>gsFilter==='TODOS'||x.tipo===gsFilter);let pointCount=0;const glyphs={CRAFT:'C',FARM:'F',LOJA:'L','BAÚ':'B','RÁDIO':'R',AMENIDADE:'A',GARAGEM:'G',HELIPONTO:'H',BLINDADO:'B',TELÃO:'T',QG:'Q',OUTRO:'•'};const addPoint=(x,v,label,planned=false)=>{const p=gsCoord(v);if(!p)return;pointCount++;const ll=L.latLng(p.y,p.x);bounds.push(ll);const st=planned?'ALTERACAO_PENDENTE':(x.status||'ATIVO'),cls=st==='PENDENTE'?'pending':st==='ALTERACAO_PENDENTE'?'change':st==='REMOCAO_PENDENTE'?'remove':'';const icon=L.divIcon({className:'',html:`<div class="gs-map-marker ${cls}">${glyphs[x.tipo]||'•'}</div>`,iconSize:[24,24],iconAnchor:[12,12]});L.marker(ll,{icon}).bindPopup(`<b>${esc(x.nome||x.tipo)}</b><br>${esc(x.tipo)} • ${planned?'PLANEJADO • ':''}${label}<br>${esc(v)}<br><small>${esc(gsStatusText(st))}</small><br><button onclick="navigator.clipboard?.writeText('${String(v).replaceAll("'","\\'")}')">Copiar CDS</button> <button onclick="gsOpenEditor(${x._i})">Editar</button> ${(x.status||'ATIVO')==='ATIVO'?`<button onclick="gsRequestRemoval(${x._i})">Remover</button>`:''}`).addTo(gsLayer)};visible.forEach(x=>{addPoint(x,x.cds,'Principal / Blip');addPoint(x,x.secondary,'Spawn / Secundária');if(x.status==='ALTERACAO_PENDENTE'&&x.pending){addPoint(x,x.pending.cds,'Principal / Blip',true);addPoint(x,x.pending.secondary,'Spawn / Secundária',true)}});if($('#gsShowRoute')?.checked){const pts=grSavedPoints(grCurrent()),ls=pts.map(p=>L.latLng(p.y,p.x));ls.forEach((ll,i)=>{bounds.push(ll);L.marker(ll,{icon:grRouteIcon(i+1)}).bindPopup(`<b>Rota Exclusiva • ${i+1}</b>`).addTo(gsRouteLayer)});if(ls.length>1)L.polyline(ls,{weight:4,opacity:.85,dashArray:'8 5'}).addTo(gsRouteLayer)}$('#gsLegend').innerHTML=`<span>${pointCount} pontos visíveis</span><span>Verde ativo • Roxo novo • Amarelo planejado • Vermelho remoção</span><span>Clique no marcador para copiar, editar ou remover</span>`;if((fit||!gsMap._gsFitted)&&bounds.length){try{gsMap.fitBounds(L.latLngBounds(bounds).pad(.15),{maxZoom:4});gsMap._gsFitted=true}catch{}}setTimeout(()=>gsMap.invalidateSize(),80)};
 
@@ -3404,7 +3388,6 @@ const v9OldSetView=gsSetView;gsSetView=function(v){gsView=v;const layout=$('#gsL
 gsRenderMap=function(fit=false){gsEnsureMap();if(!gsMap)return;gsLayer.clearLayers();gsRouteLayer.clearLayers();const bounds=[],visible=gsRows().map((x,i)=>({...x,_i:i})).filter(x=>gsFilter==='TODOS'||x.tipo===gsFilter);let pointCount=0;const glyphs={CRAFT:'C',FARM:'F',LOJA:'L','BAÚ':'B','AMENIDADE':'A',GARAGEM:'G',HELIPONTO:'H',BLINDADO:'B',TELÃO:'T',QG:'Q',OUTRO:'•'};const qg=gsCoord(v9QGCds());visible.forEach((x,idx)=>{let vals=x.tipo==='TELÃO'?[['Telão / Principal',x.cds],['Post-it',x.postit],...(x.speakers||[]).map((c,j)=>[`Caixa de Som ${j+1}`,c])]:[['Principal / Blip',x.cds],['Spawn / Secundária',x.secondary]];if(x.tipo==='RÁDIO'&&!gsCoord(x.cds)&&qg){const off=(idx%5)*10;vals=[['Rádio vinculada ao QG',`${qg.x+off},${qg.y+off},${qg.z||0}`]]}vals.forEach(([label,v])=>{const p=gsCoord(v);if(!p)return;pointCount++;const ll=L.latLng(p.y,p.x);bounds.push(ll);let html;if(x.tipo==='RÁDIO'){const freq=x.radio||x.nome||'R';html=`<div class="gs-map-radio">⌁<span>${esc(freq)}</span></div>`}else html=`<div class="gs-map-marker">${glyphs[x.tipo]||'•'}</div>`;const icon=L.divIcon({className:'',html,iconSize:[34,28],iconAnchor:[17,14]});L.marker(ll,{icon}).bindPopup(`<b>${esc(x.nome||x.tipo)}</b><br>${esc(x.tipo)} • ${label}<br>${esc(v)}<br><button onclick="navigator.clipboard?.writeText('${String(v).replaceAll("'","\\'")}')">Copiar CDS</button> <button onclick="gsOpenEditor(${x._i})">Editar</button> <button onclick="gsDeleteSimple(${x._i})">Excluir</button>`).addTo(gsLayer)})});if($('#gsShowRoute')?.checked){const pts=grSavedPoints(grCurrent()),ls=pts.map(p=>L.latLng(p.y,p.x));ls.forEach((ll,i)=>{bounds.push(ll);L.marker(ll,{icon:grRouteIcon(i+1)}).bindPopup(`<b>Rota Exclusiva • ${i+1}</b>`).addTo(gsRouteLayer)});if(ls.length>1)L.polyline(ls,{weight:4,opacity:.85,dashArray:'8 5'}).addTo(gsRouteLayer)}if($('#gsLegend'))$('#gsLegend').innerHTML=`<span>${pointCount} pontos de estrutura</span><span>${visible.length} itens visíveis</span><span>Clique para editar, copiar ou excluir</span>`;if((fit||!gsMap._gsFitted)&&bounds.length){try{gsMap.fitBounds(L.latLngBounds(bounds).pad(.15),{maxZoom:4});gsMap._gsFitted=true}catch{}}setTimeout(()=>gsMap.invalidateSize(),80)};
 async function v9SaveAll(){if(!v9StructureDirty)return alert('Nenhuma alteração para salvar.');const f=grCurrent(),group=f?.group;if(!group)return;const before=v9Clone(v9StructureOriginal),after=v9Clone(gsRows()),diff=v9Diff(before,after);try{techDraft.estruturaCatalogo=v9Clone(after);await setDoc(doc(db,'highos','data','faccoes',group),{perfilTecnico:clonePlain(techDraft),updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true});const local=faccoes.find(x=>x.group===group);if(local)local.perfilTecnico=clonePlain(techDraft);await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'ESTRUTURA_ATUALIZADA',group,descricao:`Estrutura atualizada: ${diff.length} alteração(ões)`,usuario:currentUser.email,data:serverTimestamp()});v9StructureOriginal=v9Clone(after);v9StructureDirty=false;$('#gsDirtyBar')?.classList.add('hidden');if(diff.length&&confirm(`Alterações salvas.\n\nDeseja gerar uma solicitação ao Dev da cidade com as ${diff.length} alteração(ões) realizadas?`))v9ShowRequest(v9StructureRequest(group,diff));gsRender(false)}catch(e){alert('Erro ao salvar estrutura: '+e.message)}}
 setTimeout(()=>{$('#gsSaveAll')?.addEventListener('click',v9SaveAll);$('#gsDiscard')?.addEventListener('click',()=>{if(!v9StructureDirty||confirm('Descartar todas as alterações ainda não salvas?')){techDraft.estruturaCatalogo=v9Clone(v9StructureOriginal);v9StructureDirty=false;$('#gsDirtyBar')?.classList.add('hidden');gsRender(false)}});const add=$('#gsAdd');if(add){const n=add.cloneNode(true);add.replaceWith(n);n.addEventListener('click',()=>gsOpenEditor(-1))}},0);
-console.info('HIGH OS V9.0.3 · Estrutura simples: lista + mapa visíveis por padrão.');
 
 
 /* V9.0.4 — foco direto da estrutura no mapa */
@@ -3434,7 +3417,6 @@ window.gsFocusMap=function(ev,i){
   return false;
 };
 
-console.info('HIGH OS V9.0.6 · Syntax fix do bloco Ver no Mapa + Telão completo.');
 
 
 /* ===== HIGH OS V9.0.8 · Estruturas com salvamento imediato e persistência completa ===== */
@@ -3522,9 +3504,7 @@ window.gsFocusMap=function(ev,i){
 
 // O salvamento agora é feito no próprio modal; a barra antiga fica desativada.
 $('#gsDirtyBar')?.classList.add('hidden');
-console.info('HIGH OS V9.0.8 · Salvamento imediato de estruturas + Telão completo persistente.');
 
-console.info('HIGH OS V9.0.9 · Estrutura V9 canônica + persistência confirmada do Telão.');
 
 /* ===== HIGH OS V9.0.10 · Persistência Estrutura sem sair do perfil ===== */
 async function v9010CommitStructure(beforeRows, descricao='Estrutura atualizada'){
@@ -3573,9 +3553,7 @@ document.addEventListener('click',e=>{
   const b=e.target.closest?.('#groupStructurePanel button, .gs-card button, #gsModal button');
   if(b && !b.hasAttribute('type')) b.setAttribute('type','button');
 },true);
-console.info('HIGH OS V9.0.10 · Estrutura salva sem fechar o perfil + proteção contra submit do formulário principal.');
 
-console.info('HIGH OS V9.0.11 · Facções disponíveis restauradas sem expor Groups apenas detectados por métricas.');
 
 /* ===== HIGH OS V9.1 · CENTRAL DE GESTÃO DO ILEGAL ===== */
 let mgmtLastRows=[];
@@ -3680,7 +3658,6 @@ function orgV92OpenReport(){
 $('#orgV92ReportBtn')?.addEventListener('click',orgV92OpenReport);
 ['facSearch','facSegment','facStatus'].forEach(id=>{const el=$('#'+id);if(!el)return;el.addEventListener(id==='facSearch'?'input':'change',()=>setTimeout(renderFaccoes,0))});
 setTimeout(()=>{if($('#page-faccoes'))renderFaccoes()},0);
-console.info('HIGH OS V9.2 · Organizações refeita em lista + status operacional + relatórios');
 
 
 /* ===== HIGH OS V9.4 - PONTE DE MISSOES NA NUVEM =====
@@ -3719,3 +3696,5 @@ window.HighOSMissionCloud={
   missionCloudTimer=setTimeout(()=>pushMissionsToCloud(missions),2500);
  }
 };
+
+console.info('HIGH OS V9.5.2 · sistema carregado');
