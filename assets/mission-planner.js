@@ -218,66 +218,75 @@
   }
 
   const SAVED_AT='highos_mission_planner_saved_at';
+  const BACKUPS='highos_mission_planner_backups';
+  const MAX_BACKUPS=8;
+
+  /* V9.4.2 - guarda as ultimas versoes da lista de missoes neste navegador.
+     Serve de rede de seguranca contra qualquer perda (sincronizacao, limpeza
+     de cache, erro de edicao). Nunca apaga sozinho alem do rodizio. */
+  function pushBackup(missions){
+    try{
+      if(!Array.isArray(missions)||!missions.length)return;
+      const lista=JSON.parse(localStorage.getItem(BACKUPS)||'[]');
+      const corpo=JSON.stringify(missions);
+      if(lista[0]&&lista[0].corpo===corpo)return;          // nada mudou
+      lista.unshift({at:new Date().toISOString(),qtd:missions.length,corpo});
+      while(lista.length>MAX_BACKUPS)lista.pop();
+      localStorage.setItem(BACKUPS,JSON.stringify(lista));
+    }catch(e){
+      // cota cheia: descarta o backup mais antigo e tenta de novo uma vez
+      try{
+        const lista=JSON.parse(localStorage.getItem(BACKUPS)||'[]').slice(0,3);
+        localStorage.setItem(BACKUPS,JSON.stringify(lista));
+      }catch(e2){}
+    }
+  }
+  function readBackups(){
+    try{return JSON.parse(localStorage.getItem(BACKUPS)||'[]')}catch(e){return []}
+  }
+  /* Fusao: nunca remove missao existente, so acrescenta o que faltar. */
+  function mergeMissions(entrada=[]){
+    if(!Array.isArray(entrada)||!entrada.length)return 0;
+    const porId=new Set(state.missions.map(m=>m.id));
+    const chave=m=>`${String(m.eventId||'')}|${normalizeText(m.name||'')}`;
+    const porChave=new Set(state.missions.map(chave));
+    let add=0;
+    entrada.forEach(m=>{
+      if(!m||!m.id)return;
+      if(porId.has(m.id)||porChave.has(chave(m)))return;
+      normalizeCenter(m);
+      if(!m.category)m.category=(String(m.event||'').toLowerCase().includes('domina')?'dominacao':'gas');
+      inferLegacyStructure(m);
+      state.missions.push(m);porId.add(m.id);porChave.add(chave(m));add++;
+    });
+    if(add){saveStore();render();}
+    return add;
+  }
   function saveStore(){
     try{
       localStorage.setItem(STORE,JSON.stringify(state.missions));
       localStorage.setItem(ACTIVE,state.activeId||'');
       if(!state.applyingCloud)localStorage.setItem(SAVED_AT,new Date().toISOString());
+      pushBackup(state.missions);
     }catch(e){console.warn('Planejador: falha ao salvar',e);}
     if(state.applyingCloud)return;
     try{window.HighOSMissionCloud?.push?.(state.missions);}catch(e){console.warn('Planejador: falha ao enfileirar sincronizacao',e);}
   }
   function applyCloudMissions(list){
-    if(!Array.isArray(list)||!list.length)return false;
-    state.applyingCloud=true;
-    try{
-      state.missions=list;
-      state.missions.forEach(m=>{normalizeCenter(m);if(!m.category)m.category=(String(m.event||'').toLowerCase().includes('domina')?'dominacao':'gas');inferLegacyStructure(m);});
-      mergeOfficialPresets();
-      if(!state.missions.some(m=>m.id===state.activeId))state.activeId=state.missions[0]?.id||'';
-      state.activeEventId=active()?.eventId||state.activeEventId;
-      saveStore();
-      render();
-      return true;
-    }catch(e){console.warn('Planejador: falha ao aplicar missoes da nuvem',e);return false;}
-    finally{state.applyingCloud=false;}
+    return mergeMissions(list)>0;
   }
+
   function syncMissionsFromCloud(tries=0){
     const cloud=window.HighOSMissionCloud;
     if(!cloud||!cloud.pull){if(tries<12)setTimeout(()=>syncMissionsFromCloud(tries+1),1500);return;}
     cloud.pull().then(res=>{
       if(!res||!Array.isArray(res.missions)||!res.missions.length)return;
-      let localAt='';try{localAt=localStorage.getItem(SAVED_AT)||'';}catch(e){}
-      const remoteAt=String(res.updatedAtText||'');
-      if(localAt&&remoteAt&&remoteAt<=localAt)return;
-      if(applyCloudMissions(res.missions)){
-        try{localStorage.setItem(SAVED_AT,remoteAt||new Date().toISOString());}catch(e){}
-        setStatus('Missoes sincronizadas com a equipe.','ok');
-      }
+      /* V9.4.2 - a versao anterior TROCAVA a lista local pela da nuvem quando a
+         remota parecia mais nova. Isso podia esconder missoes locais. Agora a
+         nuvem so ACRESCENTA o que falta aqui; nada local e removido. */
+      const add=mergeMissions(res.missions);
+      if(add)setStatus(`${add} missao(oes) da equipe adicionadas.`,'ok');
     }).catch(()=>{});
-  }
-  function mergeOfficialPresets(){
-    const byId=new Set(state.missions.map(m=>m.id));
-    let changed=false;
-    presets.forEach(p=>{
-      const existing=state.missions.find(m=>m.id===p.id);
-      if(existing){
-        const fresh=presetMission(p);
-        ['eventId','event','name','category','panel'].forEach(k=>{if(existing[k]!==fresh[k]){existing[k]=fresh[k];changed=true;}});
-        if(fresh.facxfacScenarios&&!existing.facxfacScenarios){existing.facxfacScenarios=fresh.facxfacScenarios;existing.activeScenario=0;changed=true;}return;
-      }
-      state.missions.push(presetMission(p));
-      byId.add(p.id);changed=true;
-    });
-    return changed;
-  }
-
-  function loadStore(){
-    try{
-      const raw=JSON.parse(localStorage.getItem(STORE)||'null');
-      if(Array.isArray(raw)&&raw.length){state.missions=raw;state.missions.forEach(m=>{normalizeCenter(m);if(!m.category)m.category=(String(m.event||'').toLowerCase().includes('domina')?'dominacao':'gas');inferLegacyStructure(m);});repairKnownZoneAssignments();repairFacxFacHierarchy();mergeOfficialPresets();state.activeId=localStorage.getItem(ACTIVE)||raw[0].id;const am=state.missions.find(m=>m.id===state.activeId)||raw[0];state.libraryCategory=(am?.category||'dominacao');state.activeEventId=am?.eventId||null;saveStore();return;}
-    }catch{}
-    state.missions=presets.map(presetMission);state.activeId=state.missions[0].id;state.libraryCategory=state.missions[0]?.category||'dominacao';state.activeEventId=state.missions[0]?.eventId||null;saveStore();
   }
 
   function openDb(){
@@ -552,7 +561,7 @@ Os pontos atuais serão substituídos e ficarão PENDENTES até validação no F
   function rawCds(p){return `${f(p.x)},${f(p.y)},${f(p.z)},${f(p.h)}`;}
   function tpCds(p){const z=Number.isFinite(Number(p?.z))?Number(p.z):0;const h=Number.isFinite(Number(p?.h))?Number(p.h):0;return `${f(p.x)},${f(p.y)},${f(z)},${f(h)}`;}
   function updateExport(){const m=active(),out=qs('#mpExport');if(out&&m)out.value=m.points.filter(isValidated).map((p,i)=>`${p.id||i+1} - ${rawCds(p)}`).join('\n');}
-  function render(){adoptStrayCards();renderMissionList();renderPointList();renderMap();analyze();updateExport();syncForm();renderCenterValidation();renderCoverage();renderPlannerBadges();const rt=qs('#mpRequestText'),m=active();if(rt&&document.activeElement!==rt)rt.value=m?.requestText||'';loadSnapshotPreview();}
+  function render(){adoptStrayCards();renderMissionList();renderPointList();renderMap();analyze();updateExport();syncForm();renderCenterValidation();renderCoverage();renderPlannerBadges();renderBackupList();const rt=qs('#mpRequestText'),m=active();if(rt&&document.activeElement!==rt)rt.value=m?.requestText||'';loadSnapshotPreview();}
 
   function syncForm(){
     const m=active();if(!m)return;
@@ -887,7 +896,7 @@ ${mechanic}
     renderLibraryCategoryUi();
   }
   function bind(){
-    if(state.initialized)return;state.initialized=true;loadStore();state.activeEventId=active()?.eventId||state.activeEventId;ensurePlannerV2Ui();ensurePlannerTabs();ensureMapKpis();initMap();render();bindFormAutosave();updateEditUi();
+    if(state.initialized)return;state.initialized=true;loadStore();state.activeEventId=active()?.eventId||state.activeEventId;ensurePlannerV2Ui();ensureBackupCard();ensurePlannerTabs();ensureMapKpis();initMap();render();bindFormAutosave();updateEditUi();
     qs('#mpEditMission')?.addEventListener('click',startEdit);qs('#mpSaveMission')?.addEventListener('click',saveMission);qs('#mpCancelEdit')?.addEventListener('click',cancelEdit);qs('#mpNewMission')?.addEventListener('click',createEvent);qs('#mpNewZone')?.addEventListener('click',createZone);qs('#mpCloneZone')?.addEventListener('click',cloneZone);qs('#mpReplicateZone')?.addEventListener('click',openReplicator);qs('#mpDeleteMission')?.addEventListener('click',deleteZone);qs('#mpDeleteEvent')?.addEventListener('click',deleteEvent);
     qs('#mpPlaceBtn')?.addEventListener('click',()=>{if(!requireEdit())return;state.placing=!state.placing;qs('#missionPlannerMap')?.classList.toggle('mp-crosshair',state.placing);qs('#mpPlaceBtn').textContent=state.placing?'PARAR DE MARCAR':'MARCAR PONTO NO MAPA';});
     qs('#mpFit')?.addEventListener('click',fit);qs('#mpGoLS')?.addEventListener('click',()=>state.map?.setView(ll(900,-600),3));qs('#mpGoCayo')?.addEventListener('click',()=>{if(state.map&&state.cayoBounds)state.map.fitBounds(state.cayoBounds,{padding:[20,20]});});qs('#mpGenerateCircle')?.addEventListener('click',generateCircle);qs('#mpImport')?.addEventListener('click',importBulk);qs('#mpValidateBtn')?.addEventListener('click',()=>validateSelected());
@@ -930,6 +939,68 @@ ${mechanic}
     qsa('.mp-tabpanel').forEach(p=>p.classList.toggle('active',p.dataset.tab===id));
     state.plannerTab=id;
     try{localStorage.setItem('highos_mp_tab',id);}catch(e){}
+  }
+  function fmtBackupData(iso){
+    try{return new Date(iso).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}catch(e){return iso}
+  }
+  function renderBackupList(){
+    const box=qs('#mpBackupList');if(!box)return;
+    const lista=readBackups();
+    box.innerHTML=lista.length?lista.map((b,i)=>
+      `<div class="mp-backup-row"><div><b>${fmtBackupData(b.at)}</b><small>${b.qtd} missao(oes)</small></div><button type="button" data-restore="${i}">RESTAURAR</button></div>`
+    ).join(''):'<div class="mp-note">Nenhum backup automatico ainda. Ele e criado a cada alteracao salva.</div>';
+    qsa('[data-restore]',box).forEach(b=>b.onclick=()=>{
+      const item=readBackups()[Number(b.dataset.restore)];
+      if(!item)return;
+      let dados=[];try{dados=JSON.parse(item.corpo)}catch(e){}
+      const add=mergeMissions(dados);
+      const el=qs('#mpBackupFeedback');
+      if(el){el.className='mp-validation-feedback '+(add?'ok':'info');
+        el.innerHTML=add?`<b>${add} missao(oes) recuperadas</b><span>Nada foi substituido: apenas o que faltava foi devolvido a lista.</span>`
+                        :'<b>Nada a recuperar</b><span>Todas as missoes deste backup ja estao na lista atual.</span>';}
+      renderBackupList();
+    });
+  }
+  function baixarBackup(){
+    try{
+      const blob=new Blob([JSON.stringify(state.missions,null,2)],{type:'application/json'});
+      const a=document.createElement('a');
+      a.href=URL.createObjectURL(blob);
+      a.download=`high-os-missoes-${new Date().toISOString().slice(0,10)}.json`;
+      a.click();setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+    }catch(e){alert('Nao foi possivel gerar o arquivo: '+e.message)}
+  }
+  function restaurarArquivo(file){
+    if(!file)return;
+    const r=new FileReader();
+    r.onload=()=>{
+      let dados=[];
+      try{dados=JSON.parse(String(r.result||'[]'))}catch(e){alert('Arquivo invalido.');return;}
+      if(!Array.isArray(dados)){alert('O arquivo nao contem uma lista de missoes.');return;}
+      const add=mergeMissions(dados);
+      const el=qs('#mpBackupFeedback');
+      if(el){el.className='mp-validation-feedback '+(add?'ok':'info');
+        el.innerHTML=add?`<b>${add} missao(oes) importadas do arquivo</b>`:'<b>Nada novo no arquivo</b><span>Todas essas missoes ja existem aqui.</span>';}
+    };
+    r.readAsText(file);
+  }
+  function ensureBackupCard(){
+    const side=qs('.mission-planner-side');
+    if(!side||qs('#mpBackupCard'))return;
+    const card=document.createElement('div');
+    card.className='mp-card';card.id='mpBackupCard';
+    card.innerHTML=`<h3>SEGURANÇA DAS MISSÕES</h3>
+      <p class="mp-note">Cada alteração salva gera um backup automático neste navegador. Restaurar só devolve o que estiver faltando — nunca apaga uma missão atual.</p>
+      <div class="mp-actions mp-actions-tight">
+        <button type="button" id="mpBackupDownload">BAIXAR CÓPIA (.json)</button>
+        <label class="mp-file-btn">RESTAURAR ARQUIVO<input id="mpBackupFile" type="file" accept="application/json" hidden></label>
+      </div>
+      <div id="mpBackupFeedback" class="mp-validation-feedback info">Backups automáticos das últimas 8 alterações.</div>
+      <div id="mpBackupList" class="mp-backup-list"></div>`;
+    side.appendChild(card);
+    qs('#mpBackupDownload')?.addEventListener('click',baixarBackup);
+    qs('#mpBackupFile')?.addEventListener('change',e=>{restaurarArquivo(e.target.files?.[0]);e.target.value='';});
+    renderBackupList();
   }
   function ensurePlannerTabs(){
     const side=qs('.mission-planner-side');

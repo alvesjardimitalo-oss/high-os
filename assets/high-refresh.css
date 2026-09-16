@@ -1,0 +1,468 @@
+/* =========================================================
+   HIGH OS V9.4.2 · REPAGINAÇÃO VISUAL
+   Messenger e Planejador de Missões.
+   Carregue por último — só sobrescreve aparência, nunca
+   posiciona ou esconde nada que o app.js controle.
+   ========================================================= */
+
+:root{
+  --hm-surface:#141019;
+  --hm-surface-2:#1b1524;
+  --hm-surface-3:#241c30;
+  --hm-line:rgba(255,255,255,.075);
+  --hm-line-2:rgba(255,255,255,.13);
+  --hm-brand:#8d35ff;
+  --hm-brand-2:#b878ff;
+  --hm-text:#f4f0f8;
+  --hm-text-2:#b3a8c2;
+  --hm-text-3:#8a7f99;
+  --hm-radius:16px;
+}
+
+/* =========================================================
+   1. HIGH MESSENGER
+   ========================================================= */
+.high-messenger{
+  border:1px solid var(--hm-line-2)!important;
+  border-radius:20px!important;
+  overflow:hidden!important;
+  background:var(--hm-surface)!important;
+  box-shadow:0 28px 70px rgba(0,0,0,.62),0 0 0 1px rgba(141,53,255,.09)!important;
+}
+
+/* --- topo --- */
+.hm-topbar{
+  align-items:center;
+  padding:13px 16px!important;
+  background:linear-gradient(120deg,rgba(141,53,255,.24),rgba(20,16,25,.2) 62%)!important;
+  border-bottom:1px solid var(--hm-line)!important;
+}
+.hm-topbar b{
+  font-size:12px!important;letter-spacing:.13em;color:#fff;
+  display:block;
+}
+.hm-topbar small{
+  display:block;margin-top:2px;
+  font-size:10px;color:var(--hm-text-3);letter-spacing:.03em;
+}
+.hm-topbar button{
+  width:30px;height:30px;border-radius:9px;
+  background:rgba(255,255,255,.06);border:1px solid var(--hm-line);
+  color:var(--hm-text-2);font-size:14px;line-height:1;cursor:pointer;
+  transition:background 140ms ease,color 140ms ease;
+}
+.hm-topbar button:hover{background:rgba(255,255,255,.12);color:#fff}
+
+/* --- coluna de contatos --- */
+.hm-sidebar{
+  background:rgba(9,7,13,.55)!important;
+  border-right:1px solid var(--hm-line)!important;
+  padding:12px 10px!important;
+}
+.hm-section-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:4px 6px 8px;
+}
+.hm-section-head span{
+  font-size:9.5px!important;letter-spacing:.14em;font-weight:900;
+  color:var(--hm-text-3)!important;
+}
+.hm-section-head button{
+  width:24px;height:24px;border-radius:7px;
+  background:rgba(141,53,255,.18);border:1px solid rgba(141,53,255,.34);
+  color:var(--hm-brand-2);cursor:pointer;font-size:13px;line-height:1;
+}
+.hm-section-head button:hover{background:rgba(141,53,255,.32);color:#fff}
+.hm-search{
+  width:100%;border-radius:999px!important;
+  background:var(--hm-surface-2)!important;
+  border:1px solid var(--hm-line)!important;
+  color:var(--hm-text)!important;
+  padding:9px 14px!important;font-size:12px!important;
+  margin-bottom:8px;
+}
+.hm-search:focus{border-color:rgba(141,53,255,.55)!important;outline:none}
+
+.hm-contact{
+  display:flex;align-items:center;gap:10px;
+  width:100%;text-align:left;
+  padding:9px 10px!important;
+  margin-bottom:3px;
+  border:none!important;
+  border-radius:12px!important;
+  background:transparent!important;
+  position:relative;cursor:pointer;
+  transition:background 130ms ease;
+}
+.hm-contact:hover{background:rgba(255,255,255,.05)!important}
+.hm-contact.active{background:linear-gradient(90deg,rgba(141,53,255,.26),rgba(141,53,255,.07))!important}
+.hm-contact.active::before{
+  content:"";position:absolute;left:0;top:50%;transform:translateY(-50%);
+  width:3px;height:22px;border-radius:0 3px 3px 0;background:var(--hm-brand-2);
+}
+.hm-contact-avatar{
+  width:36px!important;height:36px!important;flex:0 0 36px;
+  border-radius:50%!important;
+  display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(140deg,#6d2bbf,#3d1a6d)!important;
+  color:#fff!important;font-weight:800;font-size:12px;overflow:hidden;
+}
+.hm-contact-avatar img{width:100%;height:100%;object-fit:cover}
+.hm-contact-copy{min-width:0;flex:1}
+.hm-contact-copy b{
+  display:block;font-size:12.5px!important;font-weight:700;color:var(--hm-text)!important;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.hm-contact-copy small{
+  display:block;margin-top:1px;
+  font-size:10.5px!important;color:var(--hm-text-3)!important;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.hm-contact-copy small i{font-style:normal;color:var(--hm-brand-2);opacity:.85}
+.hm-contact-state{font-size:8px!important;color:#3fd18a!important;opacity:.9}
+
+/* canais de voz */
+.hm-voice-channel{
+  display:flex;align-items:center;gap:9px;width:100%;
+  padding:9px 10px!important;border-radius:11px!important;
+  background:transparent!important;border:1px solid transparent!important;
+  color:var(--hm-text-2);cursor:pointer;margin-bottom:3px;
+}
+.hm-voice-channel:hover{background:rgba(255,255,255,.05)!important;border-color:var(--hm-line)!important}
+.hm-voice-channel b{display:block;font-size:12px;color:var(--hm-text)}
+.hm-voice-channel small{display:block;font-size:10px;color:var(--hm-text-3)}
+.hm-voice-channel i{
+  font-style:normal;font-size:9px;font-weight:900;letter-spacing:.08em;
+  color:var(--hm-brand-2);padding:4px 8px;border-radius:20px;
+  background:rgba(141,53,255,.14);
+}
+
+/* --- cabeçalho da conversa --- */
+.hm-conversation-head{
+  padding:12px 16px!important;
+  border-bottom:1px solid var(--hm-line)!important;
+  background:rgba(255,255,255,.015)!important;
+}
+.hm-avatar{
+  width:38px!important;height:38px!important;border-radius:50%!important;
+  background:linear-gradient(140deg,#6d2bbf,#3d1a6d)!important;
+  display:flex;align-items:center;justify-content:center;
+  font-weight:800;color:#fff;overflow:hidden;
+}
+.hm-avatar img{width:100%;height:100%;object-fit:cover}
+.hm-user-head b{font-size:14px!important;font-weight:700}
+.hm-user-head small{font-size:10.5px!important;color:var(--hm-text-3)!important}
+.hm-head-actions button{
+  width:36px;height:36px;border-radius:50%!important;
+  background:rgba(255,255,255,.05)!important;
+  border:1px solid var(--hm-line)!important;
+  color:var(--hm-text-2)!important;font-size:14px;cursor:pointer;
+  transition:background 140ms ease,color 140ms ease,transform 140ms ease;
+}
+.hm-head-actions button:hover{background:rgba(141,53,255,.24)!important;color:#fff!important;transform:translateY(-1px)}
+
+/* --- mensagens --- */
+.hm-messages{
+  padding:16px!important;
+  background:
+    radial-gradient(900px 340px at 82% -10%,rgba(141,53,255,.07),transparent 60%),
+    var(--hm-surface)!important;
+}
+.hm-messages .chat-message{
+  display:flex;gap:9px;align-items:flex-end;
+  margin-bottom:10px!important;
+}
+.hm-messages .chat-message.mine{flex-direction:row-reverse}
+.hm-messages .chat-message-avatar{
+  width:28px;height:28px;flex:0 0 28px;border-radius:50%;
+  background:linear-gradient(140deg,#4a2480,#2b1450);
+  display:flex;align-items:center;justify-content:center;
+  font-size:10px;font-weight:800;color:#e9dcfa;overflow:hidden;
+}
+.hm-messages .chat-message.mine .chat-message-avatar{display:none}
+.hm-messages .chat-message-bubble{
+  position:relative;
+  max-width:min(74%,520px);
+  padding:9px 13px 8px!important;
+  border-radius:15px 15px 15px 5px!important;
+  background:var(--hm-surface-3)!important;
+  border:1px solid var(--hm-line)!important;
+  box-shadow:0 2px 10px rgba(0,0,0,.28);
+}
+.hm-messages .chat-message.mine .chat-message-bubble{
+  border-radius:15px 15px 5px 15px!important;
+  background:linear-gradient(135deg,#7b2fd6,#5a20a6)!important;
+  border-color:rgba(255,255,255,.14)!important;
+}
+.hm-messages .chat-message-bubble header{
+  display:flex;align-items:baseline;gap:7px;margin-bottom:3px;
+}
+.hm-messages .chat-message-bubble header b{
+  font-size:11px!important;font-weight:700;color:var(--hm-brand-2);
+}
+.hm-messages .chat-message.mine .chat-message-bubble header b{color:rgba(255,255,255,.92)}
+.hm-messages .chat-message-bubble header small{
+  font-size:9.5px!important;color:var(--hm-text-3)!important;letter-spacing:.02em;
+}
+.hm-messages .chat-message.mine .chat-message-bubble header small{color:rgba(255,255,255,.62)!important}
+.hm-messages .chat-message-bubble p{
+  margin:0!important;font-size:13px!important;line-height:1.5;
+  word-break:break-word;color:#fff;
+}
+.hm-messages .chat-message-bubble img{border-radius:10px;max-width:100%}
+.hm-messages .chat-delete{
+  position:absolute;top:-8px;right:-8px;
+  width:20px;height:20px;border-radius:50%;
+  background:#2a2135;border:1px solid var(--hm-line-2);
+  color:var(--hm-text-3);font-size:11px;line-height:1;cursor:pointer;
+  opacity:0;transition:opacity 130ms ease;
+}
+.hm-messages .chat-message:hover .chat-delete{opacity:1}
+.hm-messages .chat-delete:hover{background:#ff5b76;color:#fff;border-color:#ff5b76}
+.hm-messages .chat-empty{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  height:100%;min-height:200px;gap:5px;
+  color:var(--hm-text-3)!important;font-size:12.5px;text-align:center;
+}
+.hm-messages .chat-empty b{color:var(--hm-text);font-size:13px}
+
+/* --- barra de escrita --- */
+.hm-compose{
+  display:flex!important;align-items:center;gap:6px!important;
+  padding:11px 13px!important;
+  border-top:1px solid var(--hm-line)!important;
+  background:rgba(9,7,13,.5)!important;
+}
+.hm-compose textarea{
+  flex:1;min-height:40px;max-height:120px;
+  border-radius:20px!important;
+  background:var(--hm-surface-2)!important;
+  border:1px solid var(--hm-line)!important;
+  color:var(--hm-text)!important;
+  padding:11px 16px!important;
+  font-size:13px!important;line-height:1.4;resize:none;
+}
+.hm-compose textarea:focus{border-color:rgba(141,53,255,.5)!important;outline:none}
+.hm-compose-tool{
+  display:flex!important;align-items:center;justify-content:center;
+  width:36px;height:36px;flex:0 0 36px;
+  border-radius:50%!important;
+  background:rgba(255,255,255,.045)!important;
+  border:1px solid var(--hm-line)!important;
+  color:var(--hm-text-2)!important;
+  font-size:14px!important;padding:0!important;margin:0!important;
+  cursor:pointer;transition:background 140ms ease,color 140ms ease;
+}
+.hm-compose-tool:hover{background:rgba(141,53,255,.24)!important;color:#fff!important}
+.hm-gif-btn{
+  width:auto!important;flex:0 0 auto;border-radius:999px!important;
+  padding:0 12px!important;font-size:10px!important;font-weight:900;letter-spacing:.08em;
+}
+.hm-send{
+  width:42px;height:42px;flex:0 0 42px;
+  border-radius:50%!important;border:none!important;
+  background:linear-gradient(135deg,#9440ff,#6a21c9)!important;
+  color:#fff!important;font-size:15px;cursor:pointer;
+  box-shadow:0 5px 16px rgba(141,53,255,.42);
+  transition:transform 130ms ease,box-shadow 130ms ease;
+}
+.hm-send:hover{transform:translateY(-1px) scale(1.04);box-shadow:0 8px 22px rgba(141,53,255,.55)}
+.hm-send:active{transform:scale(.96)}
+
+/* botão flutuante */
+.team-chat-launcher{
+  width:56px;height:56px;border-radius:50%!important;
+  background:linear-gradient(135deg,#9440ff,#6a21c9)!important;
+  border:none!important;color:#fff;font-size:21px;
+  box-shadow:0 12px 30px rgba(141,53,255,.45)!important;
+  transition:transform 150ms ease;
+}
+.team-chat-launcher:hover{transform:translateY(-2px) scale(1.05)}
+
+@media(max-width:760px){
+  .hm-messages .chat-message-bubble{max-width:86%}
+  .hm-gif-btn{display:none!important}
+}
+
+/* =========================================================
+   2. PLANEJADOR DE MISSÕES
+   ========================================================= */
+
+/* lateral um pouco mais larga: os campos estavam espremidos */
+@media(min-width:1280px){
+  #page-planejador .mission-planner-shell{grid-template-columns:430px minmax(0,1fr)!important;gap:18px}
+}
+#page-planejador .mission-planner-side{
+  background:linear-gradient(180deg,#151020,#0f0b16)!important;
+  border:1px solid var(--hm-line-2)!important;
+  border-radius:18px!important;
+  padding:12px!important;
+}
+#page-planejador .mp-card{
+  background:rgba(255,255,255,.022)!important;
+  border:1px solid var(--hm-line)!important;
+  border-radius:14px!important;
+  padding:14px!important;margin-bottom:10px!important;
+}
+#page-planejador .mp-card h3{
+  font-size:10px!important;letter-spacing:.13em!important;
+  color:var(--hm-brand-2)!important;
+  padding-bottom:9px;margin-bottom:11px!important;
+  border-bottom:1px solid var(--hm-line);
+}
+#page-planejador .mp-card label{
+  font-size:9.5px!important;letter-spacing:.07em;
+  color:var(--hm-text-3)!important;text-transform:uppercase;
+}
+#page-planejador .mp-card input,
+#page-planejador .mp-card select,
+#page-planejador .mp-card textarea{
+  background:#0b0810!important;
+  border:1px solid var(--hm-line-2)!important;
+  border-radius:9px!important;
+  color:var(--hm-text)!important;
+  padding:10px 11px!important;font-size:12px!important;
+}
+#page-planejador .mp-card input:focus,
+#page-planejador .mp-card textarea:focus,
+#page-planejador .mp-card select:focus{
+  border-color:rgba(141,53,255,.6)!important;outline:none;
+  box-shadow:0 0 0 3px rgba(141,53,255,.12);
+}
+#page-planejador .mp-card textarea{
+  font:11.5px/1.6 ui-monospace,Consolas,monospace!important;
+  min-height:88px;
+}
+#page-planejador .mp-actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:11px}
+#page-planejador .mp-actions button,
+#page-planejador .mp-file-btn{
+  flex:1 1 auto;min-height:38px;
+  display:inline-flex;align-items:center;justify-content:center;
+  border-radius:10px!important;
+  background:rgba(255,255,255,.05)!important;
+  border:1px solid var(--hm-line-2)!important;
+  color:var(--hm-text)!important;
+  font-size:10px!important;font-weight:800;letter-spacing:.07em;
+  cursor:pointer;padding:0 12px!important;
+  transition:background 140ms ease,border-color 140ms ease,transform 140ms ease;
+}
+#page-planejador .mp-actions button:hover,
+#page-planejador .mp-file-btn:hover{background:rgba(255,255,255,.1)!important;border-color:rgba(141,53,255,.5)!important;transform:translateY(-1px)}
+#page-planejador .mp-actions button.primary{
+  background:linear-gradient(135deg,#8d35ff,#6321b8)!important;
+  border-color:transparent!important;color:#fff!important;
+  box-shadow:0 4px 14px rgba(141,53,255,.3);
+}
+#page-planejador .mp-actions button.danger{
+  background:rgba(255,91,118,.12)!important;border-color:rgba(255,91,118,.4)!important;color:#ff9dab!important;
+}
+#page-planejador .mp-readout{
+  background:#0b0810!important;border:1px solid var(--hm-line)!important;
+  border-radius:9px!important;padding:9px 11px!important;
+  font:11px/1.55 ui-monospace,Consolas,monospace!important;
+  color:var(--hm-text-2)!important;
+}
+#page-planejador .mp-note{
+  font-size:10.5px!important;line-height:1.55;color:var(--hm-text-3)!important;
+}
+#page-planejador .mp-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+#page-planejador .mp-kpi{
+  background:rgba(255,255,255,.03)!important;border:1px solid var(--hm-line)!important;
+  border-radius:11px!important;padding:10px!important;text-align:center;
+}
+#page-planejador .mp-kpi span{font-size:8.5px!important;letter-spacing:.1em;color:var(--hm-text-3)!important;display:block}
+#page-planejador .mp-kpi b{font-size:19px!important;display:block;margin-top:3px;color:#fff}
+
+/* lista de pontos */
+#page-planejador .mp-point-list{max-height:320px;overflow:auto;padding-right:3px}
+#page-planejador .mp-point-row{
+  display:flex;align-items:center;gap:9px;
+  padding:9px 10px!important;margin-bottom:5px;
+  border-radius:11px!important;
+  background:rgba(255,255,255,.028)!important;
+  border:1px solid var(--hm-line)!important;
+  border-left:3px solid #ff5b76!important;
+  cursor:pointer;transition:background 130ms ease,transform 130ms ease;
+}
+#page-planejador .mp-point-row:hover{background:rgba(255,255,255,.06)!important;transform:translateX(2px)}
+#page-planejador .mp-point-row.validated{border-left-color:#50f5a0!important}
+#page-planejador .mp-point-row.selected{
+  background:rgba(141,53,255,.16)!important;border-color:rgba(141,53,255,.45)!important;
+}
+#page-planejador .mp-point-num{
+  width:28px;height:28px;flex:0 0 28px;border-radius:9px;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(255,255,255,.06);font-size:11px;font-weight:900;color:#e4d8f5;
+}
+#page-planejador .mp-point-row b{font-size:11.5px!important;display:block}
+#page-planejador .mp-point-row small{
+  font-size:10px!important;color:var(--hm-text-3)!important;
+  font-family:ui-monospace,Consolas,monospace;
+}
+#page-planejador .mp-state{
+  font-size:8.5px;font-weight:900;letter-spacing:.07em;
+  padding:2px 6px;border-radius:20px;margin-left:5px;
+}
+#page-planejador .mp-state.ok{background:rgba(80,245,160,.16);color:#50f5a0}
+#page-planejador .mp-state.warn{background:rgba(255,91,118,.16);color:#ff8a9c}
+
+/* backups */
+.mp-backup-list{margin-top:9px;display:grid;gap:5px}
+.mp-backup-row{
+  display:flex;align-items:center;justify-content:space-between;gap:9px;
+  padding:8px 10px;border-radius:10px;
+  background:rgba(255,255,255,.025);border:1px solid var(--hm-line);
+}
+.mp-backup-row b{display:block;font-size:11px}
+.mp-backup-row small{display:block;font-size:9.5px;color:var(--hm-text-3)}
+.mp-backup-row button{
+  background:rgba(141,53,255,.16);border:1px solid rgba(141,53,255,.38);
+  color:#d9bcff;border-radius:8px;padding:6px 10px;
+  font-size:9px;font-weight:900;letter-spacing:.07em;cursor:pointer;
+}
+.mp-backup-row button:hover{background:rgba(141,53,255,.3);color:#fff}
+
+/* área do mapa */
+#page-planejador .mission-planner-mapwrap{
+  border:1px solid var(--hm-line-2)!important;
+  border-radius:18px!important;overflow:hidden!important;
+  position:relative;
+}
+#page-planejador .mp-map-status{
+  position:absolute!important;top:12px;left:12px;right:12px;z-index:500;
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  padding:9px 14px!important;
+  border-radius:12px!important;
+  background:rgba(10,8,14,.82)!important;
+  border:1px solid var(--hm-line-2)!important;
+  backdrop-filter:blur(9px);
+  pointer-events:none;
+}
+#page-planejador .mp-map-status b{font-size:10px;letter-spacing:.11em;color:var(--hm-brand-2)}
+#page-planejador #mpTileStatus{font-size:10.5px;color:var(--hm-text-3)}
+#page-planejador #mpTileStatus.ok{color:#50f5a0}
+#page-planejador #mpTileStatus.warn{color:#ffcf5c}
+#page-planejador #missionPlannerMap{min-height:640px}
+
+/* controles do Leaflet: sai de cima da barra de status e ganha tema escuro */
+#page-planejador .leaflet-top.leaflet-right{top:auto!important;bottom:14px!important}
+#page-planejador .leaflet-control-layers{
+  background:rgba(12,9,17,.93)!important;
+  border:1px solid var(--hm-line-2)!important;
+  border-radius:12px!important;
+  color:var(--hm-text)!important;
+  box-shadow:0 12px 30px rgba(0,0,0,.5)!important;
+  font-size:10px;letter-spacing:.06em;
+}
+#page-planejador .leaflet-control-layers label{margin:3px 0;color:var(--hm-text-2)}
+#page-planejador .leaflet-control-layers-separator{border-color:var(--hm-line)!important}
+#page-planejador .leaflet-control-zoom a{
+  background:rgba(12,9,17,.93)!important;color:var(--hm-text)!important;
+  border:1px solid var(--hm-line-2)!important;border-radius:9px!important;margin-bottom:4px;
+}
+#page-planejador .leaflet-control-zoom a:hover{background:rgba(141,53,255,.3)!important}
+
+@media(max-width:1100px){
+  #page-planejador .mp-map-status{position:static!important;backdrop-filter:none}
+  #page-planejador #missionPlannerMap{min-height:460px}
+}
