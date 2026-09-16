@@ -1070,14 +1070,26 @@ ${mechanic}
 
     const actions=qs('.mp-top-actions');
     if(actions){
-      actions.innerHTML=`<div class="mp-action-section"><span>EVENTO</span><button type="button" id="mpNewMission" class="mp-new-action">+ NOVO EVENTO</button><button type="button" id="mpDeleteEvent" class="mp-delete-action">EXCLUIR EVENTO</button></div><div class="mp-action-section zone"><span>ZONA</span><button type="button" id="mpNewZone" class="primary">+ NOVA ZONA</button><button type="button" id="mpReplicateZone">IMPORTAR / REPLICAR ZONA</button><button type="button" id="mpCloneZone">CLONAR NESTE EVENTO</button><button type="button" id="mpDeleteMission" class="mp-delete-action">EXCLUIR ZONA</button></div><div class="mp-action-section edit"><span>EDIÇÃO</span><button type="button" id="mpEditMission">EDITAR ZONA</button><button type="button" id="mpSaveMission" class="primary" style="display:none">SALVAR ZONA</button><button type="button" id="mpCancelEdit" style="display:none">CANCELAR</button></div>`;
+      actions.innerHTML=`<div class="mp-action-section"><span>EVENTO</span><button type="button" id="mpNewMission" class="mp-new-action">+ NOVO EVENTO</button><button type="button" id="mpDeleteEvent" class="mp-delete-action">EXCLUIR EVENTO</button></div><div class="mp-action-section zone"><span>ZONA</span><button type="button" id="mpNewZone" class="primary">+ NOVA ZONA</button><button type="button" id="mpReplicateZone">REPLICAR</button><button type="button" id="mpCloneZone">CLONAR</button><button type="button" id="mpDeleteMission" class="mp-delete-action">EXCLUIR</button></div><div class="mp-action-section edit"><span>EDIÇÃO</span><button type="button" id="mpEditMission">EDITAR</button><button type="button" id="mpSaveMission" class="primary" style="display:none">SALVAR</button><button type="button" id="mpCancelEdit" style="display:none">CANCELAR</button></div><div class="mp-library-quick"><button type="button" id="mpQuickNewZone" class="primary">+ NOVA ZONA</button><button type="button" id="mpQuickOpen">ABRIR ZONA</button></div>`;
       actions.className='mp-top-actions mp-actions-v8';
     }
     const clicked=qs('#mpClicked');if(clicked&&!state.editing)clicked.textContent='MODO VISUALIZAÇÃO • zona travada. Clique em EDITAR ZONA para alterar o mapa.';
     renderLibraryCategoryUi();
   }
+  function applyPlannerReform(){
+    const bar=qs('#mpWorkspaceBar'), actions=qs('.mp-top-actions');
+    if(bar && actions && !qs('.mp-editor-actions',bar)){
+      const ed=document.createElement('div');ed.className='mp-editor-actions';
+      const zone=qs('.mp-action-section.zone',actions), edit=qs('.mp-action-section.edit',actions);
+      [zone,edit].forEach(sec=>{if(!sec)return;Array.from(sec.querySelectorAll('button')).forEach(b=>ed.appendChild(b));});
+      const cloud=qs('#mpCloudState',bar);bar.insertBefore(ed,cloud||null);
+    }
+    qs('#mpQuickNewZone')?.addEventListener('click',()=>qs('#mpNewZone')?.click());
+    qs('#mpQuickOpen')?.addEventListener('click',()=>{if(active())setWorkspace(true);});
+  }
+
   function bind(){
-    if(state.initialized)return;state.initialized=true;loadStore();state.activeEventId=active()?.eventId||state.activeEventId;ensurePlannerV2Ui();ensureWorkspaceBar();ensureBackupCard();ensurePlannerTabs();ensureMapKpis();initMap();render();renderWorkspaceBar();setWorkspace(false);bindFormAutosave();updateEditUi();
+    if(state.initialized)return;state.initialized=true;loadStore();state.activeEventId=active()?.eventId||state.activeEventId;ensurePlannerV2Ui();ensureWorkspaceBar();applyPlannerReform();ensureBackupCard();ensurePlannerTabs();ensureMapKpis();initMap();render();renderWorkspaceBar();setWorkspace(false);bindFormAutosave();updateEditUi();
     qs('#mpEditMission')?.addEventListener('click',startEdit);qs('#mpSaveMission')?.addEventListener('click',saveMission);qs('#mpCancelEdit')?.addEventListener('click',cancelEdit);qs('#mpNewMission')?.addEventListener('click',createEvent);qs('#mpNewZone')?.addEventListener('click',createZone);qs('#mpCloneZone')?.addEventListener('click',cloneZone);qs('#mpReplicateZone')?.addEventListener('click',openReplicator);qs('#mpDeleteMission')?.addEventListener('click',deleteZone);qs('#mpDeleteEvent')?.addEventListener('click',deleteEvent);
     qs('#mpPlaceBtn')?.addEventListener('click',()=>{if(!requireEdit())return;state.placing=!state.placing;qs('#missionPlannerMap')?.classList.toggle('mp-crosshair',state.placing);qs('#mpPlaceBtn').textContent=state.placing?'PARAR DE MARCAR':'MARCAR PONTO NO MAPA';});
     qs('#mpFit')?.addEventListener('click',fit);qs('#mpGoLS')?.addEventListener('click',()=>state.map?.setView(ll(900,-600),3));qs('#mpGoCayo')?.addEventListener('click',()=>{if(state.map&&state.cayoBounds)state.map.fitBounds(state.cayoBounds,{padding:[20,20]});});qs('#mpGenerateCircle')?.addEventListener('click',generateCircle);qs('#mpImport')?.addEventListener('click',importBulk);qs('#mpValidateBtn')?.addEventListener('click',()=>validateSelected());
@@ -1103,7 +1115,7 @@ ${mechanic}
   function cardTabKey(card){
     const t=(card.querySelector('h3')?.textContent||'').toUpperCase();
     if(card.classList.contains('mp-validation-card')||t.includes('VALIDA'))return 'validacao';
-    if(t.includes('EXPORT')||t.includes('SOLICITA')||t.includes('PRINT'))return 'entrega';
+    if(t.includes('EXPORT')||t.includes('SOLICITA')||t.includes('PRINT')||t.includes('SEGURANÇA'))return 'entrega';
     if(t.includes('PONTO')||t.includes('SPAWN')||t.includes('LOTE')||t.includes('IMPORT')||t.includes('STATUS'))return 'pontos';
     return 'zona';
   }
