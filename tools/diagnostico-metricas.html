@@ -30,7 +30,7 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>Diagnóstico da planilha de métricas</h1>
+  <h1>Diagnóstico da planilha de métricas <span style="font-size:11px;color:#50f5a0;letter-spacing:.1em">v3</span></h1>
   <p class="sub">Lê a planilha publicada exatamente como o High OS lê e mostra o que foi reconhecido.</p>
 
   <div class="card">
@@ -239,6 +239,30 @@ async function analisar(){
       '</tbody></table>';
   }
 
+
+  // ---- raio-x de cada bloco ----
+  const runs=colapsar(cabecalhos);
+  let tb='<h3 style="font-size:10px;letter-spacing:.11em;color:#d9c4eb;margin:18px 0 6px">RAIO-X DOS BLOCOS</h3>';
+  tb+='<table><thead><tr><th>CABEÇALHO</th><th>LINHA DAS DATAS</th><th class="num">DATAS</th><th class="num">LINHAS DE DADOS</th><th>PERÍODO</th></tr></thead><tbody>';
+  runs.forEach((hi,bi)=>{
+    const fim=runs[bi+1]??values.length;
+    const di=nearestDateRow(values,hi);
+    const header=values[hi]||[];
+    const dateRow=di>=0?(values[di]||[]):[];
+    const datas=dateRow.map(normalizeDate).filter(Boolean);
+    let linhasDados=0;
+    for(let r=hi+1;r<fim;r++){
+      const row=values[r]||[];let g='';
+      for(const cell of row.slice(0,20)){g=groupLabel(cell);if(g)break}
+      if(g)linhasDados++;
+    }
+    tb+=`<tr><td>linha ${hi}</td><td>${di>=0?('linha '+di):'<span class="err">não achou</span>'}</td>`+
+        `<td class="num">${datas.length}</td>`+
+        `<td class="num ${linhasDados?'':'err'}">${linhasDados}</td>`+
+        `<td>${datas.length?fmt(datas[0])+' → '+fmt(datas[datas.length-1]):'—'}</td></tr>`;
+  });
+  tb+='</tbody></table>';
+  $('#tabela').innerHTML+=tb;
 
   // ---- o que o app REALMENTE extrairia ----
   const linhas=extrair(values,cabecalhos);
