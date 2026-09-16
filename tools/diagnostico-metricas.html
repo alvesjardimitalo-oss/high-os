@@ -100,6 +100,68 @@ function normalizeDate(v){
 }
 function fmt(d){try{return new Date(d+'T12:00:00').toLocaleDateString('pt-BR')}catch(e){return d}}
 
+
+/* ---- replica o mapeamento coluna->data do app, para ver onde os valores caem ---- */
+function groupLabel(v){
+  const t=String(v||'').trim();
+  if(!t)return '';
+  if(/^\d+$/.test(t))return '';
+  if(/^(14|16|21|23)H?$/i.test(t.replace(/\s+/g,'')))return '';
+  if(normalizeDate(t))return '';
+  return t.length>=2?t:'';
+}
+function num(v){
+  const t=String(v==null?'':v).trim().replace(/\./g,'').replace(',','.');
+  if(!t||!/^-?\d+(\.\d+)?$/.test(t))return null;
+  return Number(t);
+}
+function nearestDateRow(values,headerIndex){
+  let best=-1,bestScore=-1;
+  for(let i=Math.max(0,headerIndex-12);i<headerIndex;i++){
+    const dates=(values[i]||[]).map(normalizeDate).filter(Boolean);
+    if(!dates.length)continue;
+    const score=dates.length*1000-(headerIndex-i);
+    if(score>bestScore){bestScore=score;best=i}
+  }
+  return best;
+}
+function buildColumnDateMap(header,dateRow){
+  const ordered=(dateRow||[]).map(normalizeDate).filter(Boolean);
+  if(!ordered.length)return {};
+  const map={};let dayIndex=-1,lastSlot='';
+  for(let c=0;c<header.length;c++){
+    const h=slotLabel(header[c]);if(!h)continue;
+    if(h==='14H'||dayIndex<0||(['16H','21H','23H'].indexOf(h)<=['16H','21H','23H'].indexOf(lastSlot)&&lastSlot))dayIndex++;
+    if(dayIndex>=0&&dayIndex<ordered.length)map[c]=ordered[dayIndex];
+    lastSlot=h;
+  }
+  return map;
+}
+function extrair(values,cabecalhos){
+  const out=[];
+  for(let b=0;b<cabecalhos.length;b++){
+    const hi=cabecalhos[b], fim=cabecalhos[b+1]??values.length;
+    const di=nearestDateRow(values,hi); if(di<0)continue;
+    const header=values[hi]||[], dateRow=values[di]||[];
+    const dateByCol=buildColumnDateMap(header,dateRow);
+    if(!Object.keys(dateByCol).length)continue;
+    for(let r=hi+1;r<fim;r++){
+      const row=values[r]||[];let group='';
+      for(const cell of row.slice(0,20)){group=groupLabel(cell);if(group)break}
+      if(!group)continue;
+      const byDate={};
+      for(let c=0;c<header.length;c++){
+        const h=slotLabel(header[c]);if(!h)continue;
+        const d=dateByCol[c];if(!d)continue;
+        const n=num(row[c]);if(n===null)continue;
+        (byDate[d]=byDate[d]||{group,data:d,slots:{}}).slots[h]=n;
+      }
+      Object.values(byDate).forEach(x=>out.push(x));
+    }
+  }
+  return out;
+}
+
 let ultimoTexto='';
 
 async function analisar(){
@@ -168,7 +230,32 @@ async function analisar(){
       '</tbody></table>';
   }
 
-  ultimoTexto=$('#verdict').innerText+'\n\nPRIMEIRAS LINHAS:\n'+$('#bruto').textContent;
+
+  // ---- o que o app REALMENTE extrairia ----
+  const linhas=extrair(values,cabecalhos);
+  const porData=new Map();
+  linhas.forEach(l=>{
+    const e=porData.get(l.data)||{registros:0,valores:0,groups:new Set()};
+    e.registros++;e.groups.add(l.group);
+    e.valores+=Object.values(l.slots).filter(v=>v>0).length;
+    porData.set(l.data,e);
+  });
+  const datasExtraidas=[...porData.keys()].sort().reverse().slice(0,14);
+  let t2='<h3 style="font-size:10px;letter-spacing:.11em;color:#d9c4eb;margin:18px 0 6px">O QUE O SISTEMA EXTRAI DE FATO</h3>';
+  if(!datasExtraidas.length){
+    t2+='<div class="verdict err">Nenhum registro foi extraído, apesar dos blocos existirem. O mapeamento coluna → data falhou.</div>';
+  }else{
+    t2+='<table><thead><tr><th>DATA</th><th class="num">GROUPS</th><th class="num">VALORES &gt; 0</th></tr></thead><tbody>'+
+      datasExtraidas.map(d=>{const e=porData.get(d);
+        const cls=e.valores?'':'err';
+        return `<tr><td>${fmt(d)}</td><td class="num">${e.groups.size}</td><td class="num ${cls}">${e.valores}</td></tr>`}).join('')+
+      '</tbody></table>';
+    const vazias=datasExtraidas.filter(d=>!porData.get(d).valores);
+    if(vazias.length)t2+=`<div class="verdict warn">${vazias.length} data(s) recente(s) foram reconhecidas mas vieram <b>sem nenhum valor preenchido</b>: ${vazias.map(fmt).join(', ')}. Isso significa que as colunas existem na planilha, mas as células de contagem estão vazias — ou os números estão em colunas que não são as de 14H/16H/21H/23H daquele bloco.</div>`;
+  }
+  $('#tabela').innerHTML+=t2;
+
+  ultimoTexto=$('#verdict').innerText+'\n'+$('#tabela').innerText+'\n\nPRIMEIRAS LINHAS:\n'+$('#bruto').textContent;
 }
 
 $('#run').addEventListener('click',analisar);
