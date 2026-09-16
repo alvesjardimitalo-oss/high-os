@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>High OS · Diagnóstico das Métricas</title>
+<style>
+  :root{--bg:#07060b;--panel:#141019;--line:#33283b;--purple:#8d35ff;--text:#f7f4fb;--muted:#a79db6;--ok:#50f5a0;--err:#ff5b76;--warn:#ffcf5c}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:14px/1.55 system-ui,Segoe UI,Roboto,sans-serif;padding:24px}
+  .wrap{max-width:980px;margin:0 auto}
+  h1{font-size:19px;margin:0 0 4px}
+  .sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:17px;margin-bottom:14px}
+  .card h2{font-size:10.5px;letter-spacing:.12em;margin:0 0 12px;color:#d9c4eb}
+  input{width:100%;background:#0a0810;border:1px solid var(--line);border-radius:9px;color:var(--text);padding:11px 13px;font-size:12px;font-family:ui-monospace,Consolas,monospace}
+  button{background:var(--purple);color:#fff;border:none;border-radius:9px;padding:11px 17px;font-weight:800;letter-spacing:.05em;cursor:pointer;font-size:11px;margin-top:11px}
+  button.sec{background:transparent;border:1px solid var(--line);color:var(--text)}
+  pre{background:#0a0810;border:1px solid var(--line);border-radius:10px;padding:13px;font:11.5px/1.65 ui-monospace,Consolas,monospace;white-space:pre-wrap;word-break:break-all;max-height:320px;overflow:auto;margin:0}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:8px}
+  th,td{text-align:left;padding:8px;border-bottom:1px solid var(--line)}
+  th{font-size:9.5px;letter-spacing:.09em;color:var(--muted)}
+  td.num{text-align:right;font-variant-numeric:tabular-nums}
+  .ok{color:var(--ok)}.err{color:var(--err)}.warn{color:var(--warn)}
+  .verdict{border-left:3px solid var(--purple);padding:10px 14px;margin-top:12px;font-size:13px;line-height:1.6;background:rgba(141,53,255,.07);border-radius:0 10px 10px 0}
+  .verdict.err{border-left-color:var(--err);background:rgba(255,91,118,.08)}
+  .verdict.ok{border-left-color:var(--ok);background:rgba(80,245,160,.08)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Diagnóstico da planilha de métricas</h1>
+  <p class="sub">Lê a planilha publicada exatamente como o High OS lê e mostra o que foi reconhecido.</p>
+
+  <div class="card">
+    <h2>URL PUBLICADA</h2>
+    <input id="url" placeholder="https://docs.google.com/spreadsheets/d/e/.../pubhtml?gid=...&single=true">
+    <button id="run">ANALISAR</button>
+    <button id="copy" class="sec">COPIAR RESULTADO</button>
+  </div>
+
+  <div class="card">
+    <h2>RESULTADO</h2>
+    <div id="verdict"></div>
+    <div id="tabela"></div>
+  </div>
+
+  <div class="card">
+    <h2>PRIMEIRAS LINHAS DO CSV</h2>
+    <pre id="bruto">—</pre>
+  </div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+const URL_PADRAO='https://docs.google.com/spreadsheets/d/e/2PACX-1vTAKi2m0rqOMHp8Tdn2JU8NglHG6DhqUeG_criSCd_gZsdTRAkDP560FRcMHnM5adryPBZEIbxVCfCT/pubhtml?gid=156598669&single=true';
+$('#url').value=URL_PADRAO;
+
+/* mesma conversão que o app faz */
+function csvUrl(value){
+  try{
+    const u=new window.URL(String(value||'').trim());
+    const gid=u.searchParams.get('gid')||'';
+    u.pathname=u.pathname.replace(/\/(pubhtml|pub|edit)\/?$/,'/pub');
+    const q=new URLSearchParams();
+    if(gid)q.set('gid',gid);
+    q.set('single','true');q.set('output','csv');q.set('_',String(Date.now()));
+    u.search=q.toString();
+    return u.toString();
+  }catch(e){return String(value||'')}
+}
+function parseCsvRows(text){
+  const rows=[];let row=[],cell='',q=false;
+  for(let i=0;i<text.length;i++){const c=text[i];
+    if(q){if(c==='"'&&text[i+1]==='"'){cell+='"';i++}else if(c==='"')q=false;else cell+=c}
+    else if(c==='"')q=true;
+    else if(c===','){row.push(cell);cell=''}
+    else if(c==='\n'){row.push(cell.replace(/\r$/,''));rows.push(row);row=[];cell=''}
+    else cell+=c}
+  if(cell||row.length){row.push(cell.replace(/\r$/,''));rows.push(row)}
+  return rows;
+}
+function slotLabel(v){
+  const t=String(v||'').trim().toUpperCase().replace(/\s+/g,'');
+  if(/^14H?$/.test(t))return '14H';
+  if(/^16H?$/.test(t))return '16H';
+  if(/^21H?$/.test(t))return '21H';
+  if(/^23H?$/.test(t))return '23H';
+  return '';
+}
+function normalizeDate(v){
+  const t=String(v||'').trim();
+  if(!t)return '';
+  let m=t.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(m)return `${m[1]}-${m[2]}-${m[3]}`;
+  m=t.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);
+  if(m){let a=m[3];if(a.length===2)a='20'+a;return `${a}-${String(m[2]).padStart(2,'0')}-${String(m[1]).padStart(2,'0')}`}
+  return '';
+}
+function fmt(d){try{return new Date(d+'T12:00:00').toLocaleDateString('pt-BR')}catch(e){return d}}
+
+let ultimoTexto='';
+
+async function analisar(){
+  const alvo=csvUrl($('#url').value);
+  $('#verdict').innerHTML='<div class="verdict">Lendo...</div>';
+  $('#tabela').innerHTML='';$('#bruto').textContent='—';
+  let txt='';
+  try{
+    const r=await fetch(alvo,{cache:'no-store',credentials:'omit'});
+    txt=await r.text();
+    if(!r.ok){
+      $('#verdict').innerHTML=`<div class="verdict err">HTTP ${r.status}. A publicação pode ter sido desativada ou o link está errado.</div>`;
+      return;
+    }
+  }catch(e){
+    $('#verdict').innerHTML=`<div class="verdict err">Não consegui baixar: ${e.message}.<br>Se falar em CORS, a planilha não está publicada na web (compartilhar não basta).</div>`;
+    return;
+  }
+
+  $('#bruto').textContent=txt.split('\n').slice(0,12).join('\n');
+
+  if(/^\s*<!DOCTYPE|^\s*<html/i.test(txt)){
+    $('#verdict').innerHTML='<div class="verdict err">Veio HTML em vez de CSV: a publicação não está ativa de verdade.</div>';
+    return;
+  }
+
+  const values=parseCsvRows(txt);
+  const cabecalhos=[];
+  for(let i=0;i<Math.min(values.length,600);i++){
+    const labels=(values[i]||[]).map(slotLabel).filter(Boolean);
+    if(['14H','16H','21H','23H'].every(h=>new Set(labels).has(h))&&labels.length>=8)cabecalhos.push(i);
+  }
+
+  const datas=new Map();
+  values.forEach((linha,i)=>{
+    (linha||[]).forEach(c=>{const d=normalizeDate(c);if(d)datas.set(d,(datas.get(d)||0)+1)});
+  });
+  const ordenadas=[...datas.keys()].sort();
+  const hoje=new Date();
+  const seteDias=new Date(hoje.getTime()-7*864e5).toISOString().slice(0,10);
+  const recentes=ordenadas.filter(d=>d>=seteDias);
+
+  let html='';
+  html+=`<div class="verdict ${cabecalhos.length?'ok':'err'}">`;
+  html+=`Linhas no CSV: <b>${values.length}</b><br>`;
+  html+=`Blocos com 14H/16H/21H/23H encontrados: <b>${cabecalhos.length}</b>${cabecalhos.length?` (linhas ${cabecalhos.slice(0,8).join(', ')})`:''}<br>`;
+  html+=`Datas reconhecidas: <b>${ordenadas.length}</b>`;
+  if(ordenadas.length)html+=` — da mais antiga <b>${fmt(ordenadas[0])}</b> até a mais recente <b>${fmt(ordenadas[ordenadas.length-1])}</b>`;
+  html+=`<br>Datas dos últimos 7 dias: <b class="${recentes.length?'ok':'err'}">${recentes.length}</b>`;
+  if(recentes.length)html+=` (${recentes.map(fmt).join(', ')})`;
+  html+='</div>';
+
+  if(!cabecalhos.length){
+    html+='<div class="verdict err">Nenhum bloco no padrão 14H/16H/21H/23H foi encontrado. Provavelmente o link publicado aponta para outra aba — confira o gid.</div>';
+  }else if(!recentes.length){
+    html+='<div class="verdict warn">Os blocos existem, mas nenhuma data dos últimos 7 dias apareceu. Ou a semana ainda não foi lançada na planilha, ou as datas desta semana estão num formato diferente das antigas (ex.: texto em vez de data).</div>';
+  }else{
+    html+='<div class="verdict ok">A planilha está sendo lida corretamente e contém dados desta semana. Se o painel não mostra, o problema está no filtro de período da tela de Métricas.</div>';
+  }
+  $('#verdict').innerHTML=html;
+
+  if(ordenadas.length){
+    const ultimas=ordenadas.slice(-14).reverse();
+    $('#tabela').innerHTML='<table><thead><tr><th>DATA RECONHECIDA</th><th class="num">OCORRÊNCIAS NA PLANILHA</th></tr></thead><tbody>'+
+      ultimas.map(d=>`<tr><td>${fmt(d)} <span style="color:#8a7f99">(${d})</span></td><td class="num">${datas.get(d)}</td></tr>`).join('')+
+      '</tbody></table>';
+  }
+
+  ultimoTexto=$('#verdict').innerText+'\n\nPRIMEIRAS LINHAS:\n'+$('#bruto').textContent;
+}
+
+$('#run').addEventListener('click',analisar);
+$('#copy').addEventListener('click',async()=>{
+  try{await navigator.clipboard.writeText(ultimoTexto||'nada analisado ainda');$('#copy').textContent='COPIADO'}
+  catch(e){$('#copy').textContent='FALHOU'}
+  setTimeout(()=>$('#copy').textContent='COPIAR RESULTADO',1500);
+});
+analisar();
+</script>
+</body>
+</html>
