@@ -1032,7 +1032,7 @@ ${mechanic}
   function ensurePlannerV2Ui(){
     const list=qs('#mpMissionList');
     if(list&&!qs('#mpCategoryLibrary')){const cat=document.createElement('div');cat.id='mpCategoryLibrary';list.insertAdjacentElement('beforebegin',cat);}
-    if(list&&!qs('#mpEventList')){const eventWrap=document.createElement('div');eventWrap.innerHTML='<div class="mp-level-title"><span>2</span><div><b>EVENTOS</b><small>Selecione o evento deste tipo</small></div></div><div id="mpEventList" class="mp-event-list"></div><div class="mp-level-title zone-title"><span>3</span><div><b>ZONAS DO EVENTO</b><small>Cada zona possui centro, raio e spawns próprios</small></div></div>';list.insertAdjacentElement('beforebegin',eventWrap);}
+    if(list&&!qs('#mpEventList')){const eventWrap=document.createElement('div');eventWrap.className='mp-level-wrap';eventWrap.innerHTML='<div class="mp-level-title"><span>2</span><div><b>EVENTOS</b><small>Selecione o evento deste tipo</small></div></div><div id="mpEventList" class="mp-event-list"></div><div class="mp-level-title zone-title"><span>3</span><div><b>ZONAS DO EVENTO</b><small>Cada zona possui centro, raio e spawns próprios</small></div></div>';list.insertAdjacentElement('beforebegin',eventWrap);}
     if(!qs('#mpEventCategory')){
       const ev=qs('#mpEventType');if(ev){const lab=document.createElement('label');lab.innerHTML='Tipo de evento<select id="mpEventCategory"><option value="dominacao">DOMINAÇÃO — ÁREA FIXA</option><option value="gas">ZONA DE GÁS — SAFE FECHANDO</option></select>';ev.closest('.mp-grid')?.insertAdjacentElement('beforebegin',lab);}
     }
