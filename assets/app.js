@@ -1436,6 +1436,20 @@ function parseMetricSheet(values=[]){
  }
  if(!headerIndexes.length)return [];
 
+ /* V9.6.5 - Quando o bloco tem duas linhas de cabecalho seguidas (celula
+    mesclada, linha de apoio ou o mesmo cabecalho repetido), o codigo tratava
+    cada uma como um bloco. O "bloco" formado pelo primeiro cabecalho terminava
+    na linha seguinte e ficava SEM NENHUMA linha de dados - foi assim que o mes
+    de setembro inteiro sumiu depois do dia 06. Agora cabecalhos coladas viram
+    um unico bloco, representado pelo ultimo deles. */
+ const headerRuns=[];
+ for(const idx of headerIndexes){
+  if(headerRuns.length&&idx-headerRuns[headerRuns.length-1]<=1)headerRuns[headerRuns.length-1]=idx;
+  else headerRuns.push(idx);
+ }
+ headerIndexes.length=0;
+ headerRuns.forEach(i=>headerIndexes.push(i));
+
  function nearestDateRow(headerIndex){
   let best=-1,bestScore=-1;
   // O cabeçalho de datas normalmente fica imediatamente acima, mas há títulos/linhas vazias.

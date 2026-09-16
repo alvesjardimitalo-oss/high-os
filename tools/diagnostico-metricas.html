@@ -137,7 +137,16 @@ function buildColumnDateMap(header,dateRow){
   }
   return map;
 }
-function extrair(values,cabecalhos){
+function colapsar(indices){
+  const runs=[];
+  for(const i of indices){
+    if(runs.length&&i-runs[runs.length-1]<=1)runs[runs.length-1]=i;
+    else runs.push(i);
+  }
+  return runs;
+}
+function extrair(values,cabecalhosBrutos){
+  const cabecalhos=colapsar(cabecalhosBrutos);
   const out=[];
   for(let b=0;b<cabecalhos.length;b++){
     const hi=cabecalhos[b], fim=cabecalhos[b+1]??values.length;
