@@ -1423,125 +1423,65 @@ function metricGroupLabel(v){
 }
 function parseMetricSheet(values=[]){
  if(!Array.isArray(values)||!values.length)return [];
- // A aba oficial pode conter vários blocos mensais (junho, julho, agosto, setembro...)
- // na mesma página. Cada bloco tem sua própria linha de datas + linha 14H/16H/21H/23H.
- // O parser antigo escolhia apenas um cabeçalho e acabava reaproveitando as datas de um mês antigo.
- const scanLimit=Math.min(values.length,600);
- const headerIndexes=[];
- for(let i=0;i<scanLimit;i++){
-  const labels=(values[i]||[]).map(metricSlotLabel).filter(Boolean);
-  const distinct=new Set(labels);
-  // Exige os quatro horários e ao menos duas sequências para não confundir linhas auxiliares.
-  if(['14H','16H','21H','23H'].every(h=>distinct.has(h))&&labels.length>=8)headerIndexes.push(i);
+ /* V9.7.4 - parser dirigido pela linha de DATAS.
+    A planilha oficial possui blocos mensais repetidos e setembro aparece duas vezes
+    (um bloco preenchido e outro vazio). Nao usamos mais a deteccao de cabecalho para
+    delimitar o bloco: uma linha com varias datas e a ancora; a linha seguinte e o
+    cabecalho e as linhas seguintes sao os Groups ate a proxima linha de datas. */
+ const scanLimit=Math.min(values.length,600), dateBlocks=[];
+ for(let r=0;r<scanLimit;r++){
+  const row=values[r]||[], anchors=[];
+  for(let c=0;c<row.length;c++){const d=normalizeMetricDate(row[c]);if(d)anchors.push({c,d})}
+  // Um bloco mensal real tem muitas datas. >=7 evita datas soltas de outras tabelas.
+  if(anchors.length>=7)dateBlocks.push({dateRowIndex:r,anchors});
  }
- if(!headerIndexes.length)return [];
-
- /* V9.6.5 - Quando o bloco tem duas linhas de cabecalho seguidas (celula
-    mesclada, linha de apoio ou o mesmo cabecalho repetido), o codigo tratava
-    cada uma como um bloco. O "bloco" formado pelo primeiro cabecalho terminava
-    na linha seguinte e ficava SEM NENHUMA linha de dados - foi assim que o mes
-    de setembro inteiro sumiu depois do dia 06. Agora cabecalhos coladas viram
-    um unico bloco, representado pelo ultimo deles. */
- const headerRuns=[];
- for(const idx of headerIndexes){
-  if(headerRuns.length&&idx-headerRuns[headerRuns.length-1]<=1)headerRuns[headerRuns.length-1]=idx;
-  else headerRuns.push(idx);
- }
- headerIndexes.length=0;
- headerRuns.forEach(i=>headerIndexes.push(i));
-
- function nearestDateRow(headerIndex){
-  let best=-1,bestScore=-1;
-  // O cabeçalho de datas normalmente fica imediatamente acima, mas há títulos/linhas vazias.
-  for(let i=Math.max(0,headerIndex-12);i<headerIndex;i++){
-   const dates=(values[i]||[]).map(normalizeMetricDate).filter(Boolean);
-   if(!dates.length)continue;
-   // Prioriza mais datas e proximidade do cabeçalho.
-   const score=dates.length*1000-(headerIndex-i);
-   if(score>bestScore){bestScore=score;best=i}
+ if(!dateBlocks.length)return [];
+ const candidates=[];
+ for(let b=0;b<dateBlocks.length;b++){
+  const block=dateBlocks[b], dateRowIndex=block.dateRowIndex;
+  const headerIndex=dateRowIndex+1;
+  const nextDateRow=dateBlocks[b+1]?.dateRowIndex??values.length;
+  const header=values[headerIndex]||[];
+  const map={},slotByCol={},padrao=['14H','16H','21H','23H'];
+  for(let i=0;i<block.anchors.length;i++){
+   const a=block.anchors[i],next=block.anchors[i+1]?.c??Infinity;
+   for(let off=0;off<4;off++){
+    const c=a.c+off;if(c>=next)break;
+    map[c]=a.d;
+    // Usa o texto real quando valido, mas a posicao fisica e a garantia.
+    slotByCol[c]=metricSlotLabel(header[c])||padrao[off];
+   }
   }
-  return best;
- }
-
- /* V9.7 - Mapeamento por POSICAO, nao por contagem.
-    O codigo anterior contava as ocorrencias de 14H e usava o contador como
-    indice na lista de datas. Bastava uma irregularidade na planilha - e a aba
-    MÉTRICAS tem varias, como a coluna "M" ausente no dia 8 e no dia 18 - para
-    a contagem desalinhar e todo o resto do mes ser descartado. Foi o que
-    aconteceu com setembro a partir do dia 07.
-
-    Agora cada coluna de horario recebe a data que esta na propria coluna ou na
-    coluna anterior mais proxima, que e como o Google exporta celula mesclada. */
- function buildColumnDateMap(header,dateRow){
-  const map={};
-  let dataAtual='';
-  const largura=Math.max((header||[]).length,(dateRow||[]).length);
-  for(let c=0;c<largura;c++){
-   const d=normalizeMetricDate((dateRow||[])[c]);
-   if(d)dataAtual=d;
-   const h=metricSlotLabel((header||[])[c]);
-   if(h&&dataAtual)map[c]=dataAtual;
-  }
-  return map;
- }
-
- const out=[];const seenKeys=new Set();
- for(let b=0;b<headerIndexes.length;b++){
-  const headerIndex=headerIndexes[b];
-  const nextHeader=headerIndexes[b+1]??values.length;
-  const dateRowIndex=nearestDateRow(headerIndex);if(dateRowIndex<0)continue;
-  const header=values[headerIndex]||[],dateRow=values[dateRowIndex]||[];
-  const dateByCol=buildColumnDateMap(header,dateRow);
-  if(!Object.keys(dateByCol).length)continue;
-
-  for(let r=headerIndex+1;r<nextHeader;r++){
+  const rows=[];
+  for(let r=headerIndex+1;r<nextDateRow;r++){
    const row=values[r]||[];let group='';
    for(const cell of row.slice(0,20)){group=metricGroupLabel(cell);if(group)break}
    if(!group)continue;
    const byDate={};
-   for(let c=0;c<header.length;c++){
-    const h=metricSlotLabel(header[c]);if(!h)continue;
-    const d=dateByCol[c];if(!d)continue;
-    const num=parseMetricNumber(row[c]);if(num===null)continue;
-    if(!byDate[d])byDate[d]={group,data:d,slots:{},seen:new Set()};
-    byDate[d].slots[h]=num;byDate[d].seen.add(h);
+   for(const [cs,d] of Object.entries(map)){
+    const c=Number(cs),h=slotByCol[c],num=parseMetricNumber(row[c]);
+    if(num===null)continue;
+    if(!byDate[d])byDate[d]={group,data:d,slots:{}};
+    byDate[d].slots[h]=num;
    }
-   Object.values(byDate).forEach(x=>{
-    if(!x.seen.size)return;
-    const key=`${alvesNorm(x.group)}|${x.data}`;
-    if(seenKeys.has(key))return;
-    seenKeys.add(key);delete x.seen;out.push(x);
-   });
+   Object.values(byDate).forEach(x=>rows.push(x));
   }
+  const populated=rows.reduce((n,x)=>n+Object.values(x.slots).filter(v=>Number(v)>0).length,0);
+  candidates.push({dateRowIndex,rows,populated});
+ }
+ // Duplicatas do mesmo mes: prioriza o bloco que realmente possui coletas.
+ const bestByMonth=new Map();
+ for(const c of candidates){
+  const first=c.rows[0]?.data||normalizeMetricDate((values[c.dateRowIndex]||[]).find(normalizeMetricDate));
+  if(!first)continue;const month=first.slice(3);const old=bestByMonth.get(month);
+  if(!old||c.populated>old.populated)bestByMonth.set(month,c);
+ }
+ const out=[],seen=new Set();
+ for(const c of bestByMonth.values())for(const x of c.rows){
+  const key=`${alvesNorm(x.group)}|${x.data}`;
+  if(seen.has(key))continue;seen.add(key);out.push(x);
  }
  return out;
-}
-async function authorizeSheets(){
- if(sheetsAccessToken)return sheetsAccessToken;if(!currentUser)throw new Error('Entre no High OS antes de conectar a planilha.');
- sheetsProvider.setCustomParameters({prompt:'consent',login_hint:currentUser.email||''});
- const before=(currentUser.email||'').toLowerCase();const result=await signInWithPopup(auth,sheetsProvider);const after=(result.user?.email||'').toLowerCase();
- if(before&&after&&before!==after)throw new Error('Autorize com a mesma conta Google usada no High OS.');
- const credential=GoogleAuthProvider.credentialFromResult(result);const token=credential?.accessToken;if(!token)throw new Error('O Google não retornou autorização para leitura da planilha.');sheetsAccessToken=token;return token;
-}
-async function sheetsFetch(url,token){
- const r=await fetch(url,{headers:{Authorization:`Bearer ${token}`},cache:'no-store'});let payload={};try{payload=await r.json()}catch(e){}
- if(!r.ok){const msg=payload?.error?.message||`Google Sheets API: HTTP ${r.status}`;if(r.status===401)sheetsAccessToken='';throw new Error(msg)}return payload;
-}
-async function getSheetTitles(spreadsheetId,token){
- const url=`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}?fields=sheets.properties(title,index)`;const p=await sheetsFetch(url,token);return (p.sheets||[]).sort((a,b)=>(a.properties?.index||0)-(b.properties?.index||0)).map(x=>x.properties?.title).filter(Boolean);
-}
-async function readMetricSheet(spreadsheetId,sheet,token){
- const range=`${a1SheetName(sheet)}!A1:ZZ300`;const url=`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(range)}?majorDimension=ROWS&valueRenderOption=FORMATTED_VALUE`;const p=await sheetsFetch(url,token);return parseMetricSheet(p.values||[]);
-}
-async function readMetricsDirect({authorize=false,urlOverride='',sheetOverride=''}={}){
- const source=urlOverride||metricSourceConfig.url,id=extractSpreadsheetId(source);if(!id)throw new Error('Informe um link ou ID válido do Google Sheets.');
- let token=sheetsAccessToken;if(!token&&authorize)token=await authorizeSheets();if(!token)throw new Error('AUTORIZAÇÃO NECESSÁRIA');
- const requested=(sheetOverride||metricSourceConfig.sheet||'').trim();if(requested){const rows=await readMetricSheet(id,requested,token);if(!rows.length)throw new Error(`A aba “${requested}” foi lida, mas o formato de métricas não foi reconhecido.`);return {rows,sheet:requested}}
- const titles=await getSheetTitles(id,token);let best={rows:[],sheet:''};for(const title of titles){try{const rows=await readMetricSheet(id,title,token);if(rows.length>best.rows.length)best={rows,sheet:title}}catch(e){}}
- if(!best.rows.length)throw new Error('Nenhuma aba com o padrão 14H / 16H / 21H / 23H foi encontrada.');return best;
-}
-async function loadMetricSourceConfig(){
- try{const s=await getDoc(metricConfigDoc);if(s.exists())metricSourceConfig={...metricSourceConfig,...s.data()}}catch(e){}renderMetricSourceStatus();
 }
 function metricTsToDate(v){
  if(!v)return null;if(v?.toDate)return v.toDate();if(v?.seconds)return new Date(v.seconds*1000);const d=new Date(v);return isNaN(d)?null:d;

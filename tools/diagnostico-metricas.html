@@ -30,7 +30,7 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>Diagnóstico da planilha de métricas <span style="font-size:11px;color:#50f5a0;letter-spacing:.1em">v7</span></h1>
+  <h1>Diagnóstico da planilha de métricas <span style="font-size:11px;color:#50f5a0;letter-spacing:.1em">v10</span></h1>
   <p class="sub">Lê a planilha publicada exatamente como o High OS lê e mostra o que foi reconhecido.</p>
 
   <div class="card">
@@ -126,15 +126,12 @@ function nearestDateRow(values,headerIndex){
   return best;
 }
 function buildColumnDateMap(header,dateRow){
-  const map={};let dataAtual='';
-  const largura=Math.max((header||[]).length,(dateRow||[]).length);
-  for(let c=0;c<largura;c++){
-    const d=normalizeDate((dateRow||[])[c]);
-    if(d)dataAtual=d;
-    const h=slotLabel((header||[])[c]);
-    if(h&&dataAtual)map[c]=dataAtual;
-  }
-  return map;
+  const map={},slotsByCol={},anchors=[];
+  for(let c=0;c<(dateRow||[]).length;c++){const d=normalizeDate((dateRow||[])[c]);if(d)anchors.push({c,d})}
+  const padrao=['14H','16H','21H','23H'];
+  for(let i=0;i<anchors.length;i++){const a=anchors[i],next=anchors[i+1]?.c??Infinity;for(let off=0;off<4;off++){const c=a.c+off;if(c>=next)break;map[c]=a.d;slotsByCol[c]=padrao[off]}}
+  if(!anchors.length){let dataAtual='';const largura=Math.max((header||[]).length,(dateRow||[]).length);for(let c=0;c<largura;c++){const d=normalizeDate((dateRow||[])[c]);if(d)dataAtual=d;const h=slotLabel((header||[])[c]);if(h&&dataAtual){map[c]=dataAtual;slotsByCol[c]=h}}}
+  return {map,slotsByCol};
 }
 function colapsar(indices){
   const runs=[];
@@ -145,31 +142,27 @@ function colapsar(indices){
   return runs;
 }
 function extrair(values,cabecalhosBrutos){
-  const cabecalhos=colapsar(cabecalhosBrutos);
-  const out=[];
-  for(let b=0;b<cabecalhos.length;b++){
-    const hi=cabecalhos[b], fim=cabecalhos[b+1]??values.length;
-    const di=nearestDateRow(values,hi); if(di<0)continue;
-    const header=values[hi]||[], dateRow=values[di]||[];
-    const dateByCol=buildColumnDateMap(header,dateRow);
-    if(!Object.keys(dateByCol).length)continue;
-    for(let r=hi+1;r<fim;r++){
-      const row=values[r]||[];let group='';
-      for(const cell of row.slice(0,20)){group=groupLabel(cell);if(group)break}
-      if(!group)continue;
-      const byDate={};
-      for(let c=0;c<header.length;c++){
-        const h=slotLabel(header[c]);if(!h)continue;
-        const d=dateByCol[c];if(!d)continue;
-        const n=num(row[c]);if(n===null)continue;
-        (byDate[d]=byDate[d]||{group,data:d,slots:{}}).slots[h]=n;
-      }
-      Object.values(byDate).forEach(x=>out.push(x));
-    }
+  // V10 / 9.7.4: mesma estrategia do app — blocos ancorados pela linha de datas.
+  const blocks=[];
+  for(let r=0;r<Math.min(values.length,600);r++){
+    const anchors=[];(values[r]||[]).forEach((v,c)=>{const d=normalizeDate(v);if(d)anchors.push({c,d})});
+    if(anchors.length>=7)blocks.push({dateRowIndex:r,anchors});
   }
-  return out;
+  const candidates=[];
+  for(let b=0;b<blocks.length;b++){
+    const block=blocks[b],hi=block.dateRowIndex+1,fim=blocks[b+1]?.dateRowIndex??values.length;
+    const header=values[hi]||[], map={},slots={},padrao=['14H','16H','21H','23H'];
+    block.anchors.forEach((a,i)=>{const next=block.anchors[i+1]?.c??Infinity;for(let off=0;off<4;off++){const c=a.c+off;if(c>=next)break;map[c]=a.d;slots[c]=slotLabel(header[c])||padrao[off]}});
+    const rows=[];
+    for(let r=hi+1;r<fim;r++){
+      const row=values[r]||[];let group='';for(const cell of row.slice(0,20)){group=groupLabel(cell);if(group)break}if(!group)continue;
+      const byDate={};for(const [cs,d] of Object.entries(map)){const c=+cs,n=num(row[c]);if(n===null)continue;(byDate[d]=byDate[d]||{group,data:d,slots:{}}).slots[slots[c]]=n}Object.values(byDate).forEach(x=>rows.push(x));
+    }
+    candidates.push({dateRowIndex:block.dateRowIndex,rows,populated:rows.reduce((n,x)=>n+Object.values(x.slots).filter(v=>+v>0).length,0)});
+  }
+  const best=new Map();for(const c of candidates){const d=c.rows[0]?.data;if(!d)continue;const m=d.slice(3),old=best.get(m);if(!old||c.populated>old.populated)best.set(m,c)}
+  const out=[],seen=new Set();for(const c of best.values())for(const x of c.rows){const k=groupLabel(x.group)+'|'+x.data;if(seen.has(k))continue;seen.add(k);out.push(x)}return out;
 }
-
 let ultimoTexto='';
 
 async function analisar(){
@@ -255,7 +248,8 @@ async function analisar(){
       for(const cell of row.slice(0,20)){g=groupLabel(cell);if(g)break}
       if(g)linhasDados++;
     }
-    const mapa=di>=0?buildColumnDateMap(header,dateRow):{};
+    const cm=di>=0?buildColumnDateMap(header,dateRow):{map:{},slotsByCol:{}};
+    const mapa=cm.map, slotsMapa=cm.slotsByCol;
     const nCols=Object.keys(mapa).length;
     const nDatas=new Set(Object.values(mapa)).size;
     let registros=0,comValor=0;
@@ -265,7 +259,7 @@ async function analisar(){
       if(!g)continue;
       const vistos=new Set();
       for(const c of Object.keys(mapa)){
-        const h=slotLabel(header[c]);if(!h)continue;
+        const h=slotsMapa[c]||slotLabel(header[c]);if(!h)continue;
         const n=num(row[c]);if(n===null)continue;
         vistos.add(mapa[c]);if(n>0)comValor++;
       }
@@ -289,7 +283,7 @@ async function analisar(){
     runs.forEach(idx=>{
       const f=runs[runs.indexOf(idx)+1]??values.length;
       const d=nearestDateRow(values,idx);if(d<0)return;
-      const mp=buildColumnDateMap(values[idx]||[],values[d]||[]);
+      const mp=buildColumnDateMap(values[idx]||[],values[d]||[]).map;
       let v=0;
       for(let r=idx+1;r<f;r++){const row=values[r]||[];
         for(const c of Object.keys(mp)){const n=num(row[c]);if(n!==null&&n>0)v++}}
@@ -297,12 +291,12 @@ async function analisar(){
     });
     const di=nearestDateRow(values,hi);
     const header=values[hi]||[], dateRow=di>=0?(values[di]||[]):[];
-    const mapa=buildColumnDateMap(header,dateRow);
+    const cmDet=buildColumnDateMap(header,dateRow),mapa=cmDet.map,slotsDet=cmDet.slotsByCol;
     const cols=Object.keys(mapa).map(Number).sort((a,b)=>a-b);
     const distintas=new Set(Object.values(mapa));
     let td=`<h3 style="font-size:10px;letter-spacing:.11em;color:#d9c4eb;margin:18px 0 6px">MAPA COLUNA → DATA (bloco da linha ${hi})</h3>`;
     td+=`<div class="verdict">Colunas com horário: <b>${cols.length}</b> &nbsp;•&nbsp; datas distintas no mapa: <b>${distintas.size}</b> &nbsp;•&nbsp; datas na linha ${di}: <b>${dateRow.map(normalizeDate).filter(Boolean).length}</b></div>`;
-    td+='<pre style="max-height:220px">'+cols.slice(0,60).map(c=>`col ${String(c).padStart(3)} | ${slotLabel(header[c]).padEnd(4)} | ${mapa[c]}`).join('\n')+'</pre>';
+    td+='<pre style="max-height:220px">'+cols.slice(0,60).map(c=>`col ${String(c).padStart(3)} | ${(slotsDet[c]||slotLabel(header[c])||'').padEnd(4)} | ${mapa[c]}`).join('\n')+'</pre>';
     // amostra crua das 3 linhas-chave
     td+=`<h3 style="font-size:10px;letter-spacing:.11em;color:#d9c4eb;margin:14px 0 6px">CÉLULAS CRUAS</h3>`;
     const amostra=(rotulo,arr)=>`<div style="font-size:10px;color:#a79db6;margin-top:6px">${rotulo}</div><pre style="max-height:120px">${(arr||[]).slice(0,40).map((v,i)=>i+':'+String(v).slice(0,14)).join(' | ')}</pre>`;

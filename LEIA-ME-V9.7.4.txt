@@ -1,0 +1,20 @@
+HIGH OS V9.7.4 - CORRECAO DEFINITIVA DO PARSER DE METRICAS
+
+Base: High OS atual + V9.7.3.
+Validacao feita contra a planilha XLSX original enviada pelo usuario, aba METRICAS.
+
+ALTERACAO PRINCIPAL
+- O parser agora encontra os blocos pela linha de DATAS, nao pela linha de horarios.
+- Cada data ancora fisicamente 14H, 16H, 21H e 23H; a coluna M e ignorada como coleta.
+- Quando existem dois blocos do mesmo mes, o sistema escolhe o bloco com mais valores preenchidos.
+- Isso impede o bloco vazio de setembro de substituir/contaminar o bloco real.
+
+TESTE COM A PLANILHA ORIGINAL
+- 09/09: 56 groups
+- 10/09: 56 groups
+- 11/09: 56 groups
+- 15/09: 56 groups
+- 16/09: 56 groups
+- ARMAS01 em 16/09: 14H=11, 16H=11
+
+Diagnostico atualizado para v10.
