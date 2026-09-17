@@ -22,19 +22,22 @@
 
   var ICONS = {ok:'✔', err:'⚠', warn:'!', info:'●'};
 
+  // V9.9 - alem do tipo, o toast ganha titulo: um erro grave deixa de
+  // parecer igual a um "salvo com sucesso".
   function classify(message){
     var m = String(message || '').toLowerCase();
-    if(/(não foi possível|nao foi possivel|erro|falha|inválid|invalid|negad|não possui|nao possui)/.test(m)) return 'err';
-    if(/(salv|sucesso|atualizad|conclu|import|gerad|copiad|removid|exclu)/.test(m)) return 'ok';
-    if(/(atenção|atencao|limite|somente para visualização|expirad)/.test(m)) return 'warn';
+    if(/(não foi possível|nao foi possivel|erro|falha|inválid|invalid|negad|não possui|nao possui|recusad|expirad|limite)/.test(m)) return 'err';
+    if(/(salv|sucesso|atualizad|conclu|import|gerad|copiad|removid|exclu|sincroniz)/.test(m)) return 'ok';
+    if(/(atenção|atencao|somente para visualização|somente leitura|verifique|confira|pendente)/.test(m)) return 'warn';
     return 'info';
   }
+  var TITULOS = {ok:'Pronto', err:'Não deu certo', warn:'Atenção', info:'Aviso'};
 
   function toast(message, type, ms){
     if(message === undefined || message === null || message === '') return;
     var text = String(message);
     var kind = type || classify(text);
-    var life = ms || (kind === 'err' ? 7000 : 4200);
+    var life = ms || (kind === 'err' ? 0 : kind === 'warn' ? 8000 : 4200); // 0 = so fecha no clique
     var host = ensureRegion();
 
     var el = document.createElement('div');
@@ -44,7 +47,12 @@
     icon.textContent = ICONS[kind] || ICONS.info;
     var body = document.createElement('div');
     body.className = 'high-toast-body';
-    body.textContent = text;                 // textContent: nunca injeta HTML
+    var titulo = document.createElement('b');
+    titulo.className = 'high-toast-title';
+    titulo.textContent = TITULOS[kind] || TITULOS.info;
+    var corpo = document.createElement('span');
+    corpo.textContent = text;                // textContent: nunca injeta HTML
+    body.appendChild(titulo); body.appendChild(corpo);
     var close = document.createElement('button');
     close.type = 'button';
     close.className = 'high-toast-close';
@@ -54,7 +62,7 @@
     el.appendChild(icon); el.appendChild(body); el.appendChild(close);
     host.appendChild(el);
 
-    var timer = setTimeout(dismiss, life);
+    var timer = life ? setTimeout(dismiss, life) : null;
     function dismiss(){
       clearTimeout(timer);
       el.classList.add('out');
@@ -173,7 +181,36 @@
     return '<div class="high-skeleton-wrap" aria-busy="true">' + out + '</div>';
   };
 
-  function boot(){ skipLink(); setupNav(); labelIconButtons(); }
+  /* ---------- 6. ACESSIBILIDADE CONTINUA (V9.9) ----------
+     O app redesenha telas inteiras com innerHTML o tempo todo, entao os
+     rotulos precisam ser reaplicados quando o conteudo muda. */
+  function rotularDinamicos(){
+    document.querySelectorAll('button:not([aria-label])').forEach(function(b){
+      var txt = (b.textContent || '').trim();
+      if(txt.length > 2) return;                 // ja tem texto legivel
+      var dica = b.getAttribute('title') || b.dataset.page || b.dataset.acao || '';
+      if(dica) b.setAttribute('aria-label', dica);
+      else if(txt) b.setAttribute('aria-label', 'Ação');
+      if(txt) b.setAttribute('aria-hidden', 'false');
+    });
+    document.querySelectorAll('input:not([aria-label]):not([id])').forEach(function(i){
+      if(i.placeholder) i.setAttribute('aria-label', i.placeholder);
+    });
+    document.querySelectorAll('table:not([role])').forEach(function(t){ t.setAttribute('role','table'); });
+  }
+  var observador = null;
+  function observarMudancas(){
+    if(observador || !window.MutationObserver) return;
+    var agendado = false;
+    observador = new MutationObserver(function(){
+      if(agendado) return;
+      agendado = true;
+      setTimeout(function(){ agendado = false; rotularDinamicos(); }, 400);
+    });
+    observador.observe(document.body, {childList:true, subtree:true});
+  }
+
+  function boot(){ skipLink(); setupNav(); labelIconButtons(); rotularDinamicos(); observarMudancas(); }
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
 })();

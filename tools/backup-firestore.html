@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>High OS · Backup do Firestore</title>
+<style>
+  :root{--bg:#07060b;--panel:#141019;--line:#33283b;--purple:#8d35ff;--text:#f7f4fb;--muted:#a79db6;--ok:#50f5a0;--err:#ff5b76;--warn:#ffcf5c}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:14px/1.55 system-ui,Segoe UI,Roboto,sans-serif;padding:26px}
+  .wrap{max-width:820px;margin:0 auto}
+  h1{font-size:20px;margin:0 0 4px}
+  .sub{color:var(--muted);font-size:13px;margin:0 0 20px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px}
+  .card h2{font-size:10.5px;letter-spacing:.12em;margin:0 0 12px;color:#d9c4eb}
+  button{background:var(--purple);color:#fff;border:none;border-radius:9px;padding:12px 18px;font-weight:800;letter-spacing:.05em;cursor:pointer;font-size:11px}
+  button.sec{background:transparent;border:1px solid var(--line);color:var(--text)}
+  button[disabled]{opacity:.45;cursor:not-allowed}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:10px}
+  th,td{text-align:left;padding:8px;border-bottom:1px solid var(--line)}
+  th{font-size:9.5px;letter-spacing:.09em;color:var(--muted)}
+  td.num{text-align:right;font-variant-numeric:tabular-nums}
+  .ok{color:var(--ok)}.err{color:var(--err)}
+  .aviso{border-left:3px solid var(--warn);padding:10px 13px;color:#ffe9b8;font-size:12.5px;background:rgba(255,207,92,.07);border-radius:0 10px 10px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Backup do Firestore</h1>
+  <p class="sub">Baixa todas as coleções do High OS num único arquivo .json. O plano gratuito não tem export automático — rode isto uma vez por mês.</p>
+
+  <div class="card">
+    <h2>COMO FUNCIONA</h2>
+    <p class="aviso">Só lê. Nada é alterado ou apagado. Cada documento lido conta na cota diária de leitura, então evite rodar várias vezes seguidas: um backup completo pode custar alguns milhares de leituras.</p>
+    <div style="margin-top:12px">
+      <button id="login">1 · ENTRAR COMO ADMIN</button>
+      <button id="rodar" class="sec" disabled>2 · GERAR BACKUP</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>RESULTADO</h2>
+    <div id="saida"><span class="sub">Aguardando login.</span></div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js';
+import { getAuth, GoogleAuthProvider, signInWithPopup } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js';
+import { getFirestore, doc, getDoc, collection, getDocs } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
+
+const firebaseConfig={apiKey:'AIzaSyBKtl3rCA9Id1RDMwGch-yi4hxAs83DraU',authDomain:'high-os.firebaseapp.com',projectId:'high-os',storageBucket:'high-os.firebasestorage.app',messagingSenderId:'471862600170',appId:'1:471862600170:web:ff55af6f7e808ff39'};
+const app=initializeApp(firebaseConfig), auth=getAuth(app), db=getFirestore(app), provider=new GoogleAuthProvider();
+provider.setCustomParameters({prompt:'select_account'});
+const $=s=>document.querySelector(s);
+const esc=v=>String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+const COLECOES=[
+  ['users',['users']],
+  ['faccoes',['highos','data','faccoes']],
+  ['organizacoes',['highos','data','organizacoes']],
+  ['entregas',['highos','data','entregas']],
+  ['solicitacoes',['highos','data','solicitacoes']],
+  ['metricas',['highos','data','metricas']],
+  ['historico',['highos','data','historico']],
+  ['sessoes_usuario',['highos','data','sessoes_usuario']],
+  ['alertas_dashboard',['highos','data','alertas_dashboard']],
+  ['chat_mensagens',['highos','data','chat_mensagens']]
+];
+const DOCUMENTOS=[
+  ['config/segmentos',['highos','data','config','segmentos']],
+  ['config/dashboard',['highos','data','config','dashboard']],
+  ['config/spotify',['highos','data','config','spotify']],
+  ['config/missoes_planejador',['highos','data','config','missoes_planejador']],
+  ['metricas_config',['highos','metricas_config']]
+];
+
+// Timestamps viram texto ISO para o JSON continuar legível
+function limpar(v){
+  if(v===null||v===undefined)return v;
+  if(typeof v?.toDate==='function'){try{return v.toDate().toISOString()}catch(e){return String(v)}}
+  if(Array.isArray(v))return v.map(limpar);
+  if(typeof v==='object'){const o={};for(const k in v)o[k]=limpar(v[k]);return o}
+  return v;
+}
+
+$('#login').addEventListener('click',async()=>{
+  try{
+    const r=await signInWithPopup(auth,provider);
+    const email=String(r.user.email||'').toLowerCase();
+    const perfil=await getDoc(doc(db,'users',email));
+    const role=String(perfil.data()?.role||'').toUpperCase();
+    $('#saida').innerHTML=`Conectado como <b>${esc(email)}</b> (${esc(role||'sem cargo')}).`;
+    if(role!=='ADMIN'){$('#saida').innerHTML+='<br><span class="err">Só ADMIN consegue ler todas as coleções.</span>';return}
+    $('#rodar').disabled=false;
+  }catch(e){$('#saida').innerHTML=`<span class="err">Falha no login: ${esc(e.message)}</span>`}
+});
+
+$('#rodar').addEventListener('click',async()=>{
+  const btn=$('#rodar');btn.disabled=true;btn.textContent='LENDO...';
+  const pacote={geradoEm:new Date().toISOString(),projeto:'high-os',colecoes:{},documentos:{}};
+  let linhas='',total=0,falhas=0;
+  for(const [nome,caminho] of COLECOES){
+    try{
+      const snap=await getDocs(collection(db,...caminho));
+      pacote.colecoes[nome]=snap.docs.map(d=>({id:d.id,...limpar(d.data())}));
+      total+=snap.size;
+      linhas+=`<tr><td>${esc(nome)}</td><td class="num">${snap.size}</td><td class="ok">ok</td></tr>`;
+    }catch(e){
+      falhas++;
+      linhas+=`<tr><td>${esc(nome)}</td><td class="num">—</td><td class="err">${esc(e.code||e.message)}</td></tr>`;
+    }
+    $('#saida').innerHTML=`<table><thead><tr><th>COLEÇÃO</th><th class="num">DOCS</th><th>SITUAÇÃO</th></tr></thead><tbody>${linhas}</tbody></table>`;
+  }
+  for(const [nome,caminho] of DOCUMENTOS){
+    try{
+      const snap=await getDoc(doc(db,...caminho));
+      if(snap.exists()){pacote.documentos[nome]=limpar(snap.data());total++}
+      linhas+=`<tr><td>${esc(nome)}</td><td class="num">${snap.exists()?1:0}</td><td class="ok">ok</td></tr>`;
+    }catch(e){
+      falhas++;
+      linhas+=`<tr><td>${esc(nome)}</td><td class="num">—</td><td class="err">${esc(e.code||e.message)}</td></tr>`;
+    }
+  }
+  const blob=new Blob([JSON.stringify(pacote,null,1)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`high-os-backup-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+  $('#saida').innerHTML=`<table><thead><tr><th>CAMINHO</th><th class="num">DOCS</th><th>SITUAÇÃO</th></tr></thead><tbody>${linhas}</tbody></table>`+
+    `<p style="margin-top:12px">Arquivo gerado com <b>${total}</b> documento(s)${falhas?` e ${falhas} falha(s)`:''}. Guarde fora do computador de trabalho.</p>`;
+  btn.textContent='GERAR BACKUP';btn.disabled=false;
+});
+</script>
+</body>
+</html>

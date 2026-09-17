@@ -265,3 +265,11 @@ button[disabled],.btn-primary[disabled],.btn-secondary[disabled]{
 /* em modo local as ações de gravação ficam visivelmente desencorajadas */
 body.modo-local .btn-primary{filter:saturate(.6)}
 @media(max-width:620px){#highLocalBanner{font-size:11px;padding:10px 12px}}
+
+/* toast com título (V9.9) */
+.high-toast-title{display:block;font-size:10px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:3px;opacity:.9}
+.high-toast.ok .high-toast-title{color:var(--ok,#50f5a0)}
+.high-toast.err .high-toast-title{color:var(--err,#ff5b76)}
+.high-toast.warn .high-toast-title{color:var(--warn,#ffcf5c)}
+.high-toast.info .high-toast-title{color:var(--info,#7cc7ff)}
+.high-toast-body span{display:block}

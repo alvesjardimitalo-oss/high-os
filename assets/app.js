@@ -1,6 +1,6 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js';
-import { getFirestore, doc, getDoc, collection, getDocs, setDoc as _setDoc, addDoc as _addDoc, serverTimestamp, writeBatch as _writeBatch, deleteDoc as _deleteDoc, onSnapshot, query, where, orderBy, limit, arrayUnion } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
+import { getFirestore, doc, getDoc, collection, getDocs, setDoc as _setDoc, addDoc as _addDoc, serverTimestamp, writeBatch as _writeBatch, deleteDoc as _deleteDoc, onSnapshot, query, where, orderBy, limit, startAfter, arrayUnion } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
 
 const firebaseConfig={apiKey:'AIzaSyBKtl3rCA9Id1RDMwGch-yi4hxAs83DraU',authDomain:'high-os.firebaseapp.com',projectId:'high-os',storageBucket:'high-os.firebasestorage.app',messagingSenderId:'471862600170',appId:'1:471862600170:web:ff55af6f7e808ff393d293'};
 const app=initializeApp(firebaseConfig), auth=getAuth(app), db=getFirestore(app), provider=new GoogleAuthProvider();
@@ -1262,14 +1262,63 @@ function changedSummary(h){
  Object.keys(names).forEach(k=>{if(JSON.stringify(ab[k]??'')!==JSON.stringify(db[k]??''))out.push(`${names[k]} alterado`)});
  return out.slice(0,5);
 }
-async function loadHistory(){
+/* =====================================================================
+   HIGH OS V9.9 - HISTORICO PAGINADO
+   ---------------------------------------------------------------------
+   Antes: getDocs(historico) trazia a colecao inteira em toda visita ao
+   modulo. Como o sistema grava um evento em 45 pontos diferentes, essa
+   colecao so cresce - em poucos meses ela sozinha consumiria a cota
+   diaria de leitura.
+
+   Agora: janela de HISTORY_PAGE registros mais recentes, ordenados no
+   servidor, com botao "carregar mais" usando cursor. Se o Firestore
+   recusar a consulta ordenada (documentos antigos sem o campo data, por
+   exemplo), cai automaticamente na leitura completa antiga, para que
+   nenhuma tela fique vazia.
+   ===================================================================== */
+const HISTORY_PAGE=250;
+let historyCursor=null, historyEsgotado=false, historyModoLegado=false;
+
+async function loadHistory({append=false}={}){
  if(!$('#historyList')&&!$('#groupHistoryPreview'))return;
  try{
+  if(!append){historico=[];historyCursor=null;historyEsgotado=false;historyModoLegado=false}
+  if(!historyModoLegado){
+   try{
+    const partes=[histCol,orderBy('data','desc'),limit(HISTORY_PAGE)];
+    if(append&&historyCursor)partes.splice(2,0,startAfter(historyCursor));
+    const qs=await getDocs(query(...partes));
+    historyCursor=qs.docs[qs.docs.length-1]||historyCursor;
+    if(qs.docs.length<HISTORY_PAGE)historyEsgotado=true;
+    const novos=qs.docs.map(d=>({id:d.id,...d.data()}));
+    historico=append?historico.concat(novos):novos;
+    statBump('historico','leituras');statBump('historico','docs',novos.length);
+    renderHistory();
+    return;
+   }catch(e){
+    console.warn('[HISTÓRICO] consulta ordenada indisponível, usando leitura completa:',e?.code||e?.message);
+    historyModoLegado=true;historyEsgotado=true;
+   }
+  }
   const qs=await getDocsCached(histCol,'historico');historico=qs.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(historyDateValue(b)?.getTime()||0)-(historyDateValue(a)?.getTime()||0));renderHistory();
  }catch(e){if($('#historyList'))$('#historyList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR</h3><p>${esc(e.message)}</p></div>`}
 }
 async function openRecollectEvidence(evidenceId,historyId=''){if(!evidenceId)return;const modal=$('#recollectEvidenceModal'),img=$('#recollectEvidenceImage'),meta=$('#recollectEvidenceMeta');if(!modal||!img)return;img.removeAttribute('src');meta.textContent='Carregando evidência...';modal.classList.remove('hidden');try{const snap=await getDoc(doc(db,'highos','data','evidencias_recolhimento',evidenceId));if(!snap.exists())throw new Error('Evidência não encontrada.');const e=snap.data(),h=historico.find(x=>x.id===historyId)||{};img.src=e.imagemDataUrl||'';meta.innerHTML=`<span><b>${esc(e.group||h.group||'—')}</b> • ${esc(e.faccao||h.faccao||'—')}</span><span>${esc(h.motivoLabel||recollectReasonLabel(e.motivo)||'Recolhimento')} • ${esc(h.dataRecolhimento||'')}</span>`}catch(err){meta.textContent='Não foi possível abrir a evidência: '+err.message}}
 $('#recollectEvidenceClose')?.addEventListener('click',()=>$('#recollectEvidenceModal')?.classList.add('hidden'));
+function renderHistoryFooter(){
+ const lista=$('#historyList');if(!lista)return;
+ document.getElementById('historyMore')?.remove();
+ const box=document.createElement('div');
+ box.id='historyMore';box.className='history-more';
+ box.innerHTML=historyEsgotado
+  ? `<span>${historico.length} registro(s) — fim do histórico${historyModoLegado?' (leitura completa)':''}.</span>`
+  : `<span>${historico.length} registro(s) carregados</span><button type="button" id="historyMoreBtn">CARREGAR MAIS ${HISTORY_PAGE}</button>`;
+ lista.insertAdjacentElement('afterend',box);
+ document.getElementById('historyMoreBtn')?.addEventListener('click',async ev=>{
+  const b=ev.currentTarget;b.disabled=true;b.textContent='CARREGANDO...';
+  await loadHistory({append:true});
+ });
+}
 function renderHistory(){
  if(!$('#historyList'))return;
  const q=($('#historySearch')?.value||'').toLowerCase(),type=$('#historyType')?.value||'';
@@ -1279,6 +1328,7 @@ function renderHistory(){
  if(!list.length){$('#historyList').innerHTML='<div class="placeholder"><b>◷</b><h3>NENHUM EVENTO ENCONTRADO</h3><p>Altere os filtros ou registre uma nova operação.</p></div>';return}
  $('#historyList').innerHTML=list.map(h=>{const changes=changedSummary(h),isRec=historyFamily(h.tipo)==='RECOLHIMENTO',recInfo=isRec?`<div class="recollect-history-data"><span><b>Motivo</b>${esc(h.motivoLabel||recollectReasonLabel(h.motivo)||'—')}</span><span><b>Responsável</b>${esc(h.responsavel||h.usuario||'—')}</span><span><b>Data efetiva</b>${esc([h.dataRecolhimento,h.horaRecolhimento].filter(Boolean).join(' • ')||'—')}</span>${h.baixoContingente?`<span><b>Contingente</b>${esc(String(h.baixoContingente.observado??'—'))} / mínimo ${esc(String(h.baixoContingente.minimo??'—'))}</span>`:''}</div>${h.justificativa?`<p class="recollect-justification">${esc(h.justificativa)}</p>`:''}${h.evidenciaId?`<button type="button" class="mini-btn history-evidence-btn" data-evidence="${esc(h.evidenciaId)}" data-history="${esc(h.id)}">VER PRINT DO PAINEL</button>`:''}`:'';return `<article class="history-row"><div class="history-icon h-${historyFamily(h.tipo).toLowerCase()}">◷</div><div class="history-main"><div class="history-top"><strong>${esc(historyTitle(h))}</strong><span>${esc(formatHistoryDate(h))}</span></div><div class="history-meta">${h.group?`<b>${esc(h.group)}</b>`:''}${h.faccao?` • ${esc(h.faccao)}`:''}${h.usuario?` • por ${esc(h.usuario)}`:''}</div>${h.descricao?`<p>${esc(h.descricao)}</p>`:''}${recInfo}${changes.length?`<div class="history-changes">${changes.map(x=>`<span>${esc(x)}</span>`).join('')}</div>`:''}${Array.isArray(h.solicitacoesGeradas)&&h.solicitacoesGeradas.length?`<small>${h.solicitacoesGeradas.length} solicitação(ões) técnica(s) gerada(s)</small>`:''}</div></article>`}).join('');
  $('#historyList').querySelectorAll('.history-evidence-btn').forEach(btn=>btn.addEventListener('click',()=>openRecollectEvidence(btn.dataset.evidence,btn.dataset.history)));
+ renderHistoryFooter();
 }
 function renderGroupProfileMemory(f){
  if(!f)return;const b=f.beneficios||{},installed=INSTALLATIONS.filter(([k])=>isInstalled(b,k));
