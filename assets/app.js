@@ -2002,6 +2002,48 @@ async function testMetricSource(){
  const out=$('#metricSourceTestResult');if(out)out.textContent='Atualizando os dados já sincronizados no Firestore...';
  try{await loadMetrics();if(out)out.innerHTML=`<b>CENTRAL ONLINE</b> • ${metricas.length} registro(s) históricos disponíveis no Firestore.`}catch(e){if(out)out.textContent='Falha: '+e.message}
 }
+/* V9.8.1 - Esta funcao havia desaparecido numa das edicoes anteriores do
+   arquivo. Sem ela, loadMetrics() lancava ReferenceError e o painel inteiro
+   caia na tela de ACESSO NAO AUTORIZADO, mesmo com o cadastro correto. */
+async function loadMetricSourceConfig(){
+ try{const s=await getDoc(metricConfigDoc);if(s.exists())metricSourceConfig={...metricSourceConfig,...s.data()}}catch(e){console.warn('[MÉTRICAS] config da fonte indisponível:',e?.code||e?.message||e)}
+ renderMetricSourceStatus();
+}
+
+/* =====================================================================
+   HIGH OS V9.8.1 - CAMADA DO GOOGLE SHEETS RESTAURADA
+   ---------------------------------------------------------------------
+   sheetsFetch, authorizeSheets, getSheetTitles, readMetricSheet e
+   readMetricsDirect existiam na V9.5.6 e desapareceram durante as
+   edicoes do parser. Sem elas, loadMetrics() lancava ReferenceError e
+   derrubava o login inteiro para a tela de ACESSO NAO AUTORIZADO.
+   Faixa de leitura ampliada de A1:ZZ300 para A1:ZZ800: a aba MÉTRICAS
+   ja tem 606 linhas e os blocos novos ficariam de fora.
+   ===================================================================== */
+async function sheetsFetch(url,token){
+ const r=await fetch(url,{headers:{Authorization:`Bearer ${token}`},cache:'no-store'});let payload={};try{payload=await r.json()}catch(e){}
+ if(!r.ok){const msg=payload?.error?.message||`Google Sheets API: HTTP ${r.status}`;if(r.status===401)sheetsAccessToken='';throw new Error(msg)}return payload;
+}
+async function authorizeSheets(){
+ if(sheetsAccessToken)return sheetsAccessToken;if(!currentUser)throw new Error('Entre no High OS antes de conectar a planilha.');
+ sheetsProvider.setCustomParameters({prompt:'consent',login_hint:currentUser.email||''});
+ const before=(currentUser.email||'').toLowerCase();const result=await signInWithPopup(auth,sheetsProvider);const after=(result.user?.email||'').toLowerCase();
+ if(before&&after&&before!==after)throw new Error('Autorize com a mesma conta Google usada no High OS.');
+ const credential=GoogleAuthProvider.credentialFromResult(result);const token=credential?.accessToken;if(!token)throw new Error('O Google não retornou autorização para leitura da planilha.');sheetsAccessToken=token;return token;
+}
+async function getSheetTitles(spreadsheetId,token){
+ const url=`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}?fields=sheets.properties(title,index)`;const p=await sheetsFetch(url,token);return (p.sheets||[]).sort((a,b)=>(a.properties?.index||0)-(b.properties?.index||0)).map(x=>x.properties?.title).filter(Boolean);
+}
+async function readMetricSheet(spreadsheetId,sheet,token){
+ const range=`${a1SheetName(sheet)}!A1:ZZ800`;const url=`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(range)}?majorDimension=ROWS&valueRenderOption=FORMATTED_VALUE`;const p=await sheetsFetch(url,token);return parseMetricSheet(p.values||[]);
+}
+async function readMetricsDirect({authorize=false,urlOverride='',sheetOverride=''}={}){
+ const source=urlOverride||metricSourceConfig.url,id=extractSpreadsheetId(source);if(!id)throw new Error('Informe um link ou ID válido do Google Sheets.');
+ let token=sheetsAccessToken;if(!token&&authorize)token=await authorizeSheets();if(!token)throw new Error('AUTORIZAÇÃO NECESSÁRIA');
+ const requested=(sheetOverride||metricSourceConfig.sheet||'').trim();if(requested){const rows=await readMetricSheet(id,requested,token);if(!rows.length)throw new Error(`A aba “${requested}” foi lida, mas o formato de métricas não foi reconhecido.`);return {rows,sheet:requested}}
+ const titles=await getSheetTitles(id,token);let best={rows:[],sheet:''};for(const title of titles){try{const rows=await readMetricSheet(id,title,token);if(rows.length>best.rows.length)best={rows,sheet:title}}catch(e){}}
+ if(!best.rows.length)throw new Error('Nenhuma aba com o padrão 14H / 16H / 21H / 23H foi encontrada.');return best;
+}
 async function refreshMetricServerConfig(){
  try{const snap=await getDoc(metricConfigDoc);if(snap.exists())metricSourceConfig={...metricSourceConfig,...snap.data()};renderMetricSourceStatus()}catch(e){}
 }
