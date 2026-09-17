@@ -20,7 +20,10 @@
     return region;
   }
 
-  var ICONS = {ok:'✔', err:'⚠', warn:'!', info:'●'};
+  var ICONS = {ok:'✔',
+ err:'⚠',
+ warn:'!',
+ info:'●'};
 
   // V9.9 - alem do tipo, o toast ganha titulo: um erro grave deixa de
   // parecer igual a um "salvo com sucesso".
@@ -31,7 +34,10 @@
     if(/(atenção|atencao|somente para visualização|somente leitura|verifique|confira|pendente)/.test(m)) return 'warn';
     return 'info';
   }
-  var TITULOS = {ok:'Pronto', err:'Não deu certo', warn:'Atenção', info:'Aviso'};
+  var TITULOS = {ok:'Pronto',
+ err:'Não deu certo',
+ warn:'Atenção',
+ info:'Aviso'};
 
   function toast(message, type, ms){
     if(message === undefined || message === null || message === '') return;
@@ -176,7 +182,8 @@
     if(on === false) el.removeAttribute('aria-busy'); else el.setAttribute('aria-busy','true');
   };
   window.highSkeleton = function(rows){
-    var n = rows || 3, out = '';
+    var n = rows || 3,
+ out = '';
     for(var i = 0; i < n; i++) out += '<span class="high-skeleton card"></span>';
     return '<div class="high-skeleton-wrap" aria-busy="true">' + out + '</div>';
   };
@@ -207,10 +214,12 @@
       agendado = true;
       setTimeout(function(){ agendado = false; rotularDinamicos(); }, 400);
     });
-    observador.observe(document.body, {childList:true, subtree:true});
+    observador.observe(document.body, {childList:true,
+ subtree:true});
   }
 
   function boot(){ skipLink(); setupNav(); labelIconButtons(); rotularDinamicos(); observarMudancas(); }
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
 })();
+
