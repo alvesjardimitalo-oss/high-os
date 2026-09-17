@@ -1722,7 +1722,7 @@ function renderMetricQuotaPanel(){
  box.innerHTML=`
   <div class="mq-head">
     <b>CONSUMO DO FIREBASE • SESSÃO ATUAL</b>
-    <span>${metricQuotaBlocked?'COTA DIÁRIA ESGOTADA':'dentro do limite gratuito'}</span>
+    <span>${metricQuotaBlocked?'COTA DIÁRIA ESGOTADA':(metricOrigem==='PLANILHA'?'dados vindos da planilha — 0 leituras do Firebase':metricOrigem==='ESPELHO'?'dados vindos do espelho mensal':'dentro do limite gratuito')}</span>
   </div>
   <div class="mq-bars">
     <div class="mq-bar">
@@ -1777,9 +1777,171 @@ function startMetricRealtime(){
   renderMetricSourceStatus();
  });
 }
+
+/* =====================================================================
+   HIGH OS V10 - METRICAS SEM CUSTO DE LEITURA
+   ---------------------------------------------------------------------
+   O backup de 17/09 mostrou 10.076 documentos na colecao "metricas": um
+   por Group, por dia. Abrir o modulo com o cache frio custava 10.076
+   leituras, e o limite gratuito e de 50.000 por dia. Cinco aberturas
+   esgotavam a cota - era o fundo do poco do problema original.
+
+   A planilha publicada ja contem o historico inteiro e e servida como
+   arquivo estatico: ler o CSV nao consome cota nenhuma do Firebase.
+   Entao a ordem de leitura passa a ser:
+
+     1. CSV da planilha publicada        -> 0 leituras
+     2. espelho mensal no Firestore      -> 1 leitura por mes
+     3. colecao antiga (compatibilidade) -> so se os dois acima falharem
+
+   O espelho mensal guarda o mes inteiro em UM documento
+   (highos/data/metricas_mensais/AAAA-MM), gravado apenas quando o
+   conteudo daquele mes muda. Sai de ate 2.060 gravacoes por
+   sincronizacao para 1 por mes alterado.
+
+   A colecao antiga nao e apagada: fica como historico ate voce decidir.
+   ===================================================================== */
+const metricMonthCol=collection(db,'highos','data','metricas_mensais');
+let metricOrigem='';          // de onde vieram os dados exibidos
+let metricMesesCarregados=new Set();
+
+function metricMesDe(data=''){                       // 'dd/mm/aaaa' -> 'aaaa-mm'
+ const m=String(data||'').match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+ return m?`${m[3]}-${m[2]}`:'';
+}
+/* Formato compacto: um mes de 56 Groups x 30 dias fica em torno de 140 KB,
+   bem abaixo do teto de 1 MB por documento do Firestore. */
+function compactarLinhas(rows=[]){
+ return rows.map(r=>({g:r.group,d:r.data,s:r.slots||{}}));
+}
+function expandirLinhas(rows=[]){
+ return rows.map(r=>({group:r.g,data:r.d,slots:r.s||{}}));
+}
+function agruparPorMes(rows=[]){
+ const mapa=new Map();
+ for(const r of rows){
+  const mes=metricMesDe(r.data);if(!mes)continue;
+  if(!mapa.has(mes))mapa.set(mes,[]);
+  mapa.get(mes).push(r);
+ }
+ return mapa;
+}
+function assinaturaMes(rows=[]){
+ // assinatura barata para saber se o mes mudou desde a ultima gravacao
+ let soma=0,n=0;
+ for(const r of rows)for(const v of Object.values(r.slots||{})){soma+=Number(v)||0;n++}
+ return `${rows.length}:${n}:${soma}`;
+}
+
+/* Grava um documento por mes alterado. Substitui persistMetricRows no
+   fluxo novo; a funcao antiga continua no arquivo para compatibilidade. */
+async function salvarEspelhoMensal(rows=[],sheet=''){
+ if(metricQuotaBlocked||!currentUser)return {gravados:0};
+ if(!canEditModule('metricas'))return {gravados:0};
+ const porMes=agruparPorMes(rows);
+ let gravados=0;
+ for(const [mes,linhas] of porMes){
+  const assinatura=assinaturaMes(linhas);
+  let anterior='';
+  try{anterior=localStorage.getItem('highos_metric_sig_'+mes)||''}catch(e){}
+  if(anterior===assinatura)continue;               // nada mudou nesse mes
+  try{
+   await setDoc(doc(metricMonthCol,mes),{
+    mes,
+    total:linhas.length,
+    assinatura,
+    sourceSheet:sheet||metricSourceConfig.sheet||'',
+    rows:compactarLinhas(linhas),
+    updatedAt:serverTimestamp(),
+    updatedAtText:new Date().toISOString(),
+    updatedBy:currentUser.email||''
+   });
+   metricWriteCount++;gravados++;
+   try{localStorage.setItem('highos_metric_sig_'+mes,assinatura)}catch(e){}
+  }catch(e){
+   if(isQuotaError(e)){enterQuotaMode(e);break}
+   console.warn('[MÉTRICAS] falha ao gravar o espelho de',mes,e?.message||e);
+  }
+ }
+ if(gravados){
+  try{
+   await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'SINCRONIZACAO_METRICAS',
+    descricao:`${gravados} mês(es) atualizado(s) no espelho a partir da planilha oficial${sheet?' • aba '+sheet:''}`,
+    usuario:currentUser.email,data:serverTimestamp()});
+   metricWriteCount++;
+  }catch(e){}
+ }
+ renderMetricQuotaPanel();
+ return {gravados};
+}
+
+/* Le o espelho mensal. Usado quando o CSV nao esta disponivel. */
+async function lerEspelhoMensal(meses=[]){
+ const alvo=meses.length?meses:[currentMetricMonthKey()];
+ const out=[];
+ for(const mes of alvo){
+  if(!mes)continue;
+  try{
+   const snap=await getDoc(doc(metricMonthCol,mes));
+   statBump('metricas_mensais','leituras');statBump('metricas_mensais','docs',1);
+   if(!snap.exists())continue;
+   out.push(...expandirLinhas(snap.data()?.rows||[]));
+   metricMesesCarregados.add(mes);
+  }catch(e){
+   if(isQuotaError(e))return enterQuotaMode(e),out;
+   console.warn('[MÉTRICAS] espelho de',mes,'indisponível:',e?.code||e?.message);
+  }
+ }
+ return out;
+}
+
+function aplicarLinhasMetricas(rows=[],origem=''){
+ metricOrigem=origem;
+ metricasCache=rows.slice();
+ metricas=rows.slice();
+ metricPeriodKey=metricPeriodKey||currentMetricMonthKey();
+ refreshMetricPeriodOptions();
+ renderMetrics();
+ renderMetricQuotaPanel();
+}
+
 async function loadMetrics(){
- try{const qs=await getDocsCached(metricCol,'metricas',{ttl:120000});applyMetricSnapshot(qs)}catch(e){metricasCache=[];metricas=[];metricPeriodKey=metricPeriodKey||currentMetricMonthKey()}
- await loadMetricSourceConfig();refreshMetricPeriodOptions();renderMetrics();renderMetricSourceStatus();renderMetricQuotaPanel();startMetricRealtime();
+ await loadMetricSourceConfig();
+ metricPeriodKey=metricPeriodKey||currentMetricMonthKey();
+
+ // 1) planilha publicada: nao consome cota do Firebase
+ if(extractSpreadsheetId(metricSourceConfig.url)){
+  try{
+   const r=await metricTimeout(readMetricsWithoutPopup(),15000,'leitura da planilha');
+   if(r?.rows?.length){
+    aplicarLinhasMetricas(r.rows,'PLANILHA');
+    metricSourceState={...metricSourceState,status:'PLANILHA',error:''};
+    renderMetricSourceStatus();
+    salvarEspelhoMensal(r.rows,r.sheet);          // espelho em segundo plano
+    startMetricRealtime();
+    return;
+   }
+  }catch(e){console.warn('[MÉTRICAS] planilha indisponível na abertura:',e?.message||e)}
+ }
+
+ // 2) espelho mensal: 1 leitura por mes
+ try{
+  const doEspelho=await lerEspelhoMensal([currentMetricMonthKey(),metricPeriodKey]);
+  if(doEspelho?.length){
+   aplicarLinhasMetricas(doEspelho,'ESPELHO');
+   metricSourceState={...metricSourceState,status:'ESPELHO LOCAL',error:'Planilha indisponível; exibindo a última cópia mensal.'};
+   renderMetricSourceStatus();renderMetricQuotaPanel();startMetricRealtime();
+   return;
+  }
+ }catch(e){console.warn('[MÉTRICAS] espelho indisponível:',e?.message||e)}
+
+ // 3) colecao antiga, so como ultimo recurso
+ try{
+  const qs=await getDocsCached(metricCol,'metricas',{ttl:300000});
+  applyMetricSnapshot(qs);
+  metricOrigem='COLECAO_ANTIGA';
+ }catch(e){metricasCache=[];metricas=[]}
+ refreshMetricPeriodOptions();renderMetrics();renderMetricSourceStatus();renderMetricQuotaPanel();startMetricRealtime();
 }
 function metricIdentity(group,row=null){
  const f=faccoes.find(x=>alvesNorm(x.group)===alvesNorm(group))||SEED.find(x=>alvesNorm(x.group)===alvesNorm(group))||{};
@@ -2155,9 +2317,9 @@ async function recoverMetricsAutomatically({quiet=true}={}){
  }
  const sheetRows=result.rows.map(metricSnapshot),diff=compareMetricSources(sheetRows,fireRows);
 
- if(diff.pendingRows&&!metricQuotaBlocked){
-  const pendentes=metricRowsPendentes(sheetRows,fireRows);
-  await metricTimeout(persistMetricRows(pendentes,result.sheet,{jaFiltrado:true}),25000,'gravação das métricas');
+ if(!metricQuotaBlocked){
+  // V10 - um documento por mes alterado, no lugar de um por linha
+  await metricTimeout(salvarEspelhoMensal(sheetRows,result.sheet),25000,'gravação do espelho mensal');
  }
  /* V9.6 - nada de reler a colecao: a planilha ja e a versao mais nova,
     entao aplicamos localmente e economizamos N leituras por ciclo. */

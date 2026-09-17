@@ -100,6 +100,11 @@ service cloud.firestore {
       allow read: if canView('solicitacoes');
       allow write: if canEdit('solicitacoes');
     }
+    // V10 - espelho mensal: um documento por mes, no lugar de 10 mil linhas
+    match /highos/data/metricas_mensais/{mes} {
+      allow read: if canView('metricas');
+      allow write: if canEdit('metricas');
+    }
     match /highos/data/metricas/{docId} {
       allow read: if canView('metricas');
       allow write: if canEdit('metricas');
