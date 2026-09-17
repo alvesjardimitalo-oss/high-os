@@ -95,6 +95,9 @@ function fmtDuration(ms=0){ms=Math.max(0,Number(ms)||0);const total=Math.floor(m
 function sessionMeta(){return {sessionId:currentSessionId,sessionStart:currentSessionStart||0}}
 async function closeCurrentSession(reason='LOGOUT'){
  if(!currentUser||!currentSessionId)return;
+ /* V9.8 - blindagem: se alguem ligar logout direto a um onclick, o motivo
+    chega como Event e o Firestore recusa o documento inteiro. */
+ if(typeof reason!=='string')reason='LOGOUT';
  const now=Date.now(),duration=Math.max(0,now-currentSessionStart);
  try{await setDoc(doc(db,'highos','data','sessoes_usuario',currentSessionId),{status:'ENCERRADA',endAt:serverTimestamp(),endAtText:new Date(now).toISOString(),lastActivityAt:serverTimestamp(),lastActivityText:new Date(now).toISOString(),durationMs:duration,endReason:reason,updatedBy:currentUser.email},{merge:true});
  await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'SESSION_END',descricao:reason==='TIMEOUT_8H'?'Sessão encerrada automaticamente ao atingir 8 horas':'Sessão encerrada pelo usuário',duracaoMs:duration,usuario:currentUser.email,data:serverTimestamp()});}catch(e){console.warn('Falha ao encerrar sessão no log',e)}
@@ -135,7 +138,7 @@ async function touchSession(force=false){
 }
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')touchSession()});
 window.addEventListener('beforeunload',()=>{try{if(currentUser&&currentSessionId)localStorage.setItem(sessionStorageKey(currentUser.email),JSON.stringify({id:currentSessionId,start:currentSessionStart,email:currentUser.email}))}catch(e){}});
-$('#loginBtn').onclick=login;$('#loginBtnCard').onclick=login;$('#logoutBtn')?.addEventListener('click',()=>logout('LOGOUT'));$('#logoutDenied').onclick=logout;
+$('#loginBtn').onclick=login;$('#loginBtnCard').onclick=login;$('#logoutBtn')?.addEventListener('click',()=>logout('LOGOUT'));$('#logoutDenied').onclick=()=>logout('LOGOUT');
 
 const METRIC_ONLY_ROLES=new Set(['RH_METRICAS','RH_VISUALIZADOR','RH_ANALISTA','RH_GESTOR']);
 // ===== HIGH OS V8.18 · PERMISSÕES GRANULARES POR MÓDULO =====
@@ -177,13 +180,57 @@ function permissionDeniedMessage(module,edit=false){const label=SYSTEM_MODULES.f
 document.addEventListener('click',e=>{const nav=e.target.closest?.('.nav-item[data-page]');if(nav&&!nav.classList.contains('admin-only')&&!canViewModule(nav.dataset.page)){e.preventDefault();e.stopImmediatePropagation();permissionDeniedMessage(nav.dataset.page,false);return}const b=e.target.closest?.('button');if(!b||isAdmin())return;const mod=moduleForElement(b);if(mutationButton(b)&&!canEditModule(mod)){e.preventDefault();e.stopImmediatePropagation();permissionDeniedMessage(mod,true)}},true);
 document.addEventListener('submit',e=>{if(isAdmin())return;const mod=moduleForElement(e.target);if(!canEditModule(mod)){e.preventDefault();e.stopImmediatePropagation();permissionDeniedMessage(mod,true)}},true);
 
+/* =====================================================================
+   HIGH OS V9.8 - LEITURA DO CADASTRO COM DIAGNOSTICO
+   Tenta o e-mail em minusculas e depois exatamente como o Google devolveu.
+   Quando falha, diz o PORQUE na tela, em vez do texto generico de sempre.
+   ===================================================================== */
+async function carregarCadastro(user){
+ const bruto=String(user.email||'');
+ const baixo=bruto.toLowerCase();
+ const tentativas=baixo===bruto?[baixo]:[baixo,bruto];
+ const relatorio=[];
+ for(const id of tentativas){
+  try{
+   const snap=await getDoc(doc(db,'users',id));
+   if(!snap.exists()){relatorio.push(`users/${id} — documento não encontrado`);continue}
+   const dados=snap.data()||{};
+   if(dados.active!==true){
+    relatorio.push(`users/${id} — encontrado, mas o campo <b>active</b> está como <b>${esc(String(dados.active))}</b> (precisa ser o booleano true)`);
+    continue;
+   }
+   return {ok:true,snap,id};
+  }catch(e){
+   relatorio.push(`users/${id} — ${esc(e.code||'')} ${esc(e.message||String(e))}`);
+  }
+ }
+ const dica=relatorio.some(x=>x.includes('permission-denied'))
+  ? 'As regras do Firestore recusaram a leitura do seu próprio cadastro. Publique o firestore.rules que acompanha esta versão.'
+  : 'Confira no Firebase Console, em Firestore > users, se existe um documento com o seu e-mail como ID e o campo active marcado como true (booleano, não texto).';
+ return {ok:false,explicacao:
+  `<b>${esc(baixo)}</b> foi autenticado no Google, mas o High OS não conseguiu validar o cadastro.`+
+  `<br><br><span style="font-size:12px;opacity:.85">O que foi tentado:</span>`+
+  `<br><span style="font-size:12px;opacity:.85">• ${relatorio.join('<br>• ')}</span>`+
+  `<br><br><span style="font-size:12px">${dica}</span>`};
+}
+
 onAuthStateChanged(auth,async user=>{
  currentUser=user;
  if(!user){show(loginView);sessionArea.innerHTML='<button class="btn-google" id="loginTop">G&nbsp; Entrar com Google</button>';$('#loginTop').onclick=login;return}
  const email=(user.email||'').toLowerCase();
  try{
-  const snap=await getDoc(doc(db,'users',email));
-  if(!snap.exists()||snap.data().active!==true){show(deniedView);$('#deniedText').textContent=`${email} foi autenticado, mas não possui cadastro ativo no High OS.`;sessionArea.innerHTML=`<span class="top-email">${email}</span><button class="mini-btn" id="logoutTop">Sair</button>`;$('#logoutTop').onclick=logout;return}
+  /* V9.8 - o cadastro pode ter sido criado com o e-mail em outra caixa
+     (High@... , HIGH@...). Antes so tentavamos a versao minuscula e o
+     usuario ficava trancado para fora sem saber o motivo. */
+  const perfil=await carregarCadastro(user);
+  if(!perfil.ok){
+   show(deniedView);
+   $('#deniedText').innerHTML=perfil.explicacao;
+   sessionArea.innerHTML=`<span class="top-email">${esc(email)}</span><button class="mini-btn" id="logoutTop">Sair</button>`;
+   $('#logoutTop').onclick=()=>logout('LOGOUT');
+   return;
+  }
+  const snap=perfil.snap;
   currentProfile=snap.data();const role=String(currentProfile.role||'CONSULTA').toUpperCase();await startOrResumeSession(user,currentProfile);if(Date.now()-currentSessionStart>=SESSION_MAX_MS)return;show(appView);
   const userNameEl=$('#userName'),userRoleEl=$('#userRole'),userAccessEl=$('#userAccessLevel'),dashEmailEl=$('#dashEmail'),dashRoleEl=$('#dashRole'),userPhotoEl=$('#userPhoto');
   if(userNameEl)userNameEl.textContent=currentProfile.name||user.displayName||email;if(userRoleEl)userRoleEl.textContent=currentProfile.cargo||role;if(userAccessEl)userAccessEl.textContent='ACESSO: '+role;if(dashEmailEl)dashEmailEl.textContent=email;if(dashRoleEl)dashRoleEl.textContent=role;
@@ -200,7 +247,12 @@ onAuthStateChanged(auth,async user=>{
   if(canViewModule('chat')){startChat();startCallInbox();}
   if(canViewModule('economia'))loadMarketCatalog();
   if(role==='ADMIN') await loadUsers();
- }catch(e){show(deniedView);$('#deniedText').textContent='Falha ao validar seu cadastro no Firestore: '+e.message}
+ }catch(e){
+  show(deniedView);
+  $('#deniedText').innerHTML=`Falha ao carregar o painel: <b>${esc(e.code||'')}</b> ${esc(e.message||String(e))}`+
+   `<br><br><span style="font-size:12px;opacity:.85">Se aparecer <b>permission-denied</b>, a coleção citada no erro não está liberada nas regras do Firestore.</span>`;
+  console.error('[HIGH OS] falha no login:',e);
+ }
 });
 
 document.querySelectorAll('.nav-item').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));$('#page-'+btn.dataset.page).classList.add('active');if(btn.dataset.page==='administracao'&&isAdmin())loadUserAudit();if(btn.dataset.page==='planejador')setTimeout(()=>window.HighMissionPlanner?.activate?.(),60)}));

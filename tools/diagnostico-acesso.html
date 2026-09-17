@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>High OS · Diagnóstico de Acesso</title>
+<style>
+  :root{--bg:#07060b;--panel:#141019;--line:#33283b;--purple:#8d35ff;--text:#f7f4fb;--muted:#a79db6;--ok:#50f5a0;--err:#ff5b76;--warn:#ffcf5c}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:14px/1.55 system-ui,Segoe UI,Roboto,sans-serif;padding:26px}
+  .wrap{max-width:900px;margin:0 auto}
+  h1{font-size:20px;margin:0 0 4px}
+  .sub{color:var(--muted);font-size:13px;margin:0 0 20px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px}
+  .card h2{font-size:10.5px;letter-spacing:.12em;margin:0 0 12px;color:#d9c4eb}
+  button{background:var(--purple);color:#fff;border:none;border-radius:9px;padding:12px 18px;font-weight:800;letter-spacing:.05em;cursor:pointer;font-size:11px}
+  button.sec{background:transparent;border:1px solid var(--line);color:var(--text)}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:8px}
+  th,td{text-align:left;padding:8px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-size:9.5px;letter-spacing:.09em;color:var(--muted)}
+  .ok{color:var(--ok)}.err{color:var(--err)}.warn{color:var(--warn)}
+  .verdict{border-left:3px solid var(--purple);padding:11px 14px;margin-top:12px;background:rgba(141,53,255,.07);border-radius:0 10px 10px 0;font-size:13px;line-height:1.6}
+  .verdict.err{border-left-color:var(--err);background:rgba(255,91,118,.08)}
+  .verdict.ok{border-left-color:var(--ok);background:rgba(80,245,160,.08)}
+  code{background:#0a0810;padding:2px 6px;border-radius:5px;font-size:11.5px}
+  pre{background:#0a0810;border:1px solid var(--line);border-radius:10px;padding:12px;font:11.5px/1.6 ui-monospace,Consolas,monospace;white-space:pre-wrap;max-height:240px;overflow:auto}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Diagnóstico de acesso</h1>
+  <p class="sub">Descobre por que o High OS está recusando sua entrada, e qual coleção as regras estão bloqueando.</p>
+
+  <div class="card">
+    <h2>1 · ENTRAR</h2>
+    <button id="login">ENTRAR COM GOOGLE</button>
+    <button id="copiar" class="sec">COPIAR RESULTADO</button>
+    <div id="ident" style="margin-top:12px"></div>
+  </div>
+
+  <div class="card">
+    <h2>2 · SEU CADASTRO</h2>
+    <div id="cadastro"><span class="sub">Faça login para começar.</span></div>
+  </div>
+
+  <div class="card">
+    <h2>3 · O QUE AS REGRAS PERMITEM</h2>
+    <div id="regras"></div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js';
+import { getAuth, GoogleAuthProvider, signInWithPopup } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js';
+import { getFirestore, doc, getDoc, collection, getDocs, query, limit } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
+
+const firebaseConfig={apiKey:'AIzaSyBKtl3rCA9Id1RDMwGch-yi4hxAs83DraU',authDomain:'high-os.firebaseapp.com',projectId:'high-os',storageBucket:'high-os.firebasestorage.app',messagingSenderId:'471862600170',appId:'1:471862600170:web:ff55af6f7e808ff39'};
+const app=initializeApp(firebaseConfig), auth=getAuth(app), db=getFirestore(app), provider=new GoogleAuthProvider();
+provider.setCustomParameters({prompt:'select_account'});
+const $=s=>document.querySelector(s);
+const esc=v=>String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+const COLECOES=[
+  ['faccoes',        ['highos','data','faccoes']],
+  ['organizacoes',   ['highos','data','organizacoes']],
+  ['entregas',       ['highos','data','entregas']],
+  ['solicitacoes',   ['highos','data','solicitacoes']],
+  ['metricas',       ['highos','data','metricas']],
+  ['historico',      ['highos','data','historico']],
+  ['sessoes_usuario',['highos','data','sessoes_usuario']],
+  ['alertas_dashboard',['highos','data','alertas_dashboard']],
+  ['chat_mensagens', ['highos','data','chat_mensagens']],
+  ['call_signals',   ['highos','data','call_signals']],
+  ['users',          ['users']]
+];
+const DOCS=[
+  ['config/segmentos', ['highos','data','config','segmentos']],
+  ['config/dashboard', ['highos','data','config','dashboard']],
+  ['config/spotify',   ['highos','data','config','spotify']],
+  ['config/missoes_planejador',['highos','data','config','missoes_planejador']],
+  ['metricas_config',  ['highos','metricas_config']]
+];
+
+async function diagnosticar(user){
+  const bruto=String(user.email||''), baixo=bruto.toLowerCase();
+  $('#ident').innerHTML=`Conectado como <code>${esc(bruto)}</code>`;
+
+  // --- cadastro ---
+  const tentativas=baixo===bruto?[baixo]:[baixo,bruto];
+  let linhas='',achou=null;
+  for(const id of tentativas){
+    try{
+      const snap=await getDoc(doc(db,'users',id));
+      if(!snap.exists()){linhas+=`<tr><td><code>users/${esc(id)}</code></td><td class="err">não existe</td><td>—</td></tr>`;continue}
+      const d=snap.data()||{};
+      const ativo=d.active===true;
+      if(ativo&&!achou)achou={id,d};
+      linhas+=`<tr><td><code>users/${esc(id)}</code></td><td class="${ativo?'ok':'err'}">existe · active=${esc(String(d.active))} ${ativo?'':'(precisa ser o booleano true)'}</td>`+
+              `<td>role=<b>${esc(d.role||'(vazio)')}</b><br>permissions=${d.permissions?esc(JSON.stringify(d.permissions)):'(nenhuma)'}</td></tr>`;
+    }catch(e){
+      linhas+=`<tr><td><code>users/${esc(id)}</code></td><td class="err">${esc(e.code||'')}</td><td>${esc(e.message)}</td></tr>`;
+    }
+  }
+  $('#cadastro').innerHTML=`<table><thead><tr><th>DOCUMENTO</th><th>SITUAÇÃO</th><th>CONTEÚDO</th></tr></thead><tbody>${linhas}</tbody></table>`+
+    (achou
+      ? `<div class="verdict ok">Cadastro válido encontrado em <code>users/${esc(achou.id)}</code> com o cargo <b>${esc(achou.d.role||'CONSULTA')}</b>. Se o painel ainda recusa a entrada, o motivo está na seção 3.</div>`
+      : `<div class="verdict err">Nenhum cadastro ativo foi encontrado para este e-mail. Crie ou corrija o documento em Firestore &gt; users, usando o e-mail como ID e o campo <code>active</code> como booleano <b>true</b>.</div>`);
+
+  // --- regras ---
+  let r='';
+  for(const [nome,caminho] of COLECOES){
+    try{
+      const snap=await getDocs(query(collection(db,...caminho),limit(1)));
+      r+=`<tr><td>${esc(nome)}</td><td class="ok">leitura liberada</td><td>${snap.size} doc(s) na amostra</td></tr>`;
+    }catch(e){
+      r+=`<tr><td>${esc(nome)}</td><td class="err">${esc(e.code||'erro')}</td><td>${esc(e.message).slice(0,120)}</td></tr>`;
+    }
+  }
+  for(const [nome,caminho] of DOCS){
+    try{
+      const snap=await getDoc(doc(db,...caminho));
+      r+=`<tr><td>${esc(nome)}</td><td class="ok">leitura liberada</td><td>${snap.exists()?'documento existe':'ainda não criado'}</td></tr>`;
+    }catch(e){
+      r+=`<tr><td>${esc(nome)}</td><td class="err">${esc(e.code||'erro')}</td><td>${esc(e.message).slice(0,120)}</td></tr>`;
+    }
+  }
+  $('#regras').innerHTML=`<table><thead><tr><th>CAMINHO</th><th>RESULTADO</th><th>DETALHE</th></tr></thead><tbody>${r}</tbody></table>`+
+    (r.includes('permission-denied')
+      ? `<div class="verdict err">Há caminhos bloqueados acima. Publique o <code>firestore.rules</code> que acompanha esta versão — ele cobre todos os listados.</div>`
+      : `<div class="verdict ok">Nenhum bloqueio de regra. Se o painel ainda recusa a entrada, o problema está no cadastro (seção 2).</div>`);
+}
+
+$('#login').addEventListener('click',async()=>{
+  try{
+    const r=await signInWithPopup(auth,provider);
+    await diagnosticar(r.user);
+  }catch(e){
+    $('#ident').innerHTML=`<span class="err">Falha no login: ${esc(e.code||'')} ${esc(e.message)}</span>`;
+  }
+});
+$('#copiar').addEventListener('click',async()=>{
+  const txt=['IDENT','CADASTRO','REGRAS'].map((t,i)=>t+'\n'+[$('#ident'),$('#cadastro'),$('#regras')][i].innerText).join('\n\n');
+  try{await navigator.clipboard.writeText(txt);$('#copiar').textContent='COPIADO'}catch(e){$('#copiar').textContent='FALHOU'}
+  setTimeout(()=>$('#copiar').textContent='COPIAR RESULTADO',1500);
+});
+</script>
+</body>
+</html>
