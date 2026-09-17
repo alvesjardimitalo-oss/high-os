@@ -3700,6 +3700,152 @@ function saudeCartao(rotulo,valor,estado='ok',detalhe=''){
    ${detalhe?`<small>${esc(detalhe)}</small>`:''}
  </div>`;
 }
+
+/* =====================================================================
+   HIGH OS V10.4 - BUSCA GLOBAL (Ctrl+K)
+   ---------------------------------------------------------------------
+   Ate aqui, achar onde uma faccao aparecia exigia abrir modulo por
+   modulo. Esta busca varre o que ja esta carregado em memoria -
+   Groups, organizacoes, solicitacoes, entregas, historico, usuarios,
+   missoes do planejador - e leva direto ao lugar certo.
+
+   Nao faz nenhuma leitura no Firebase: e busca em memoria. O que nao
+   estiver carregado (o modulo nunca aberto na sessao) simplesmente nao
+   aparece, e o rodape avisa isso.
+   ===================================================================== */
+const BUSCA_MAX_POR_TIPO=6;
+
+function buscaNorm(v){return alvesNorm(String(v??'')).replace(/\s+/g,' ').trim()}
+function buscaCasa(termo,...campos){
+ const alvo=buscaNorm(campos.filter(Boolean).join(' '));
+ return termo.split(' ').every(parte=>alvo.includes(parte));
+}
+function buscaDestacar(texto,termo){
+ const t=esc(String(texto||''));
+ const partes=termo.split(' ').filter(x=>x.length>1);
+ if(!partes.length)return t;
+ let saida=t;
+ for(const parte of partes){
+  const re=new RegExp('('+parte.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','ig');
+  saida=saida.replace(re,'<mark>$1</mark>');
+ }
+ return saida;
+}
+
+function buscaResultados(termoBruto){
+ const termo=buscaNorm(termoBruto);
+ if(termo.length<2)return [];
+ const grupos=[];
+ const add=(tipo,rotulo,itens,pagina)=>{
+  if(itens.length)grupos.push({tipo,rotulo,pagina,itens:itens.slice(0,BUSCA_MAX_POR_TIPO),total:itens.length});
+ };
+
+ add('group','GROUPS E FACÇÕES',(faccoes||[])
+  .filter(f=>buscaCasa(termo,f.group,f.faccao,f.lider,f.qg,f.segmento,f.staff))
+  .map(f=>({titulo:f.group||'(sem Group)',detalhe:[f.faccao,f.lider,f.segmento].filter(Boolean).join(' • ')||'sem facção vinculada',acao:()=>{activateAppPage('faccoes');setTimeout(()=>{try{showGroupProfilePage(f)}catch(err){console.warn('[BUSCA]',err)}},140)}})),'faccoes');
+
+ add('org','ORGANIZAÇÕES',(organizacoes||[])
+  .filter(o=>buscaCasa(termo,o.nome,o.group,o.tipo,o.status))
+  .map(o=>({titulo:o.nome||o.group||'(sem nome)',detalhe:[o.group,o.status].filter(Boolean).join(' • '),acao:()=>activateAppPage('faccoes')})),'faccoes');
+
+ add('sol','SOLICITAÇÕES',(solicitacoes||[]).concat(requestRecords||[])
+  .filter(r=>buscaCasa(termo,r.titulo,r.group,r.descricao,r.tipo,r.status))
+  .map(r=>({titulo:r.titulo||r.tipo||'(solicitação)',detalhe:[r.group,r.status].filter(Boolean).join(' • '),acao:()=>activateAppPage('solicitacoes')})),'solicitacoes');
+
+ add('entrega','ENTREGAS',(entregas||[])
+  .filter(e=>buscaCasa(termo,e.group,e.faccao,e.lider,e.responsavel))
+  .map(e=>({titulo:`${e.group||''} → ${e.faccao||''}`.trim(),detalhe:[e.lider,e.dataTexto||e.data].filter(Boolean).join(' • '),acao:()=>activateAppPage('faccoes')})),'faccoes');
+
+ add('hist','HISTÓRICO CARREGADO',(historico||[])
+  .filter(h=>buscaCasa(termo,h.group,h.faccao,h.descricao,h.tipo,h.usuario))
+  .map(h=>({titulo:h.tipo||'evento',detalhe:[h.group,h.descricao].filter(Boolean).join(' • ').slice(0,110),acao:()=>activateAppPage('historico')})),'historico');
+
+ if(isAdmin())add('user','USUÁRIOS',(usuarios||[])
+  .filter(u=>buscaCasa(termo,u.email,u.name,u.cargo,u.role))
+  .map(u=>({titulo:u.name||u.email,detalhe:[u.email,u.role].filter(Boolean).join(' • '),acao:()=>activateAppPage('usuarios')})),'usuarios');
+
+ let missoes=[];
+ try{missoes=JSON.parse(localStorage.getItem('highos_mission_planner_v832_missions')||'[]')||[]}catch(e){}
+ add('missao','MISSÕES DO PLANEJADOR',missoes
+  .filter(m=>buscaCasa(termo,m.name,m.event,m.category))
+  .map(m=>({titulo:m.name||'(zona)',detalhe:[m.event,`${(m.points||[]).length} spawns`].filter(Boolean).join(' • '),acao:()=>activateAppPage('planejador')})),'planejador');
+
+ return grupos;
+}
+
+function buscaFechar(){
+ document.getElementById('buscaGlobal')?.classList.remove('aberta');
+ document.body.classList.remove('busca-aberta');
+}
+function buscaAbrir(){
+ buscaMontar();
+ const cx=document.getElementById('buscaGlobal');
+ cx?.classList.add('aberta');
+ document.body.classList.add('busca-aberta');
+ const campo=document.getElementById('buscaGlobalInput');
+ if(campo){campo.value='';campo.focus();buscaRenderizar('')}
+}
+function buscaRenderizar(termo){
+ const lista=document.getElementById('buscaGlobalLista');
+ if(!lista)return;
+ if(buscaNorm(termo).length<2){
+  lista.innerHTML=`<div class="busca-vazio">Digite ao menos 2 letras. A busca cobre Groups, facções, organizações, solicitações, entregas, histórico já carregado, usuários e missões.</div>`;
+  return;
+ }
+ const grupos=buscaResultados(termo);
+ const total=grupos.reduce((n,g)=>n+g.total,0);
+ if(!total){
+  lista.innerHTML=`<div class="busca-vazio">Nada encontrado para <b>${esc(termo)}</b>. Módulos que você ainda não abriu nesta sessão não entram na busca.</div>`;
+  return;
+ }
+ const t=buscaNorm(termo);
+ lista.innerHTML=grupos.map((g,gi)=>`
+  <div class="busca-grupo">
+   <div class="busca-grupo-top">${esc(g.rotulo)}<span>${g.total>g.itens.length?`${g.itens.length} de ${g.total}`:`${g.total}`}</span></div>
+   ${g.itens.map((it,ii)=>`
+    <button type="button" class="busca-item" data-g="${gi}" data-i="${ii}">
+     <b>${buscaDestacar(it.titulo,t)}</b>
+     <small>${buscaDestacar(it.detalhe||'',t)}</small>
+    </button>`).join('')}
+  </div>`).join('');
+ lista.querySelectorAll('.busca-item').forEach(b=>b.addEventListener('click',()=>{
+  const it=grupos[Number(b.dataset.g)].itens[Number(b.dataset.i)];
+  buscaFechar();
+  try{it.acao()}catch(e){console.warn('[BUSCA] falha ao navegar:',e)}
+ }));
+}
+let buscaTimer=null;
+function buscaMontar(){
+ if(document.getElementById('buscaGlobal'))return;
+ const cx=document.createElement('div');
+ cx.id='buscaGlobal';cx.className='busca-global';
+ cx.innerHTML=`
+  <div class="busca-fundo" data-busca-fechar></div>
+  <div class="busca-caixa" role="dialog" aria-label="Busca global">
+   <div class="busca-topo">
+    <span aria-hidden="true">⌕</span>
+    <input id="buscaGlobalInput" type="search" autocomplete="off" placeholder="Buscar Group, facção, líder, solicitação, missão...">
+    <kbd>ESC</kbd>
+   </div>
+   <div id="buscaGlobalLista" class="busca-lista"></div>
+   <div class="busca-rodape">Busca em memória — não consome cota do Firebase</div>
+  </div>`;
+ document.body.appendChild(cx);
+ cx.querySelector('[data-busca-fechar]')?.addEventListener('click',buscaFechar);
+ const campo=cx.querySelector('#buscaGlobalInput');
+ campo?.addEventListener('input',e=>{
+  clearTimeout(buscaTimer);
+  const v=e.target.value;
+  buscaTimer=setTimeout(()=>buscaRenderizar(v),140);
+ });
+ campo?.addEventListener('keydown',e=>{if(e.key==='Escape')buscaFechar()});
+}
+document.getElementById('buscaGlobalBtn')?.addEventListener('click',buscaAbrir);
+document.addEventListener('keydown',e=>{
+ if((e.ctrlKey||e.metaKey)&&String(e.key).toLowerCase()==='k'){e.preventDefault();buscaAbrir();return}
+ if(e.key==='Escape')buscaFechar();
+});
+
 function renderSaudeSistema(){
  const box=document.getElementById('adminSaude');
  if(!box)return;
