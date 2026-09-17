@@ -1455,7 +1455,7 @@ userPhotoEl=$('#userPhoto');
  }
 });
 
-document.querySelectorAll('.nav-item').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));$('#page-'+btn.dataset.page).classList.add('active');if(btn.dataset.page==='administracao'&&isAdmin())loadUserAudit();if(btn.dataset.page==='planejador')setTimeout(()=>window.HighMissionPlanner?.activate?.(),60)}));
+document.querySelectorAll('.nav-item').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));$('#page-'+btn.dataset.page).classList.add('active');if(btn.dataset.page==='administracao'&&isAdmin()){loadUserAudit();setTimeout(renderSaudeSistema,0)}if(btn.dataset.page==='planejador')setTimeout(()=>window.HighMissionPlanner?.activate?.(),60)}));
 
 // HIGH OS V6.7 · o perfil do Group passa a abrir como página interna, não como modal.
 function activateAppPage(page){
@@ -3662,6 +3662,82 @@ function sessionActions(sess){return historico.filter(h=>h.sessionId===sess.sess
 function sessionEffectiveEnd(sess){const end=sessionEndMs(sess);if(end)return end;if(sess.sessionId===currentSessionId)return Date.now();const last=sessionActions(sess).map(h=>historyDateValue(h)?.getTime()||0).filter(Boolean).pop();return last||Number(sess.lastActivityText?new Date(sess.lastActivityText).getTime():0)||sessionStartMs(sess)}
 function sessionDuration(sess){return Math.min(SESSION_MAX_MS,Math.max(0,Number(sess.durationMs)||sessionEffectiveEnd(sess)-sessionStartMs(sess)))}
 function isSameLocalDay(ms,base=Date.now()){if(!ms)return false;const a=new Date(ms),b=new Date(base);return a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate()}
+
+/* =====================================================================
+   HIGH OS V10.3 - PAINEL DE SAUDE DO SISTEMA
+   ---------------------------------------------------------------------
+   Reune num lugar so o que hoje esta espalhado: consumo de cota (que
+   estava escondido dentro de Metricas), de onde vieram os dados, quando
+   foi a ultima sincronizacao, quantas sessoes estao abertas e ha quanto
+   tempo nao se faz backup.
+
+   Nao consulta nada novo: usa os contadores da sessao e o que ja esta
+   carregado em memoria.
+   ===================================================================== */
+function saudeTempoDesde(iso){
+ if(!iso)return null;
+ const t=new Date(iso).getTime();
+ if(!Number.isFinite(t))return null;
+ const dias=Math.floor((Date.now()-t)/86400000);
+ if(dias>=1)return `${dias} dia(s) atrás`;
+ const horas=Math.floor((Date.now()-t)/3600000);
+ if(horas>=1)return `${horas} hora(s) atrás`;
+ return 'há poucos minutos';
+}
+function saudeUltimoBackup(){
+ try{return localStorage.getItem('highos_ultimo_backup')||''}catch(e){return ''}
+}
+function saudeUltimaSync(){
+ try{
+  const ultimo=Number(localStorage.getItem(METRIC_SYNC_LOCK)||0);
+  return ultimo?new Date(ultimo).toISOString():'';
+ }catch(e){return ''}
+}
+function saudeCartao(rotulo,valor,estado='ok',detalhe=''){
+ return `<div class="saude-card ${estado}">
+   <span>${esc(rotulo)}</span>
+   <b>${esc(valor)}</b>
+   ${detalhe?`<small>${esc(detalhe)}</small>`:''}
+ </div>`;
+}
+function renderSaudeSistema(){
+ const box=document.getElementById('adminSaude');
+ if(!box)return;
+
+ const leituras=metricReadCount(), gravacoes=metricWriteCount;
+ const pctL=Math.min(100,Math.round(leituras/50000*100));
+
+ const origem=metricOrigem==='PLANILHA'?'Planilha (0 leituras)'
+   :metricOrigem==='ESPELHO'?'Espelho mensal'
+   :metricOrigem==='COLECAO_ANTIGA'?'Coleção antiga'
+   :'Ainda não carregado';
+ const estadoOrigem=metricOrigem==='PLANILHA'?'ok':metricOrigem==='COLECAO_ANTIGA'?'alerta':'neutro';
+
+ const sync=saudeUltimaSync(), syncTexto=saudeTempoDesde(sync)||'nesta sessão ainda não';
+ const backup=saudeUltimoBackup(), backupTexto=saudeTempoDesde(backup)||'nunca registrado neste navegador';
+ const backupDias=backup?Math.floor((Date.now()-new Date(backup).getTime())/86400000):999;
+ const estadoBackup=backupDias<=31?'ok':backupDias<=45?'alerta':'erro';
+
+ const sessoesAbertas=(typeof userSessions!=="undefined"?userSessions:[]).filter(x=>String(x.status||'').toUpperCase()==='EM_ANDAMENTO').length;
+
+ box.innerHTML=`
+  <div class="saude-head">
+   <div><b>SAÚDE DO SISTEMA</b><span>Estado atual da sessão e das integrações. Nenhuma consulta extra é feita para montar este painel.</span></div>
+   <button type="button" id="saudeAtualizar">ATUALIZAR</button>
+  </div>
+  <div class="saude-grid">
+   ${saudeCartao('LEITURAS NESTA SESSÃO',leituras.toLocaleString('pt-BR'),pctL>70?'alerta':'ok',`${pctL}% do limite diário gratuito (50.000)`)}
+   ${saudeCartao('GRAVAÇÕES NESTA SESSÃO',gravacoes.toLocaleString('pt-BR'),gravacoes>15000?'alerta':'ok','limite diário: 20.000')}
+   ${saudeCartao('ORIGEM DAS MÉTRICAS',origem,estadoOrigem,metricOrigem==='COLECAO_ANTIGA'?'a planilha e o espelho falharam':'')}
+   ${saudeCartao('ÚLTIMA SINCRONIZAÇÃO',syncTexto,'neutro',sync?new Date(sync).toLocaleString('pt-BR'):'')}
+   ${saudeCartao('ÚLTIMO BACKUP',backupTexto,estadoBackup,estadoBackup==='ok'?'':'rode tools/backup-firestore.html')}
+   ${saudeCartao('SESSÕES ABERTAS',String(sessoesAbertas),sessoesAbertas>4?'alerta':'ok','contas com sessão em andamento')}
+   ${saudeCartao('MODO LOCAL',window.HighOSOffline?.ativo?'ATIVO':'desligado',window.HighOSOffline?.ativo?'erro':'ok',window.HighOSOffline?.ativo?'o Firebase não respondeu':'conexão normal')}
+   ${saudeCartao('MISSÕES SALVAS',String((JSON.parse(localStorage.getItem('highos_mission_planner_v832_missions')||'[]')||[]).length),'neutro','neste navegador')}
+  </div>`;
+ document.getElementById('saudeAtualizar')?.addEventListener('click',renderSaudeSistema);
+}
+
 async function loadUserAudit(){
  if(!isAdmin()||!$('#adminSessionList'))return;
  try{if(!historico.length){const hq=await getDocsCached(histCol,'historico');historico=hq.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(historyDateValue(b)?.getTime()||0)-(historyDateValue(a)?.getTime()||0));}

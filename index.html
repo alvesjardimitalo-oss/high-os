@@ -4,18 +4,23 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#09070d">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="assets/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="High OS">
   <meta name="description" content="High OS - central interna de gestao do Ilegal do High Roleplay. Acesso restrito a contas cadastradas.">
   <meta name="robots" content="noindex,nofollow">
   <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
   <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
   <link rel="preconnect" href="https://unpkg.com" crossorigin>
   <title>High OS • Gestão do Ilegal</title>
-  <link rel="stylesheet" href="assets/style.css?v=10.2.0">
+  <link rel="stylesheet" href="assets/style.css?v=10.3.0">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="assets/mission-planner.css?v=10.2.0">
-  <link rel="stylesheet" href="assets/ui-kit.css?v=10.2.0">
-  <link rel="stylesheet" href="assets/high-refresh.css?v=10.2.0">
-  <link rel="icon" type="image/png" href="assets/high_logo.png?v=10.2.0">
+  <link rel="stylesheet" href="assets/mission-planner.css?v=10.3.0">
+  <link rel="stylesheet" href="assets/ui-kit.css?v=10.3.0">
+  <link rel="stylesheet" href="assets/high-refresh.css?v=10.3.0">
+  <link rel="icon" type="image/png" href="assets/high_logo.png?v=10.3.0">
 </head>
 <body>
   <div class="noise"></div>
@@ -87,7 +92,7 @@
       </aside>
       <div class="content">
         <section class="page active" id="page-dashboard">
-          <div class="page-head"><div><div class="eyebrow">CENTRAL DE COMANDO DO ILEGAL</div><h2>DASHBOARD</h2><p class="page-subtitle">Visão operacional para identificar rapidamente ocupação, contingente, pendências e movimentações da Staff.</p></div><span class="dev-badge">V10.2.0</span></div>
+          <div class="page-head"><div><div class="eyebrow">CENTRAL DE COMANDO DO ILEGAL</div><h2>DASHBOARD</h2><p class="page-subtitle">Visão operacional para identificar rapidamente ocupação, contingente, pendências e movimentações da Staff.</p></div><span class="dev-badge">V10.3.0</span></div>
           <div id="commandDashboard" class="command-dashboard"><div class="placeholder"><b>◆</b><h3>CARREGANDO CENTRAL DE COMANDO</h3></div></div>
           <span id="dashEmail" class="hidden">—</span><span id="dashRole" class="hidden">—</span>
         </section>
@@ -236,7 +241,7 @@
           </div>
         </section>
         <section class="page" id="page-planejador">
-          <div class="page-head"><div><div class="eyebrow">MAPA GTA V • EVENTOS • MISSÕES</div><h2>PLANEJADOR DE MISSÕES</h2><p class="page-subtitle">Crie novos locais de evento, gere spawns em círculo, valide CDS uma a uma e mantenha cada missão salva com o último print do mapa.</p></div><span class="dev-badge">V10.2.0</span></div>
+          <div class="page-head"><div><div class="eyebrow">MAPA GTA V • EVENTOS • MISSÕES</div><h2>PLANEJADOR DE MISSÕES</h2><p class="page-subtitle">Crie novos locais de evento, gere spawns em círculo, valide CDS uma a uma e mantenha cada missão salva com o último print do mapa.</p></div><span class="dev-badge">V10.3.0</span></div>
 
           <section id="mpCentralV954" class="mp-central-v952" aria-label="Central de Missões"></section>
 
@@ -438,6 +443,7 @@
 
         <section class="page" id="page-administracao">
           <div class="page-head admin-page-head"><div><div class="eyebrow">CENTRAL ADMINISTRATIVA</div><h2>ADMINISTRAÇÃO</h2><p class="page-subtitle">Controle do sistema organizado por área: acessos, Groups, dashboard, integrações, estrutura, auditoria e manutenção.</p></div><span class="dev-badge">ADMIN</span></div>
+          <div id="adminSaude" class="admin-saude"></div>
           <div class="admin-summary-grid">
             <button type="button" class="admin-summary-card active" data-admin-tab="acessos"><span>♟</span><div><b>ACESSOS</b><small>Usuários e permissões por módulo</small></div></button>
             <button type="button" class="admin-summary-card" data-admin-tab="groups"><span>◆</span><div><b>GROUPS</b><small>Cadastro, nome, vínculo e estrutura</small></div></button>
@@ -828,9 +834,9 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-  <script src="assets/ui-kit.js?v=10.2.0"></script>
-  <script src="assets/mission-planner.js?v=10.2.0"></script>
-  <script type="module" src="assets/app.js?v=10.2.0"></script>
+  <script src="assets/ui-kit.js?v=10.3.0"></script>
+  <script src="assets/mission-planner.js?v=10.3.0"></script>
+  <script type="module" src="assets/app.js?v=10.3.0"></script>
 
 <div id="newDeliveryModal" class="modal hidden"><div class="modal-card delivery-modal-v5"><button class="modal-x" id="newDeliveryClose">×</button>
   <div class="eyebrow">NOVA OCUPAÇÃO</div><h2>ENTREGA DE GROUP</h2><p class="delivery-help">O Group traz sua estrutura instalada. Personalize apenas o que será ativado para a nova facção.</p>

@@ -851,3 +851,35 @@
   .boletim-head{flex-direction:column}
   .boletim-acoes button{flex:1}
 }
+
+/* =========================================================
+   PAINEL DE SAÚDE (V10.3)
+   ========================================================= */
+.admin-saude{margin-bottom:16px}
+.saude-head{
+  display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;
+  padding:14px 16px;margin-bottom:10px;
+  background:linear-gradient(180deg,#151020,#100c18);
+  border:1px solid var(--hm-line-2);border-radius:16px;
+}
+.saude-head b{display:block;font-size:11px;letter-spacing:.13em;color:#fff}
+.saude-head span{display:block;margin-top:4px;font-size:11px;color:var(--hm-text-3);max-width:62ch;line-height:1.5}
+#saudeAtualizar{
+  background:rgba(255,255,255,.05);border:1px solid var(--hm-line-2);color:var(--hm-text);
+  border-radius:9px;padding:9px 14px;font-size:9.5px;font-weight:900;letter-spacing:.08em;cursor:pointer;
+}
+#saudeAtualizar:hover{background:rgba(255,255,255,.1);border-color:rgba(141,53,255,.5)}
+.saude-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:9px}
+.saude-card{
+  border:1px solid var(--hm-line);border-radius:13px;padding:12px 13px;
+  background:rgba(255,255,255,.025);border-left-width:3px;
+}
+.saude-card span{display:block;font-size:8.5px;letter-spacing:.11em;font-weight:900;color:var(--hm-text-3)}
+.saude-card b{display:block;margin-top:5px;font-size:15px;color:#fff;font-variant-numeric:tabular-nums}
+.saude-card small{display:block;margin-top:4px;font-size:10px;color:var(--hm-text-3);line-height:1.45}
+.saude-card.ok{border-left-color:#50f5a0}
+.saude-card.alerta{border-left-color:#ffcf5c}
+.saude-card.alerta b{color:#ffcf5c}
+.saude-card.erro{border-left-color:#ff5b76}
+.saude-card.erro b{color:#ff8a9c}
+.saude-card.neutro{border-left-color:var(--hm-brand)}

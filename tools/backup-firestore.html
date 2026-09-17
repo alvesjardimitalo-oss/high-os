@@ -128,6 +128,7 @@ $('#rodar').addEventListener('click',async()=>{
   a.href=URL.createObjectURL(blob);
   a.download=`high-os-backup-${new Date().toISOString().slice(0,10)}.json`;
   a.click();setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+  try{localStorage.setItem('highos_ultimo_backup',new Date().toISOString())}catch(e){}
   $('#saida').innerHTML=`<table><thead><tr><th>CAMINHO</th><th class="num">DOCS</th><th>SITUAÇÃO</th></tr></thead><tbody>${linhas}</tbody></table>`+
     `<p style="margin-top:12px">Arquivo gerado com <b>${total}</b> documento(s)${falhas?` e ${falhas} falha(s)`:''}. Guarde fora do computador de trabalho.</p>`;
   btn.textContent='GERAR BACKUP';btn.disabled=false;
