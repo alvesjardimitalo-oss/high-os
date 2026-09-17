@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>High OS · Limpar métricas antigas</title>
+<style>
+  :root{--bg:#07060b;--panel:#141019;--line:#33283b;--purple:#8d35ff;--text:#f7f4fb;--muted:#a79db6;--ok:#50f5a0;--err:#ff5b76;--warn:#ffcf5c}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:14px/1.55 system-ui,Segoe UI,Roboto,sans-serif;padding:26px}
+  .wrap{max-width:860px;margin:0 auto}
+  h1{font-size:20px;margin:0 0 4px}
+  .sub{color:var(--muted);font-size:13px;margin:0 0 20px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px}
+  .card h2{font-size:10.5px;letter-spacing:.12em;margin:0 0 12px;color:#d9c4eb}
+  button{background:var(--purple);color:#fff;border:none;border-radius:9px;padding:12px 18px;font-weight:800;letter-spacing:.05em;cursor:pointer;font-size:11px}
+  button.sec{background:transparent;border:1px solid var(--line);color:var(--text)}
+  button.perigo{background:#a3243a}
+  button[disabled]{opacity:.4;cursor:not-allowed}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:8px}
+  th,td{text-align:left;padding:8px;border-bottom:1px solid var(--line)}
+  th{font-size:9.5px;letter-spacing:.09em;color:var(--muted)}
+  td.num{text-align:right;font-variant-numeric:tabular-nums}
+  .ok{color:var(--ok)}.err{color:var(--err)}.warn{color:var(--warn)}
+  .aviso{border-left:3px solid var(--warn);padding:11px 14px;color:#ffe9b8;font-size:12.5px;background:rgba(255,207,92,.07);border-radius:0 10px 10px 0;line-height:1.6}
+  .perigo-box{border-left:3px solid var(--err);padding:11px 14px;color:#ffc3cc;font-size:12.5px;background:rgba(255,91,118,.08);border-radius:0 10px 10px 0;line-height:1.6}
+  .barra{height:8px;border-radius:20px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:10px}
+  .barra i{display:block;height:100%;background:linear-gradient(90deg,#8d35ff,#b878ff);width:0;transition:width 240ms ease}
+  pre{background:#0a0810;border:1px solid var(--line);border-radius:10px;padding:12px;font:11.5px/1.6 ui-monospace,Consolas,monospace;white-space:pre-wrap;max-height:220px;overflow:auto;margin-top:10px}
+  input[type=text]{width:100%;background:#0a0810;border:1px solid var(--line);border-radius:9px;color:var(--text);padding:11px 13px;font:13px ui-monospace,Consolas,monospace;margin-top:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Limpar a coleção antiga de métricas</h1>
+  <p class="sub">Remove <code>highos/data/metricas</code> — a coleção documento-por-dia que foi substituída pelo espelho mensal. Ação irreversível.</p>
+
+  <div class="card">
+    <h2>1 · CONFERÊNCIA ANTES DE APAGAR</h2>
+    <p class="aviso">Nada é apagado enquanto as três verificações abaixo não passarem. Elas existem porque essa operação não tem desfazer.</p>
+    <button id="verificar" style="margin-top:12px">ENTRAR E VERIFICAR</button>
+    <div id="checks"></div>
+  </div>
+
+  <div class="card">
+    <h2>2 · EXECUÇÃO</h2>
+    <div id="execucao"><span class="sub">Complete a verificação primeiro.</span></div>
+  </div>
+
+  <div class="card">
+    <h2>REGISTRO</h2>
+    <pre id="log">Aguardando.</pre>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js';
+import { getAuth, GoogleAuthProvider, signInWithPopup } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js';
+import { getFirestore, doc, getDoc, collection, getDocs, writeBatch, addDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
+
+const firebaseConfig={apiKey:'AIzaSyBKtl3rCA9Id1RDMwGch-yi4hxAs83DraU',authDomain:'high-os.firebaseapp.com',projectId:'high-os',storageBucket:'high-os.firebasestorage.app',messagingSenderId:'471862600170',appId:'1:471862600170:web:ff55af6f7e808ff39'};
+const app=initializeApp(firebaseConfig), auth=getAuth(app), db=getFirestore(app), provider=new GoogleAuthProvider();
+provider.setCustomParameters({prompt:'select_account'});
+const $=s=>document.querySelector(s);
+const esc=v=>String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const log=(t,c='')=>{$('#log').innerHTML+=`\n<span class="${c}">${t}</span>`;$('#log').scrollTop=$('#log').scrollHeight};
+
+const FRASE='APAGAR METRICAS ANTIGAS';
+let docsAntigos=[], usuario=null;
+
+async function verificar(){
+  $('#log').textContent='';
+  const r=await signInWithPopup(auth,provider);
+  usuario=String(r.user.email||'').toLowerCase();
+  const perfil=await getDoc(doc(db,'users',usuario));
+  const role=String(perfil.data()?.role||'').toUpperCase();
+  log(`Conectado como ${usuario} (${role||'sem cargo'}).`);
+
+  const linhas=[];
+  let aprovado=true;
+
+  // 1 - o espelho mensal precisa existir e cobrir os meses
+  const espelho=await getDocs(collection(db,'highos','data','metricas_mensais'));
+  const meses=espelho.docs.map(d=>d.id).sort();
+  const totalEspelho=espelho.docs.reduce((n,d)=>n+(Number(d.data()?.total)||0),0);
+  const okEspelho=espelho.size>0&&totalEspelho>0;
+  if(!okEspelho)aprovado=false;
+  linhas.push(['Espelho mensal existe',
+    okEspelho?`${espelho.size} mês(es): ${meses.join(', ')} — ${totalEspelho.toLocaleString('pt-BR')} linhas`:'NÃO ENCONTRADO — sincronize as métricas antes',
+    okEspelho]);
+
+  // 2 - backup recente registrado neste navegador
+  let backup='';try{backup=localStorage.getItem('highos_ultimo_backup')||''}catch(e){}
+  const dias=backup?Math.floor((Date.now()-new Date(backup).getTime())/86400000):999;
+  const okBackup=dias<=7;
+  if(!okBackup)aprovado=false;
+  linhas.push(['Backup dos últimos 7 dias',
+    backup?`último em ${new Date(backup).toLocaleString('pt-BR')} (${dias} dia(s) atrás)`:'nenhum registrado — rode tools/backup-firestore.html',
+    okBackup]);
+
+  // 3 - ser ADMIN
+  const okAdmin=role==='ADMIN';
+  if(!okAdmin)aprovado=false;
+  linhas.push(['Perfil ADMIN',okAdmin?'confirmado':'somente ADMIN pode apagar',okAdmin]);
+
+  // contagem do que será removido
+  const antigos=await getDocs(collection(db,'highos','data','metricas'));
+  docsAntigos=antigos.docs;
+  linhas.push(['Documentos a apagar',`${antigos.size.toLocaleString('pt-BR')} em highos/data/metricas`,true]);
+  log(`Leitura concluída: ${antigos.size} documento(s) na coleção antiga.`);
+
+  $('#checks').innerHTML=`<table><thead><tr><th>VERIFICAÇÃO</th><th>RESULTADO</th></tr></thead><tbody>`+
+    linhas.map(([a,b,ok])=>`<tr><td>${esc(a)}</td><td class="${ok?'ok':'err'}">${esc(b)}</td></tr>`).join('')+
+    `</tbody></table>`;
+
+  if(!aprovado){
+    $('#execucao').innerHTML=`<div class="perigo-box">Uma ou mais verificações falharam. Resolva antes de continuar — nada será apagado.</div>`;
+    return;
+  }
+  const lotes=Math.ceil(docsAntigos.length/400);
+  $('#execucao').innerHTML=`
+    <div class="perigo-box">Vão ser apagados <b>${docsAntigos.length.toLocaleString('pt-BR')}</b> documentos em ${lotes} lote(s). Não há como desfazer: a volta seria pelo arquivo de backup.</div>
+    <input type="text" id="frase" placeholder="Digite: ${FRASE}" autocomplete="off">
+    <div style="margin-top:12px"><button id="apagar" class="perigo" disabled>APAGAR DEFINITIVAMENTE</button></div>
+    <div class="barra"><i id="barra"></i></div>`;
+  $('#frase').addEventListener('input',e=>{$('#apagar').disabled=e.target.value.trim().toUpperCase()!==FRASE});
+  $('#apagar').addEventListener('click',apagar);
+}
+
+async function apagar(){
+  const btn=$('#apagar');btn.disabled=true;btn.textContent='APAGANDO...';
+  try{
+    await addDoc(collection(db,'highos','data','historico'),{
+      tipo:'ADM_LIMPEZA',alvo:'metricas',
+      descricao:`Coleção antiga de métricas removida (${docsAntigos.length} documentos) após migração para o espelho mensal`,
+      usuario,data:serverTimestamp()
+    });
+    let feitos=0;
+    for(let i=0;i<docsAntigos.length;i+=400){
+      const lote=writeBatch(db);
+      docsAntigos.slice(i,i+400).forEach(d=>lote.delete(d.ref));
+      await lote.commit();
+      feitos+=Math.min(400,docsAntigos.length-i);
+      $('#barra').style.width=Math.round(feitos/docsAntigos.length*100)+'%';
+      log(`${feitos} de ${docsAntigos.length} apagados...`);
+      await new Promise(r=>setTimeout(r,120));   // respiro entre lotes
+    }
+    log(`\nCONCLUÍDO: ${feitos} documento(s) removidos. O espelho mensal e o histórico continuam intactos.`,'ok');
+    btn.textContent='CONCLUÍDO';
+  }catch(e){
+    log('ERRO: '+e.message,'err');
+    btn.disabled=false;btn.textContent='TENTAR NOVAMENTE';
+  }
+}
+
+$('#verificar').addEventListener('click',()=>verificar().catch(e=>log('Falha: '+e.message,'err')));
+</script>
+</body>
+</html>
