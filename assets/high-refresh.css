@@ -807,3 +807,47 @@
   padding:9px 14px;font-size:9.5px;font-weight:900;letter-spacing:.08em;cursor:pointer;
 }
 #historyMoreBtn:disabled{opacity:.5;cursor:wait}
+
+/* =========================================================
+   BOLETIM SEMANAL (V10.2)
+   ========================================================= */
+#metricViewBoletim{padding-top:4px}
+.boletim-head{
+  display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;
+  padding:15px 17px;margin-bottom:12px;
+  background:linear-gradient(180deg,#151020,#100c18);
+  border:1px solid var(--hm-line-2);border-radius:16px;
+}
+.boletim-head b{display:block;font-size:11px;letter-spacing:.13em;color:#fff}
+.boletim-head span{display:block;margin-top:4px;font-size:11px;color:var(--hm-text-3);max-width:60ch;line-height:1.5}
+.boletim-acoes{display:flex;gap:8px;flex-wrap:wrap}
+.boletim-acoes button{
+  background:rgba(255,255,255,.05);border:1px solid var(--hm-line-2);color:var(--hm-text);
+  border-radius:9px;padding:10px 14px;font-size:9.5px;font-weight:900;letter-spacing:.08em;cursor:pointer;
+}
+.boletim-acoes button:hover{background:rgba(255,255,255,.1);border-color:rgba(141,53,255,.5)}
+.boletim-acoes button.primary{
+  background:linear-gradient(135deg,#8d35ff,#6321b8);border-color:transparent;color:#fff;
+  box-shadow:0 4px 14px rgba(141,53,255,.3);
+}
+.boletim-partes{display:grid;gap:12px}
+.boletim-parte{border:1px solid var(--hm-line);border-radius:14px;overflow:hidden;background:rgba(255,255,255,.02)}
+.boletim-parte-top{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:9px 13px;border-bottom:1px solid var(--hm-line);background:rgba(255,255,255,.03);
+}
+.boletim-parte-top span{font-size:9px;letter-spacing:.1em;color:var(--hm-text-3);font-weight:900}
+.boletim-parte-top button{
+  background:rgba(141,53,255,.16);border:1px solid rgba(141,53,255,.4);color:#d9bcff;
+  border-radius:7px;padding:6px 11px;font-size:9px;font-weight:900;letter-spacing:.07em;cursor:pointer;
+}
+.boletim-parte-top button:hover{background:rgba(141,53,255,.3);color:#fff}
+.boletim-parte pre{
+  margin:0;padding:15px 16px;white-space:pre-wrap;word-break:break-word;
+  font:12.5px/1.65 ui-monospace,Consolas,monospace;color:var(--hm-text-2);
+  max-height:520px;overflow:auto;
+}
+@media(max-width:620px){
+  .boletim-head{flex-direction:column}
+  .boletim-acoes button{flex:1}
+}

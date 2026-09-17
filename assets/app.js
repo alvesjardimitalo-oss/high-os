@@ -6172,6 +6172,199 @@ return}const label=metricSortLabel(mode);
  box.innerHTML=`<div class="metric-quick-ranking-head"><b>CLASSIFICAÇÃO • ${esc(label)}</b><span>Clique em uma facção para abrir a análise individual</span></div><div class="metric-quick-ranking-list">${rows.map((x,i)=>`<button class="metric-quick-row" data-metric-group="${esc(x.f.group)}"><strong>#${i+1}</strong><div><b>${esc(x.f.faccao||x.f.group)}</b><small>${esc(x.f.group)} • ${esc(x.f.segmento||'—')}</small></div><span class="metric-main-value">${esc(metricMainSortValue(x,mode))}</span><span class="metric-hide-mobile">Pico <b>${x.a.peak.value}</b></span><span class="metric-hide-mobile">Pred. <b>${esc(x.a.predominance.label)}</b></span></button>`).join('')}</div>`;
 
 }
+
+/* =====================================================================
+   HIGH OS V10.2 - BOLETIM SEMANAL AUTOMATICO
+   ---------------------------------------------------------------------
+   Monta o texto do boletim comparando os ultimos 7 dias fechados com os
+   7 anteriores, usando a serie que ja esta carregada. Nao le nada novo
+   do Firebase: trabalha sobre o mesmo array das outras abas.
+
+   O texto sai pronto para o Discord, respeitando o limite de 2.000
+   caracteres por mensagem - quando passa disso, e dividido em partes
+   numeradas que podem ser copiadas uma a uma.
+   ===================================================================== */
+const BOLETIM_LIMITE_DISCORD=1900;   // folga sobre os 2.000 do Discord
+
+function boletimDataBR(d){
+ return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+function boletimParseData(txt){
+ const m=String(txt||'').match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+ return m?new Date(Number(m[3]),Number(m[2])-1,Number(m[1]),12,0,0):null;
+}
+function boletimTotalLinha(row){
+ const sl=metricSlots(row);
+ return ['14H','16H','21H','23H'].reduce((a,k)=>a+(Number(sl[k])||0),0);
+}
+
+/* Agrega por Group dentro de uma janela de datas. */
+function boletimAgregar(inicio,fim){
+ const mapa=new Map();
+ for(const row of (metricas||[])){
+  const d=boletimParseData(row.data);
+  if(!d||d<inicio||d>fim)continue;
+  const nome=String(row.group||row.organizacao||'').trim();
+  if(!nome)continue;
+  const chave=alvesNorm(nome).replace(/\s+/g,'');
+  const atual=mapa.get(chave)||{nome,total:0,dias:new Set(),picos:0};
+  const t=boletimTotalLinha(row);
+  atual.total+=t;
+  if(t>0)atual.dias.add(row.data);
+  atual.picos=Math.max(atual.picos,t);
+  mapa.set(chave,atual);
+ }
+ return mapa;
+}
+
+/* Ultimos 7 dias FECHADOS: o dia de hoje costuma estar incompleto. */
+function boletimJanelas(){
+ const hoje=new Date();hoje.setHours(12,0,0,0);
+ const fimAtual=new Date(hoje);fimAtual.setDate(fimAtual.getDate()-1);
+ const inicioAtual=new Date(fimAtual);inicioAtual.setDate(inicioAtual.getDate()-6);
+ const fimAnterior=new Date(inicioAtual);fimAnterior.setDate(fimAnterior.getDate()-1);
+ const inicioAnterior=new Date(fimAnterior);inicioAnterior.setDate(inicioAnterior.getDate()-6);
+ return {inicioAtual,fimAtual,inicioAnterior,fimAnterior};
+}
+
+function boletimVariacao(atual,anterior){
+ if(!anterior)return atual?Infinity:0;
+ return ((atual-anterior)/anterior)*100;
+}
+function boletimPct(v){
+ if(v===Infinity)return 'novo';
+ const sinal=v>=0?'+':'';
+ return `${sinal}${v.toFixed(0)}%`;
+}
+
+function boletimCalcular(){
+ const j=boletimJanelas();
+ const atual=boletimAgregar(j.inicioAtual,j.fimAtual);
+ const anterior=boletimAgregar(j.inicioAnterior,j.fimAnterior);
+ const linhas=[];
+ const chaves=new Set([...atual.keys(),...anterior.keys()]);
+ for(const k of chaves){
+  const a=atual.get(k),b=anterior.get(k);
+  linhas.push({
+   nome:(a||b).nome,
+   total:a?a.total:0,
+   totalAnterior:b?b.total:0,
+   dias:a?a.dias.size:0,
+   pico:a?a.picos:0,
+   variacao:boletimVariacao(a?a.total:0,b?b.total:0)
+  });
+ }
+ const somaAtual=linhas.reduce((n,x)=>n+x.total,0);
+ const somaAnterior=linhas.reduce((n,x)=>n+x.totalAnterior,0);
+ return {janelas:j,linhas,somaAtual,somaAnterior,variacaoGeral:boletimVariacao(somaAtual,somaAnterior)};
+}
+
+function boletimTexto(){
+ const r=boletimCalcular();
+ if(!r.linhas.length)return 'Sem dados suficientes para o período. Sincronize as métricas antes de gerar o boletim.';
+ const j=r.janelas;
+ const ativos=r.linhas.filter(x=>x.total>0);
+ const semColeta=r.linhas.filter(x=>x.total===0&&x.totalAnterior>0).sort((a,b)=>b.totalAnterior-a.totalAnterior);
+ const subiram=ativos.filter(x=>x.totalAnterior>0&&x.variacao>=15).sort((a,b)=>b.variacao-a.variacao).slice(0,5);
+ const cairam=ativos.filter(x=>x.totalAnterior>0&&x.variacao<=-15).sort((a,b)=>a.variacao-b.variacao).slice(0,5);
+ const novos=r.linhas.filter(x=>x.totalAnterior===0&&x.total>0).sort((a,b)=>b.total-a.total).slice(0,5);
+ const top=ativos.slice().sort((a,b)=>b.total-a.total).slice(0,10);
+ const irregulares=ativos.filter(x=>x.dias<=3).sort((a,b)=>a.dias-b.dias).slice(0,5);
+
+ const L=[];
+ L.push(`**BOLETIM SEMANAL DO ILEGAL**`);
+ L.push(`Período: ${boletimDataBR(j.inicioAtual)} a ${boletimDataBR(j.fimAtual)} • comparado com ${boletimDataBR(j.inicioAnterior)} a ${boletimDataBR(j.fimAnterior)}`);
+ L.push('');
+ L.push(`**MOVIMENTO GERAL**`);
+ L.push(`Total da semana: **${r.somaAtual.toLocaleString('pt-BR')}** (${boletimPct(r.variacaoGeral)} sobre a semana anterior)`);
+ L.push(`Organizações com coleta: **${ativos.length}** de ${r.linhas.length}`);
+ L.push('');
+ if(top.length){
+  L.push(`**MAIORES VOLUMES**`);
+  top.forEach((x,i)=>L.push(`${String(i+1).padStart(2,'0')}. ${x.nome} — ${x.total.toLocaleString('pt-BR')} (${boletimPct(x.variacao)})`));
+  L.push('');
+ }
+ if(subiram.length){
+  L.push(`**EM ALTA**`);
+  subiram.forEach(x=>L.push(`• ${x.nome} — ${boletimPct(x.variacao)} (${x.totalAnterior.toLocaleString('pt-BR')} → ${x.total.toLocaleString('pt-BR')})`));
+  L.push('');
+ }
+ if(cairam.length){
+  L.push(`**EM QUEDA — MERECE OLHAR**`);
+  cairam.forEach(x=>L.push(`• ${x.nome} — ${boletimPct(x.variacao)} (${x.totalAnterior.toLocaleString('pt-BR')} → ${x.total.toLocaleString('pt-BR')})`));
+  L.push('');
+ }
+ if(semColeta.length){
+  L.push(`**PARARAM DE COLETAR**`);
+  semColeta.slice(0,8).forEach(x=>L.push(`• ${x.nome} — tinha ${x.totalAnterior.toLocaleString('pt-BR')} na semana anterior, zerou`));
+  if(semColeta.length>8)L.push(`• e mais ${semColeta.length-8} organização(ões)`);
+  L.push('');
+ }
+ if(irregulares.length){
+  L.push(`**PRESENÇA IRREGULAR**`);
+  irregulares.forEach(x=>L.push(`• ${x.nome} — coleta em apenas ${x.dias} dia(s) dos 7`));
+  L.push('');
+ }
+ if(novos.length){
+  L.push(`**ESTREANTES**`);
+  novos.forEach(x=>L.push(`• ${x.nome} — ${x.total.toLocaleString('pt-BR')} na primeira semana`));
+  L.push('');
+ }
+ L.push(`_Gerado pelo High OS em ${new Date().toLocaleString('pt-BR')}_`);
+ return L.join('\n');
+}
+
+/* Divide respeitando o limite do Discord, sem cortar linha no meio. */
+function boletimPartes(texto){
+ const linhas=texto.split('\n'),partes=[];
+ let atual='';
+ for(const l of linhas){
+  if((atual+l+'\n').length>BOLETIM_LIMITE_DISCORD&&atual){partes.push(atual.trimEnd());atual=''}
+  atual+=l+'\n';
+ }
+ if(atual.trim())partes.push(atual.trimEnd());
+ return partes.length>1
+  ? partes.map((p,i)=>`${p}\n\n_(parte ${i+1} de ${partes.length})_`)
+  : partes;
+}
+
+function renderBoletim(){
+ const box=document.getElementById('metricViewBoletim');
+ if(!box)return;
+ const texto=boletimTexto();
+ const partes=boletimPartes(texto);
+ box.innerHTML=`
+  <div class="boletim-head">
+   <div>
+    <b>BOLETIM SEMANAL</b>
+    <span>Últimos 7 dias fechados contra os 7 anteriores. ${partes.length>1?`${partes.length} partes para o Discord.`:`${texto.length} caracteres — cabe em uma mensagem.`}</span>
+   </div>
+   <div class="boletim-acoes">
+    <button type="button" id="boletimGerar">ATUALIZAR</button>
+    <button type="button" id="boletimCopiar" class="primary">COPIAR TUDO</button>
+   </div>
+  </div>
+  <div class="boletim-partes">
+   ${partes.map((p,i)=>`
+    <div class="boletim-parte">
+     <div class="boletim-parte-top">
+      <span>${partes.length>1?`PARTE ${i+1} DE ${partes.length}`:'MENSAGEM ÚNICA'} • ${p.length} caracteres</span>
+      <button type="button" data-boletim-parte="${i}">COPIAR</button>
+     </div>
+     <pre>${esc(p)}</pre>
+    </div>`).join('')}
+  </div>`;
+ document.getElementById('boletimGerar')?.addEventListener('click',renderBoletim);
+ document.getElementById('boletimCopiar')?.addEventListener('click',async()=>{
+  await copyText(texto);
+  window.highToast?.('Boletim copiado.','ok');
+ });
+ box.querySelectorAll('[data-boletim-parte]').forEach(b=>b.addEventListener('click',async()=>{
+  await copyText(partes[Number(b.dataset.boletimParte)]);
+  window.highToast?.(`Parte ${Number(b.dataset.boletimParte)+1} copiada.`,'ok');
+ }));
+}
+
 function renderMetrics(err=null){
  const box=$('#metricRanking');
 if(err instanceof Event)err=null;
@@ -6392,6 +6585,7 @@ renderRhFactionInsights(group)};
 
 function switchMetricCenterView(view='overview'){
  document.querySelectorAll('.metric-center-tab').forEach(b=>b.classList.toggle('active',b.dataset.metricView===view));
+ if(view==='boletim')setTimeout(renderBoletim,0);
 document.querySelectorAll('.metric-center-view').forEach(v=>v.classList.toggle('active',v.id===`metricView${view[0].toUpperCase()+view.slice(1)}`));
 if(view==='faction')renderMetricFactionDetail();
 if(view==='ranking')renderMetricAdvancedRanking();

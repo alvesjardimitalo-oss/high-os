@@ -10,12 +10,12 @@
   <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
   <link rel="preconnect" href="https://unpkg.com" crossorigin>
   <title>High OS • Gestão do Ilegal</title>
-  <link rel="stylesheet" href="assets/style.css?v=10.1.0">
+  <link rel="stylesheet" href="assets/style.css?v=10.2.0">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="assets/mission-planner.css?v=10.1.0">
-  <link rel="stylesheet" href="assets/ui-kit.css?v=10.1.0">
-  <link rel="stylesheet" href="assets/high-refresh.css?v=10.1.0">
-  <link rel="icon" type="image/png" href="assets/high_logo.png?v=10.1.0">
+  <link rel="stylesheet" href="assets/mission-planner.css?v=10.2.0">
+  <link rel="stylesheet" href="assets/ui-kit.css?v=10.2.0">
+  <link rel="stylesheet" href="assets/high-refresh.css?v=10.2.0">
+  <link rel="icon" type="image/png" href="assets/high_logo.png?v=10.2.0">
 </head>
 <body>
   <div class="noise"></div>
@@ -87,7 +87,7 @@
       </aside>
       <div class="content">
         <section class="page active" id="page-dashboard">
-          <div class="page-head"><div><div class="eyebrow">CENTRAL DE COMANDO DO ILEGAL</div><h2>DASHBOARD</h2><p class="page-subtitle">Visão operacional para identificar rapidamente ocupação, contingente, pendências e movimentações da Staff.</p></div><span class="dev-badge">V10.1.0</span></div>
+          <div class="page-head"><div><div class="eyebrow">CENTRAL DE COMANDO DO ILEGAL</div><h2>DASHBOARD</h2><p class="page-subtitle">Visão operacional para identificar rapidamente ocupação, contingente, pendências e movimentações da Staff.</p></div><span class="dev-badge">V10.2.0</span></div>
           <div id="commandDashboard" class="command-dashboard"><div class="placeholder"><b>◆</b><h3>CARREGANDO CENTRAL DE COMANDO</h3></div></div>
           <span id="dashEmail" class="hidden">—</span><span id="dashRole" class="hidden">—</span>
         </section>
@@ -173,7 +173,7 @@
         <section class="page" id="page-metricas">
           <div class="page-head"><div><div class="eyebrow">CENTRAL RH • PRESENÇA • 14H / 16H / 21H / 23H</div><h2>CENTRAL DE MÉTRICAS</h2><p class="page-subtitle">Base histórica por data, Group e facção. O RH consulta somente esta central e pode emitir relatórios mensais sem acesso aos demais módulos operacionais.</p></div><div class="metric-head-actions"><button id="syncMetricBtn" class="btn-primary compact admin-only">ATUALIZAR CENTRAL</button><button id="metricSourceBtn" class="btn-secondary compact admin-only">FONTE</button><button id="openMetricImportBtn" class="btn-secondary compact admin-only">IMPORTAÇÃO MANUAL</button></div></div>
           <div id="metricSourceStatus" class="metric-source-card"><div><span class="metric-source-dot"></span><div><b>FONTE DE MÉTRICAS</b><small>Carregando configuração...</small></div></div><span>—</span></div>
-          <div class="metric-center-tabs"><button class="metric-center-tab active" data-metric-view="overview">VISÃO GERAL</button><button class="metric-center-tab" data-metric-view="faction">POR FACÇÃO</button><button class="metric-center-tab" data-metric-view="ranking">RANKING</button><button class="metric-center-tab" data-metric-view="comparatives">COMPARATIVOS</button><button class="metric-center-tab" data-metric-view="reports">RELATÓRIOS</button><button class="metric-center-tab metric-management-tab" data-metric-view="management">GESTÃO DO ILEGAL</button></div>
+          <div class="metric-center-tabs"><button class="metric-center-tab active" data-metric-view="overview">VISÃO GERAL</button><button class="metric-center-tab" data-metric-view="faction">POR FACÇÃO</button><button class="metric-center-tab" data-metric-view="ranking">RANKING</button><button class="metric-center-tab" data-metric-view="comparatives">COMPARATIVOS</button><button class="metric-center-tab" data-metric-view="reports">RELATÓRIOS</button><button class="metric-center-tab metric-management-tab" data-metric-view="management">GESTÃO DO ILEGAL</button><button class="metric-center-tab" data-metric-view="boletim">BOLETIM</button></div>
           <div class="metric-period-panel"><div class="metric-period-dates"><label>DATA INICIAL<input id="metricDateStart" type="date"></label><span>ATÉ</span><label>DATA FINAL<input id="metricDateEnd" type="date"></label><button id="metricApplyRange" class="btn-primary compact">APLICAR PERÍODO</button></div><div class="metric-period-shortcuts"><button data-days="7">ÚLTIMOS 7 DIAS</button><button data-days="15">ÚLTIMOS 15 DIAS</button><button data-days="30">ÚLTIMOS 30 DIAS</button><button data-current-month="1">MÊS ATUAL</button></div></div>
           <div class="metric-toolbar metric-toolbar-v84"><select id="metricScopeSelect" title="Visualização"><option value="">GERAL • TODAS AS FACÇÕES</option></select><select id="metricSortMode" title="Classificar por"><option value="peak">CLASSIFICAR: PICO</option><option value="predominance">CLASSIFICAR: PREDOMINÂNCIA</option><option value="dailyPeakAvg">CLASSIFICAR: MÉDIA DIÁRIA DE PICO</option><option value="avg">CLASSIFICAR: MÉDIA GERAL</option><option value="segment">CLASSIFICAR: SEGMENTO</option><option value="name">CLASSIFICAR: FACÇÃO / GROUP</option></select><select id="metricSegment"><option value="">TODOS OS SEGMENTOS</option><option>ARMAS</option><option>MUNIÇÃO</option><option>LAVAGEM</option><option>DROGAS</option><option>DESMANCHE</option><option>OUTROS</option></select><input id="metricSearch" placeholder="Buscar Group, facção ou QG..."><select id="metricPeriod" title="Competência das métricas"></select></div>
           <div class="metric-center-view active" id="metricViewOverview">
@@ -199,6 +199,7 @@
             <div class="rh-compare-controls"><label>Facção A<select id="metricCompareA"></select></label><label>Facção B<select id="metricCompareB"></select></label><button id="metricCompareBtn" class="btn-primary compact">COMPARAR</button></div>
             <div id="metricCompareResult"></div>
           </div>
+          <div id="metricViewBoletim" class="metric-center-view"></div>
           <div class="metric-center-view" id="metricViewManagement">
             <div class="mgmt-head">
               <div><div class="eyebrow">INTELIGÊNCIA DE GESTÃO • SEMANAL + MENSAL</div><h3>CENTRAL DE GESTÃO DO ILEGAL</h3><p>Leitura automática de todas as organizações ocupadas. Compara semana, mês, tendência e qualidade dos dados para indicar onde agir.</p></div>
@@ -235,7 +236,7 @@
           </div>
         </section>
         <section class="page" id="page-planejador">
-          <div class="page-head"><div><div class="eyebrow">MAPA GTA V • EVENTOS • MISSÕES</div><h2>PLANEJADOR DE MISSÕES</h2><p class="page-subtitle">Crie novos locais de evento, gere spawns em círculo, valide CDS uma a uma e mantenha cada missão salva com o último print do mapa.</p></div><span class="dev-badge">V10.1.0</span></div>
+          <div class="page-head"><div><div class="eyebrow">MAPA GTA V • EVENTOS • MISSÕES</div><h2>PLANEJADOR DE MISSÕES</h2><p class="page-subtitle">Crie novos locais de evento, gere spawns em círculo, valide CDS uma a uma e mantenha cada missão salva com o último print do mapa.</p></div><span class="dev-badge">V10.2.0</span></div>
 
           <section id="mpCentralV954" class="mp-central-v952" aria-label="Central de Missões"></section>
 
@@ -827,9 +828,9 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-  <script src="assets/ui-kit.js?v=10.1.0"></script>
-  <script src="assets/mission-planner.js?v=10.1.0"></script>
-  <script type="module" src="assets/app.js?v=10.1.0"></script>
+  <script src="assets/ui-kit.js?v=10.2.0"></script>
+  <script src="assets/mission-planner.js?v=10.2.0"></script>
+  <script type="module" src="assets/app.js?v=10.2.0"></script>
 
 <div id="newDeliveryModal" class="modal hidden"><div class="modal-card delivery-modal-v5"><button class="modal-x" id="newDeliveryClose">×</button>
   <div class="eyebrow">NOVA OCUPAÇÃO</div><h2>ENTREGA DE GROUP</h2><p class="delivery-help">O Group traz sua estrutura instalada. Personalize apenas o que será ativado para a nova facção.</p>
