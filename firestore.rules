@@ -175,9 +175,11 @@ service cloud.firestore {
       allow read: if activeUser();
       allow write: if isAdmin();
     }
+    // V10.6 - o painel deixa configurar o Spotify a quem tem EDIT no modulo,
+    // mas a regra exigia ADMIN: o usuario recebia permission-denied em silencio.
     match /highos/data/config/spotify {
       allow read: if activeUser();
-      allow write: if isAdmin();
+      allow write: if canEdit('spotify');
     }
     match /highos/data/config/missoes_planejador {
       allow read: if canView('planejador');

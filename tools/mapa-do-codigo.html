@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>High OS · Mapa do Código</title>
+<style>
+  :root{--bg:#07060b;--panel:#141019;--line:#33283b;--purple:#8d35ff;--text:#f7f4fb;--muted:#a79db6;--ok:#50f5a0;--err:#ff5b76;--warn:#ffcf5c}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:14px/1.55 system-ui,Segoe UI,Roboto,sans-serif;padding:24px}
+  .wrap{max-width:1000px;margin:0 auto}
+  h1{font-size:20px;margin:0 0 4px}
+  .sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:17px;margin-bottom:14px}
+  .card h2{font-size:10.5px;letter-spacing:.12em;margin:0 0 12px;color:#d9c4eb}
+  input{width:100%;background:#0a0810;border:1px solid var(--line);border-radius:9px;color:var(--text);padding:12px 14px;font-size:14px}
+  input:focus{outline:none;border-color:rgba(141,53,255,.6)}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:8px}
+  th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-size:9.5px;letter-spacing:.09em;color:var(--muted)}
+  td.num{text-align:right;font-variant-numeric:tabular-nums}
+  .ok{color:var(--ok)}.err{color:var(--err)}.warn{color:var(--warn)}
+  code{background:#0a0810;padding:2px 6px;border-radius:5px;font-size:11.5px}
+  .res{border-left:3px solid var(--purple);padding:12px 15px;margin-top:12px;background:rgba(141,53,255,.07);border-radius:0 10px 10px 0;line-height:1.7;font-size:13px}
+  .res.livre{border-left-color:var(--ok);background:rgba(80,245,160,.08)}
+  .res.preso{border-left-color:var(--warn);background:rgba(255,207,92,.07)}
+  .lista{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}
+  .lista span{background:rgba(255,255,255,.06);border-radius:20px;padding:3px 9px;font-size:10.5px;color:#c9bedb;cursor:pointer}
+  .lista span:hover{background:rgba(141,53,255,.28);color:#fff}
+  .sug{display:flex;flex-wrap:wrap;gap:5px;margin-top:9px}
+  .sug button{background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--muted);border-radius:7px;padding:5px 10px;font-size:10.5px;cursor:pointer}
+  .sug button:hover{color:#fff;border-color:rgba(141,53,255,.5)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Mapa do código</h1>
+  <p class="sub">Analisa os arquivos publicados e responde: o que quebra se eu tirar esta função? Roda no navegador — não precisa instalar nada.</p>
+
+  <div class="card">
+    <h2>CONSULTAR UMA FUNÇÃO</h2>
+    <input id="q" type="search" placeholder="Digite o nome da função, ex.: renderMarket" autocomplete="off" disabled>
+    <div class="sug" id="sug"></div>
+    <div id="res"></div>
+  </div>
+
+  <div class="card">
+    <h2>PANORAMA POR SEÇÃO</h2>
+    <div id="panorama"><span class="sub">Carregando arquivos...</span></div>
+  </div>
+
+  <div class="card">
+    <h2>SEM NENHUM CHAMADOR · CANDIDATAS A REMOÇÃO</h2>
+    <div id="orfas"></div>
+  </div>
+</div>
+
+<script>
+const ARQUIVOS=['../assets/app.js','../assets/mission-planner.js','../assets/ui-kit.js',
+                '../assets/modules/estado.js','../assets/modules/formatadores.js','../assets/modules/metricas-parser.js'];
+const $=s=>document.querySelector(s);
+const esc=v=>String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+const CATEGORIAS=[
+  ['Boletim semanal',/^boletim/i],['Busca global',/^busca/i],['Alvesinho',/^(alves|askAlves)/i],
+  ['Economia · mercado',/^(loadMarket|renderMarket|market|mercado)/i],['Spotify',/^spotify/i],
+  ['Formatação',/^(esc|fmt|normalize|parse|slug)/i],['Permissões',/^(isAdmin|canView|canEdit|permission)/i],
+  ['Autenticação e sessão',/^(login|logout|session|startOrResume|touchSession|reservarSessao|carregarCadastro)/i],
+  ['Planejador',/^(mission|mp[A-Z]|planner)/i],['Chat e chamadas',/^(chat|call|hm[A-Z]|team|meeting)/i]
+];
+const funcoes=new Map();
+let htmlIndex='';
+
+function secoesDe(codigo){
+  const out=[];
+  codigo.split('\n').forEach((l,i)=>{
+    let m=l.match(/^\/\/\s*=+\s*HIGH OS[^·=]*·\s*(.+?)\s*=+\s*$/);
+    if(!m) m=l.match(/^\s{2,}HIGH OS V[\d.]+\s*[-·]\s*(.+?)\s*$/);
+    if(m) out.push({linha:i+1,titulo:m[1].trim().replace(/\s*=+$/,'')});
+  });
+  return out;
+}
+function secaoNa(secoes,linha){let a=null;for(const s of secoes){if(s.linha<=linha)a=s.titulo;else break}return a}
+function categoriaDe(nome,secao){
+  if(secao)return secao;
+  for(const [r,re] of CATEGORIAS) if(re.test(nome)) return r;
+  return 'Sem categoria';
+}
+
+function indexar(rel,codigo){
+  const secoes=secoesDe(codigo);
+  const achaFim=(de)=>{let d=0;for(let j=de;j<codigo.length;j++){if(codigo[j]==='{')d++;else if(codigo[j]==='}'){d--;if(d===0)return j}}return de};
+  let m;
+  const reFn=/(?:export\s+)?(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(/g;
+  while((m=reFn.exec(codigo))){
+    const k=codigo.indexOf('{',reFn.lastIndex-1); if(k<0)continue;
+    const fim=achaFim(k);
+    const linha=codigo.slice(0,m.index).split('\n').length;
+    const fimLinha=codigo.slice(0,fim).split('\n').length;
+    funcoes.set(m[1],{arquivo:rel.replace('../',''),linha,fim:fimLinha,corpo:codigo.slice(k,fim+1),
+      linhas:fimLinha-linha+1,secao:secaoNa(secoes,linha),interna:false});
+  }
+  const reArrow=/(?:export\s+)?const\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?(?:\([^)]*\)|[A-Za-z_$][\w$]*)\s*=>/g;
+  while((m=reArrow.exec(codigo))){
+    if(funcoes.has(m[1]))continue;
+    let d=0,fim=m.index;
+    for(let j=reArrow.lastIndex;j<codigo.length;j++){const c=codigo[j];
+      if('([{'.includes(c))d++;else if(')]}'.includes(c))d--;else if(c===';'&&d<=0){fim=j;break}}
+    const linha=codigo.slice(0,m.index).split('\n').length;
+    const fimLinha=codigo.slice(0,fim).split('\n').length;
+    funcoes.set(m[1],{arquivo:rel.replace('../',''),linha,fim:fimLinha,corpo:codigo.slice(m.index,fim+1),
+      linhas:Math.max(1,fimLinha-linha+1),secao:secaoNa(secoes,linha),interna:false});
+  }
+}
+
+function grafo(){
+  const nomes=[...funcoes.keys()];
+  for(const [n,i] of funcoes){
+    i.chama=new Set();
+    for(const o of nomes){
+      if(o===n)continue;
+      // qualquer mencao conta: chamada, callback, atribuicao a listener
+      if(new RegExp('(?<![\\w$])(?<!(?<!\\.)\\.)'+o.replace(/\$/g,'\\$')+'(?![\\w$])').test(i.corpo)) i.chama.add(o);
+    }
+  }
+  for(const [n,i] of funcoes){i.chamadaPor=new Set();for(const [o,i2] of funcoes) if(i2.chama.has(n)) i.chamadaPor.add(o)}
+  // funcoes internas (dentro de outra)
+  for(const [n,i] of funcoes)
+    for(const [o,i2] of funcoes)
+      if(o!==n&&i2.arquivo===i.arquivo&&i2.linha<i.linha&&i2.fim>i.fim){i.interna=true;i.dono=o;break}
+}
+
+function mostrar(nome){
+  const i=funcoes.get(nome);
+  if(!i){$('#res').innerHTML=`<div class="res err">Função <b>${esc(nome)}</b> não encontrada.</div>`;return}
+  const chips=s=>[...s].map(x=>`<span data-ir="${esc(x)}">${esc(x)}</span>`).join('')||'<span style="opacity:.6">nada</span>';
+  const soEla=[...i.chama].filter(f=>funcoes.get(f)?.chamadaPor.size===1&&!funcoes.get(f)?.interna);
+  const livre=i.chamadaPor.size===0&&!htmlIndex.includes(nome);
+  $('#res').innerHTML=`
+   <div class="res ${livre?'livre':'preso'}">
+     <b>${esc(nome)}</b> · ${esc(categoriaDe(nome,i.secao))}<br>
+     <code>${esc(i.arquivo)}</code> linhas ${i.linha}–${i.fim} (${i.linhas} linhas)
+     ${i.interna?`<br><span class="warn">função interna, declarada dentro de ${esc(i.dono)}</span>`:''}
+     <br><br>${livre
+       ? '<span class="ok"><b>Ninguém chama esta função.</b></span> Pode sair sem afetar o resto — confira ainda um <code>onclick</code> inline no index.html.'
+       : `<b>Chamada por ${i.chamadaPor.size}:</b>`}
+     ${livre?'':`<div class="lista">${chips(i.chamadaPor)}</div>`}
+     <br><b>Ela chama ${i.chama.size}:</b>
+     <div class="lista">${chips(i.chama)}</div>
+     ${soEla.length?`<br><b class="warn">Ficariam órfãs se esta sair:</b><div class="lista">${chips(new Set(soEla))}</div>`:''}
+   </div>`;
+  $('#res').querySelectorAll('[data-ir]').forEach(b=>b.onclick=()=>{$('#q').value=b.dataset.ir;mostrar(b.dataset.ir)});
+}
+
+(async()=>{
+  for(const rel of ARQUIVOS){
+    try{
+      const r=await fetch(rel+'?t='+Date.now(),{cache:'no-store'});
+      if(r.ok) indexar(rel,await r.text());
+    }catch(e){}
+  }
+  try{const r=await fetch('../index.html?t='+Date.now(),{cache:'no-store'});if(r.ok)htmlIndex=await r.text()}catch(e){}
+  grafo();
+
+  $('#q').disabled=false;
+  $('#q').placeholder=`Digite o nome da função (${funcoes.size} indexadas)`;
+  $('#q').addEventListener('input',e=>{const v=e.target.value.trim();if(funcoes.has(v))mostrar(v);
+    else if(v.length>2){
+      const p=[...funcoes.keys()].filter(n=>n.toLowerCase().includes(v.toLowerCase())).slice(0,12);
+      $('#res').innerHTML=p.length?`<div class="res">Parecidas:<div class="lista">${p.map(n=>`<span data-ir="${esc(n)}">${esc(n)}</span>`).join('')}</div></div>`:'';
+      $('#res').querySelectorAll('[data-ir]').forEach(b=>b.onclick=()=>{$('#q').value=b.dataset.ir;mostrar(b.dataset.ir)});
+    }});
+
+  $('#sug').innerHTML=['renderMarket','loadMarketCatalog','alvesAnswer','boletimTexto','loadMetrics','esc']
+    .filter(n=>funcoes.has(n)).map(n=>`<button data-ir="${n}">${n}</button>`).join('');
+  $('#sug').querySelectorAll('[data-ir]').forEach(b=>b.onclick=()=>{$('#q').value=b.dataset.ir;mostrar(b.dataset.ir)});
+
+  const porCat=new Map();
+  for(const [n,i] of funcoes){const c=categoriaDe(n,i.secao);if(!porCat.has(c))porCat.set(c,[]);porCat.get(c).push({n,...i})}
+  const ord=[...porCat.entries()].sort((a,b)=>b[1].length-a[1].length);
+  $('#panorama').innerHTML=`<p class="sub">${funcoes.size} funções em ${ARQUIVOS.length} arquivos, ${porCat.size} seções.</p>`+
+   `<table><thead><tr><th>SEÇÃO</th><th class="num">FUNÇÕES</th><th class="num">LINHAS</th></tr></thead><tbody>`+
+   ord.map(([c,f])=>`<tr><td>${esc(c)}</td><td class="num">${f.length}</td><td class="num">${f.reduce((n,x)=>n+x.linhas,0)}</td></tr>`).join('')+
+   `</tbody></table>`;
+
+  const orfas=[...funcoes.entries()].filter(([n,i])=>i.chamadaPor.size===0&&!i.interna&&!htmlIndex.includes(n)&&!/^(login|logout|boot|init)/.test(n));
+  $('#orfas').innerHTML=orfas.length
+   ? `<table><thead><tr><th>FUNÇÃO</th><th>SEÇÃO</th><th>ONDE</th><th class="num">LINHAS</th></tr></thead><tbody>`+
+     orfas.map(([n,i])=>`<tr><td><span class="lista" style="display:inline"><span data-ir="${esc(n)}">${esc(n)}</span></span></td><td>${esc(categoriaDe(n,i.secao))}</td><td><code>${esc(i.arquivo)}:${i.linha}</code></td><td class="num">${i.linhas}</td></tr>`).join('')+
+     `</tbody></table>`
+   : '<span class="sub">Nenhuma.</span>';
+  $('#orfas').querySelectorAll('[data-ir]').forEach(b=>b.onclick=()=>{$('#q').value=b.dataset.ir;mostrar(b.dataset.ir);window.scrollTo({top:0,behavior:'smooth'})});
+})();
+</script>
+</body>
+</html>

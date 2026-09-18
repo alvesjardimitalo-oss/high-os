@@ -21,7 +21,14 @@ import { fileURLToPath } from 'node:url';
 
 const raiz = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const REFERENCIA = path.join(raiz, 'tools', 'referencia-funcoes.json');
-const ARQUIVOS = ['assets/app.js', 'assets/mission-planner.js', 'assets/ui-kit.js'];
+const ARQUIVOS = ['assets/app.js', 'assets/mission-planner.js', 'assets/ui-kit.js']
+  .concat(
+    fs.existsSync(path.join(raiz, 'assets/modules'))
+      ? fs.readdirSync(path.join(raiz, 'assets/modules'))
+          .filter(f => f.endsWith('.js'))
+          .map(f => 'assets/modules/' + f)
+      : []
+  );
 
 const vermelho = t => `\x1b[31m${t}\x1b[0m`;
 const verde = t => `\x1b[32m${t}\x1b[0m`;
@@ -30,7 +37,11 @@ const amarelo = t => `\x1b[33m${t}\x1b[0m`;
 function funcoesDe(codigo) {
   const nomes = new Set();
   for (const m of codigo.matchAll(/(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(/g)) nomes.add(m[1]);
-  for (const m of codigo.matchAll(/(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?(?:function|\([^)]*\)\s*=>)/g)) nomes.add(m[1]);
+  // arrow com parenteses: const f = (a,b) => ...
+  for (const m of codigo.matchAll(/(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?(?:function|\([^)]*\)\s*=>)/g)) nomes.add(m[1]);
+  // arrow de parametro unico, sem parenteses: const esc = v => ...
+  // ficava de fora e o `esc`, usado 537 vezes, nao era vigiado por ninguem
+  for (const m of codigo.matchAll(/(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?[A-Za-z_$][\w$]*\s*=>/g)) nomes.add(m[1]);
   return nomes;
 }
 
@@ -82,15 +93,26 @@ if (!fs.existsSync(REFERENCIA)) {
 
 const referencia = JSON.parse(fs.readFileSync(REFERENCIA, 'utf8'));
 console.log('');
+// Uma função que saiu de um arquivo e apareceu em outro foi MOVIDA, não perdida.
+// Sem essa distinção, toda modularização era reprovada por engano.
+const todasAgora = new Set(Object.values(atual).flat());
+
 for (const rel of ARQUIVOS) {
   const antes = new Set(referencia[rel] || []);
   const agora = new Set(atual[rel] || []);
-  const sumiram = [...antes].filter(f => !agora.has(f));
+  const foram = [...antes].filter(f => !agora.has(f));
+  const sumiram = foram.filter(f => !todasAgora.has(f));
+  const movidas = foram.filter(f => todasAgora.has(f));
   const novas = [...agora].filter(f => !antes.has(f));
+
   if (sumiram.length) {
-    console.log(vermelho(`${rel}: ${sumiram.length} função(ões) SUMIRAM`));
+    console.log(vermelho(`${rel}: ${sumiram.length} função(ões) SUMIRAM do projeto`));
     sumiram.forEach(f => console.log(vermelho(`  - ${f}`)));
     erros += sumiram.length;
+  }
+  if (movidas.length) {
+    const onde = f => ARQUIVOS.find(r => (atual[r] || []).includes(f)) || '?';
+    console.log(`${rel}: ${movidas.length} movida(s) — ${movidas.map(f => `${f} → ${onde(f)}`).join(', ')}`);
   }
   if (novas.length) console.log(`${rel}: ${novas.length} função(ões) nova(s): ${novas.join(', ')}`);
 }

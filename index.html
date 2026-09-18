@@ -15,12 +15,13 @@
   <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
   <link rel="preconnect" href="https://unpkg.com" crossorigin>
   <title>High OS • Gestão do Ilegal</title>
-  <link rel="stylesheet" href="assets/style.css?v=10.4.1">
+  <link rel="stylesheet" href="assets/style.css?v=12.4.0">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="assets/mission-planner.css?v=10.4.1">
-  <link rel="stylesheet" href="assets/ui-kit.css?v=10.4.1">
-  <link rel="stylesheet" href="assets/high-refresh.css?v=10.4.1">
-  <link rel="icon" type="image/png" href="assets/high_logo.png?v=10.4.1">
+  <link rel="stylesheet" href="assets/mission-planner.css?v=12.4.0">
+  <link rel="stylesheet" href="assets/ui-kit.css?v=12.4.0">
+  <link rel="stylesheet" href="assets/high-refresh.css?v=12.4.0">
+  <link rel="stylesheet" href="assets/calma.css?v=12.4.0">
+  <link rel="icon" type="image/png" href="assets/high_logo.png?v=12.4.0">
 </head>
 <body>
   <div class="noise"></div>
@@ -79,21 +80,21 @@
         <nav>
           <button class="nav-item active" data-page="dashboard">⌂ <span>Dashboard</span></button>
           <button class="nav-item" data-page="faccoes">◆ <span>Organizações</span></button>
-          <button class="nav-item" data-page="solicitacoes">▤ <span>Solicitações</span></button>
+          
           <button class="nav-item" data-page="metricas">▥ <span>Métricas</span></button>
-          <button class="nav-item" data-page="economia">$ <span>Economia</span></button>
-          <button class="nav-item" data-page="historico">◷ <span>Histórico</span></button>
+          
+          
           <button class="nav-item" data-page="planejador">◎ <span>Planejador de Missões</span></button>
-          <button class="nav-item" data-page="chat">✉ <span>Chat da Equipe</span></button>
+          
           <button class="nav-item hidden" data-page="spotify">♫ <span>Spotify</span></button>
-          <button class="nav-item" data-page="alvesinho">✦ <span>Alvesinho</span></button>
+          
           <button class="nav-item admin-only" data-page="usuarios">♟ <span>Usuários</span></button>
           <button class="nav-item admin-only" data-page="administracao">⚠ <span>Administração</span></button>
         </nav>
       </aside>
       <div class="content">
         <section class="page active" id="page-dashboard">
-          <div class="page-head"><div><div class="eyebrow">CENTRAL DE COMANDO DO ILEGAL</div><h2>DASHBOARD</h2><p class="page-subtitle">Visão operacional para identificar rapidamente ocupação, contingente, pendências e movimentações da Staff.</p></div><span class="dev-badge">V10.4.1</span></div>
+          <div class="page-head"><div><div class="eyebrow">CENTRAL DE COMANDO DO ILEGAL</div><h2>DASHBOARD</h2><p class="page-subtitle">Visão operacional para identificar rapidamente ocupação, contingente, pendências e movimentações da Staff.</p></div><span class="dev-badge">V12.4.0</span></div>
           <div id="commandDashboard" class="command-dashboard"><div class="placeholder"><b>◆</b><h3>CARREGANDO CENTRAL DE COMANDO</h3></div></div>
           <span id="dashEmail" class="hidden">—</span><span id="dashRole" class="hidden">—</span>
         </section>
@@ -170,14 +171,11 @@
           <div class="delivery-toolbar"><input id="deliverySearch" placeholder="Buscar Group, facção, líder ou staff..."><select id="deliveryStatus"><option value="">TODAS</option><option value="ATIVA">ATIVAS</option><option value="RECOLHIDA">RECOLHIDAS</option></select></div>
           <div id="deliveryStats" class="fac-stats"></div><div id="deliveryList" class="delivery-list"><div class="placeholder"><b>◇</b><h3>CARREGANDO ENTREGAS</h3></div></div>
         </section>
-        <section class="page" id="page-solicitacoes">
-          <div class="page-head"><div><div class="eyebrow">BASE DE REFERÊNCIA • PADRÃO HIGH</div><h2>BIBLIOTECA DE SOLICITAÇÕES</h2><p class="page-subtitle">Modelos já utilizados para consultar, gerar, adaptar e copiar solicitações para o Discord.</p></div><button id="newRequestBtn" class="btn-primary compact">NOVO MODELO</button></div>
-          <div class="req-toolbar"><input id="reqSearch" placeholder="Buscar modelo, assunto, categoria, Group..."><select id="reqTypeFilter"><option value="">TODAS AS CATEGORIAS</option></select></div>
-          <div id="reqStats" class="fac-stats"></div>
-          <div id="reqList" class="req-list"><div class="placeholder"><b>▤</b><h3>CARREGANDO MODELOS</h3></div></div>
-        </section>
+        
         <section class="page" id="page-metricas">
           <div class="page-head"><div><div class="eyebrow">CENTRAL RH • PRESENÇA • 14H / 16H / 21H / 23H</div><h2>CENTRAL DE MÉTRICAS</h2><p class="page-subtitle">Base histórica por data, Group e facção. O RH consulta somente esta central e pode emitir relatórios mensais sem acesso aos demais módulos operacionais.</p></div><div class="metric-head-actions"><button id="syncMetricBtn" class="btn-primary compact admin-only">ATUALIZAR CENTRAL</button><button id="metricSourceBtn" class="btn-secondary compact admin-only">FONTE</button><button id="openMetricImportBtn" class="btn-secondary compact admin-only">IMPORTAÇÃO MANUAL</button></div></div>
+          <div id="metricResumoFonte" class="metric-resumo-fonte"></div>
+          <div id="metricPeriodosRapidos" class="metric-periodos"></div>
           <div id="metricSourceStatus" class="metric-source-card"><div><span class="metric-source-dot"></span><div><b>FONTE DE MÉTRICAS</b><small>Carregando configuração...</small></div></div><span>—</span></div>
           <div class="metric-center-tabs"><button class="metric-center-tab active" data-metric-view="overview">VISÃO GERAL</button><button class="metric-center-tab" data-metric-view="faction">POR FACÇÃO</button><button class="metric-center-tab" data-metric-view="ranking">RANKING</button><button class="metric-center-tab" data-metric-view="comparatives">COMPARATIVOS</button><button class="metric-center-tab" data-metric-view="reports">RELATÓRIOS</button><button class="metric-center-tab metric-management-tab" data-metric-view="management">GESTÃO DO ILEGAL</button><button class="metric-center-tab" data-metric-view="boletim">BOLETIM</button></div>
           <div class="metric-period-panel"><div class="metric-period-dates"><label>DATA INICIAL<input id="metricDateStart" type="date"></label><span>ATÉ</span><label>DATA FINAL<input id="metricDateEnd" type="date"></label><button id="metricApplyRange" class="btn-primary compact">APLICAR PERÍODO</button></div><div class="metric-period-shortcuts"><button data-days="7">ÚLTIMOS 7 DIAS</button><button data-days="15">ÚLTIMOS 15 DIAS</button><button data-days="30">ÚLTIMOS 30 DIAS</button><button data-current-month="1">MÊS ATUAL</button></div></div>
@@ -205,7 +203,7 @@
             <div class="rh-compare-controls"><label>Facção A<select id="metricCompareA"></select></label><label>Facção B<select id="metricCompareB"></select></label><button id="metricCompareBtn" class="btn-primary compact">COMPARAR</button></div>
             <div id="metricCompareResult"></div>
           </div>
-          <div id="metricViewBoletim" class="metric-center-view"></div>
+          <div id="metricViewBoletim" class="metric-center-view"><div id="metricTriagem" class="metric-triagem"></div></div>
           <div class="metric-center-view" id="metricViewManagement">
             <div class="mgmt-head">
               <div><div class="eyebrow">INTELIGÊNCIA DE GESTÃO • SEMANAL + MENSAL</div><h3>CENTRAL DE GESTÃO DO ILEGAL</h3><p>Leitura automática de todas as organizações ocupadas. Compara semana, mês, tendência e qualidade dos dados para indicar onde agir.</p></div>
@@ -229,20 +227,9 @@
             <div id="metricReportPreview" class="metric-report-preview"><div class="placeholder"><b>▤</b><h3>RELATÓRIO AINDA NÃO GERADO</h3><p>Selecione uma facção e clique em gerar relatório.</p></div></div>
           </div>
         </section>
-        <section class="page" id="page-economia">
-          <div class="page-head"><div><div class="eyebrow">REFERÊNCIA ECONÔMICA • MERCADO NEGRO</div><h2>ECONOMIA</h2><p class="page-subtitle">Consulta separada da tabela pública do Mercado Negro. Preços e referências econômicas ficam aqui; métricas permanecem exclusivamente para presença e desempenho.</p></div><span class="dev-badge">CATÁLOGO PÚBLICO</span></div>
-          <div class="economy-shell">
-            <div class="economy-summary">
-              <div><span>FONTE</span><b>Mercado Negro High</b></div>
-              <div><span>STATUS</span><b id="marketStatus">Carregando catálogo público...</b></div>
-              <div><span>ITENS</span><b id="marketCount">—</b></div>
-            </div>
-            <div class="economy-toolbar"><input id="marketSearch" placeholder="Buscar item, categoria, arma, munição, droga, serviço..."></div>
-            <div id="marketResults" class="market-results economy-results"><div class="placeholder"><b>$</b><h3>CARREGANDO ECONOMIA</h3></div></div>
-          </div>
-        </section>
+        
         <section class="page" id="page-planejador">
-          <div class="page-head"><div><div class="eyebrow">MAPA GTA V • EVENTOS • MISSÕES</div><h2>PLANEJADOR DE MISSÕES</h2><p class="page-subtitle">Crie novos locais de evento, gere spawns em círculo, valide CDS uma a uma e mantenha cada missão salva com o último print do mapa.</p></div><span class="dev-badge">V10.4.1</span></div>
+          <div class="page-head"><div><div class="eyebrow">MAPA GTA V • EVENTOS • MISSÕES</div><h2>PLANEJADOR DE MISSÕES</h2><p class="page-subtitle">Crie novos locais de evento, gere spawns em círculo, valide CDS uma a uma e mantenha cada missão salva com o último print do mapa.</p></div><span class="dev-badge">V12.4.0</span></div>
 
           <section id="mpCentralV954" class="mp-central-v952" aria-label="Central de Missões"></section>
 
@@ -374,43 +361,14 @@
             </div>
           </div>
         </section>
-        <section class="page" id="page-historico">
-          <div class="page-head"><div><div class="eyebrow">AUDITORIA OPERACIONAL</div><h2>HISTÓRICO</h2><p class="page-subtitle">Linha do tempo de entregas, recolhimentos, alterações de estrutura, usuários e solicitações registradas no High OS.</p></div></div>
-          <div class="history-toolbar"><input id="historySearch" placeholder="Buscar Group, facção, usuário ou evento..."><select id="historyType"><option value="">TODOS OS EVENTOS</option><option value="ENTREGA_GROUP">ENTREGAS</option><option value="RECOLHIMENTO">RECOLHIMENTOS</option><option value="EDICAO">ALTERAÇÕES DE GROUP</option><option value="ENTREGA">ENTREGAS LEGADAS</option><option value="MODELO_SOLICITACAO">MODELOS / SOLICITAÇÕES</option><option value="USUARIO">USUÁRIOS</option></select></div>
-          <div id="historyStats" class="fac-stats"></div><div id="historyList" class="history-list"><div class="placeholder"><b>◷</b><h3>CARREGANDO HISTÓRICO</h3></div></div>
-        </section>
+        
         <section class="page" id="page-chat">
           <div class="page-head"><div><div class="eyebrow">COMUNICAÇÃO INTERNA • HIGH OS</div><h2>CHAT DA EQUIPE</h2><p class="page-subtitle">O Messenger agora fica disponível em qualquer tela pelo botão flutuante no canto inferior direito. Conversas privadas por usuário, emojis, anexos e chamadas com áudio, vídeo e compartilhamento de tela.</p></div><span class="dev-badge">MESSENGER</span></div>
           <div class="chat-feature-grid"><article><b>✉ MENSAGENS PRIVADAS</b><p>Escolha um usuário da equipe e converse individualmente sem sair da tela.</p></article><article><b>📎 ANEXOS</b><p>Envie imagens e arquivos pequenos diretamente na conversa.</p></article><article><b>🎙 REUNIÃO</b><p>Crie uma sala para áudio, vídeo e compartilhamento de tela.</p></article><article><b>🔔 CONTEXTO</b><p>Convites de reunião aparecem dentro do próprio chat.</p></article></div>
           <button type="button" id="chatPageOpenFloat" class="btn-primary">ABRIR CHAT FLUTUANTE</button>
           <div id="chatMessages" class="team-chat-messages chat-page-history"><div class="chat-empty">Carregando conversa...</div></div>
         </section>
-        <section class="page" id="page-alvesinho">
-          <div class="page-head"><div><div class="eyebrow">INTELIGÊNCIA OPERACIONAL • BASE HIGH OS</div><h2>ALVESINHO</h2><p class="page-subtitle">Consulta Groups, facções, entregas e histórico usando somente os dados registrados no sistema.</p></div><span class="dev-badge">BASE OPERACIONAL</span></div>
-          <div class="alves-layout">
-            <aside class="alves-side">
-              <div class="alves-avatar"><div class="alves-mark">A</div><div><strong>Alvesinho</strong><span>Assistente do Ilegal</span></div></div>
-              <div class="alves-status"><i></i><span>Base High OS conectada</span></div>
-              <div class="alves-quick-title">PERGUNTAS RÁPIDAS</div>
-              <div class="alves-quick" id="alvesQuick">
-                <button data-q="Quais Groups estão vagos?">Groups vagos</button>
-                <button data-q="Quais facções estão sem Group?">Facções sem Group</button>
-                <button data-q="Me dê um resumo operacional">Resumo operacional</button>
-                <button data-q="Quais foram as últimas entregas?">Últimas entregas</button>
-                <button data-q="Qual a média da Lavagem03?">Média Lavagem03</button>
-                <button data-q="Qual o pico da Lavagem03?">Pico Lavagem03</button>
-                <button data-q="Quanto custa uma T54 na pista?">Preço T54</button>
-              </div>
-              <small>Exemplos: “Quem ocupa Armas02?”, “O que Armas02 tem instalado?”, “Qual o rádio da Talibã?”, “Histórico do Armas02”.</small>
-            </aside>
-            <div class="alves-chat-card">
-              <div id="alvesMessages" class="alves-messages">
-                <div class="alves-msg bot"><div class="alves-bubble"><b>Alvesinho</b><p>Base operacional pronta. Pergunte sobre Groups, QGs, facções, instalações, rádio, entregas ou histórico.</p></div></div>
-              </div>
-              <form id="alvesForm" class="alves-compose"><input id="alvesInput" autocomplete="off" placeholder="Ex.: quem ocupa Armas02?"><button class="btn-primary" type="submit">PERGUNTAR</button></form>
-            </div>
-          </div>
-        </section>
+        
         <section class="page" id="page-group-profile">
           <div class="group-profile-page-head">
             <button type="button" id="groupProfileBack" class="profile-back-btn">← ORGANIZAÇÕES</button>
@@ -452,7 +410,7 @@
             <button type="button" class="admin-summary-card" data-admin-tab="integracoes"><span>↔</span><div><b>INTEGRAÇÕES</b><small>Google Sheets e sincronizações</small></div></button>
             <button type="button" class="admin-summary-card" data-admin-tab="estrutura"><span>◇</span><div><b>ESTRUTURA</b><small>Segmentos e vínculos</small></div></button>
             <button type="button" class="admin-summary-card" data-admin-tab="auditoria"><span>◷</span><div><b>AUDITORIA</b><small>Sessões e ações dos usuários</small></div></button>
-            <button type="button" class="admin-summary-card danger-card" data-admin-tab="manutencao"><span>⚠</span><div><b>MANUTENÇÃO</b><small>Limpeza e reset operacional</small></div></button>
+            <button type="button" class="admin-summary-card" data-admin-tab="logs"><span>▤</span><div><b>LOGS</b><small>Linha do tempo de tudo que aconteceu no sistema</small></div></button><button type="button" class="admin-summary-card danger-card" data-admin-tab="manutencao"><span>⚠</span><div><b>MANUTENÇÃO</b><small>Limpeza e reset operacional</small></div></button>
           </div>
 
           <div class="admin-tab-panel active" data-admin-panel="acessos">
@@ -515,6 +473,17 @@
             </div>
           </div>
 
+          <div class="admin-tab-panel" data-admin-panel="logs">
+            <div class="logs-head">
+              <div>
+                <b>LOGS DO SISTEMA</b>
+                <span>Entregas, recolhimentos, alterações de estrutura, acessos e sincronizações. Registro somente de leitura: nada aqui pode ser editado ou apagado.</span>
+              </div>
+              <input id="historySearch" type="search" placeholder="Buscar Group, facção, usuário ou evento..." autocomplete="off">
+            </div>
+            <div id="historyStats" class="logs-stats"></div>
+            <div id="historyList" class="logs-list"></div>
+          </div>
           <div class="admin-tab-panel" data-admin-panel="auditoria">
             <div class="audit-admin-card">
               <div class="sheet-sync-head"><div><div class="eyebrow">SEGURANÇA • AUDITORIA</div><h3>SESSÕES DE USUÁRIOS</h3><p>Cada login gera uma sessão independente. Consulte quando o usuário entrou, quanto tempo permaneceu conectado e todas as alterações realizadas durante aquela sessão.</p></div><span class="sheet-sync-badge online">MÁX. 8 HORAS</span></div>
@@ -835,9 +804,9 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-  <script src="assets/ui-kit.js?v=10.4.1"></script>
-  <script src="assets/mission-planner.js?v=10.4.1"></script>
-  <script type="module" src="assets/app.js?v=10.4.1"></script>
+  <script src="assets/ui-kit.js?v=12.4.0"></script>
+  <script src="assets/mission-planner.js?v=12.4.0"></script>
+  <script type="module" src="assets/app.js?v=12.4.0"></script>
 
 <div id="newDeliveryModal" class="modal hidden"><div class="modal-card delivery-modal-v5"><button class="modal-x" id="newDeliveryClose">×</button>
   <div class="eyebrow">NOVA OCUPAÇÃO</div><h2>ENTREGA DE GROUP</h2><p class="delivery-help">O Group traz sua estrutura instalada. Personalize apenas o que será ativado para a nova facção.</p>
