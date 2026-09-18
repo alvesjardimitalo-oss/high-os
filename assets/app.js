@@ -24,6 +24,10 @@ import { getFirestore,
  startAfter,
  arrayUnion } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
 
+import { estado } from './modules/estado.js';
+import { esc, alvesNorm, fmtDuration, fmtDateMs, fmtMoneyMaybe } from './modules/formatadores.js';
+import { definirGroupsConhecidos, normalizeMetricDate, parseMetricNumber, normalizeMetricSlotKey, metricSlotLabel, metricGroupLabel, parseMetricSheet, parseCsvRows } from './modules/metricas-parser.js';
+
 const firebaseConfig={apiKey:'AIzaSyBKtl3rCA9Id1RDMwGch-yi4hxAs83DraU',
 authDomain:'high-os.firebaseapp.com',
 projectId:'high-os',
@@ -45,7 +49,7 @@ facSheetProvider.addScope('https://www.googleapis.com/auth/spreadsheets');
 
 const $=s=>document.querySelector(s), loginView=$('#loginView'),deniedView=$('#deniedView'),appView=$('#appView'),sessionArea=$('#sessionArea');
 
-let currentUser=null,currentProfile=null,faccoes=[],solicitacoes=[],requestRecords=[],usuarios=[],organizacoes=[];
+let currentUser=null,currentProfile=null;
 
 const facCol=collection(db,'highos','data','faccoes'), histCol=collection(db,'highos','data','historico'), reqCol=collection(db,'highos','data','solicitacoes'), deliveryCol=collection(db,'highos','data','entregas'), orgCol=collection(db,'highos','data','organizacoes'), sessionCol=collection(db,'highos','data','sessoes_usuario'), usersCol=collection(db,'users');
 
@@ -1092,15 +1096,35 @@ async function login(){try{await signInWithPopup(auth,provider)}catch(e){alert('
 const SESSION_MAX_MS=8*60*60*1000;
 
 function sessionStorageKey(email=''){return 'highos_session_'+String(email||'').toLowerCase()}
+
+/* ---------------------------------------------------------------------
+   V10.6 - Duas abas abertas juntas liam o localStorage vazio ao mesmo
+   tempo e cada uma criava a sua sessao. O estado.historico ficou cheio de pares
+   de SESSION START no mesmo minuto e o painel de saude contava o dobro
+   de sessoes abertas.
+
+   Agora existe uma reserva: a aba grava uma intencao com o proprio id e
+   espera um instante; se outra aba reservou antes, esta adota a sessao
+   da primeira em vez de abrir outra.
+--------------------------------------------------------------------- */
+const TAB_ID=Math.random().toString(36).slice(2)+Date.now().toString(36);
+function reservaKey(email=''){return 'highos_session_claim_'+String(email||'').toLowerCase()}
+function esperar(ms){return new Promise(r=>setTimeout(r,ms))}
+
+async function reservarSessao(email){
+ const chave=reservaKey(email),agora=Date.now();
+ let atual=null;
+ try{atual=JSON.parse(localStorage.getItem(chave)||'null')}catch(e){}
+ // reserva de outra aba, feita ha menos de 10s: deixa ela criar
+ if(atual&&atual.tab!==TAB_ID&&agora-Number(atual.em||0)<10000)return false;
+ try{localStorage.setItem(chave,JSON.stringify({tab:TAB_ID,em:agora}))}catch(e){return true}
+ await esperar(180);   // janela para outra aba se manifestar
+ let confirmada=null;
+ try{confirmada=JSON.parse(localStorage.getItem(chave)||'null')}catch(e){}
+ return !confirmada||confirmada.tab===TAB_ID;
+}
 function makeSessionId(email=''){return `${Date.now()}_${String(email||'user').replace(/[^a-z0-9]/gi,'_')}_${Math.random().toString(36).slice(2,8)}`}
-function fmtDuration(ms=0){ms=Math.max(0,Number(ms)||0);
-const total=Math.floor(ms/1000),
-h=Math.floor(total/3600),
-m=Math.floor((total%3600)/60),
-sec=total%60;
-return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`}
-function sessionMeta(){return {sessionId:currentSessionId,
-sessionStart:currentSessionStart||0}}
+
 async function closeCurrentSession(reason='LOGOUT'){
  if(!currentUser||!currentSessionId)return;
 
@@ -1142,9 +1166,20 @@ now=Date.now();
 let saved=null;
 
  try{saved=JSON.parse(localStorage.getItem(key)||'null')}catch(e){}
- if(saved?.id&&saved?.start&&now-saved.start<SESSION_MAX_MS){currentSessionId=saved.id;
-currentSessionStart=Number(saved.start)||now;
-}
+ if(saved?.id&&saved?.start&&now-saved.start<SESSION_MAX_MS){currentSessionId=saved.id;currentSessionStart=Number(saved.start)||now;}
+ else if(!(await reservarSessao(email))){
+  // outra aba esta criando a sessao agora: aguarda e adota a dela
+  await esperar(900);
+  let dela=null;
+  try{dela=JSON.parse(localStorage.getItem(key)||'null')}catch(e){}
+  if(dela?.id&&dela?.start){
+   currentSessionId=dela.id;currentSessionStart=Number(dela.start)||now;
+   startSessionClock(email);
+   return;
+  }
+  currentSessionId=makeSessionId(email);currentSessionStart=now;
+  try{localStorage.setItem(key,JSON.stringify({id:currentSessionId,start:currentSessionStart,email}))}catch(e){}
+ }
  else{
   if(saved?.id&&saved?.start&&now-saved.start>=SESSION_MAX_MS){try{await setDoc(doc(db,'highos','data','sessoes_usuario',saved.id),{status:'ENCERRADA',
 endAtText:new Date(saved.start+SESSION_MAX_MS).toISOString(),
@@ -1243,29 +1278,13 @@ desc:'Visão geral e indicadores'},
 label:'Organizações',
 desc:'Group permanente, ocupação, divulgação, entrega, estrutura, rota e histórico'},
 
- {id:'solicitacoes',
-label:'Solicitações',
-desc:'Modelos e solicitações técnicas'},
-
  {id:'metricas',
 label:'Métricas',
 desc:'Central de métricas e relatórios'},
 
- {id:'economia',
-label:'Economia',
-desc:'Tabela, pista e referências econômicas'},
-
- {id:'historico',
-label:'Histórico',
-desc:'Movimentações e auditoria operacional'},
-
  {id:'planejador',
 label:'Planejador de Missões',
 desc:'Mapa GTA V, spawns, áreas e distribuição de equipes'},
-
- {id:'alvesinho',
-label:'Alvesinho',
-desc:'Assistente do High OS'},
 
  {id:'chat',
 label:'Chat da Equipe',
@@ -1311,7 +1330,7 @@ const legacyKeys=['faccoes',
 'disponiveis',
 'entregas'],
 legacyOwn=legacyKeys.filter(k=>Object.prototype.hasOwnProperty.call(custom,k)).map(k=>normalizePermission(custom[k]));
-if(legacyOwn.length){base.faccoes=legacyOwn.includes('EDIT')?'EDIT':legacyOwn.includes('VIEW')?'VIEW':'NONE'}return base}
+if(legacyOwn.length){base.estado.faccoes=legacyOwn.includes('EDIT')?'EDIT':legacyOwn.includes('VIEW')?'VIEW':'NONE'}return base}
 function pageModule(page=''){return INTERNAL_MODULE_PARENT[page]||page}
 function canViewModule(module){if(isAdmin())return true;
 return ['VIEW',
@@ -1356,7 +1375,23 @@ function permissionDeniedMessage(module,edit=false){const label=SYSTEM_MODULES.f
 alert(edit?`Seu acesso a ${label} é somente para visualização.\n\nSolicite a um ADMIN permissão de edição.`:`Você não possui acesso ao módulo ${label}.`)}
 document.addEventListener('click',e=>{const nav=e.target.closest?.('.nav-item[data-page]');if(nav&&!nav.classList.contains('admin-only')&&!canViewModule(nav.dataset.page)){e.preventDefault();e.stopImmediatePropagation();permissionDeniedMessage(nav.dataset.page,false);return}const b=e.target.closest?.('button');if(!b||isAdmin())return;const mod=moduleForElement(b);if(mutationButton(b)&&!canEditModule(mod)){e.preventDefault();e.stopImmediatePropagation();permissionDeniedMessage(mod,true)}},true);
 
-document.addEventListener('submit',e=>{if(isAdmin())return;const mod=moduleForElement(e.target);if(!canEditModule(mod)){e.preventDefault();e.stopImmediatePropagation();permissionDeniedMessage(mod,true)}},true);
+/* V10.6 - a faixa avisava que nada seria gravado, mas os botoes seguiam
+   clicaveis: o usuario clicava, o Firestore recusava em silencio e ele
+   achava que tinha salvo. */
+document.addEventListener('click',e=>{
+ if(!window.HighOSOffline?.ativo)return;
+ const b=e.target.closest?.('button');
+ if(!b||!mutationButton(b))return;
+ e.preventDefault();e.stopImmediatePropagation();
+ window.highToast?.('Modo local ativo: o Firebase não está respondendo, então nada pode ser gravado agora. Use TENTAR DE NOVO na faixa amarela.','warn');
+},true);
+document.addEventListener('submit',e=>{
+ if(window.HighOSOffline?.ativo){
+  e.preventDefault();e.stopImmediatePropagation();
+  window.highToast?.('Modo local ativo: gravação indisponível.','warn');
+  return;
+ }
+ if(isAdmin())return;const mod=moduleForElement(e.target);if(!canEditModule(mod)){e.preventDefault();e.stopImmediatePropagation();permissionDeniedMessage(mod,true)}},true);
 
 /* =====================================================================
    HIGH OS V9.8 - LEITURA DO CADASTRO COM DIAGNOSTICO
@@ -1445,7 +1480,7 @@ userPhotoEl=$('#userPhoto');
   startMetricAutoRecovery();
   if(canViewModule('spotify'))await loadSpotifyConfig();
   if(canViewModule('chat')){startChat();startCallInbox();}
-  if(canViewModule('economia'))loadMarketCatalog();
+
   if(role==='ADMIN') await loadUsers();
  }catch(e){
   show(deniedView);
@@ -1455,7 +1490,16 @@ userPhotoEl=$('#userPhoto');
  }
 });
 
-document.querySelectorAll('.nav-item').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));$('#page-'+btn.dataset.page).classList.add('active');if(btn.dataset.page==='administracao'&&isAdmin()){loadUserAudit();setTimeout(renderSaudeSistema,0)}if(btn.dataset.page==='planejador')setTimeout(()=>window.HighMissionPlanner?.activate?.(),60)}));
+document.querySelectorAll('.nav-item').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));$('#page-'+btn.dataset.page).classList.add('active');if(btn.dataset.page==='administracao'&&isAdmin()){loadUserAudit();
+setTimeout(()=>{
+ /* V12.1 - o Histórico virou LOGS e mora na Administração: é ferramenta
+    administrativa, não operacional. Como a Administração já é restrita a
+    ADMIN, o acesso fica limitado por consequência. */
+ document.querySelector('[data-admin-tab="logs"]')?.addEventListener('click',()=>{
+  if(!estado.historico.length)loadHistory();
+  else renderHistory();
+ },{once:false});
+},0);setTimeout(()=>{renderSaudeSistema();moverInfraParaAdmin()},0)}if(btn.dataset.page==='planejador')setTimeout(()=>window.HighMissionPlanner?.activate?.(),60)}));
 
 // HIGH OS V6.7 · o perfil do Group passa a abrir como página interna, não como modal.
 function activateAppPage(page){
@@ -1498,10 +1542,10 @@ $('#groupProfileBack')?.addEventListener('click',closeGroupProfilePage);
 
 async function loadFaccoes(){
  try{const qs=await getDocsCached(facCol,'faccoes');
-faccoes=qs.docs.map(d=>({id:d.id,
+estado.faccoes=qs.docs.map(d=>({id:d.id,
 ...d.data()}));
-faccoes.sort((a,b)=>(a.numero||999)-(b.numero||999));
-renderFaccoes();
+estado.faccoes.sort((a,b)=>(a.numero||999)-(b.numero||999));
+renderFaccoes();definirGroupsConhecidos(estado.faccoes);
 renderAvailableFaccoes()}catch(e){$('#facList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR</h3><p>${e.message}</p></div>`}
 }
 function renderFaccoes(){
@@ -1509,16 +1553,16 @@ function renderFaccoes(){
 seg=$('#facSegment').value,
 st=$('#facStatus').value;
 
- const filtered=faccoes.filter(f=>(!seg||f.segmento===seg)&&(!st||f.status===st)&&(!q||[f.group,
+ const filtered=estado.faccoes.filter(f=>(!seg||f.segmento===seg)&&(!st||f.status===st)&&(!q||[f.group,
 f.faccao,
 f.qg,
 f.lider,
 f.staff,
 f.produto].join(' ').toLowerCase().includes(q)));
 
- const at=faccoes.filter(f=>f.status==='ATIVA').length;
+ const at=estado.faccoes.filter(f=>f.status==='ATIVA').length;
 
- $('#facStats').innerHTML=`<span><b>${faccoes.length}</b> POSIÇÕES</span><span><b>${at}</b> ATIVAS</span><span><b>${faccoes.length-at}</b> VAGAS</span><span><b>${filtered.length}</b> EXIBIDAS</span>`;
+ $('#facStats').innerHTML=`<span><b>${estado.faccoes.length}</b> POSIÇÕES</span><span><b>${at}</b> ATIVAS</span><span><b>${estado.faccoes.length-at}</b> VAGAS</span><span><b>${filtered.length}</b> EXIBIDAS</span>`;
 
  if(!operacionais.length){$('#facList').innerHTML='<div class="placeholder"><b>◆</b><h3>BASE AINDA NÃO IMPORTADA</h3><p>ADMIN: clique em “IMPORTAR BASE INICIAL”.</p></div>';
 return}
@@ -1528,11 +1572,6 @@ return}
 document.querySelectorAll('.req-from-fac').forEach(b=>b.onclick=(e)=>{e.stopPropagation();openRequestModal('',b.dataset.group)});
 
 }
-const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;',
-'<':'&lt;',
-'>':'&gt;',
-'"':'&quot;',
-"'":'&#39;'}[m]));
 
 /* =====================================================================
    HIGH OS V9.4.1 - CAMADA DE RESILIENCIA DO FIRESTORE
@@ -1559,18 +1598,21 @@ const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;',
    ===================================================================== */
 /* Qualquer gravacao limpa a janela de cache: assim uma tela nunca mostra
    dado velho logo depois de salvar. */
-const setDoc=(...a)=>{cacheMemoria.clear();
-return _setDoc(...a)};
-
-const addDoc=(...a)=>{cacheMemoria.clear();
-return _addDoc(...a)};
-
-const deleteDoc=(...a)=>{cacheMemoria.clear();
-return _deleteDoc(...a)};
+/* V10.6 - o painel mostrava so as gravacoes de metricas sob o rotulo
+   "GRAVACOES", subestimando o consumo real. Agora toda escrita conta. */
+let firestoreWriteCount=0;
+const setDoc=(...a)=>{cacheMemoria.clear();firestoreWriteCount++;return _setDoc(...a)};
+const addDoc=(...a)=>{cacheMemoria.clear();firestoreWriteCount++;return _addDoc(...a)};
+const deleteDoc=(...a)=>{cacheMemoria.clear();firestoreWriteCount++;return _deleteDoc(...a)};
 
 const writeBatch=(...a)=>{const b=_writeBatch(...a);
 const commit=b.commit.bind(b);
+let n=0;
+['set','update','delete'].forEach(op=>{const orig=b[op].bind(b);
+b[op]=(...args)=>{n++;
+return orig(...args)}});
 b.commit=()=>{cacheMemoria.clear();
+firestoreWriteCount+=n||1;
 return commit()};
 return b};
 
@@ -1786,7 +1828,7 @@ statBump(nome,'docs',rows.length);
 $('#seedBtn').onclick=async()=>{
  if(currentProfile?.role!=='ADMIN')return;
 
- if(faccoes.length){alert('A base já possui registros. A importação inicial foi bloqueada para evitar duplicidade.');
+ if(estado.faccoes.length){alert('A base já possui registros. A importação inicial foi bloqueada para evitar duplicidade.');
 return}
  if(!confirm(`Importar as ${SEED.length} posições do Documento das Facções para o Firestore?`))return;
 
@@ -1910,7 +1952,7 @@ $('#fOutrosBeneficios').value=b.outros||'';
 }
 function selectedDefaultBenefits(){return [...document.querySelectorAll('[data-default-benefit]:checked')].map(x=>x.dataset.defaultBenefit)}
 function currentFactionFromForm(){
- const old=faccoes.find(x=>x.group===$('#fGroup').value)||{};
+ const old=estado.faccoes.find(x=>x.group===$('#fGroup').value)||{};
 
  return {...old,
 group:$('#fGroup').value,
@@ -2067,7 +2109,7 @@ oldArm=oldO.blindados||{};
 
 }
 function autoDeliveryRequests(f=currentFactionFromForm()){
- const old=faccoes.find(x=>x.group===f.group)||{},
+ const old=estado.faccoes.find(x=>x.group===f.group)||{},
  ob=old.beneficios||{},
  b=f.beneficios||{},
  req=[];
@@ -2219,7 +2261,7 @@ document.execCommand('copy')}}
 function resolveGroupIdentity(f={}){
  const seed=SEED.find(x=>x.group===f.group)||{};
 
- const org=organizacoes.find(o=>String(o.nome||'').trim().toLowerCase()===String(f.faccao||'').trim().toLowerCase())||{};
+ const org=estado.organizacoes.find(o=>String(o.nome||'').trim().toLowerCase()===String(f.faccao||'').trim().toLowerCase())||{};
 
  const sameSeedOccupant=!!f.faccao && String(seed.faccao||'').trim().toLowerCase()===String(f.faccao||'').trim().toLowerCase();
 
@@ -2235,7 +2277,7 @@ function resolveGroupIdentity(f={}){
 
 }
 function openFac(id){
- const raw=faccoes.find(x=>x.id===id);
+ const raw=estado.faccoes.find(x=>x.id===id);
 if(!raw)return;
 const f=resolveGroupIdentity(raw);
 
@@ -2327,7 +2369,7 @@ $('#copyDeliveryBtn').onclick=copyDeliveryExtract;
 $('#facForm').onsubmit=async e=>{
  e.preventDefault();
 const group=$('#fGroup').value,
-old=faccoes.find(x=>x.group===group);
+old=estado.faccoes.find(x=>x.group===group);
 getTechProfileFromForm();
 const data={...old,
 segmento:$('#fSegment')?.value||old?.segmento||'OUTROS',
@@ -2356,8 +2398,8 @@ updatedBy:currentUser.email};
 return}
  try{const generated=autoDeliveryRequests(data);
 await setDoc(doc(db,'highos','data','faccoes',group),data);
-const localIndex=faccoes.findIndex(x=>x.group===group);
-if(localIndex>=0)faccoes[localIndex]={...faccoes[localIndex],
+const localIndex=estado.faccoes.findIndex(x=>x.group===group);
+if(localIndex>=0)estado.faccoes[localIndex]={...estado.faccoes[localIndex],
 ...clonePlain(data)};
 await addDoc(histCol,{sessionId:currentSessionId||'',
 tipo:(old?.qg!==data.qg||old?.cds!==data.cds||JSON.stringify(old?.beneficios||{})!==JSON.stringify(data.beneficios||{}))?'QG_ALTERADO':(old?.status==='INATIVA'&&data.status==='ATIVA'?'ENTREGA':'EDICAO'),
@@ -2395,7 +2437,7 @@ minute:'2-digit',
 hour12:false}).formatToParts(d).reduce((a,p)=>(a[p.type]=p.value,a),{});
 return {date:`${parts.day}/${parts.month}/${parts.year}`,
 time:`${parts.hour}:${parts.minute}`}}
-function recollectExtract(){const f=faccoes.find(x=>x.group===$('#rGroup')?.value)||{},
+function recollectExtract(){const f=estado.faccoes.find(x=>x.group===$('#rGroup')?.value)||{},
 reason=$('#rReason')?.value||'',
 lines=['RECOLHIMENTO DE FACÇÃO — HIGH ILEGAL',
 '',
@@ -2416,7 +2458,7 @@ function updateRecollectUi(){const low=$('#rReason')?.value==='BAIXO_CONTINGENTE
 $('#lowContingentBox')?.classList.toggle('hidden',!low);
 if($('#rExtract'))$('#rExtract').value=recollectExtract()}
 function openRecollectModal(){const group=$('#fGroup').value,
-f=faccoes.find(x=>x.group===group);
+f=estado.faccoes.find(x=>x.group===group);
 if(!f||f.status!=='ATIVA')return alert('Este Group não possui uma facção ativa para recolher.');
 recollectPanelImage='';
 $('#recollectForm')?.reset();
@@ -2474,7 +2516,7 @@ $('#copyRecollectExtract')?.addEventListener('click',e=>copyText(recollectExtrac
 $('#recollectModal')?.addEventListener('paste',async e=>{const item=[...(e.clipboardData?.items||[])].find(x=>x.type?.startsWith('image/'));if(item){e.preventDefault();await setRecollectPrint(item.getAsFile())}});
 
 $('#recollectForm')?.addEventListener('submit',async e=>{e.preventDefault();const group=$('#rGroup').value,
-old=faccoes.find(x=>x.group===group);if(!old||old.status!=='ATIVA')return alert('A ocupação deste Group já foi alterada. Atualize a tela e tente novamente.');const reason=$('#rReason').value;if(!reason)return alert('Selecione o motivo do recolhimento.');if(reason==='BAIXO_CONTINGENTE'&&!recollectPanelImage)return alert('Para recolhimento por baixo contingente, o print do painel é obrigatório.');if(reason==='BAIXO_CONTINGENTE'&&!$('#rContingentObserved').value)return alert('Informe o contingente observado.');const recolhimento={motivo:reason,
+old=estado.faccoes.find(x=>x.group===group);if(!old||old.status!=='ATIVA')return alert('A ocupação deste Group já foi alterada. Atualize a tela e tente novamente.');const reason=$('#rReason').value;if(!reason)return alert('Selecione o motivo do recolhimento.');if(reason==='BAIXO_CONTINGENTE'&&!recollectPanelImage)return alert('Para recolhimento por baixo contingente, o print do painel é obrigatório.');if(reason==='BAIXO_CONTINGENTE'&&!$('#rContingentObserved').value)return alert('Informe o contingente observado.');const recolhimento={motivo:reason,
 motivoLabel:recollectReasonLabel(reason),
 responsavel:$('#rResponsible').value.trim(),
 data:$('#rDate').value.trim(),
@@ -2516,7 +2558,7 @@ segmentoVinculado:old.segmento||'',
 qgAtual:'',
 ultimoRecolhimento:recolhimento,
 updatedAt:serverTimestamp(),
-updatedBy:currentUser.email},{merge:true})}const activeDeliveries=entregas.filter(x=>x.group===group&&x.status==='ATIVA');for(const d of activeDeliveries)await setDoc(doc(db,'highos','data','entregas',d.id),{status:'RECOLHIDA',
+updatedBy:currentUser.email},{merge:true})}const activeDeliveries=estado.entregas.filter(x=>x.group===group&&x.status==='ATIVA');for(const d of activeDeliveries)await setDoc(doc(db,'highos','data','entregas',d.id),{status:'RECOLHIDA',
 recolhimento,
 recolhidaEm:serverTimestamp(),
 recolhidaPor:currentUser.email},{merge:true});await addDoc(histCol,{sessionId:currentSessionId||'',
@@ -2661,6 +2703,8 @@ nome])=>({
 }));
 
 function initRequestUi(){
+ if(!document.getElementById('reqList')&&!document.getElementById('reqTypeFilter'))return;   // V12.3.1 - tela de Solicitações removida
+
   const opts=REQUEST_TYPES.map(([v,
 n])=>`<option value="${v}">${n}</option>`).join('');
 
@@ -2697,13 +2741,13 @@ n])=>`<option value="${v}">${n}</option>`).join('');
 }
 function requestTypeName(v){return REQUEST_TYPES.find(x=>x[0]===v)?.[1]||v||'Solicitação Geral'}
 function updateRequestGroupOptions(selected=''){
-  $('#reqGroup').innerHTML='<option value="">SEM GROUP / GERAL</option>'+faccoes.map(f=>`<option value="${esc(f.group)}">${esc(f.group)}${f.faccao?' — '+esc(f.faccao):''}</option>`).join('');
+  $('#reqGroup').innerHTML='<option value="">SEM GROUP / GERAL</option>'+estado.faccoes.map(f=>`<option value="${esc(f.group)}">${esc(f.group)}${f.faccao?' — '+esc(f.faccao):''}</option>`).join('');
 
   $('#reqGroup').value=selected||'';
  syncRequestFaction();
 
 }
-function syncRequestFaction(){const f=faccoes.find(x=>x.group===$('#reqGroup').value);
+function syncRequestFaction(){const f=estado.faccoes.find(x=>x.group===$('#reqGroup').value);
 $('#reqFaccao').value=f?.faccao||''}
 function defaultSubject(type){return ({
  GARAGEM:'Solicitaçao de Garagem Publica',
@@ -2789,7 +2833,7 @@ function buildRequestText(){
 
  const G=group||'{Nome do Group}';
 
- const fac=faccoes.find(x=>x.group===group);
+ const fac=estado.faccoes.find(x=>x.group===group);
  const b=fac?.beneficios||{};
 
  let L=[];
@@ -3206,18 +3250,20 @@ $('#reqModal').classList.remove('hidden');
 
 }
 async function loadRequests(){
+ if(!document.getElementById('reqList')&&!document.getElementById('reqTypeFilter'))return;   // V12.3.1 - tela de Solicitações removida
+
  try{
    const qs=await getDocsCached(reqCol,'solicitacoes'),
 all=qs.docs.map(d=>({id:d.id,
 ...d.data()}));
 
-   solicitacoes=all.filter(x=>x.isModelo===true);
+   estado.solicitacoes=all.filter(x=>x.isModelo===true);
 
-   requestRecords=all.filter(x=>x.isModelo!==true);
+   estado.requestRecords=all.filter(x=>x.isModelo!==true);
 
-   solicitacoes.sort((a,b)=>(a.nome||a.assunto||'').localeCompare(b.nome||b.assunto||'','pt-BR'));
+   estado.solicitacoes.sort((a,b)=>(a.nome||a.assunto||'').localeCompare(b.nome||b.assunto||'','pt-BR'));
 
-   requestRecords.sort((a,b)=>String(b.createdAtText||'').localeCompare(String(a.createdAtText||'')));
+   estado.requestRecords.sort((a,b)=>String(b.createdAtText||'').localeCompare(String(a.createdAtText||'')));
 
    renderRequests();
 
@@ -3226,6 +3272,9 @@ all=qs.docs.map(d=>({id:d.id,
 function allRequestModels(){return [...BUILTIN_REQUEST_MODELS,
 ...solicitacoes]}
 function renderRequests(){
+ if(!document.getElementById('reqList')&&!document.getElementById('reqTypeFilter'))return;   // V12.3.1 - tela de Solicitações removida
+
+ if(!document.getElementById('reqList'))return;   // tela removida na V12
  const q=($('#reqSearch').value||'').toLowerCase(),
 tp=$('#reqTypeFilter').value;
 
@@ -3239,7 +3288,7 @@ r.group,
 r.origem,
 r.detalhes].join(' ').toLowerCase().includes(q)));
 
- const custom=solicitacoes.length;
+ const custom=estado.solicitacoes.length;
 
  $('#reqStats').innerHTML=`<span><b>${models.length}</b> MODELOS</span><span><b>${BUILTIN_REQUEST_MODELS.length}</b> PADRÃO HIGH</span><span><b>${custom}</b> PERSONALIZADOS</span><span><b>${list.length}</b> EXIBIDOS</span>`;
 
@@ -3295,7 +3344,7 @@ if(tipo!=='ROTA_FARM')return;
  const pts=requestRoutePoints();
 if(!pts.length)return alert('Não encontrei CDS válidas em “Blips da rota nova”.');
 
- const f=faccoes.find(x=>x.group===group);
+ const f=estado.faccoes.find(x=>x.group===group);
 if(!f)return alert('Group não encontrado na base atual.');
 
  const oldT=mergedTechProfile(f),
@@ -3333,7 +3382,7 @@ data:serverTimestamp()});
   await loadFaccoes();
 
   try{await copyRequestText()}catch{}
-  if(typeof currentGroupProfile!=='undefined'&&currentGroupProfile?.group===group){const fresh=faccoes.find(x=>x.group===group);
+  if(typeof currentGroupProfile!=='undefined'&&currentGroupProfile?.group===group){const fresh=estado.faccoes.find(x=>x.group===group);
 if(fresh){renderTechProfile(fresh);
 $('#fRotaExclusiva').checked=true;
 renderRouteOverview();
@@ -3469,7 +3518,7 @@ async function copyRequestText(){
 group=$('#reqGroup')?.value||'',
 tipo=$('#reqTipo')?.value||'GERAL',
 d=$('#reqDetalhes')?.value||'',
-f=faccoes.find(x=>x.group===group);
+f=estado.faccoes.find(x=>x.group===group);
 
  try{
   if(group&&f){const mut=manualRequestMutation(tipo,d,f);
@@ -3478,9 +3527,9 @@ if(yes){await setDoc(doc(db,'highos','data','faccoes',group),{perfilTecnico:mut.
 beneficios:mut.beneficios,
 updatedAt:serverTimestamp(),
 updatedBy:currentUser?.email||''},{merge:true});
-const ix=faccoes.findIndex(x=>x.group===group);
-if(ix>=0){faccoes[ix].perfilTecnico=clonePlain(mut.perfilTecnico);
-faccoes[ix].beneficios=clonePlain(mut.beneficios)}await addDoc(histCol,{sessionId:currentSessionId||'',
+const ix=estado.faccoes.findIndex(x=>x.group===group);
+if(ix>=0){estado.faccoes[ix].perfilTecnico=clonePlain(mut.perfilTecnico);
+estado.faccoes[ix].beneficios=clonePlain(mut.beneficios)}await addDoc(histCol,{sessionId:currentSessionId||'',
 tipo:'SOLICITACAO_APLICADA_AO_GROUP',
 group,
 descricao:`${mut.descricao||requestTypeName(tipo)} cadastrada no Group a partir de solicitação`,
@@ -3551,7 +3600,7 @@ function initUsersUi(){
 
  $('#toggleUserBtn').onclick=toggleUserAccess;
 
- $('#uRole')?.addEventListener('change',()=>{const original=$('#userOriginalEmail')?.value||'';const u=original?usuarios.find(x=>x.email===original):null;if(!u?.permissions)renderUserPermissionMatrix(defaultPermissionsForRole($('#uRole').value))});
+ $('#uRole')?.addEventListener('change',()=>{const original=$('#userOriginalEmail')?.value||'';const u=original?estado.usuarios.find(x=>x.email===original):null;if(!u?.permissions)renderUserPermissionMatrix(defaultPermissionsForRole($('#uRole').value))});
 
  $('#permPresetView')?.addEventListener('click',()=>applyPermissionPreset('VIEW'));
 
@@ -3568,7 +3617,7 @@ async function loadUsers(){
  try{
   const qs=await getDocsCached(usersCol,'usuarios');
 
-  usuarios=qs.docs.map(d=>({email:d.id,
+  estado.usuarios=qs.docs.map(d=>({email:d.id,
 ...d.data()})).sort((a,b)=>(a.name||a.email).localeCompare(b.name||b.email,'pt-BR'));
 
   renderUsers();
@@ -3582,25 +3631,25 @@ function renderUsers(){
  role=$('#userRoleFilter').value,
  st=$('#userStatusFilter').value;
 
- const list=usuarios.filter(u=>(!role||String(u.role||'CONSULTA').toUpperCase()===role)&&(!st||(st==='ATIVO'?u.active===true:u.active!==true))&&(!q||[u.name,
+ const list=estado.usuarios.filter(u=>(!role||String(u.role||'CONSULTA').toUpperCase()===role)&&(!st||(st==='ATIVO'?u.active===true:u.active!==true))&&(!q||[u.name,
 u.cargo,
 u.email,
 u.role,
 u.notes].join(' ').toLowerCase().includes(q)));
 
- const ativos=usuarios.filter(u=>u.active===true).length,
- admins=usuarios.filter(u=>String(u.role||'').toUpperCase()==='ADMIN'&&u.active===true).length;
+ const ativos=estado.usuarios.filter(u=>u.active===true).length,
+ admins=estado.usuarios.filter(u=>String(u.role||'').toUpperCase()==='ADMIN'&&u.active===true).length;
 
- $('#userStats').innerHTML=`<span><b>${usuarios.length}</b> CADASTRADOS</span><span><b>${ativos}</b> ATIVOS</span><span><b>${usuarios.length-ativos}</b> INATIVOS</span><span><b>${admins}</b> ADMINS</span><span><b>${list.length}</b> EXIBIDOS</span>`;
+ $('#userStats').innerHTML=`<span><b>${estado.usuarios.length}</b> CADASTRADOS</span><span><b>${ativos}</b> ATIVOS</span><span><b>${estado.usuarios.length-ativos}</b> INATIVOS</span><span><b>${admins}</b> ADMINS</span><span><b>${list.length}</b> EXIBIDOS</span>`;
 
- if(!usuarios.length){$('#userList').innerHTML='<div class="placeholder"><b>♟</b><h3>NENHUM USUÁRIO</h3><p>Cadastre a primeira conta autorizada.</p></div>';
+ if(!estado.usuarios.length){$('#userList').innerHTML='<div class="placeholder"><b>♟</b><h3>NENHUM USUÁRIO</h3><p>Cadastre a primeira conta autorizada.</p></div>';
 return}
  $('#userList').innerHTML=list.map(u=>`<article class="user-row" data-email="${esc(u.email)}"><div class="user-avatar">${esc((u.name||u.email||'?').slice(0,1).toUpperCase())}</div><div class="user-main"><strong>${esc(u.name||'Sem nome')}</strong><span>${esc(u.email)}</span><small class="user-cargo-line">${esc(u.cargo||String(u.role||'CONSULTA').toUpperCase())}</small>${u.notes?`<small>${esc(u.notes)}</small>`:''}</div><div class="user-tags"><span class="role-chip r-${slug(u.role)}">${esc(String(u.role||'CONSULTA').toUpperCase())}</span><span class="status-chip ${u.active===true?'ativa':'inativa'}">${u.active===true?'ATIVO':'INATIVO'}</span><small class="perm-summary">${(()=>{const p={...defaultPermissionsForRole(u.role),...(u.permissions||{})};const v=SYSTEM_MODULES.filter(m=>['VIEW','EDIT'].includes(normalizePermission(p[m.id]))).length,e=SYSTEM_MODULES.filter(m=>normalizePermission(p[m.id])==='EDIT').length;return `${v}/${SYSTEM_MODULES.length} módulos • ${e} editáveis`})()}</small></div><div class="user-row-actions"><button type="button" class="mini-btn user-activity-btn" data-activity="${esc(u.email)}">ATIVIDADE</button><button type="button" class="mini-btn user-edit-btn">EDITAR</button></div></article>`).join('');
  document.querySelectorAll('.user-row').forEach(r=>{r.querySelector('.user-edit-btn')?.addEventListener('click',e=>{e.stopPropagation();openUserModal(r.dataset.email)});r.querySelector('.user-activity-btn')?.addEventListener('click',e=>{e.stopPropagation();openUserActivity(e.currentTarget.dataset.activity)});r.addEventListener('click',()=>openUserModal(r.dataset.email));});
 }
 function openUserModal(email=''){
  if(!assertAdmin())return;
- const u=email?usuarios.find(x=>x.email===email):null;
+ const u=email?estado.usuarios.find(x=>x.email===email):null;
  $('#userOriginalEmail').value=u?.email||'';
  $('#uEmail').value=u?.email||''; $('#uEmail').disabled=!!u;
  $('#uName').value=u?.name||''; $('#uCargo').value=u?.cargo||''; $('#uRole').value=String(u?.role||'CONSULTA').toUpperCase(); $('#uActive').value=u?.active===false?'false':'true'; $('#uNotes').value=u?.notes||'';
@@ -3615,7 +3664,7 @@ async function saveUser(e){
  e.preventDefault(); if(!assertAdmin())return;
  const original=$('#userOriginalEmail').value.trim().toLowerCase(), email=$('#uEmail').value.trim().toLowerCase();
  if(!email){alert('Informe o e-mail Google.');return}
- const old=original?usuarios.find(x=>x.email===original):null;
+ const old=original?estado.usuarios.find(x=>x.email===original):null;
  const payload={email,name:$('#uName').value.trim(),cargo:$('#uCargo').value.trim(),role:$('#uRole').value,active:$('#uActive').value==='true',notes:$('#uNotes').value.trim(),permissions:readUserPermissions(),updatedAt:serverTimestamp(),updatedBy:currentUser.email};
  if(email===String(currentUser.email||'').toLowerCase() && payload.active!==true){alert('Você não pode desativar sua própria conta enquanto está logado.');return}
  try{
@@ -3626,7 +3675,7 @@ async function saveUser(e){
 }
 async function toggleUserAccess(){
  if(!assertAdmin())return;
- const email=$('#userOriginalEmail').value.trim().toLowerCase(), old=usuarios.find(x=>x.email===email); if(!old)return;
+ const email=$('#userOriginalEmail').value.trim().toLowerCase(), old=estado.usuarios.find(x=>x.email===email); if(!old)return;
  if(email===String(currentUser.email||'').toLowerCase() && old.active===true){alert('Você não pode desativar sua própria conta enquanto está logado.');return}
  const next=old.active!==true;
  if(!confirm(`${next?'Reativar':'Desativar'} o acesso de ${old.name||email}?`))return;
@@ -3639,7 +3688,6 @@ async function toggleUserAccess(){
 initUsersUi();
 
 // ===== HIGH OS V8.15 · SESSÕES E AUDITORIA DE USUÁRIOS =====
-let userSessions=[];
 function auditModule(tipo=''){
  const t=String(tipo||'').toUpperCase();
  if(t.includes('SESSION')||t.includes('LOGIN')||t.includes('USUARIO'))return 'ACESSO';
@@ -3657,8 +3705,8 @@ function auditModule(tipo=''){
 function auditTarget(h){return [h.group,h.faccao,h.usuarioAlvo,h.segmento,h.alvo].filter(Boolean).join(' • ')||'—'}
 function sessionStartMs(x){const d=x?.startAt;try{if(d?.toDate)return d.toDate().getTime();if(d?.seconds)return d.seconds*1000;if(x?.startAtText)return new Date(x.startAtText).getTime()}catch(e){}return 0}
 function sessionEndMs(x){const d=x?.endAt;try{if(d?.toDate)return d.toDate().getTime();if(d?.seconds)return d.seconds*1000;if(x?.endAtText)return new Date(x.endAtText).getTime()}catch(e){}return 0}
-function fmtDateMs(ms){return ms?new Date(ms).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'}):'—'}
-function sessionActions(sess){return historico.filter(h=>h.sessionId===sess.sessionId&&!['SESSION_START','SESSION_END'].includes(String(h.tipo||'').toUpperCase())).sort((a,b)=>(historyDateValue(a)?.getTime()||0)-(historyDateValue(b)?.getTime()||0))}
+
+function sessionActions(sess){return estado.historico.filter(h=>h.sessionId===sess.sessionId&&!['SESSION_START','SESSION_END'].includes(String(h.tipo||'').toUpperCase())).sort((a,b)=>(historyDateValue(a)?.getTime()||0)-(historyDateValue(b)?.getTime()||0))}
 function sessionEffectiveEnd(sess){const end=sessionEndMs(sess);if(end)return end;if(sess.sessionId===currentSessionId)return Date.now();const last=sessionActions(sess).map(h=>historyDateValue(h)?.getTime()||0).filter(Boolean).pop();return last||Number(sess.lastActivityText?new Date(sess.lastActivityText).getTime():0)||sessionStartMs(sess)}
 function sessionDuration(sess){return Math.min(SESSION_MAX_MS,Math.max(0,Number(sess.durationMs)||sessionEffectiveEnd(sess)-sessionStartMs(sess)))}
 function isSameLocalDay(ms,base=Date.now()){if(!ms)return false;const a=new Date(ms),b=new Date(base);return a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate()}
@@ -3706,7 +3754,7 @@ function saudeCartao(rotulo,valor,estado='ok',detalhe=''){
    ---------------------------------------------------------------------
    Ate aqui, achar onde uma faccao aparecia exigia abrir modulo por
    modulo. Esta busca varre o que ja esta carregado em memoria -
-   Groups, organizacoes, solicitacoes, entregas, historico, usuarios,
+   Groups, estado.organizacoes, estado.solicitacoes, estado.entregas, estado.historico, estado.usuarios,
    missoes do planejador - e leva direto ao lugar certo.
 
    Nao faz nenhuma leitura no Firebase: e busca em memoria. O que nao
@@ -3740,27 +3788,27 @@ function buscaResultados(termoBruto){
   if(itens.length)grupos.push({tipo,rotulo,pagina,itens:itens.slice(0,BUSCA_MAX_POR_TIPO),total:itens.length});
  };
 
- add('group','GROUPS E FACÇÕES',(faccoes||[])
+ add('group','GROUPS E FACÇÕES',(estado.faccoes||[])
   .filter(f=>buscaCasa(termo,f.group,f.faccao,f.lider,f.qg,f.segmento,f.staff))
   .map(f=>({titulo:f.group||'(sem Group)',detalhe:[f.faccao,f.lider,f.segmento].filter(Boolean).join(' • ')||'sem facção vinculada',acao:()=>{activateAppPage('faccoes');setTimeout(()=>{try{showGroupProfilePage(f)}catch(err){console.warn('[BUSCA]',err)}},140)}})),'faccoes');
 
- add('org','ORGANIZAÇÕES',(organizacoes||[])
+ add('org','ORGANIZAÇÕES',(estado.organizacoes||[])
   .filter(o=>buscaCasa(termo,o.nome,o.group,o.tipo,o.status))
   .map(o=>({titulo:o.nome||o.group||'(sem nome)',detalhe:[o.group,o.status].filter(Boolean).join(' • '),acao:()=>activateAppPage('faccoes')})),'faccoes');
 
- add('sol','SOLICITAÇÕES',(solicitacoes||[]).concat(requestRecords||[])
+ add('sol','SOLICITAÇÕES',(estado.solicitacoes||[]).concat(estado.requestRecords||[])
   .filter(r=>buscaCasa(termo,r.titulo,r.group,r.descricao,r.tipo,r.status))
   .map(r=>({titulo:r.titulo||r.tipo||'(solicitação)',detalhe:[r.group,r.status].filter(Boolean).join(' • '),acao:()=>activateAppPage('solicitacoes')})),'solicitacoes');
 
- add('entrega','ENTREGAS',(entregas||[])
+ add('entrega','ENTREGAS',(estado.entregas||[])
   .filter(e=>buscaCasa(termo,e.group,e.faccao,e.lider,e.responsavel))
   .map(e=>({titulo:`${e.group||''} → ${e.faccao||''}`.trim(),detalhe:[e.lider,e.dataTexto||e.data].filter(Boolean).join(' • '),acao:()=>activateAppPage('faccoes')})),'faccoes');
 
- add('hist','HISTÓRICO CARREGADO',(historico||[])
+ add('hist','HISTÓRICO CARREGADO',(estado.historico||[])
   .filter(h=>buscaCasa(termo,h.group,h.faccao,h.descricao,h.tipo,h.usuario))
   .map(h=>({titulo:h.tipo||'evento',detalhe:[h.group,h.descricao].filter(Boolean).join(' • ').slice(0,110),acao:()=>activateAppPage('historico')})),'historico');
 
- if(isAdmin())add('user','USUÁRIOS',(usuarios||[])
+ if(isAdmin())add('user','USUÁRIOS',(estado.usuarios||[])
   .filter(u=>buscaCasa(termo,u.email,u.name,u.cargo,u.role))
   .map(u=>({titulo:u.name||u.email,detalhe:[u.email,u.role].filter(Boolean).join(' • '),acao:()=>activateAppPage('usuarios')})),'usuarios');
 
@@ -3789,7 +3837,7 @@ function buscaRenderizar(termo){
  const lista=document.getElementById('buscaGlobalLista');
  if(!lista)return;
  if(buscaNorm(termo).length<2){
-  lista.innerHTML=`<div class="busca-vazio">Digite ao menos 2 letras. A busca cobre Groups, facções, organizações, solicitações, entregas, histórico já carregado, usuários e missões.</div>`;
+  lista.innerHTML=`<div class="busca-vazio">Digite ao menos 2 letras. A busca cobre Groups, facções, organizações, solicitações, estado.entregas, histórico já carregado, usuários e missões.</div>`;
   return;
  }
  const grupos=buscaResultados(termo);
@@ -3850,7 +3898,7 @@ function renderSaudeSistema(){
  const box=document.getElementById('adminSaude');
  if(!box)return;
 
- const leituras=metricReadCount(), gravacoes=metricWriteCount;
+ const leituras=metricReadCount(), gravacoes=Math.max(firestoreWriteCount,metricWriteCount);
  const pctL=Math.min(100,Math.round(leituras/50000*100));
 
  const origem=metricOrigem==='PLANILHA'?'Planilha (0 leituras)'
@@ -3864,7 +3912,7 @@ function renderSaudeSistema(){
  const backupDias=backup?Math.floor((Date.now()-new Date(backup).getTime())/86400000):999;
  const estadoBackup=backupDias<=31?'ok':backupDias<=45?'alerta':'erro';
 
- const sessoesAbertas=(typeof userSessions!=="undefined"?userSessions:[]).filter(x=>String(x.status||'').toUpperCase()==='EM_ANDAMENTO').length;
+ const sessoesAbertas=(typeof estado.userSessions!=="undefined"?estado.userSessions:[]).filter(x=>String(x.status||'').toUpperCase()==='EM_ANDAMENTO').length;
 
  box.innerHTML=`
   <div class="saude-head">
@@ -3886,27 +3934,26 @@ function renderSaudeSistema(){
 
 async function loadUserAudit(){
  if(!isAdmin()||!$('#adminSessionList'))return;
- try{if(!historico.length){const hq=await getDocsCached(histCol,'historico');historico=hq.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(historyDateValue(b)?.getTime()||0)-(historyDateValue(a)?.getTime()||0));}
- const qs=await getDocsCached(sessionCol,'sessoes_usuario');userSessions=qs.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>sessionStartMs(b)-sessionStartMs(a));renderUserAudit();}catch(e){$('#adminSessionList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR AUDITORIA</h3><p>${esc(e.message)}</p></div>`}
+ try{if(!estado.historico.length){const hq=await getDocsCached(histCol,'historico');estado.historico=hq.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(historyDateValue(b)?.getTime()||0)-(historyDateValue(a)?.getTime()||0));}
+ const qs=await getDocsCached(sessionCol,'sessoes_usuario');estado.userSessions=qs.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>sessionStartMs(b)-sessionStartMs(a));renderUserAudit();}catch(e){$('#adminSessionList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR AUDITORIA</h3><p>${esc(e.message)}</p></div>`}
 }
 function renderUserAudit(){
  const box=$('#adminSessionList');if(!box)return;const q=String($('#adminAuditSearch')?.value||'').toLowerCase(),user=String($('#adminAuditUser')?.value||'').toLowerCase(),status=$('#adminAuditStatus')?.value||'',day=$('#adminAuditDate')?.value||'';
- const known=[...new Set(userSessions.map(s=>String(s.email||'').toLowerCase()).filter(Boolean))].sort();const sel=$('#adminAuditUser');if(sel){const old=sel.value;sel.innerHTML='<option value="">TODOS OS USUÁRIOS</option>'+known.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');if(known.includes(old))sel.value=old;}
- const list=userSessions.filter(s=>{const sm=sessionStartMs(s),date=sm?new Date(sm).toISOString().slice(0,10):'';const acts=sessionActions(s);return(!user||String(s.email||'').toLowerCase()===user)&&(!status||(status==='ATIVA'?s.sessionId===currentSessionId&&s.status!=='ENCERRADA':s.status==='ENCERRADA'))&&(!day||date===day)&&(!q||[s.email,s.nome,s.role,s.endReason,...acts.map(a=>[a.tipo,a.group,a.faccao,a.descricao].join(' '))].join(' ').toLowerCase().includes(q))});
- const todayTotal=userSessions.filter(s=>isSameLocalDay(sessionStartMs(s))).reduce((n,s)=>n+sessionDuration(s),0),active=userSessions.filter(s=>s.sessionId===currentSessionId&&s.status!=='ENCERRADA').length;
- $('#adminAuditStats').innerHTML=`<span><b>${userSessions.length}</b> SESSÕES</span><span><b>${active}</b> EM ANDAMENTO</span><span><b>${fmtDuration(todayTotal)}</b> TEMPO LOGADO HOJE</span><span><b>${list.length}</b> EXIBIDAS</span>`;
+ const known=[...new Set(estado.userSessions.map(s=>String(s.email||'').toLowerCase()).filter(Boolean))].sort();const sel=$('#adminAuditUser');if(sel){const old=sel.value;sel.innerHTML='<option value="">TODOS OS USUÁRIOS</option>'+known.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');if(known.includes(old))sel.value=old;}
+ const list=estado.userSessions.filter(s=>{const sm=sessionStartMs(s),date=sm?new Date(sm).toISOString().slice(0,10):'';const acts=sessionActions(s);return(!user||String(s.email||'').toLowerCase()===user)&&(!status||(status==='ATIVA'?s.sessionId===currentSessionId&&s.status!=='ENCERRADA':s.status==='ENCERRADA'))&&(!day||date===day)&&(!q||[s.email,s.nome,s.role,s.endReason,...acts.map(a=>[a.tipo,a.group,a.faccao,a.descricao].join(' '))].join(' ').toLowerCase().includes(q))});
+ const todayTotal=estado.userSessions.filter(s=>isSameLocalDay(sessionStartMs(s))).reduce((n,s)=>n+sessionDuration(s),0),active=estado.userSessions.filter(s=>s.sessionId===currentSessionId&&s.status!=='ENCERRADA').length;
+ $('#adminAuditStats').innerHTML=`<span><b>${estado.userSessions.length}</b> SESSÕES</span><span><b>${active}</b> EM ANDAMENTO</span><span><b>${fmtDuration(todayTotal)}</b> TEMPO LOGADO HOJE</span><span><b>${list.length}</b> EXIBIDAS</span>`;
  if(!list.length){box.innerHTML='<div class="placeholder"><b>◷</b><h3>NENHUMA SESSÃO ENCONTRADA</h3><p>Altere os filtros de auditoria.</p></div>';return}
  box.innerHTML=list.map(s=>{const acts=sessionActions(s),start=sessionStartMs(s),end=sessionEffectiveEnd(s),ongoing=s.sessionId===currentSessionId&&s.status!=='ENCERRADA';return `<article class="audit-session-row" data-session="${esc(s.sessionId)}"><div class="audit-session-state ${ongoing?'live':''}">●</div><div class="audit-session-main"><strong>${esc(s.nome||s.email||'Usuário')}</strong><span>${esc(s.email||'—')} • ${esc(String(s.role||'').toUpperCase())}</span><small>${fmtDateMs(start)} → ${ongoing?'EM ANDAMENTO':fmtDateMs(end)}</small></div><div class="audit-session-kpi"><span>TEMPO</span><b>${fmtDuration(sessionDuration(s))}</b></div><div class="audit-session-kpi"><span>AÇÕES</span><b>${acts.length}</b></div><button type="button" class="mini-btn audit-open">VER SESSÃO</button></article>`}).join('');
  box.querySelectorAll('.audit-session-row').forEach(r=>r.querySelector('.audit-open')?.addEventListener('click',()=>openAuditSession(r.dataset.session)));
 }
-function openAuditSession(id){const s=userSessions.find(x=>x.sessionId===id);if(!s)return;const acts=sessionActions(s),start=sessionStartMs(s),end=sessionEffectiveEnd(s),ongoing=s.sessionId===currentSessionId&&s.status!=='ENCERRADA';$('#auditSessionTitle').textContent=`SESSÃO • ${s.email||'USUÁRIO'}`;$('#auditSessionMeta').innerHTML=`<span><b>LOGIN</b>${fmtDateMs(start)}</span><span><b>${ongoing?'ÚLTIMA ATIVIDADE':'ENCERRAMENTO'}</b>${ongoing?fmtDateMs(end):fmtDateMs(sessionEndMs(s)||end)}</span><span><b>DURAÇÃO</b>${fmtDuration(sessionDuration(s))}</span><span><b>AÇÕES</b>${acts.length}</span>`;$('#auditSessionTimeline').innerHTML=`<div class="audit-event"><time>${new Date(start).toLocaleTimeString('pt-BR')}</time><div><b>LOGIN</b><span>Usuário entrou no High OS</span></div></div>`+acts.map(h=>{const d=historyDateValue(h);return `<div class="audit-event"><time>${d?d.toLocaleTimeString('pt-BR'):'—'}</time><div><b>${esc(String(h.tipo||'AÇÃO').replaceAll('_',' '))}</b><span>${esc(auditModule(h.tipo))}${auditTarget(h)!=='—'?' • '+esc(auditTarget(h)):''}</span>${h.descricao?`<small>${esc(h.descricao)}</small>`:''}${h.antes||h.depois?`<details><summary>VER ALTERAÇÃO ANTES → DEPOIS</summary><div class="audit-diff"><pre>${esc(JSON.stringify(h.antes||{},null,2))}</pre><pre>${esc(JSON.stringify(h.depois||{},null,2))}</pre></div></details>`:''}</div></div>`}).join('')+(!ongoing?`<div class="audit-event"><time>${new Date(end).toLocaleTimeString('pt-BR')}</time><div><b>FIM DA SESSÃO</b><span>${esc(s.endReason==='TIMEOUT_8H'?'Limite máximo de 8 horas atingido':'Sessão encerrada')}</span></div></div>`:'');$('#auditSessionModal').classList.remove('hidden');}
+function openAuditSession(id){const s=estado.userSessions.find(x=>x.sessionId===id);if(!s)return;const acts=sessionActions(s),start=sessionStartMs(s),end=sessionEffectiveEnd(s),ongoing=s.sessionId===currentSessionId&&s.status!=='ENCERRADA';$('#auditSessionTitle').textContent=`SESSÃO • ${s.email||'USUÁRIO'}`;$('#auditSessionMeta').innerHTML=`<span><b>LOGIN</b>${fmtDateMs(start)}</span><span><b>${ongoing?'ÚLTIMA ATIVIDADE':'ENCERRAMENTO'}</b>${ongoing?fmtDateMs(end):fmtDateMs(sessionEndMs(s)||end)}</span><span><b>DURAÇÃO</b>${fmtDuration(sessionDuration(s))}</span><span><b>AÇÕES</b>${acts.length}</span>`;$('#auditSessionTimeline').innerHTML=`<div class="audit-event"><time>${new Date(start).toLocaleTimeString('pt-BR')}</time><div><b>LOGIN</b><span>Usuário entrou no High OS</span></div></div>`+acts.map(h=>{const d=historyDateValue(h);return `<div class="audit-event"><time>${d?d.toLocaleTimeString('pt-BR'):'—'}</time><div><b>${esc(String(h.tipo||'AÇÃO').replaceAll('_',' '))}</b><span>${esc(auditModule(h.tipo))}${auditTarget(h)!=='—'?' • '+esc(auditTarget(h)):''}</span>${h.descricao?`<small>${esc(h.descricao)}</small>`:''}${h.antes||h.depois?`<details><summary>VER ALTERAÇÃO ANTES → DEPOIS</summary><div class="audit-diff"><pre>${esc(JSON.stringify(h.antes||{},null,2))}</pre><pre>${esc(JSON.stringify(h.depois||{},null,2))}</pre></div></details>`:''}</div></div>`}).join('')+(!ongoing?`<div class="audit-event"><time>${new Date(end).toLocaleTimeString('pt-BR')}</time><div><b>FIM DA SESSÃO</b><span>${esc(s.endReason==='TIMEOUT_8H'?'Limite máximo de 8 horas atingido':'Sessão encerrada')}</span></div></div>`:'');$('#auditSessionModal').classList.remove('hidden');}
 $('#auditSessionClose')?.addEventListener('click',()=>$('#auditSessionModal')?.classList.add('hidden'));
 ['adminAuditSearch','adminAuditUser','adminAuditStatus','adminAuditDate'].forEach(id=>{$('#'+id)?.addEventListener(id==='adminAuditSearch'?'input':'change',renderUserAudit)});
 $('#adminAuditRefresh')?.addEventListener('click',loadUserAudit);
 function openUserActivity(email){activateAppPage('administracao');loadUserAudit().then(()=>{const s=$('#adminAuditUser');if(s){s.value=String(email||'').toLowerCase();renderUserAudit();}})}
 
 // ===== HIGH OS V5 · GROUP COMO PATRIMÔNIO + ENTREGA COMO VÍNCULO =====
-let entregas=[];
 const INSTALLATIONS=[
  ['vipOrg','VIP Org'],['chatFaccao','Chat da Facção'],['radio','Rádio Exclusiva'],['salario','Salário'],
  ['garagemVip','Garagem VIP'],['garagemPublica','Garagem Pública'],['heliponto','Heliponto'],['rotaExclusiva','Rota Exclusiva'],
@@ -3950,13 +3997,13 @@ function renderFacSegmentChips(all=[]){
 
 // V5 substitui a leitura visual de "Facções" por "Groups / QGs" sem quebrar a coleção legada.
 renderFaccoes=function(){
- renderFacSegmentChips(faccoes);
+ renderFacSegmentChips(estado.faccoes);
 renderFacActivityButtons();
 
  const q=($('#facSearch')?.value||'').toLowerCase(),
 seg=$('#facSegment')?.value||'',
 st=$('#facStatus')?.value||'',
-operacionais=faccoes.filter(f=>!f.removido);
+operacionais=estado.faccoes.filter(f=>!f.removido);
 
  const filtered=operacionais.filter(f=>(!seg||segmentKey(f.segmento)===segmentKey(seg))&&(!st||f.status===st)&&(!q||[f.group,
 f.faccao,
@@ -4020,10 +4067,10 @@ function orgKey(name){return String(name||'').trim().toLowerCase().normalize('NF
 function derivedOrganizations(){
  const map=new Map();
 
- organizacoes.forEach(o=>map.set(String(o.nome||o.id||'').toLowerCase(),{...o,
+ estado.organizacoes.forEach(o=>map.set(String(o.nome||o.id||'').toLowerCase(),{...o,
 source:'cadastro'}));
 
- faccoes.filter(f=>f.faccao).forEach(f=>{const k=String(f.faccao).toLowerCase(),
+ estado.faccoes.filter(f=>f.faccao).forEach(f=>{const k=String(f.faccao).toLowerCase(),
 old=map.get(k)||{};map.set(k,{...old,
 id:old.id||orgKey(f.faccao),
 nome:old.nome||f.faccao,
@@ -4045,7 +4092,7 @@ status:o.groupAtual?'ATIVA':'INATIVA'})).sort((a,b)=>(a.nome||'').localeCompare(
 }
 async function loadOrganizations(){
  try{const qs=await getDocsCached(orgCol,'organizacoes');
-organizacoes=qs.docs.map(d=>({id:d.id,
+estado.organizacoes=qs.docs.map(d=>({id:d.id,
 ...d.data()}));
 renderOrganizations();
 syncOrgOptions()}catch(e){if($('#orgList'))$('#orgList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR</h3><p>${esc(e.message)}</p></div>`}
@@ -4150,7 +4197,7 @@ $('#oDesde').value=o.desde||'';
 $('#oObs').value=o.observacoes||'';
 $('#orgModalTitle').textContent=o.nome||'NOVA FACÇÃO';
 
- const current=faccoes.find(f=>String(f.faccao||'').toLowerCase()===String(o.nome||'').toLowerCase());
+ const current=estado.faccoes.find(f=>String(f.faccao||'').toLowerCase()===String(o.nome||'').toLowerCase());
 
  $('#orgProfileSummary').innerHTML=`<div><span>STATUS</span><b>${esc(current?'COM GROUP':(o.status||'SEM GROUP'))}</b></div><div><span>GROUP ATUAL</span><b>${esc(current?.group||'—')}</b></div><div><span>SEGMENTO</span><b>${esc(current?.segmento||orgSegmentValue(o)||'—')}</b></div><div><span>QG</span><b>${esc(current?.qg||'—')}</b></div>`;
 
@@ -4172,7 +4219,7 @@ $('#orgModalClose')?.addEventListener('click',closeOrganizationProfilePage);
 'orgStatus'].forEach(id=>$('#'+id)?.addEventListener(id==='orgSearch'?'input':'change',renderOrganizations));
 
 $('#orgForm')?.addEventListener('submit',async e=>{e.preventDefault();const nome=$('#oNome').value.trim();if(!nome)return;const id=$('#orgId').value||orgKey(nome),
-current=faccoes.find(f=>String(f.faccao||'').toLowerCase()===nome.toLowerCase());const data={nome,
+current=estado.faccoes.find(f=>String(f.faccao||'').toLowerCase()===nome.toLowerCase());const data={nome,
 status:current?'ATIVA':'INATIVA',
 lider:$('#oLider').value.trim(),
 contato:$('#oContato').value.trim(),
@@ -4213,7 +4260,7 @@ updatedBy:currentUser.email},{merge:true});
 }
 async function loadDeliveries(){
  try{const qs=await getDocsCached(deliveryCol,'entregas');
-entregas=qs.docs.map(d=>({id:d.id,
+estado.entregas=qs.docs.map(d=>({id:d.id,
 ...d.data()})).sort((a,b)=>String(b.createdAtText||b.dataEntrega||'').localeCompare(String(a.createdAtText||a.dataEntrega||'')));
 renderDeliveries()}catch(e){if($('#deliveryList'))$('#deliveryList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR</h3><p>${esc(e.message)}</p></div>`}
 }
@@ -4222,21 +4269,21 @@ function renderDeliveries(){
 const q=($('#deliverySearch').value||'').toLowerCase(),
 st=$('#deliveryStatus').value;
 
- const list=entregas.filter(d=>(!st||d.status===st)&&(!q||[d.group,
+ const list=estado.entregas.filter(d=>(!st||d.status===st)&&(!q||[d.group,
 d.faccao,
 d.lider,
 d.staff,
 d.dataEntrega].join(' ').toLowerCase().includes(q)));
 
- const at=entregas.filter(d=>d.status==='ATIVA').length;
-$('#deliveryStats').innerHTML=`<span><b>${entregas.length}</b> REGISTROS</span><span><b>${at}</b> ATIVOS</span><span><b>${list.length}</b> EXIBIDOS</span>`;
+ const at=estado.entregas.filter(d=>d.status==='ATIVA').length;
+$('#deliveryStats').innerHTML=`<span><b>${estado.entregas.length}</b> REGISTROS</span><span><b>${at}</b> ATIVOS</span><span><b>${list.length}</b> EXIBIDOS</span>`;
 
  $('#deliveryList').innerHTML=list.length?list.map(d=>`<article class="delivery-row"><div><div class="group-kicker">GROUP</div><strong>${esc(d.group)}</strong></div><div><span>${esc(d.faccao||'—')}</span><small>${esc(d.qg||'')} ${d.plano?'• '+esc(d.plano):''}</small></div><div><strong>${esc(d.dataEntrega||'—')}</strong><small>${esc(d.staff||'')}</small></div><span class="status-chip ${d.status==='ATIVA'?'ativa':'inativa'}">${esc(d.status||'ATIVA')}</span></article>`).join(''):'<div class="placeholder"><b>◇</b><h3>NENHUMA ENTREGA REGISTRADA</h3><p>Use “Nova Entrega” ou entregue diretamente pelo card de um Group.</p></div>';
 
 }
 function openNewDelivery(group=''){
  const sel=$('#dGroup');
-sel.innerHTML='<option value="">SELECIONE O GROUP</option>'+faccoes.filter(f=>!f.removido).map(f=>`<option value="${esc(f.group)}">${esc(f.group)} — ${esc(f.qg||'SEM LOCAL')} ${f.status==='ATIVA'?'['+esc(f.faccao||'OCUPADO')+']':'[VAGO]'}</option>`).join('');
+sel.innerHTML='<option value="">SELECIONE O GROUP</option>'+estado.faccoes.filter(f=>!f.removido).map(f=>`<option value="${esc(f.group)}">${esc(f.group)} — ${esc(f.qg||'SEM LOCAL')} ${f.status==='ATIVA'?'['+esc(f.faccao||'OCUPADO')+']':'[VAGO]'}</option>`).join('');
 
  $('#newDeliveryForm').reset();
 if(group){sel.value=group;
@@ -4247,7 +4294,7 @@ $('#newDeliveryModal').classList.remove('hidden');
 
 }
 function fillDeliveryFromGroup(group){
- const f=faccoes.find(x=>x.group===group);
+ const f=estado.faccoes.find(x=>x.group===group);
 if(!f)return;
 const b=f.beneficios||{};
 
@@ -4272,7 +4319,7 @@ updateNewDeliveryPreview();
 }
 function selectedDeliveryBenefits(){return [...document.querySelectorAll('[data-delivery-benefit]:checked')].map(x=>x.dataset.deliveryBenefit)}
 function deliveryExtractV5(){
- const f=faccoes.find(x=>x.group===$('#dGroup').value),
+ const f=estado.faccoes.find(x=>x.group===$('#dGroup').value),
  active=selectedDeliveryBenefits();
 if(!f)return '';
 
@@ -4298,7 +4345,7 @@ return lines.join('\n');
 
 }
 function currentDeliveryRequests(){
- const f=faccoes.find(x=>x.group===$('#dGroup').value);
+ const f=estado.faccoes.find(x=>x.group===$('#dGroup').value);
 if(!f)return[];
 const b=f.beneficios||{},
 a=selectedDeliveryBenefits(),
@@ -4417,7 +4464,7 @@ btn.textContent='COPIADO ✓';
 setTimeout(()=>btn.textContent=o,1300)}catch(e){alert('Não foi possível copiar automaticamente.')}}
 async function saveNewDelivery(e){
  e.preventDefault();
-const f=faccoes.find(x=>x.group===$('#dGroup').value);
+const f=estado.faccoes.find(x=>x.group===$('#dGroup').value);
 if(!f)return alert('Selecione um Group.');
 const faccao=$('#dFaccao').value.trim();
 if(!faccao)return alert('Informe a facção que está assumindo.');
@@ -4443,14 +4490,27 @@ createdAtText:new Date().toISOString(),
 createdBy:currentUser.email};
 
  try{
-  // encerra logicamente a ocupação anterior no Group e mantém a estrutura física do local.
-  const previous=entregas.filter(x=>x.group===f.group&&x.status==='ATIVA');
-for(const d of previous)await setDoc(doc(db,'highos','data','entregas',d.id),{...d,
+  /* V11.4 - ENTREGA ATOMICA
+     Antes: a ocupacao anterior era recolhida em uma chamada, a nova entrega
+     gravada em outra e o Group atualizado em uma terceira. Se a segunda ou a
+     terceira falhasse, o Group ficava SEM ocupante ativo e com a anterior ja
+     recolhida - um estado que nao existe na operacao real e que so daria para
+     consertar na mao, documento por documento.
+
+     Agora as tres escritas que definem quem ocupa o Group vao num unico lote:
+     ou todas valem, ou nenhuma vale. A estrutura fisica do local continua
+     preservada, como sempre foi. */
+  const lote=writeBatch(db);
+
+  const previous=estado.entregas.filter(x=>x.group===f.group&&x.status==='ATIVA');
+for(const d of previous)lote.set(doc(db,'highos','data','entregas',d.id),{...d,
 status:'RECOLHIDA',
 recolhidaEm:serverTimestamp(),
 recolhidaPor:currentUser.email},{merge:true});
 
-  await addDoc(deliveryCol,payload);
+  const novaEntregaRef=doc(deliveryCol);
+lote.set(novaEntregaRef,payload);
+
 const deliveredGroup={...f,
 status:'ATIVA',
 faccao,
@@ -4465,9 +4525,15 @@ plano:payload.plano,
 beneficiosAtivos:active},
 updatedAt:serverTimestamp(),
 updatedBy:currentUser.email};
-await setDoc(doc(db,'highos','data','faccoes',f.group),deliveredGroup);
-await syncGroupsToOfficialSheet([deliveredGroup],{quiet:true});
-await upsertOrganizationFromDelivery(payload,f);
+lote.set(doc(db,'highos','data','faccoes',f.group),deliveredGroup);
+
+  await lote.commit();          // ponto de nao retorno: daqui em diante a troca valeu
+
+  /* O que vem depois e consequencia, nao definicao: se falhar, a entrega
+     continua valida e o aviso diz exatamente o que ficou pendente. */
+  const pendencias=[];
+try{await syncGroupsToOfficialSheet([deliveredGroup],{quiet:true})}catch(e){pendencias.push('planilha oficial')}
+try{await upsertOrganizationFromDelivery(payload,f)}catch(e){pendencias.push('cadastro da organização')}
 
   await addDoc(histCol,{sessionId:currentSessionId||'',
 tipo:'ENTREGA_GROUP',
@@ -4480,7 +4546,9 @@ data:serverTimestamp()});
 $('#newDeliveryModal').classList.add('hidden');
 await loadFaccoes();
 await loadDeliveries();
-alert('Entrega registrada. A estrutura permanente do Group foi preservada.');
+alert(pendencias.length
+  ? `Entrega registrada e ocupação trocada. Não foi possível atualizar: ${pendencias.join(' e ')}. Refaça essa parte quando puder.`
+  : 'Entrega registrada. A estrutura permanente do Group foi preservada.');
 
  }catch(err){alert('Erro ao concluir entrega: '+err.message)}
 }
@@ -4492,7 +4560,6 @@ renderFaccoes();
 await loadDeliveries()};
 
 // ===== HIGH OS V5.1 · PERFIL TÉCNICO + MEMÓRIA OPERACIONAL DO GROUP =====
-let historico=[];
 
 function historyDateValue(h){
  const d=h?.data;
@@ -4597,7 +4664,7 @@ arena:'Arena'};
 /* =====================================================================
    HIGH OS V9.9 - HISTORICO PAGINADO
    ---------------------------------------------------------------------
-   Antes: getDocs(historico) trazia a colecao inteira em toda visita ao
+   Antes: getDocs(estado.historico) trazia a colecao inteira em toda visita ao
    modulo. Como o sistema grava um evento em 45 pontos diferentes, essa
    colecao so cresce - em poucos meses ela sozinha consumiria a cota
    diaria de leitura.
@@ -4618,7 +4685,7 @@ async function loadHistory({append=false}={}){
  if(!$('#historyList')&&!$('#groupHistoryPreview'))return;
 
  try{
-  if(!append){historico=[];
+  if(!append){estado.historico=[];
 historyCursor=null;
 historyEsgotado=false;
 historyModoLegado=false}
@@ -4639,7 +4706,7 @@ limit(HISTORY_PAGE)];
     const novos=qs.docs.map(d=>({id:d.id,
 ...d.data()}));
 
-    historico=append?historico.concat(novos):novos;
+    estado.historico=append?estado.historico.concat(novos):novos;
 
     statBump('historico','leituras');
 statBump('historico','docs',novos.length);
@@ -4657,7 +4724,7 @@ historyEsgotado=true;
    }
   }
   const qs=await getDocsCached(histCol,'historico');
-historico=qs.docs.map(d=>({id:d.id,
+estado.historico=qs.docs.map(d=>({id:d.id,
 ...d.data()})).sort((a,b)=>(historyDateValue(b)?.getTime()||0)-(historyDateValue(a)?.getTime()||0));
 renderHistory();
 
@@ -4674,11 +4741,29 @@ modal.classList.remove('hidden');
 try{const snap=await getDoc(doc(db,'highos','data','evidencias_recolhimento',evidenceId));
 if(!snap.exists())throw new Error('Evidência não encontrada.');
 const e=snap.data(),
-h=historico.find(x=>x.id===historyId)||{};
+h=estado.historico.find(x=>x.id===historyId)||{};
 img.src=e.imagemDataUrl||'';
 meta.innerHTML=`<span><b>${esc(e.group||h.group||'—')}</b> • ${esc(e.faccao||h.faccao||'—')}</span><span>${esc(h.motivoLabel||recollectReasonLabel(e.motivo)||'Recolhimento')} • ${esc(h.dataRecolhimento||'')}</span>`}catch(err){meta.textContent='Não foi possível abrir a evidência: '+err.message}}
 $('#recollectEvidenceClose')?.addEventListener('click',()=>$('#recollectEvidenceModal')?.classList.add('hidden'));
 
+/* ---------------------------------------------------------------------
+   V10.6 - Com a paginacao, o campo de busca passou a filtrar apenas os
+   registros ja carregados, dando a impressao de que nao havia mais nada.
+   Agora, quando ha termo digitado, o rodape explica o alcance e oferece
+   varrer o estado.historico inteiro pagina a pagina.
+--------------------------------------------------------------------- */
+async function buscarHistoricoCompleto(termo){
+ const botao=document.getElementById('historyDeepBtn');
+ if(botao){botao.disabled=true;botao.textContent='VARRENDO...'}
+ let voltas=0;
+ while(!historyEsgotado&&voltas<20){
+  voltas++;
+  if(botao)botao.textContent=`VARRENDO... (${estado.historico.length} lidos)`;
+  await loadHistory({append:true});
+ }
+ window.highToast?.(`Varredura concluída: ${estado.historico.length} registro(s) no total.`,'ok');
+ renderHistory();
+}
 function renderHistoryFooter(){
  const lista=$('#historyList');
 if(!lista)return;
@@ -4690,9 +4775,16 @@ if(!lista)return;
  box.id='historyMore';
 box.className='history-more';
 
+ const termo=($('#historySearch')?.value||'').trim();
+ if(termo&&!historyEsgotado){
+  box.innerHTML=`<span><b>Atenção:</b> a busca por "${esc(termo)}" cobre apenas os ${estado.historico.length} registros já carregados. Podem existir outros mais antigos.</span>`+
+   `<button type="button" id="historyDeepBtn">BUSCAR EM TODO O HISTÓRICO</button>`;
+  document.getElementById('historyDeepBtn')?.addEventListener('click',()=>buscarHistoricoCompleto(termo));
+  return;
+ }
  box.innerHTML=historyEsgotado
-  ? `<span>${historico.length} registro(s) — fim do histórico${historyModoLegado?' (leitura completa)':''}.</span>`
-  : `<span>${historico.length} registro(s) carregados</span><button type="button" id="historyMoreBtn">CARREGAR MAIS ${HISTORY_PAGE}</button>`;
+  ? `<span>${estado.historico.length} registro(s) — ${termo?'busca feita sobre o histórico completo.':`fim do histórico${historyModoLegado?' (leitura completa)':''}.`}</span>`
+  : `<span>${estado.historico.length} registro(s) carregados</span><button type="button" id="historyMoreBtn">CARREGAR MAIS ${HISTORY_PAGE}</button>`;
 
  lista.insertAdjacentElement('afterend',box);
 
@@ -4708,7 +4800,7 @@ function renderHistory(){
  const q=($('#historySearch')?.value||'').toLowerCase(),
 type=$('#historyType')?.value||'';
 
- const list=historico.filter(h=>(!type||historyFamily(h.tipo)===type||String(h.tipo||'')===type)&&(!q||[h.tipo,
+ const list=estado.historico.filter(h=>(!type||historyFamily(h.tipo)===type||String(h.tipo||'')===type)&&(!q||[h.tipo,
 h.group,
 h.faccao,
 h.usuario,
@@ -4719,11 +4811,11 @@ h.responsavel,
 h.justificativa,
 JSON.stringify(h.depois||{})].join(' ').toLowerCase().includes(q)));
 
- const deliveries=historico.filter(h=>historyFamily(h.tipo)==='ENTREGA').length,
-recol=historico.filter(h=>historyFamily(h.tipo)==='RECOLHIMENTO').length,
-edits=historico.filter(h=>historyFamily(h.tipo)==='EDICAO').length;
+ const deliveries=estado.historico.filter(h=>historyFamily(h.tipo)==='ENTREGA').length,
+recol=estado.historico.filter(h=>historyFamily(h.tipo)==='RECOLHIMENTO').length,
+edits=estado.historico.filter(h=>historyFamily(h.tipo)==='EDICAO').length;
 
- $('#historyStats').innerHTML=`<span><b>${historico.length}</b> EVENTOS</span><span><b>${deliveries}</b> ENTREGAS</span><span><b>${recol}</b> RECOLHIMENTOS</span><span><b>${edits}</b> ALTERAÇÕES</span><span><b>${list.length}</b> EXIBIDOS</span>`;
+ $('#historyStats').innerHTML=`<span><b>${estado.historico.length}</b> EVENTOS</span><span><b>${deliveries}</b> ENTREGAS</span><span><b>${recol}</b> RECOLHIMENTOS</span><span><b>${edits}</b> ALTERAÇÕES</span><span><b>${list.length}</b> EXIBIDOS</span>`;
 
  if(!list.length){$('#historyList').innerHTML='<div class="placeholder"><b>◷</b><h3>NENHUM EVENTO ENCONTRADO</h3><p>Altere os filtros ou registre uma nova operação.</p></div>';
 return}
@@ -4743,7 +4835,7 @@ installed=INSTALLATIONS.filter(([k])=>isInstalled(b,k));
 
  if($('#groupProfileSummary'))$('#groupProfileSummary').innerHTML=`<div><span>STATUS</span><b class="${f.status==='ATIVA'?'online':''}">${f.status==='ATIVA'?'OCUPADO':'VAGO'}</b></div><div><span>OCUPANTE ATUAL</span><b>${esc(f.faccao||'—')}</b></div><div><span>QG / LOCAL</span><b>${esc(f.qg||'SEM LOCAL')}</b></div><div><span>INSTALAÇÕES</span><b>${installed.length}</b></div>`;
 
- const hs=historico.filter(h=>h.group===f.group).slice(0,6),
+ const hs=estado.historico.filter(h=>h.group===f.group).slice(0,6),
 box=$('#groupHistoryPreview');
 if(!box)return;
 
@@ -4755,7 +4847,7 @@ $('#historyType')?.addEventListener('change',renderHistory);
 
 const _openFacV51=openFac;
 openFac=function(id){_openFacV51(id);
-renderGroupProfileMemory(faccoes.find(x=>x.id===id))};
+renderGroupProfileMemory(estado.faccoes.find(x=>x.id===id))};
 
 const _loadFaccoesV51=loadFaccoes;
 loadFaccoes=async function(){await _loadFaccoesV51();
@@ -4765,163 +4857,13 @@ await loadOrganizations()};
 // ===== HIGH OS V5.2 · PERFIL PADRÃO DE ENTREGA POR GROUP =====
 
 // ===== HIGH OS V5.4 · ALVESINHO OPERACIONAL =====
-function alvesNorm(v=''){return String(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim()}
-function alvesFindGroup(text=''){
- const n=alvesNorm(text);
-return faccoes.find(f=>n.includes(alvesNorm(f.group)))||faccoes.find(f=>n.includes(alvesNorm(f.qg||''))&&String(f.qg||'').length>2)||null;
 
-}
-function alvesFindOrg(text=''){
- const n=alvesNorm(text);
-return organizacoes.find(o=>n.includes(alvesNorm(o.nome)))||faccoes.map(f=>({nome:f.faccao,
-groupAtual:f.group,
-segmentoAtual:f.segmento,
-qgAtual:f.qg,
-lider:f.lider,
-status:f.status==='ATIVA'?'ATIVA':'SEM_GROUP'})).find(o=>o.nome&&n.includes(alvesNorm(o.nome)))||null;
 
-}
-function alvesInstalledLines(f){
- const b=f?.beneficios||{};
-const lines=[];
 
- INSTALLATIONS.forEach(([k,
-n])=>{if(isInstalled(b,k))lines.push(`${n}: ${installedValue(b,k)||'SIM'}`)});
 
- if(b.garagemVipBlip||b.garagemVipSpawn)lines.push(`Garagem VIP: Blip ${b.garagemVipBlip||'—'} | Spawn ${b.garagemVipSpawn||'—'}`);
-
- if(b.garagemPublicaBlip||b.garagemPublicaSpawn)lines.push(`Garagem Pública: Blip ${b.garagemPublicaBlip||'—'} | Spawn ${b.garagemPublicaSpawn||'—'}`);
-
- if(b.helipontoBlip||b.helipontoSpawn)lines.push(`Heliponto: Blip ${b.helipontoBlip||'—'} | Spawn ${b.helipontoSpawn||'—'}`);
-
- return [...new Set(lines)];
-
-}
-function alvesLastHistory(group,limit=5){return historico.filter(h=>alvesNorm(h.group)===alvesNorm(group)).slice(0,limit)}
-function alvesDateFromDelivery(d){return d?.dataEntrega||(()=>{try{return d?.createdAt?.toDate?.().toLocaleDateString('pt-BR')||''}catch{return''}})()||'—'}
-function alvesAnswer(question=''){
- const q=alvesNorm(question),
-g=alvesFindGroup(question),
-o=alvesFindOrg(question);
-
- if(!q)return {text:'Digite uma pergunta sobre a base operacional.'};
-
- if(q.includes('resumo')&&(q.includes('operacional')||q.includes('geral'))){
-  const occupied=faccoes.filter(f=>f.status==='ATIVA').length,
-vagos=faccoes.length-occupied,
-ativas=organizacoes.filter(x=>x.status==='ATIVA').length,
-sem=organizacoes.filter(x=>x.status==='SEM_GROUP').length,
-del=entregas.filter(x=>x.status==='ATIVA').length;
-
-  return {text:`Resumo operacional atual:\n• ${faccoes.length} Groups cadastrados: ${occupied} ocupados e ${vagos} vagos.\n• ${organizacoes.length} facções cadastradas: ${ativas} ativas e ${sem} sem Group.\n• ${del} entregas ativas registradas.\n• ${historico.length} eventos no histórico.`,
-refs:['Groups/QGs',
-'Facções',
-'Entregas',
-'Histórico']};
-
- }
- if((q.includes('group')||q.includes('groups'))&&(q.includes('vago')||q.includes('livre'))){
-  const list=faccoes.filter(f=>f.status!=='ATIVA');
-return {text:list.length?`Groups vagos (${list.length}):\n${list.map(f=>`• ${f.group} — ${f.qg||'sem QG informado'} (${f.segmento||'OUTROS'})`).join('\n')}`:'Não há Groups vagos cadastrados.',
-refs:['Groups/QGs']};
-
- }
- if(q.includes('facc')&&(q.includes('sem group')||q.includes('sem qg')||q.includes('sem local'))){
-  const list=organizacoes.filter(x=>x.status==='SEM_GROUP'||!x.groupAtual);
-return {text:list.length?`Facções sem Group (${list.length}):\n${list.map(x=>`• ${x.nome}${x.lider?' — líder: '+x.lider:''}`).join('\n')}`:'Não há facções sem Group cadastradas.',
-refs:['Facções']};
-
- }
- if((q.includes('ultima')||q.includes('recent'))&&q.includes('entrega')){
-  const list=entregas.slice(0,6);
-return {text:list.length?`Últimas entregas registradas:\n${list.map(d=>`• ${d.group} → ${d.faccao||'—'} | ${alvesDateFromDelivery(d)} | ${d.status||'—'}`).join('\n')}`:'Ainda não há entregas registradas.',
-refs:['Entregas']};
-
- }
- if(g&&(q.includes('quem ocupa')||q.includes('ocupante')||q.includes('qual fac')||q.includes('faccao'))){
-  return {text:g.status==='ATIVA'&&g.faccao?`${g.group} está ocupado por ${g.faccao}.${g.lider?` Líder cadastrado: ${g.lider}.`:''}${g.qg?` QG/local: ${g.qg}.`:''}`:`${g.group} está vago no momento.${g.qg?` Local cadastrado: ${g.qg}.`:''}`,
-refs:[g.group,
-'Groups/QGs']};
-
- }
- if(g&&(q.includes('instalad')||q.includes('estrutura')||q.includes('beneficio')||q.includes('tem no')||q.includes('possui')||q.startsWith('o que'))){
-  const lines=alvesInstalledLines(g);
-return {text:`${g.group} — ${g.qg||'QG sem nome'}\nStatus: ${g.status==='ATIVA'?'ocupado por '+(g.faccao||'—'):'vago'}\n${lines.length?'Estrutura/setagens cadastradas:\n'+lines.map(x=>'• '+x).join('\n'):'Nenhuma instalação/setagem foi cadastrada nesse Group ainda.'}`,
-refs:[g.group,
-'Perfil Técnico']};
-
- }
- if((g||o)&&q.includes('radio')){
-  const target=g||faccoes.find(f=>alvesNorm(f.faccao)===alvesNorm(o?.nome));
-const radio=target?.beneficios?.radio||'';
-
-  return {text:target?(radio?`O rádio cadastrado para ${target.faccao||target.group} no ${target.group} é ${radio}.`:`${target.group}${target.faccao?' / '+target.faccao:''} não possui número de rádio cadastrado no Perfil Técnico.`):`Encontrei a facção ${o?.nome||''}, mas ela não está vinculada a um Group com rádio cadastrado.`,
-refs:[target?.group||o?.nome,
-'Perfil Técnico']};
-
- }
- if(g&&(q.includes('histor')||q.includes('mudanc')||q.includes('alterac'))){
-  const hs=alvesLastHistory(g.group,6);
-return {text:hs.length?`Histórico recente de ${g.group}:\n${hs.map(h=>`• ${formatHistoryDate(h)} — ${historyTitle(h)}${h.usuario?' — '+h.usuario:''}`).join('\n')}`:`Ainda não há eventos no histórico de ${g.group}.`,
-refs:[g.group,
-'Histórico']};
-
- }
- if(g&&q.includes('solicit')){
-  const ds=entregas.filter(d=>d.group===g.group&&Array.isArray(d.solicitacoesGeradas)&&d.solicitacoesGeradas.length).slice(0,3);
-const reqs=ds.flatMap(d=>d.solicitacoesGeradas.map(r=>({d,
-r}))).slice(0,8);
-
-  return {text:reqs.length?`Solicitações recentes geradas para ${g.group}:\n${reqs.map(x=>`• ${x.r.titulo||x.r.tipo||'Solicitação'} — entrega ${x.d.faccao||'—'}`).join('\n')}`:`Não encontrei solicitações geradas em entregas do ${g.group}. A Biblioteca de Solicitações continua disponível para modelos manuais.`,
-refs:[g.group,
-'Entregas',
-'Biblioteca de Solicitações']};
-
- }
- if(g&&q.includes('entrega')){
-  const ds=entregas.filter(d=>d.group===g.group).slice(0,5);
-return {text:ds.length?`Entregas registradas para ${g.group}:\n${ds.map(d=>`• ${alvesDateFromDelivery(d)} — ${d.faccao||'—'} — ${d.status||'—'}${d.lider?' — líder: '+d.lider:''}`).join('\n')}`:`Não há entregas registradas para ${g.group}.`,
-refs:[g.group,
-'Entregas']};
-
- }
- if(o){
-  const target=faccoes.find(f=>alvesNorm(f.faccao)===alvesNorm(o.nome));
-return {text:`${o.nome}\nStatus: ${o.status||'—'}\nGroup atual: ${o.groupAtual||target?.group||'SEM GROUP'}\nSegmento: ${o.segmentoAtual||target?.segmento||'—'}\nQG: ${o.qgAtual||target?.qg||'—'}\nLíder: ${o.lider||target?.lider||'—'}${o.contato?`\nContato: ${o.contato}`:''}`,
-refs:[o.nome,
-'Facções']};
-
- }
- if(g){return {text:`${g.group} — ${g.qg||'QG sem nome'}\nSegmento: ${g.segmento||'—'}\nStatus: ${g.status==='ATIVA'?'OCUPADO':'VAGO'}\nFacção atual: ${g.faccao||'—'}\nLíder: ${g.lider||'—'}\nInstalações/setagens cadastradas: ${installedCount(g)}.`,
-refs:[g.group,
-'Groups/QGs']};
-}
- return {text:'Não encontrei um Group ou facção correspondente na base para responder com segurança. Tente informar o Group (ex.: Armas02) ou o nome exato da facção.',
-refs:['Base High OS']};
-
-}
-function alvesAddMessage(role,text,refs=[]){
- const box=$('#alvesMessages');
-if(!box)return;
-const div=document.createElement('div');
-div.className=`alves-msg ${role}`;
-div.innerHTML=`<div class="alves-bubble"><b>${role==='user'?'VOCÊ':'ALVESINHO'}</b><p>${esc(text)}</p>${refs?.length?`<div class="alves-ref">${refs.filter(Boolean).map(x=>`<span>${esc(x)}</span>`).join('')}</div>`:''}</div>`;
-box.appendChild(div);
-box.scrollTop=box.scrollHeight;
-
-}
-function askAlvesinho(q){if(!q?.trim())return;
-alvesAddMessage('user',q);
-const a=alvesAnswer(q);
-setTimeout(()=>alvesAddMessage('bot',a.text,a.refs||[]),60)}
-$('#alvesForm')?.addEventListener('submit',e=>{e.preventDefault();const input=$('#alvesInput'),
-q=input.value;input.value='';askAlvesinho(q)});
-
-document.querySelectorAll('#alvesQuick [data-q]').forEach(b=>b.addEventListener('click',()=>askAlvesinho(b.dataset.q)));
 
 // ===== HIGH OS V5.8 · PARSER DA PLANILHA OFICIAL + GOOGLE SHEETS SOMENTE LEITURA =====
-let metricas=[],
-metricasCache=[],
+let 
 metricPeriodKey='',
 metricDateStart='',
 metricDateEnd='',
@@ -4933,9 +4875,7 @@ lastSync:null,
 count:0,
 activeCount:0,
 error:''},
-sheetsAccessToken='',
-mercadoCatalogo=[],
-mercadoStatus='CARREGANDO';
+sheetsAccessToken='';
 
 let metricLiveUnsub=null,
 metricLiveLastAt=0;
@@ -4944,7 +4884,6 @@ const metricCol=collection(db,'highos','data','metricas');
 
 const metricConfigDoc=doc(db,'highos','metricas_config');
 
-const MARKET_CATALOG_URL='https://alvesjardimitalo-oss.github.io/high-mercado-negro/data/catalogo.json';
 
 const SHEETS_SCOPE='https://www.googleapis.com/auth/spreadsheets.readonly';
 
@@ -4959,17 +4898,7 @@ return new Date(y,+br[2]-1,+br[1])}
 return isNaN(d)?new Date(0):d;
 
 }
-function normalizeMetricSlotKey(v=''){
- const x=String(v??'').trim().toUpperCase().replace(/\s+/g,'');
 
- let m=x.match(/^(\d{1,2})(?::(\d{2}))?H?$/);
-if(!m)return '';
-let h=+m[1],
-min=m[2]===undefined?0:+m[2];
-if(h>23||min>59)return '';
-return min===0?`${String(h).padStart(2,'0')}H`:`${String(h).padStart(2,'0')}:${String(min).padStart(2,'0')}`;
-
-}
 function metricSlotMinutes(k=''){const x=String(k).toUpperCase();
 let m=x.match(/^(\d{1,2})H$/);
 if(m)return +m[1]*60;
@@ -5014,15 +4943,15 @@ year:'numeric'}).replace(/^./,c=>c.toUpperCase());
 }
 function parseIsoMetricDate(v=''){const m=String(v).match(/^(\d{4})-(\d{2})-(\d{2})$/);
 return m?new Date(+m[1],+m[2]-1,+m[3]):null}
-function metricGroupOccupied(group){return faccoes.some(f=>alvesNorm(f.group)===alvesNorm(group)&&f.status==='ATIVA'&&String(f.faccao||'').trim())}
+function metricGroupOccupied(group){return estado.faccoes.some(f=>alvesNorm(f.group)===alvesNorm(group)&&f.status==='ATIVA'&&String(f.faccao||'').trim())}
 function activeMetricRows(){
  const occupied=m=>metricGroupOccupied(m.group||m.organizacao||m.faccao);
 
  if(metricDateStart||metricDateEnd){const a=parseIsoMetricDate(metricDateStart),
 b=parseIsoMetricDate(metricDateEnd);
-return metricas.filter(m=>{const d=metricDateValue(m);return occupied(m)&&(!a||d>=a)&&(!b||d<=new Date(b.getFullYear(),b.getMonth(),b.getDate(),23,59,59))})}
+return estado.metricas.filter(m=>{const d=metricDateValue(m);return occupied(m)&&(!a||d>=a)&&(!b||d<=new Date(b.getFullYear(),b.getMonth(),b.getDate(),23,59,59))})}
  const key=metricPeriodKey||currentMetricMonthKey();
-return metricas.filter(m=>occupied(m)&&metricMonthKey(m)===key)
+return estado.metricas.filter(m=>occupied(m)&&metricMonthKey(m)===key)
 }
 function metricActivePeriodLabel(){if(metricDateStart||metricDateEnd){const f=x=>{const d=parseIsoMetricDate(x);
 return d?d.toLocaleDateString('pt-BR'):'…'};
@@ -5036,7 +4965,7 @@ function refreshMetricPeriodOptions(){
  const el=$('#metricPeriod');
 if(!el)return;
 const current=currentMetricMonthKey();
-const keys=[...new Set(metricas.map(metricMonthKey).filter(Boolean))].sort().reverse();
+const keys=[...new Set(estado.metricas.map(metricMonthKey).filter(Boolean))].sort().reverse();
 if(!keys.includes(current))keys.unshift(current);
 if(!metricPeriodKey)metricPeriodKey=current;
 if(!keys.includes(metricPeriodKey))metricPeriodKey=current;
@@ -5176,165 +5105,7 @@ if(m)return m[1];
 
 }
 function a1SheetName(name=''){return `'${String(name).replace(/'/g,"''")}'`}
-function normalizeMetricDate(v){
- const x=String(v??'').trim();
-if(!x)return '';
 
- let m=x.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/);
-if(m){let y=+m[3];
-if(y<100)y+=2000;
-return `${String(+m[1]).padStart(2,'0')}/${String(+m[2]).padStart(2,'0')}/${y}`}
- m=x.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-if(m)return `${String(+m[3]).padStart(2,'0')}/${String(+m[2]).padStart(2,'0')}/${m[1]}`;
-
- return '';
-
-}
-function parseMetricNumber(v){if(v===null||v===undefined||String(v).trim()==='')return null;
-const n=Number(String(v).replace(/\s/g,'').replace(',','.'));
-return Number.isFinite(n)?n:null}
-function metricSlotLabel(v){return normalizeMetricSlotKey(v)}
-function metricGroupLabel(v){
- const raw=String(v??'').trim();
-if(!raw)return '';
-
- const n=alvesNorm(raw).replace(/\s+/g,'');
-
- const known=(faccoes||[]).find(f=>alvesNorm(f.group).replace(/\s+/g,'')===n);
-if(known)return known.group;
-
- const compact=raw.replace(/\s+/g,'');
-
- if(/^(ARMAS|MUNI[CÇ][AÃ]O|MUNICAO|LAVAGEM|DROGAS|DESMANCHE|CONTRABANDO|ESTELIONATARIOS|ILEGALMEDIC|ILEGALMECHANIC)0*\d+$/i.test(compact))return compact.replace(/^MUNI[CÇ][AÃ]O/i,'Municao');
-
- if(/^(VANILLA|MANICOMIO)$/i.test(compact))return compact;
-
- return '';
-
-}
-function parseMetricSheet(values=[]){
- if(!Array.isArray(values)||!values.length)return [];
-
- /* V9.7.4 - parser dirigido pela linha de DATAS.
-    A planilha oficial possui blocos mensais repetidos e setembro aparece duas vezes
-    (um bloco preenchido e outro vazio). Nao usamos mais a deteccao de cabecalho para
-    delimitar o bloco: uma linha com varias datas e a ancora; a linha seguinte e o
-    cabecalho e as linhas seguintes sao os Groups ate a proxima linha de datas. */
- const scanLimit=Math.min(values.length,600),
- dateBlocks=[];
-
- for(let r=0;r<scanLimit;r++){
-  const row=values[r]||[],
- anchors=[];
-
-  for(let c=0;c<row.length;c++){const d=normalizeMetricDate(row[c]);
-if(d)anchors.push({c,
-d})}
-  // Um bloco mensal real tem muitas datas. >=7 evita datas soltas de outras tabelas.
-  if(anchors.length>=7)dateBlocks.push({dateRowIndex:r,
-anchors});
-
- }
- if(!dateBlocks.length)return [];
-
- const candidates=[];
-
- for(let b=0;b<dateBlocks.length;b++){
-  const block=dateBlocks[b],
- dateRowIndex=block.dateRowIndex;
-
-  const headerIndex=dateRowIndex+1;
-
-  const nextDateRow=dateBlocks[b+1]?.dateRowIndex??values.length;
-
-  const header=values[headerIndex]||[];
-
-  const map={},
-slotByCol={},
-padrao=['14H',
-'16H',
-'21H',
-'23H'];
-
-  for(let i=0;i<block.anchors.length;i++){
-   const a=block.anchors[i],
-next=block.anchors[i+1]?.c??Infinity;
-
-   for(let off=0;off<4;off++){
-    const c=a.c+off;
-if(c>=next)break;
-
-    map[c]=a.d;
-
-    // Usa o texto real quando valido, mas a posicao fisica e a garantia.
-    slotByCol[c]=metricSlotLabel(header[c])||padrao[off];
-
-   }
-  }
-  const rows=[];
-
-  for(let r=headerIndex+1;r<nextDateRow;r++){
-   const row=values[r]||[];
-let group='';
-
-   for(const cell of row.slice(0,20)){group=metricGroupLabel(cell);
-if(group)break}
-   if(!group)continue;
-
-   const byDate={};
-
-   for(const [cs,
-d] of Object.entries(map)){
-    const c=Number(cs),
-h=slotByCol[c],
-num=parseMetricNumber(row[c]);
-
-    if(num===null)continue;
-
-    if(!byDate[d])byDate[d]={group,
-data:d,
-slots:{}};
-
-    byDate[d].slots[h]=num;
-
-   }
-   Object.values(byDate).forEach(x=>rows.push(x));
-
-  }
-  const populated=rows.reduce((n,x)=>n+Object.values(x.slots).filter(v=>Number(v)>0).length,0);
-
-  candidates.push({dateRowIndex,
-rows,
-populated});
-
- }
- // Duplicatas do mesmo mes: prioriza o bloco que realmente possui coletas.
- const bestByMonth=new Map();
-
- for(const c of candidates){
-  const first=c.rows[0]?.data||normalizeMetricDate((values[c.dateRowIndex]||[]).find(normalizeMetricDate));
-
-  if(!first)continue;
-const month=first.slice(3);
-const old=bestByMonth.get(month);
-
-  if(!old||c.populated>old.populated)bestByMonth.set(month,c);
-
- }
- const out=[],
-seen=new Set();
-
- for(const c of bestByMonth.values())for(const x of c.rows){
-  const key=`${alvesNorm(x.group)}|${x.data}`;
-
-  if(seen.has(key))continue;
-seen.add(key);
-out.push(x);
-
- }
- return out;
-
-}
 function metricTsToDate(v){
  if(!v)return null;
 if(v?.toDate)return v.toDate();
@@ -5361,7 +5132,7 @@ let desc='Informe o link da planilha oficial';
 
  if(has)desc=metricSourceConfig.autoSync===false?'Fonte configurada • sincronização automática pausada':'Apps Script permanente • sincronização automática 14:05, 16:05, 21:05 e 23:05 • sem Blaze';
 
- if(online){desc=`Base sincronizada • ${Number(srv.rows??metricSourceState.count??metricas.length)||0} registros históricos${srv.sheet?' • aba '+srv.sheet:''}${metricLiveLastAt?' • atualização em tempo real ativa':''}`;
+ if(online){desc=`Base sincronizada • ${Number(srv.rows??metricSourceState.count??estado.metricas.length)||0} registros históricos${srv.sheet?' • aba '+srv.sheet:''}${metricLiveLastAt?' • atualização em tempo real ativa':''}`;
 const dc=metricSourceState.directCheck;
 if(dc?.sheetLast)desc+=` • Planilha ${dc.sheetLast.date} ${dc.sheetLast.slot} • Firestore ${dc.fireLast?.date||'—'} ${dc.fireLast?.slot||'—'}`;
 }
@@ -5369,51 +5140,6 @@ if(dc?.sheetLast)desc+=` • Planilha ${dc.sheetLast.date} ${dc.sheetLast.slot} 
 
  el.innerHTML=`<div><span class="metric-source-dot"></span><div><b>${has?'GOOGLE SHEETS • APPS SCRIPT GRATUITO':'FONTE NÃO CONFIGURADA'}</b><small>${esc(desc)}</small></div></div><span>${has?`Última sincronização: ${esc(when)}<br>AGENDA • 14:05 · 16:05 · 21:05 · 23:05`:'CONFIGURAR'}</span>`;
 
-}
-async function fetchMetricsFromSource({persist=false,
-quiet=false,
-authorize=true}={}){
- if(!extractSpreadsheetId(metricSourceConfig.url)){if(!quiet)alert('Configure primeiro o link da planilha em Fonte.');
-metricSourceState={status:'SEM FONTE',
-lastSync:null,
-count:0,
-activeCount:0,
-error:''};
-renderMetricSourceStatus();
-return false}
- metricSourceState={...metricSourceState,
-status:'SINCRONIZANDO',
-error:''};
-renderMetricSourceStatus();
-
- try{const result=await readMetricsDirect({authorize});
-const rows=result.rows.map(metricSnapshot);
-metricas=rows;
-metricPeriodKey=currentMetricMonthKey();
-metricSourceState={status:'ONLINE',
-lastSync:Date.now(),
-count:rows.length,
-activeCount:activeMetricRows().length,
-error:'',
-sheet:result.sheet};
-renderMetricSourceStatus();
-refreshMetricPeriodOptions();
-renderMetrics();
-if(persist)await persistMetricRows(rows,result.sheet);
-if(!quiet)alert(`${rows.length} registro(s) históricos lidos da aba ${result.sheet}. Exibindo ${activeMetricRows().length} registro(s) de ${metricPeriodLabel(metricPeriodKey)}. A planilha não foi alterada.`);
-return true
- }catch(e){metricas=metricasCache.slice();
-if(e.message==='AUTORIZAÇÃO NECESSÁRIA'){metricSourceState={...metricSourceState,
-status:'AGUARDANDO',
-error:''};
-renderMetricSourceStatus();
-return false}metricSourceState={...metricSourceState,
-status:'ERRO',
-error:e.message};
-renderMetricSourceStatus();
-renderMetrics();
-if(!quiet)alert('Erro ao sincronizar métricas: '+e.message);
-return false}
 }
 /* =====================================================================
    HIGH OS V9.6 - ECONOMIA DE COTA DAS METRICAS
@@ -5492,10 +5218,10 @@ async function persistMetricRows(rows,sheet='',{jaFiltrado=false}={}){
  if(metricQuotaBlocked)return {gravadas:0,
 bloqueado:true};
 
- const pendentes=jaFiltrado?rows:metricRowsPendentes(rows,metricasCache);
+ const pendentes=jaFiltrado?rows:metricRowsPendentes(rows,estado.metricasCache);
 
  if(!pendentes.length){
-  metricasCache=rows.slice();
+  estado.metricasCache=rows.slice();
 
   return {gravadas:0,
 bloqueado:false};
@@ -5532,7 +5258,7 @@ data:serverTimestamp()});
 
   metricWriteCount++;
 
-  metricasCache=rows.slice();
+  estado.metricasCache=rows.slice();
 
   renderMetricQuotaPanel();
 
@@ -5552,10 +5278,10 @@ erro:e?.message||String(e)};
 function applyMetricSnapshot(qs,{realtime=false}={}){
  const previousKey=metricPeriodKey||currentMetricMonthKey();
 
- metricasCache=qs.docs.map(d=>({id:d.id,
+ estado.metricasCache=qs.docs.map(d=>({id:d.id,
 ...d.data()}));
 
- metricas=metricasCache.slice();
+ estado.metricas=estado.metricasCache.slice();
 
  metricPeriodKey=previousKey;
 
@@ -5563,7 +5289,7 @@ function applyMetricSnapshot(qs,{realtime=false}={}){
 metricSourceState={...metricSourceState,
 status:'ONLINE',
 lastSync:metricLiveLastAt,
-count:metricas.length,
+count:estado.metricas.length,
 activeCount:activeMetricRows().length,
 error:''}}
  refreshMetricPeriodOptions();
@@ -5596,6 +5322,118 @@ box.className='metric-quota-panel';
  return box;
 
 }
+
+/* =====================================================================
+   HIGH OS V11.8 - SEPARAR OPERAÇÃO DE INFRAESTRUTURA
+   ---------------------------------------------------------------------
+   A tela de Metricas abria com tres blocos que nao sao metrica: o estado
+   da conexao com o Google Sheets, o consumo de cota do Firebase e os
+   botoes de configurar fonte e importar manualmente. Quem abre Metricas
+   quer ver numero de facção, nao estado de integracao.
+
+   Esses blocos sao MOVIDOS (nao recriados) para Administracao > Integracoes.
+   Mover o proprio elemento preserva todos os listeners ja ligados a ele -
+   recriar o HTML exigiria religar tudo e seria fonte de bug.
+
+   Na tela de Metricas fica so uma linha de status com a ultima
+   sincronizacao e o botao de sincronizar agora, que e operacao.
+   ===================================================================== */
+function moverInfraParaAdmin(){
+ const destino=document.querySelector('[data-admin-panel="integracoes"]');
+ if(!destino||document.getElementById('infraMetricas'))return;
+
+ const caixa=document.createElement('div');
+ caixa.id='infraMetricas';
+ caixa.className='infra-metricas';
+ caixa.innerHTML=`<div class="infra-head"><b>FONTE E CONSUMO DAS MÉTRICAS</b>
+   <span>Estado da planilha oficial e uso da cota diária do Firebase. Movido da tela de Métricas, que passou a mostrar só operação.</span></div>`;
+ destino.insertBefore(caixa,destino.firstChild);
+
+ // os elementos vão inteiros, com os listeners que já têm
+ const fonte=document.getElementById('metricSourceStatus');
+ const quota=document.getElementById('metricQuotaPanel');
+ const acoes=document.querySelector('.metric-head-actions');
+ [fonte,quota,acoes].forEach(el=>{if(el)caixa.appendChild(el)});
+
+ renderMetricQuotaPanel();
+}
+
+/* Linha enxuta que fica na tela de Metricas no lugar dos blocos movidos. */
+function renderResumoFonte(){
+ const alvo=document.getElementById('metricResumoFonte');
+ if(!alvo)return;
+ let quando='—';
+ try{
+  const t=Number(localStorage.getItem(METRIC_SYNC_LOCK)||0);
+  if(t)quando=new Date(t).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+ }catch(e){}
+ const origem=metricOrigem==='PLANILHA'?'planilha oficial'
+   :metricOrigem==='ESPELHO'?'espelho mensal'
+   :metricOrigem==='COLECAO_ANTIGA'?'base antiga'
+   :'carregando';
+ alvo.innerHTML=`
+  <span class="resumo-ponto ${metricOrigem==='PLANILHA'?'ok':'alerta'}"></span>
+  <span>Dados de <b>${esc(origem)}</b> • última sincronização ${esc(quando)}</span>
+  <button type="button" id="metricSyncTopo">SINCRONIZAR</button>
+  <a href="#" id="metricIrConfig">configurar fonte</a>`;
+ document.getElementById('metricSyncTopo')?.addEventListener('click',async ev=>{
+  const b=ev.currentTarget;b.disabled=true;b.textContent='SINCRONIZANDO...';
+  try{localStorage.setItem(METRIC_SYNC_LOCK,String(Date.now()))}catch(e){}
+  await runMetricAutoRecovery({quiet:false});
+  renderResumoFonte();
+ });
+ document.getElementById('metricIrConfig')?.addEventListener('click',ev=>{
+  ev.preventDefault();
+  activateAppPage('administracao');
+  setTimeout(()=>{
+   document.querySelector('[data-admin-tab="integracoes"]')?.click();
+   document.getElementById('infraMetricas')?.scrollIntoView({behavior:'smooth',block:'start'});
+  },120);
+ });
+}
+
+/* ---------------------------------------------------------------------
+   SELETOR DE PERÍODO OBJETIVO
+   Antes: dois campos de data e um botão aplicar, para qualquer consulta.
+   Na prática, quase toda pergunta é uma destas cinco. Os campos manuais
+   continuam para o caso específico.
+--------------------------------------------------------------------- */
+const PERIODOS_RAPIDOS=[
+ {id:'hoje',rotulo:'HOJE',dias:0},
+ {id:'7',rotulo:'7 DIAS',dias:6},
+ {id:'14',rotulo:'14 DIAS',dias:13},
+ {id:'30',rotulo:'30 DIAS',dias:29},
+ {id:'mes',rotulo:'ESTE MÊS',mes:0},
+ {id:'mesant',rotulo:'MÊS PASSADO',mes:-1}
+];
+function aplicarPeriodoRapido(def){
+ const hoje=new Date();hoje.setHours(12,0,0,0);
+ let inicio,fim;
+ if(def.mes!==undefined){
+  const base=new Date(hoje.getFullYear(),hoje.getMonth()+def.mes,1);
+  inicio=base;
+  fim=def.mes===0?hoje:new Date(hoje.getFullYear(),hoje.getMonth()+def.mes+1,0);
+ }else{
+  fim=hoje;
+  inicio=new Date(hoje);inicio.setDate(hoje.getDate()-def.dias);
+ }
+ const iso=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+ metricDateStart=iso(inicio);metricDateEnd=iso(fim);
+ syncMetricDateInputs();
+ renderMetrics();
+ document.querySelectorAll('[data-periodo]').forEach(b=>b.classList.toggle('active',b.dataset.periodo===def.id));
+}
+function ensurePeriodosRapidos(){
+ const alvo=document.getElementById('metricPeriodosRapidos');
+ if(!alvo||alvo.dataset.pronto)return;
+ alvo.dataset.pronto='1';
+ alvo.innerHTML=PERIODOS_RAPIDOS.map(d=>`<button type="button" data-periodo="${d.id}">${d.rotulo}</button>`).join('');
+ alvo.querySelectorAll('[data-periodo]').forEach(b=>b.addEventListener('click',()=>{
+  const def=PERIODOS_RAPIDOS.find(x=>x.id===b.dataset.periodo);
+  if(def)aplicarPeriodoRapido(def);
+ }));
+}
+
 function renderMetricQuotaPanel(){
  const box=ensureMetricQuotaPanel()||document.getElementById('metricQuotaPanel');
 
@@ -5698,7 +5536,7 @@ error:err?.message||String(err)};
    leituras, e o limite gratuito e de 50.000 por dia. Cinco aberturas
    esgotavam a cota - era o fundo do poco do problema original.
 
-   A planilha publicada ja contem o historico inteiro e e servida como
+   A planilha publicada ja contem o estado.historico inteiro e e servida como
    arquivo estatico: ler o CSV nao consome cota nenhuma do Firebase.
    Entao a ordem de leitura passa a ser:
 
@@ -5711,7 +5549,7 @@ error:err?.message||String(err)};
    conteudo daquele mes muda. Sai de ate 2.060 gravacoes por
    sincronizacao para 1 por mes alterado.
 
-   A colecao antiga nao e apagada: fica como historico ate voce decidir.
+   A colecao antiga nao e apagada: fica como estado.historico ate voce decidir.
    ===================================================================== */
 const metricMonthCol=collection(db,'highos','data','metricas_mensais');
 
@@ -5779,12 +5617,20 @@ async function salvarEspelhoMensal(rows=[],sheet=''){
  for(const [mes,
 linhas] of porMes){
   const assinatura=assinaturaMes(linhas);
-
+  /* V10.6 - a assinatura vivia so no localStorage do navegador. Se o
+     documento do espelho fosse apagado no Firestore, este navegador
+     continuaria achando que estava sincronizado e nunca regravaria.
+     Agora a fonte da verdade e o proprio documento; o cache local
+     apenas evita a leitura quando ele ja confirma o valor. */
   let anterior='';
-
   try{anterior=localStorage.getItem('highos_metric_sig_'+mes)||''}catch(e){}
-  if(anterior===assinatura)continue;
-               // nada mudou nesse mes
+  if(anterior===assinatura){
+   try{
+    const atual=await getDoc(doc(metricMonthCol,mes));
+    statBump('metricas_mensais','leituras');statBump('metricas_mensais','docs',1);
+    if(atual.exists()&&String(atual.data()?.assinatura||'')===assinatura)continue;
+   }catch(e){ /* na duvida, regrava */ }
+  }
   try{
    await setDoc(doc(metricMonthCol,mes),{
     mes,
@@ -5871,9 +5717,9 @@ out;
 function aplicarLinhasMetricas(rows=[],origem=''){
  metricOrigem=origem;
 
- metricasCache=rows.slice();
+ estado.metricasCache=rows.slice();
 
- metricas=rows.slice();
+ estado.metricas=rows.slice();
 
  metricPeriodKey=metricPeriodKey||currentMetricMonthKey();
 
@@ -5889,6 +5735,9 @@ async function loadMetrics(){
  await loadMetricSourceConfig();
 
  metricPeriodKey=metricPeriodKey||currentMetricMonthKey();
+ setTimeout(()=>{moverInfraParaAdmin();
+ensurePeriodosRapidos();
+renderResumoFonte()},0);
 
  // 1) planilha publicada: nao consome cota do Firebase
  if(extractSpreadsheetId(metricSourceConfig.url)){
@@ -5943,8 +5792,8 @@ startMetricRealtime();
 
   metricOrigem='COLECAO_ANTIGA';
 
- }catch(e){metricasCache=[];
-metricas=[]}
+ }catch(e){estado.metricasCache=[];
+estado.metricas=[]}
  refreshMetricPeriodOptions();
 renderMetrics();
 renderMetricSourceStatus();
@@ -5953,7 +5802,7 @@ startMetricRealtime();
 
 }
 function metricIdentity(group,row=null){
- const f=faccoes.find(x=>alvesNorm(x.group)===alvesNorm(group))||SEED.find(x=>alvesNorm(x.group)===alvesNorm(group))||{};
+ const f=estado.faccoes.find(x=>alvesNorm(x.group)===alvesNorm(group))||SEED.find(x=>alvesNorm(x.group)===alvesNorm(group))||{};
 
  return {group:group||f.group||'',
 faccao:row?.faccaoSnapshot||row?.faccao||f.faccao||'',
@@ -5990,7 +5839,7 @@ function metricSummaryRows(){
  return [...groupMap.values()].map(group=>{
   const first=active.find(m=>alvesNorm(String(m.group||m.organizacao||m.faccao||'')).replace(/\s+/g,'')===alvesNorm(group).replace(/\s+/g,''));
   const ident=metricIdentity(group,first);
-  const f=faccoes.find(x=>alvesNorm(String(x.group||'')).replace(/\s+/g,'')===alvesNorm(group).replace(/\s+/g,''))||ident;
+  const f=estado.faccoes.find(x=>alvesNorm(String(x.group||'')).replace(/\s+/g,'')===alvesNorm(group).replace(/\s+/g,''))||ident;
   const a=metricAnalysis(group);
   return a?{f:{...f,
 group:String(f.group||group).trim(),
@@ -6139,7 +5988,6 @@ setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 
 }
 
-function metricGroupKey(row){return alvesNorm(String(row?.group||row?.organizacao||row?.faccao||'')).replace(/\s+/g,'')}
 function metricTimeMinutes(h){const m=String(h||'').toUpperCase().match(/(\d{1,2})(?::?(\d{2}))?/);
 return m?(+m[1]*60+(+m[2]||0)):9999}
 function metricTimeline(rows=[]){
@@ -6209,17 +6057,33 @@ data:by.get(`${dd.getFullYear()}-${String(dd.getMonth()+1).padStart(2,'0')}-${St
 
 }
 function metricDailyBars(daily=[]){
- const cols=metricCalendarRange31(daily);
-if(!cols.length)return '<div class="metric-empty-chart">Sem dados suficientes para montar o gráfico.</div>';
+ const todas=metricCalendarRange31(daily);
+if(!todas.length)return '<div class="metric-empty-chart">Sem dados suficientes para montar o gráfico.</div>';
+
+ /* V11.5 - antes o gráfico desenhava o mês inteiro, inclusive os dias que
+    ainda não aconteceram. Com a coleta indo até o dia corrente, metade das
+    colunas ficava vazia mostrando "—" e as colunas com dado eram espremidas
+    em menos da metade da largura. Agora o eixo termina no último dia com
+    dado, e um rodapé informa quantos dias do período ainda faltam. */
+ let ultimo=-1;
+todas.forEach((c,i)=>{if(c.data)ultimo=i});
+const cols=ultimo>=0?todas.slice(0,ultimo+1):todas;
+const restantes=todas.length-cols.length;
 
  const values=cols.map(c=>c.data?.avg||0),
 max=Math.max(1,...values);
+const comDado=values.filter(v=>v>0),
+media=comDado.length?comDado.reduce((a,b)=>a+b,0)/comDado.length:0;
 
  return `<div class="metric-month-bars" role="img" aria-label="Contingente diário do período">${cols.map(c=>{
   if(!c.date)return `<div class="metric-month-col metric-month-empty"><div class="metric-month-value">—</div><div class="metric-month-track"><i style="height:0%"></i></div><b>—</b><span>—</span></div>`;
   const d=c.data,v=d?.avg||0,pct=d?Math.max(4,Math.min(100,v/max*100)):0,week=c.date.toLocaleDateString('pt-BR',{weekday:'short'}).replace('.','').toUpperCase(),day=String(c.date.getDate()).padStart(2,'0'),count=d?.vals?.length||0,tip=d?`${c.date.toLocaleDateString('pt-BR')} • ${count<4?'PARCIAL • ':''}${count}/4 coletas • média ${v.toFixed(1)} • pico ${d.peak.total} às ${d.peak.hour}`:`${c.date.toLocaleDateString('pt-BR')} • sem coleta`;
   return `<div class="metric-month-col${d?'':' metric-month-no-data'}" title="${esc(tip)}"><div class="metric-month-value">${d?v.toFixed(0)+(count<4?' P':''):'—'}</div><div class="metric-month-track"><i style="height:${pct}%"></i></div><b>${day}</b><span>${week}</span></div>`;
- }).join('')}</div>`;
+ }).join('')}</div>${restantes>0
+  ? `<div class="metric-month-footer">${cols.length} dia(s) com coleta • ${restantes} dia(s) do período ainda sem lançamento</div>`
+  : ''}${media>0
+  ? `<div class="metric-month-footer">média do período: <b>${media.toFixed(1)}</b></div>`
+  : ''}`;
 
 }
 function metricDailySummary(points=[]){
@@ -6284,20 +6148,68 @@ avg=vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:null,
 pending=4-collected.length,
 status=!day||!collected.length?'SEM COLETA':pending?`PARCIAL • ${collected.length}/4 COLETAS • AGUARDANDO ${pending}`:'4/4 COLETAS • DIA COMPLETO';
 return `<section class="metric-daily-card"><header><div><span>${esc(title)}</span><h3>${day?esc(day.date.toLocaleDateString('pt-BR')):'SEM COLETA'}</h3><em class="metric-partial-status ${pending?'partial':'complete'}">${status}</em></div><div><small>PICO</small><b>${peak??'—'}</b></div><div><small>MÉDIA PARCIAL</small><b>${avg===null?'—':avg.toFixed(1)}</b></div></header><div class="metric-hour-grid">${hours.map(h=>`<div class="metric-hour-cell ${day&&Number.isFinite(day.slots[h])?'collected':'waiting'}"><span>${h.replace('H',':00')}</span><b>${day&&Number.isFinite(day.slots[h])?day.slots[h]:'—'}</b><small>${day&&Number.isFinite(day.slots[h])?'ONLINE':'AGUARDANDO COLETA'}</small></div>`).join('')}</div></section>`}
-function metricWeekSvg(days=[]){const hours=['14H',
-'16H',
-'21H',
-'23H'],
-all=days.flatMap(d=>hours.map(h=>d.slots[h]).filter(Number.isFinite)),
-max=Math.max(1,...all);
-const W=920,
-H=250,
-pad=38,
-step=days.length>1?(W-pad*2)/(days.length-1):0;
-const y=v=>H-pad-(v/max)*(H-pad*2);
-const lines=hours.map((h,idx)=>{const pts=days.map((d,i)=>Number.isFinite(d.slots[h])?`${pad+i*step},${y(d.slots[h]).toFixed(1)}`:null);let segs=[],
-cur=[];pts.forEach(p=>{if(p)cur.push(p);else if(cur.length){segs.push(cur);cur=[]}});if(cur.length)segs.push(cur);return `<g class="metric-line line-${idx}">${segs.map(s=>s.length>1?`<polyline points="${s.join(' ')}"/>`:'' ).join('')}${days.map((d,i)=>Number.isFinite(d.slots[h])?`<circle cx="${pad+i*step}" cy="${y(d.slots[h]).toFixed(1)}" r="4"><title>${metricFmtDay(d.date)} • ${h} • ${d.slots[h]} online</title></circle>`:'').join('')}</g>`}).join('');
-return `<svg class="metric-week-svg" viewBox="0 0 ${W} ${H}" role="img">${[0,.25,.5,.75,1].map(t=>`<line x1="${pad}" x2="${W-pad}" y1="${y(max*t)}" y2="${y(max*t)}" class="metric-grid-line"/><text x="4" y="${y(max*t)+4}" class="metric-axis-text">${Math.round(max*t)}</text>`).join('')}${lines}</svg>`}
+/* V11.5 - GRAFICO SEMANAL REFEITO
+   Problemas da versao anterior:
+   - a escala ia de 0 ate o valor maximo exato, entao a linha do pico
+     encostava na borda de cima e ficava sem respiro;
+   - dias sem coleta nao apareciam de forma nenhuma: a linha terminava no
+     meio do grafico e os tres dias restantes ficavam em branco, dando a
+     impressao de defeito;
+   - nao havia marcacao de ponto nem valor visivel.
+
+   Agora: 12% de folga no topo, pontos marcados em cada leitura, faixa
+   sombreada nos dias ainda sem lancamento e o valor no hover. */
+/* V11.7 - ALINHAMENTO COM A REGUA DE DIAS
+   O grafico tinha margem lateral fixa e os pontos eram distribuidos entre
+   essas margens, enquanto a regua de dias abaixo ocupa a largura inteira do
+   card em 7 colunas iguais. Resultado: o ponto de segunda caia antes da
+   coluna de segunda e o de quinta ficava no meio do card - o grafico nao
+   acompanhava o dia.
+
+   Agora cada leitura fica no CENTRO da sua coluna, exatamente como a regua:
+   coluna i ocupa de i*L ate (i+1)*L, e o ponto vai em (i+0.5)*L. A area de
+   desenho tambem cresceu, para os valores nao ficarem espremidos. */
+function metricWeekSvg(days=[]){
+ const hours=['14H','16H','21H','23H'];
+ const all=days.flatMap(d=>hours.map(h=>d.slots[h]).filter(Number.isFinite));
+ if(!all.length)return '<div class="metric-empty-chart">Nenhuma coleta nesta semana ainda.</div>';
+
+ const max=Math.max(1,...all)*1.12;        // folga para o pico nao colar no topo
+ const W=1000,H=320,topo=26,base=26;       // mais alto que antes
+ const L=W/Math.max(1,days.length);        // largura de cada coluna, igual a regua
+ const x=i=>(i+0.5)*L;                     // centro da coluna
+ const y=v=>H-base-(v/max)*(H-topo-base);
+
+ const temDado=i=>hours.some(h=>Number.isFinite(days[i]?.slots[h]));
+ const primeiroVazio=days.findIndex((d,i)=>!temDado(i));
+ const todosVaziosDepois=primeiroVazio>=0&&days.slice(primeiroVazio).every((d,k)=>!temDado(primeiroVazio+k));
+
+ // faixa dos dias ainda sem lancamento, casando com o limite da coluna
+ const faixa=todosVaziosDepois
+   ? `<rect class="metric-week-pending" x="${primeiroVazio*L}" y="0" width="${W-primeiroVazio*L}" height="${H}"></rect>`
+   : '';
+
+ // divisorias nas mesmas posicoes da regua de dias
+ const divisorias=days.map((d,i)=>i?`<line class="metric-week-col" x1="${i*L}" x2="${i*L}" y1="0" y2="${H}"></line>`:'').join('');
+
+ const grade=[0,.25,.5,.75,1].map(t=>
+   `<line class="metric-week-grid" x1="0" x2="${W}" y1="${y(max*t)}" y2="${y(max*t)}"></line>`
+   +`<text class="metric-week-axis" x="6" y="${y(max*t)-5}">${Math.round(max*t)}</text>`
+ ).join('');
+
+ const lines=hours.map((h,idx)=>{
+  const pts=days.map((d,i)=>Number.isFinite(d.slots[h])?{x:x(i),y:y(d.slots[h]),v:d.slots[h]}:null);
+  const segs=[];let cur=[];
+  pts.forEach(p=>{if(p)cur.push(p);else if(cur.length){segs.push(cur);cur=[]}});
+  if(cur.length)segs.push(cur);
+  const traco=segs.map(seg=>`<polyline points="${seg.map(p=>`${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')}"></polyline>`).join('');
+  const bolas=pts.filter(Boolean).map(p=>
+    `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4"><title>${esc(h)} • ${p.v}</title></circle>`).join('');
+  return `<g class="metric-line line-${idx}">${traco}${bolas}</g>`;
+ }).join('');
+
+ return `<svg class="metric-week-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Leituras por horário na semana">${faixa}${divisorias}${grade}${lines}</svg>`;
+}
 function renderMetricIntelligence(rows=[],raw=[],seg=''){
  const daily=$('#metricDailyIntel'),
 weekly=$('#metricWeeklyIntel');
@@ -6423,7 +6335,7 @@ function boletimTotalLinha(row){
 /* Agrega por Group dentro de uma janela de datas. */
 function boletimAgregar(inicio,fim){
  const mapa=new Map();
- for(const row of (metricas||[])){
+ for(const row of (estado.metricas||[])){
   const d=boletimParseData(row.data);
   if(!d||d<inicio||d>fim)continue;
   const nome=String(row.group||row.organizacao||'').trim();
@@ -6532,6 +6444,9 @@ function boletimTexto(){
   novos.forEach(x=>L.push(`• ${x.nome} — ${x.total.toLocaleString('pt-BR')} na primeira semana`));
   L.push('');
  }
+ L.push('');
+ L.push(triagemTexto());
+ L.push('');
  L.push(`_Gerado pelo High OS em ${new Date().toLocaleString('pt-BR')}_`);
  return L.join('\n');
 }
@@ -6550,9 +6465,158 @@ function boletimPartes(texto){
   : partes;
 }
 
+
+/* =====================================================================
+   HIGH OS V11.6 - TRIAGEM SEMANAL DAS FACCOES
+   ---------------------------------------------------------------------
+   Responde a pergunta que a operacao faz toda semana: quem precisa ser
+   recolhido, quem merece acompanhamento e quem esta indo bem.
+
+   Regra importante: so entra Group OCUPADO. Na semana analisada, 25 dos
+   56 Groups estavam zerados - quase todos vagos, sem faccao dentro.
+   Group vago nao e "para limpar", e vazio; misturar os dois faria a
+   lista de recolhimento nascer errada.
+
+   Os cortes vieram da distribuicao real: entre os Groups com atividade,
+   o topo passa de 50 por dia e o fundo fica abaixo de 1. A diferenca e
+   de cem vezes, entao a separacao e nitida.
+   ===================================================================== */
+const TRIAGEM_CARENCIA_DIAS=14;   // facção recém-entregue não é avaliada ainda
+
+/* A data vem do cadastro do Group no formato dd/mm/aaaa. */
+function diasDesdeEntrega(nomeGroup){
+ const f=estado.faccoes.find(x=>alvesNorm(x.group)===alvesNorm(nomeGroup));
+ const txt=String(f?.dataEntrega||f?.ocupacaoAtual?.dataEntrega||'').trim();
+ const m=txt.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+ if(!m)return null;                       // sem data registrada: não dá para saber
+ const d=new Date(Number(m[3]),Number(m[2])-1,Number(m[1]),12,0,0);
+ if(isNaN(d))return null;
+ return Math.floor((Date.now()-d.getTime())/86400000);
+}
+
+const TRIAGEM_LIMITES={
+ limparDias:2,        // presenca de ate 2 dias em 7
+ limparMedia:1,       // ou media diaria abaixo de 1
+ acompanharDias:5,    // presenca de 3 a 5 dias
+ quedaGrave:40,       // ou queda acima de 40% contra a semana anterior
+ bemDias:6,           // presenca de 6 ou 7 dias
+ bemMedia:6           // e media acima de 6 por dia
+};
+
+function triagemSemanal(){
+ const base=boletimCalcular();
+ const ocupados=base.linhas.filter(l=>metricGroupOccupied(l.nome));
+ const fora=base.linhas.length-ocupados.length;
+
+ const classificar=l=>{
+  const media=l.total/7;
+  const idade=diasDesdeEntrega(l.nome);
+  // entregue há pouco: ainda não dá para cobrar resultado
+  if(idade!==null&&idade<TRIAGEM_CARENCIA_DIAS)return 'carencia';
+  if(l.dias<=TRIAGEM_LIMITES.limparDias||media<TRIAGEM_LIMITES.limparMedia)return 'limpar';
+  if(l.dias<=TRIAGEM_LIMITES.acompanharDias)return 'acompanhar';
+  if(l.totalAnterior>0&&l.variacao<=-TRIAGEM_LIMITES.quedaGrave)return 'acompanhar';
+  if(l.dias>=TRIAGEM_LIMITES.bemDias&&media>TRIAGEM_LIMITES.bemMedia)return 'bem';
+  return 'acompanhar';
+ };
+
+ const grupos={limpar:[],acompanhar:[],bem:[],carencia:[]};
+ ocupados.forEach(l=>{
+  const item={...l,media:l.total/7,faixa:classificar(l)};
+  const idade=diasDesdeEntrega(l.nome);
+  item.idade=idade;
+  item.motivo=item.faixa==='carencia'
+   ? `assumiu há ${idade} dia(s) — avaliação a partir de ${TRIAGEM_CARENCIA_DIAS} dias`
+   : item.faixa==='limpar'
+   ? (l.dias<=TRIAGEM_LIMITES.limparDias?`presença em apenas ${l.dias} dia(s) dos 7`:`média de ${(l.total/7).toFixed(1)} por dia`)
+   : item.faixa==='acompanhar'
+     ? (l.totalAnterior>0&&l.variacao<=-TRIAGEM_LIMITES.quedaGrave?`queda de ${Math.abs(l.variacao).toFixed(0)}% na semana`:`presença em ${l.dias} dia(s) dos 7`)
+     : `${l.dias} dias de presença • média de ${(l.total/7).toFixed(1)} por dia`;
+  grupos[item.faixa].push(item);
+ });
+ grupos.limpar.sort((a,b)=>a.media-b.media);
+ grupos.acompanhar.sort((a,b)=>a.variacao-b.variacao);
+ grupos.bem.sort((a,b)=>b.media-a.media);
+ grupos.carencia.sort((a,b)=>(a.idade??0)-(b.idade??0));
+ return {...grupos,janelas:base.janelas,ocupados:ocupados.length,fora};
+}
+
+function triagemTexto(){
+ const t=triagemSemanal();
+ const j=t.janelas;
+ const L=[];
+ L.push(`**TRIAGEM DAS FACÇÕES**`);
+ L.push(`Período: ${boletimDataBR(j.inicioAtual)} a ${boletimDataBR(j.fimAtual)} • ${t.ocupados} Group(s) ocupado(s)`);
+ L.push('');
+ if(t.limpar.length){
+  L.push(`**PRECISAM SER RECOLHIDOS (${t.limpar.length})**`);
+  t.limpar.forEach(x=>L.push(`• ${x.nome} — ${x.motivo}`));
+  L.push('');
+ }
+ if(t.acompanhar.length){
+  L.push(`**ACOMPANHAR (${t.acompanhar.length})**`);
+  t.acompanhar.forEach(x=>L.push(`• ${x.nome} — ${x.motivo}`));
+  L.push('');
+ }
+ if(t.carencia.length){
+  L.push(`**EM CARÊNCIA (${t.carencia.length})**`);
+  t.carencia.forEach(x=>L.push(`• ${x.nome} — ${x.motivo}`));
+  L.push('');
+ }
+ if(t.bem.length){
+  L.push(`**ESTÃO BEM (${t.bem.length})**`);
+  t.bem.forEach(x=>L.push(`• ${x.nome} — ${x.motivo}`));
+  L.push('');
+ }
+ L.push(`_Group vago não entra nesta lista: ${t.fora} fora por não ter facção ocupando._`);
+ return L.join('\n');
+}
+
+function renderTriagem(){
+ const box=document.getElementById('metricTriagem');
+ if(!box)return;
+ const t=triagemSemanal();
+ const coluna=(titulo,itens,classe,descricao)=>`
+  <div class="triagem-col ${classe}">
+   <header><b>${titulo}</b><span>${itens.length}</span></header>
+   <small>${descricao}</small>
+   ${itens.length
+     ? itens.map(x=>`
+       <button type="button" class="triagem-item" data-group="${esc(x.nome)}">
+        <b>${esc(x.nome)}</b>
+        <small>${esc(x.motivo)}</small>
+        <i>${x.total.toLocaleString('pt-BR')} na semana${x.totalAnterior?` • ${boletimPct(x.variacao)}`:''}</i>
+       </button>`).join('')
+     : '<div class="triagem-vazio">Ninguém nesta faixa.</div>'}
+  </div>`;
+ box.innerHTML=`
+  <div class="triagem-head">
+   <div><b>TRIAGEM DAS FACÇÕES</b><span>${boletimDataBR(t.janelas.inicioAtual)} a ${boletimDataBR(t.janelas.fimAtual)} • ${t.ocupados} Group(s) ocupado(s) • ${t.fora} vago(s) fora da conta</span></div>
+   <button type="button" id="triagemCopiar">COPIAR PARA O DISCORD</button>
+  </div>
+  <div class="triagem-grid">
+   ${coluna('PRECISAM SER RECOLHIDOS',t.limpar,'limpar','até 2 dias de presença ou média abaixo de 1 por dia')}
+   ${coluna('ACOMPANHAR',t.acompanhar,'acompanhar','3 a 5 dias de presença ou queda acima de 40%')}
+   ${coluna('ESTÃO BEM',t.bem,'bem','6 ou 7 dias de presença e média acima de 6 por dia')}
+   ${coluna('EM CARÊNCIA',t.carencia,'carencia',`entregues há menos de ${TRIAGEM_CARENCIA_DIAS} dias — ainda sem cobrança`)}
+  </div>`;
+ document.getElementById('triagemCopiar')?.addEventListener('click',async()=>{
+  await copyText(triagemTexto());
+  window.highToast?.('Triagem copiada.','ok');
+ });
+ box.querySelectorAll('[data-group]').forEach(b=>b.addEventListener('click',()=>{
+  const f=estado.faccoes.find(x=>alvesNorm(x.group)===alvesNorm(b.dataset.group));
+  if(f)showGroupProfilePage(f);
+ }));
+}
+
 function renderBoletim(){
  const box=document.getElementById('metricViewBoletim');
  if(!box)return;
+ let alvoTriagem=document.getElementById('metricTriagem');
+ if(!alvoTriagem){alvoTriagem=document.createElement('div');
+alvoTriagem.id='metricTriagem';
+alvoTriagem.className='metric-triagem'}
  const texto=boletimTexto();
  const partes=boletimPartes(texto);
  box.innerHTML=`
@@ -6576,7 +6640,11 @@ function renderBoletim(){
      <pre>${esc(p)}</pre>
     </div>`).join('')}
   </div>`;
- document.getElementById('boletimGerar')?.addEventListener('click',renderBoletim);
+ /* V11.6 - o boletim reescreve o proprio container, entao a div da triagem
+    e recriada no topo depois da reescrita */
+ box.insertBefore(alvoTriagem,box.firstChild);
+ renderTriagem();
+ document.getElementById('boletimGerar')?.addEventListener('click',()=>{renderBoletim();renderTriagem()});
  document.getElementById('boletimCopiar')?.addEventListener('click',async()=>{
   await copyText(texto);
   window.highToast?.('Boletim copiado.','ok');
@@ -6893,7 +6961,7 @@ async function saveMetricImport(){
 if(!rows.length){alert('Nenhuma linha válida. Use um cabeçalho como: Group;Data;18:00;18:30;19:00;...');
 return}
  try{const batch=writeBatch(db);
-rows.forEach(r=>{const existing=metricas.find(x=>alvesNorm(x.group||'')===alvesNorm(r.group)&&normalizeMetricDate(x.data||x.date)===normalizeMetricDate(r.data));r={...r,
+rows.forEach(r=>{const existing=estado.metricas.find(x=>alvesNorm(x.group||'')===alvesNorm(r.group)&&normalizeMetricDate(x.data||x.date)===normalizeMetricDate(r.data));r={...r,
 slots:{...metricSlots(existing||{}),
 ...r.slots}};r=metricSnapshot(r);const id=(r.group+'_'+r.data).replace(/[^a-zA-Z0-9_-]/g,'_');batch.set(doc(db,'highos','data','metricas',id),{...r,
 updatedAt:serverTimestamp(),
@@ -6943,7 +7011,7 @@ async function testMetricSource(){
 if(out)out.textContent='Atualizando os dados já sincronizados no Firestore...';
 
  try{await loadMetrics();
-if(out)out.innerHTML=`<b>CENTRAL ONLINE</b> • ${metricas.length} registro(s) históricos disponíveis no Firestore.`}catch(e){if(out)out.textContent='Falha: '+e.message}
+if(out)out.innerHTML=`<b>CENTRAL ONLINE</b> • ${estado.metricas.length} registro(s) históricos disponíveis no Firestore.`}catch(e){if(out)out.textContent='Falha: '+e.message}
 }
 /* V9.8.1 - Esta funcao havia desaparecido numa das edicoes anteriores do
    arquivo. Sem ela, loadMetrics() lancava ReferenceError e o painel inteiro
@@ -7085,25 +7153,7 @@ return Promise.race([promise,
 new Promise((_,rej)=>timer=setTimeout(()=>rej(new Error(`Tempo limite ao executar ${label}.`)),ms))]).finally(()=>clearTimeout(timer));
 
 }
-function parseCsvRows(text=''){
- const rows=[];
-let row=[],
-cell='',
-q=false;
 
- for(let i=0;i<text.length;i++){const c=text[i];
-if(q){if(c==='"'&&text[i+1]==='"'){cell+='"';
-i++}else if(c==='"')q=false;
-else cell+=c}else if(c==='"')q=true;
-else if(c===','){row.push(cell);
-cell=''}else if(c==='\n'){row.push(cell.replace(/\r$/,''));
-rows.push(row);
-row=[];
-cell=''}else cell+=c}
- if(cell||row.length){row.push(cell.replace(/\r$/,''));
-rows.push(row)}return rows;
-
-}
 async function readMetricsWithoutPopup(){
  const id=extractSpreadsheetId(metricSourceConfig.url);
 if(!id)throw new Error('Fonte da planilha não configurada.');
@@ -7142,7 +7192,7 @@ async function recoverMetricsAutomatically({quiet=true}={}){
 
  /* V9.6 - antes lia a colecao inteira aqui e DE NOVO depois de gravar.
     Agora usa a copia que ja esta em memoria (carregada no loadMetrics). */
- let fireRows=metricasCache.slice();
+ let fireRows=estado.metricasCache.slice();
 
  if(!fireRows.length){
   const qs=await metricTimeout(getDocsCached(metricCol,'metricas',{ttl:120000}),12000,'leitura do Firestore');
@@ -7177,9 +7227,9 @@ diff=compareMetricSources(sheetRows,fireRows);
  }
  /* V9.6 - nada de reler a colecao: a planilha ja e a versao mais nova,
     entao aplicamos localmente e economizamos N leituras por ciclo. */
- metricasCache=sheetRows.slice();
+ estado.metricasCache=sheetRows.slice();
 
- metricas=sheetRows.slice();
+ estado.metricas=sheetRows.slice();
 
  metricPeriodKey=metricPeriodKey||currentMetricMonthKey();
 
@@ -7188,12 +7238,12 @@ renderMetrics();
 renderMetricQuotaPanel();
 
  const sheetLast=metricLatestInfo(sheetRows),
-fireLast=metricLatestInfo(metricas);
+fireLast=metricLatestInfo(estado.metricas);
 
  metricSourceState={...metricSourceState,
 status:'ONLINE',
 lastSync:Date.now(),
-count:metricas.length,
+count:estado.metricas.length,
 activeCount:activeMetricRows().length,
 error:'',
 sheet:result.sheet,
@@ -7278,7 +7328,7 @@ action=d.pendingRows?`Sincronização recuperada: ${d.pendingRows} registro(s) e
 
     alert(`${action}\n\nPLANILHA: até ${result.sheetLast.date} • ${result.sheetLast.slot}\nFIRESTORE: até ${result.fireLast.date} • ${result.fireLast.slot}`);
 
-   }else alert(`Central carregada do Firestore. ${metricas.length} registro(s) disponíveis.`)
+   }else alert(`Central carregada do Firestore. ${estado.metricas.length} registro(s) disponíveis.`)
   }
   return true;
 
@@ -7316,93 +7366,11 @@ $('#metricSourceTest')?.addEventListener('click',testMetricSource);
 $('#metricSourceSave')?.addEventListener('click',saveMetricSource);
 $('#syncMetricBtn')?.addEventListener('click',()=>requestServerMetricSync({quiet:false}));
 
-function marketFlatten(node,path='',out=[]){
- if(Array.isArray(node)){node.forEach((v,i)=>marketFlatten(v,path,out));
-return out}
- if(!node||typeof node!=='object')return out;
-const name=node.nome||node.item||node.produto||node.name||node.ITEM||node.NOME||node.PRODUTO;
 
- if(name){out.push({...node,
-__name:String(name),
-__path:path})}
- Object.entries(node).forEach(([k,
-v])=>{if(v&&typeof v==='object')marketFlatten(v,path?path+' / '+k:k,out)});
-return out;
 
-}
-function marketPriceFields(x){
- const pick=(...ks)=>{for(const k of ks)if(x[k]!==undefined&&x[k]!==null&&String(x[k]).trim()!=='')return x[k];
-return ''};
 
- return {pista:pick('pista','preco_pista','precoPista','sell','sell_min','venda','VALOR PISTA','PISTA'),
-parceria:pick('parceria','preco_parceria','precoParceria','buy','buy_min','compra','VALOR PARCERIA','PARCERIA'),
-categoria:pick('categoria','category','CATEGORIA')||x.__path||''};
 
-}
-async function loadMarketCatalog(){
- mercadoStatus='CARREGANDO';
-renderMarket();
-try{const r=await fetch(MARKET_CATALOG_URL,{cache:'no-store'});
-if(!r.ok)throw new Error('HTTP '+r.status);
-const json=await r.json();
-mercadoCatalogo=marketFlatten(json).filter((x,i,a)=>a.findIndex(y=>alvesNorm(y.__name)===alvesNorm(x.__name))===i);
-mercadoStatus='ONLINE';
-renderMarket()}catch(e){mercadoCatalogo=[];
-mercadoStatus='INDISPONÍVEL';
-renderMarket(e)}
-}
-function fmtMoneyMaybe(v){if(v===''||v==null)return '—';
-if(typeof v==='number')return '$'+v.toLocaleString('pt-BR');
-const n=Number(String(v).replace(/[^0-9,.-]/g,'').replace('.','').replace(',','.'));
-return Number.isFinite(n)&&n?('$'+n.toLocaleString('pt-BR')):String(v)}
-function marketFind(question=''){const n=alvesNorm(question);
-return mercadoCatalogo.filter(x=>n.includes(alvesNorm(x.__name))||alvesNorm(x.__name).includes(n)).sort((a,b)=>b.__name.length-a.__name.length)[0]||null}
-function renderMarket(err){
- const st=$('#marketStatus'),
-box=$('#marketResults'),
-cnt=$('#marketCount');
-if(!st||!box)return;
-st.innerHTML=mercadoStatus==='ONLINE'?`<span class="online">● CATÁLOGO ONLINE</span>`:(mercadoStatus==='CARREGANDO'?'Carregando catálogo público...':`<span class="danger">● CATÁLOGO INDISPONÍVEL</span>${err?' • '+esc(err.message):''}`);
-if(cnt)cnt.textContent=mercadoStatus==='ONLINE'?String(mercadoCatalogo.length):'—';
 
- const q=alvesNorm($('#marketSearch')?.value||'');
-const list=(q?mercadoCatalogo.filter(x=>alvesNorm([x.__name,
-x.__path].join(' ')).includes(q)):mercadoCatalogo.slice(0,8)).slice(0,20);
-box.innerHTML=list.map(x=>{const p=marketPriceFields(x);return `<div class="market-item"><div><b>${esc(x.__name)}</b><small>${esc(p.categoria||'Mercado Negro')}</small></div><span>Pista <b>${esc(fmtMoneyMaybe(p.pista))}</b><br>Parceria <b>${esc(fmtMoneyMaybe(p.parceria))}</b></span></div>`}).join('')||'<div class="delivery-no-change">Nenhum item encontrado.</div>';
-
-}
-$('#marketSearch')?.addEventListener('input',renderMarket);
-
-const _alvesAnswerV54=alvesAnswer;
-
-alvesAnswer=function(question=''){
- const q=alvesNorm(question),
-g=alvesFindGroup(question),
-o=alvesFindOrg(question);
-const metricTarget=g?.group||o?.groupAtual||faccoes.find(f=>o&&alvesNorm(f.faccao)===alvesNorm(o.nome))?.group;
-
- if(metricTarget&&(q.includes('media')||q.includes('pico')||q.includes('predomin')||q.includes('metrica'))){const a=metricAnalysis(metricTarget);
-if(!a)return {text:`Não encontrei métricas cadastradas para ${metricTarget}.`,
-refs:['Métricas',
-metricTarget]};
-let parts=[`${metricTarget} — ${metricPeriodLabel(metricPeriodKey)} — ${a.rows.length} dia(s) com métricas.`,
-`Média dos quatro horários: ${a.avg.toFixed(1)}.` ,
-`Pico: ${a.peak.value} às ${a.peak.hour} em ${a.peak.date}.`,
-`Horário predominante: ${a.predominant}.`];
-return {text:parts.join('\n'),
-refs:['Métricas',
-metricTarget]}}
- if(q.includes('abaixo da media')||q.includes('ranking')||q.includes('melhor media')){const rows=metricSummaryRows();
-if(rows.length)return {text:`Ranking de ${metricPeriodLabel(metricPeriodKey)} por média:\n${rows.slice(0,10).map((x,i)=>`${i+1}. ${x.f.group}${x.f.faccao?' — '+x.f.faccao:''}: ${x.a.avg.toFixed(1)}`).join('\n')}`,
-refs:['Métricas']}}
- if(q.includes('quanto custa')||q.includes('preco')||q.includes('pista')||q.includes('parceria')){const item=marketFind(question);
-if(item){const p=marketPriceFields(item);
-return {text:`${item.__name}\nPreço de pista: ${fmtMoneyMaybe(p.pista)}\nPreço de parceria: ${fmtMoneyMaybe(p.parceria)}${p.categoria?'\nCategoria: '+p.categoria:''}`,
-refs:['Mercado Negro']}}if(mercadoStatus!=='ONLINE')return {text:'O catálogo público do Mercado Negro não está disponível neste momento, então não vou estimar o preço.',
-refs:['Mercado Negro']}}
- return _alvesAnswerV54(question);
-
-};
 
 // ===== HIGH OS V6.5 · CDS CONFIRMADAS / GROUPS REMOVIDOS · 07/09/2026 =====
 const GROUP_PROFILE_SOURCE={"Armas01":{"LOCAL":"Favela da Barragem",
@@ -8108,7 +8076,7 @@ if(!entries.length)return alert('Nenhum perfil oficial carregado.');
 missing=0;
 const batch=writeBatch(db);
 for(const [sourceGroup,
-src] of entries){const f=(faccoes||[]).find(x=>alvesNorm(x.group).replace(/\s+/g,'')===alvesNorm(sourceGroup).replace(/\s+/g,''));
+src] of entries){const f=(estado.faccoes||[]).find(x=>alvesNorm(x.group).replace(/\s+/g,'')===alvesNorm(sourceGroup).replace(/\s+/g,''));
 if(!f){missing++;
 continue}const patch=sourceToGroupPatch(f,src);
 batch.set(doc(db,'highos','data','faccoes',f.group),{...patch,
@@ -9107,9 +9075,8 @@ const box=$('#groupStructureSnapshot');
 if(box)box.innerHTML=items.length?items.map(([n,
 v])=>`<div class="structure-chip"><span>${esc(n)}</span><b>${esc(v)}</b></div>`).join(''):'<div class="delivery-no-change">Nenhuma estrutura técnica cadastrada.</div>';
 }
-function techChanged(oldF,newF){return JSON.stringify(mergedTechProfile(oldF))!==JSON.stringify(newF.perfilTecnico||mergedTechProfile(newF))}
 function techAutoRequests(f=currentFactionFromForm()){
- const old=faccoes.find(x=>x.group===f.group)||{},
+ const old=estado.faccoes.find(x=>x.group===f.group)||{},
 now=f.perfilTecnico||getTechProfileFromForm(),
 oldT=mergedTechProfile(old),
 out=[];
@@ -9177,7 +9144,7 @@ if(!group||!texto)return null;
  const fp=requestFingerprint({group,
 tipo,
 texto}),
-dup=requestRecords.find(x=>x.status==='PENDENTE'&&x.fingerprint===fp);
+dup=estado.requestRecords.find(x=>x.status==='PENDENTE'&&x.fingerprint===fp);
 if(dup)return dup;
 
  const payload={isModelo:false,
@@ -9199,13 +9166,13 @@ fingerprint:fp};
 item={id:ref.id,
 ...clonePlain(payload),
 createdAt:null};
-requestRecords.unshift(item);
+estado.requestRecords.unshift(item);
 return item;
 
 }
 function fmtRequestWhen(r={}){const d=r.createdAtText?new Date(r.createdAtText):null;
 return d&&!isNaN(d)?d.toLocaleString('pt-BR'):'—'}
-async function copyArchivedRequest(id,btn){const r=requestRecords.find(x=>x.id===id);
+async function copyArchivedRequest(id,btn){const r=estado.requestRecords.find(x=>x.id===id);
 if(!r?.texto)return;
 try{await navigator.clipboard.writeText(r.texto);
 const o=btn.textContent;
@@ -9218,7 +9185,7 @@ const f=currentFactionFromForm(),
 group=f?.group||$('#fGroup')?.value||'';
 let pending=[];
 try{pending=autoDeliveryRequests(f)}catch{}
- const archived=requestRecords.filter(x=>x.group===group).slice(0,60);
+ const archived=estado.requestRecords.filter(x=>x.group===group).slice(0,60);
 
  const pendingHtml=pending.length?`<div class="request-archive-section"><div class="request-archive-head"><b>DEMANDAS GERADAS PELAS ALTERAÇÕES ATUAIS</b><span>${pending.length} pendente(s) de salvar</span></div>${pending.map((r,i)=>`<article class="delivery-request-card request-live"><div><b>${i+1}. ${esc(r.titulo)}</b><span>${esc(r.tipo)}</span></div><pre>${esc(r.texto)}</pre></article>`).join('')}</div>`:'<div class="delivery-no-change">Nenhuma nova demanda pelas alterações atuais.</div>';
 
@@ -9244,42 +9211,8 @@ $('#fRotaExclusiva')?.addEventListener('change',renderRouteOverview);
 document.querySelectorAll('.tech-tab').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.tech-tab').forEach(x=>x.classList.toggle('active',x===b));document.querySelectorAll('.tech-panel').forEach(p=>p.classList.toggle('active',p.dataset.techPanel===b.dataset.techTab));if(b.dataset.techTab==='farm')renderRouteOverview();if(b.dataset.techTab==='estrutura')renderStructureSnapshot(currentFactionFromForm());if(b.dataset.techTab==='solicitacoes')renderConnectedRequests()}));
 
 // Alvesinho usa o mesmo perfil do Group — sem base paralela.
-const _alvesAnswerV63Base=alvesAnswer;
-alvesAnswer=function(question=''){
- const q=alvesNorm(question),
-g=alvesFindGroup(question);
-if(g){const t=mergedTechProfile(g);
 
-  if(q.includes('craft')||q.includes('fabric')||q.includes('receita')){const rs=t.craft?.receitas||[];
-const hit=rs.find(r=>q.includes(alvesNorm(r.nome))||q.includes(alvesNorm(r.spawn)));
-if(hit)return {text:`${hit.nome}${hit.spawn?' ('+hit.spawn+')':''}\n${hit.nivel?'Nível: '+hit.nivel+' • ':''}${hit.max?'Máx.: '+hit.max:''}\nReceita / insumos:\n${(hit.insumos||[]).map(x=>`• ${x.nome||x.spawn} x${x.qtd}`).join('\n')||'• Sem insumos cadastrados'}`,
-refs:[g.group,
-'Perfil Técnico',
-'Craft']};
-return {text:rs.length?`Craft de ${g.group} (${rs.length} receita(s)):\n${rs.map(r=>`• ${r.nome}${r.spawn?' ('+r.spawn+')':''}`).join('\n')}`:`${g.group} não possui receitas de Craft cadastradas.`,
-refs:[g.group,
-'Perfil Técnico',
-'Craft']};
-}
-  if((q.includes('farm')||q.includes('insumo'))&&!q.includes('receita')){const xs=t.farm?.itens||[];
-return {text:xs.length?`Farm / Insumos de ${g.group}:\n${xs.map(x=>`• ${x.nome||x.spawn}${x.spawn?' ('+x.spawn+')':''}${x.qtd?' — '+x.qtd:''}${x.detalhe?' — '+x.detalhe:''}`).join('\n')}`:`Nenhum insumo de Craft está disponível na rota de ${g.group}.`,
-refs:[g.group,
-'Perfil Técnico',
-'Farm']};
-}
-  if(q.includes('rota')){const xs=t.farm?.itens||[],
-exclusive=!!g.beneficios?.rotaExclusiva,
-pts=routePointList(t.rota?.pontos||g.beneficios?.rotaBlips||'');
-return {text:`Rota de ${g.group}:\nTipo: ${exclusive?'EXCLUSIVA':'PADRÃO'}\n${t.rota?.inicio?`Início: ${t.rota.inicio}\n`:''}${exclusive?`CDS da rota exclusiva: ${pts.length} ponto(s) cadastrado(s).\n`:''}Itens coletados para o Craft:\n${xs.length?xs.map(x=>`• ${x.nome||x.spawn}${x.spawn?' ('+x.spawn+')':''}`).join('\n'):'• Nenhum insumo de Craft vinculado.'}`,
-refs:[g.group,
-'Perfil Técnico',
-'Rota',
-'Craft']};
-}
- }
- return _alvesAnswerV63Base(question);
 
-};
 
 // HIGH OS V6.4 · ação de atualização da base técnica
 $('#updateProfilesBtn')?.addEventListener('click',updateOfficialGroupProfiles);
@@ -9647,26 +9580,8 @@ OP_INPUT_IDS.forEach(id=>$('#'+id)?.addEventListener('input',()=>{syncOperationa
 $('#fOpTelaoTipo')?.addEventListener('change',()=>{syncOperationalLegacy();getTechProfileFromForm();try{renderConnectedRequests();updateDeliveryPreview()}catch{}});
 
 // Perfil operacional também passa a responder no Alvesinho.
-const _alvesAnswerV71=alvesAnswer;
-alvesAnswer=function(question=''){const q=alvesNorm(question),
-g=alvesFindGroup(question);
-if(g){const o=mergedTechProfile(g).operacional||opBlank();
-if(q.includes('garagem')){const xs=o.garagens||[];
-return {text:xs.length?`Garagens de ${g.group}:\n${xs.map(x=>`• ${x.tipo}: Blip ${x.blip||'—'} | Spawn ${x.spawn||'—'}${x.veiculos?' | Veículos '+x.veiculos:''}`).join('\n')}`:`${g.group} não possui garagem cadastrada.`,
-refs:[g.group,
-'Perfil Operacional',
-'Garagens']};
-}if(q.includes('telao')||q.includes('telão')){const t=o.telao||{};
-return {text:t.ativo?`Telão de ${g.group}:\n• Tipo: ${t.tipo||'—'}\n• Modelo: ${t.modelo||'—'}\n• Post-it: ${t.postit||'—'}\n• CDS: ${t.cds||'—'}\n• Sons: ${(t.sons||[]).filter(Boolean).length} ponto(s)\n${(t.sons||[]).filter(Boolean).map((x,i)=>`  Som ${i+1}: ${x}`).join('\n')}`:`${g.group} não possui telão cadastrado.`,
-refs:[g.group,
-'Perfil Operacional',
-'Telão']};
-}if(q.includes('mapa')||q.includes('localizacao')||q.includes('localização')||q.includes('qg')){return {text:`${g.group} — ${o.localizacao?.nome||g.qg||'QG sem nome'}\nCDS principal do mapa: ${o.localizacao?.cdsPrincipal||g.cds||'—'}`,
-refs:[g.group,
-'Perfil Operacional',
-'Mapa']};
-}}
- return _alvesAnswerV71(question)};
+
+
 
 // HIGH OS V7.5 · Benefícios e Setagens realmente isolados em página própria.
 let groupBenefitsHome=null;
@@ -9690,7 +9605,7 @@ mount=$('#groupSettingsMount');
 box.open=true;
 box.classList.add('settings-active');
 
- const raw=faccoes.find(x=>x.group===$('#fGroup')?.value)||{};
+ const raw=estado.faccoes.find(x=>x.group===$('#fGroup')?.value)||{};
 const g=resolveGroupIdentity(raw);
 
  $('#groupSettingsTitle').textContent=`${g.group||$('#fGroup')?.value||'GROUP'} · BENEFÍCIOS E SETAGENS`;
@@ -9758,7 +9673,7 @@ block:'start'}),30)});
 
 const _openFacV74=openFac;
 openFac=function(id){_openFacV74(id);
-const raw=faccoes.find(x=>x.id===id);
+const raw=estado.faccoes.find(x=>x.id===id);
 renderGroupOverview(resolveGroupIdentity(raw||{}))};
 
 ['fStatus',
@@ -9768,7 +9683,7 @@ renderGroupOverview(resolveGroupIdentity(raw||{}))};
 'fLider',
 'fStaff',
 'fCds'].forEach(id=>$('#'+id)?.addEventListener('input',()=>{
- const current=faccoes.find(x=>x.group===$('#fGroup')?.value)||{};
+ const current=estado.faccoes.find(x=>x.group===$('#fGroup')?.value)||{};
  renderGroupOverview({...current,
 status:$('#fStatus')?.value||current.status,
 faccao:$('#fFaccao')?.value.trim()||'',
@@ -9817,7 +9732,7 @@ function movementOpen(mode){
 
   const group = $('#fGroup')?.value;
 
-  const src = faccoes.find(x => x.group === group);
+  const src = estado.faccoes.find(x => x.group === group);
 
   if(!src) return;
 
@@ -9829,7 +9744,7 @@ function movementOpen(mode){
 
   if(!dst) return;
 
-  dst.innerHTML = faccoes
+  dst.innerHTML = estado.faccoes
     .filter(x => x.group !== group)
     .map(x => `<option value="${esc(x.group)}">${esc(x.group)} • ${esc(x.qg || 'SEM LOCAL')} • ${esc(x.faccao || 'VAGO')}</option>`)
     .join('');
@@ -9851,9 +9766,9 @@ function movementOpen(mode){
 }
 
 function movementPreview(){
-  const src = faccoes.find(x => x.group === movementSourceGroup);
+  const src = estado.faccoes.find(x => x.group === movementSourceGroup);
 
-  const dst = faccoes.find(x => x.group === $('#movementDestination')?.value);
+  const dst = estado.faccoes.find(x => x.group === $('#movementDestination')?.value);
 
   if(!src || !dst) return;
 
@@ -9875,8 +9790,8 @@ $('#movementCancel')?.addEventListener('click', () => $('#movementModal')?.class
 
 $('#movementConfirm')?.addEventListener('click', async () => {
   if(!isAdmin()) return;
-  const src = faccoes.find(x => x.group === movementSourceGroup);
-  const dst = faccoes.find(x => x.group === $('#movementDestination')?.value);
+  const src = estado.faccoes.find(x => x.group === movementSourceGroup);
+  const dst = estado.faccoes.find(x => x.group === $('#movementDestination')?.value);
   const reason = $('#movementReason')?.value.trim() || '';
   if(!src || !dst) return;
   if(!reason) return alert('Informe o motivo da operação.');
@@ -10026,7 +9941,7 @@ $('#adminResetAll')?.addEventListener('click', async () => {
   if(!isAdmin()) return;
   const typed = prompt('RESET OPERACIONAL COMPLETO. O histórico de auditoria será PRESERVADO.\n\nDigite exatamente: RESETAR HIGH OS');
   if(typed !== 'RESETAR HIGH OS') return alert('Confirmação incorreta. Nada foi apagado.');
-  if(!confirm('Última confirmação: apagar Groups/QGs, organizações, solicitações, entregas e métricas?')) return;
+  if(!confirm('Última confirmação: apagar Groups/QGs, organizações, solicitações, estado.entregas e métricas?')) return;
 
   try{
     await addDoc(histCol, {
@@ -10195,7 +10110,7 @@ return records;
 
 }
 function facSheetDiffForRecord(record){
- const current=faccoes.find(f=>facSheetNorm(f.group)===record.key);
+ const current=estado.faccoes.find(f=>facSheetNorm(f.group)===record.key);
 if(!current)return null;
 const patch={...record.patch,
 group:current.group};
@@ -10318,11 +10233,11 @@ async function facSheetPushAll(){
 const btn=$('#facSheetPushAllBtn');
 if(btn){btn.disabled=true;
 btn.textContent='ENVIANDO...'}try{if(!facSheetAccessToken)await facSheetAuthorize();
-if(!confirm(`Enviar os ${faccoes.length} Groups atuais do High OS para a planilha oficial?\n\nLinhas existentes serão atualizadas pelo Group e Groups ausentes serão adicionados.`))return;
-const ok=await syncGroupsToOfficialSheet(faccoes,{forceAuthorize:true});
+if(!confirm(`Enviar os ${estado.faccoes.length} Groups atuais do High OS para a planilha oficial?\n\nLinhas existentes serão atualizadas pelo Group e Groups ausentes serão adicionados.`))return;
+const ok=await syncGroupsToOfficialSheet(estado.faccoes,{forceAuthorize:true});
 if(ok){await addDoc(histCol,{sessionId:currentSessionId||'',
 tipo:'SYNC_PLANILHA_FACCOES_EXPORT',
-descricao:`Base High OS enviada manualmente para a planilha oficial: ${faccoes.length} Group(s)`,
+descricao:`Base High OS enviada manualmente para a planilha oficial: ${estado.faccoes.length} Group(s)`,
 usuario:currentUser.email,
 data:serverTimestamp()});
 alert('Planilha atualizada com a base atual do High OS.')}}catch(e){alert('Erro ao enviar a base: '+e.message)}finally{if(btn){btn.disabled=false;
@@ -10378,15 +10293,15 @@ prevStart=new Date(curStart);
 prevStart.setDate(prevStart.getDate()-7);
 const prevEnd=new Date(curStart.getTime()-1);
 
- const currentRows=metricasCache.filter(r=>{const d=metricDateValue(r);return d&&d>=curStart&&d<=now});
+ const currentRows=estado.metricasCache.filter(r=>{const d=metricDateValue(r);return d&&d>=curStart&&d<=now});
 
- const previousRows=metricasCache.filter(r=>{const d=metricDateValue(r);return d&&d>=prevStart&&d<=prevEnd});
+ const previousRows=estado.metricasCache.filter(r=>{const d=metricDateValue(r);return d&&d>=prevStart&&d<=prevEnd});
 
  const cfg=dashboardConfig||DEFAULT_DASHBOARD_CONFIG,
 weekKey=isoDay(curStart),
 out=[];
 
- faccoes.filter(f=>f.status==='ATIVA'&&String(f.faccao||'').trim()).forEach(f=>{
+ estado.faccoes.filter(f=>f.status==='ATIVA'&&String(f.faccao||'').trim()).forEach(f=>{
   const same=r=>alvesNorm(r.group||r.organizacao||r.faccao)===alvesNorm(f.group),
 cur=currentRows.filter(same),
 prev=previousRows.filter(same);if(!cur.length||!prev.length)return;
@@ -10421,14 +10336,14 @@ function vacantMetricAnomalies(){
  const cutoff=new Date();
 cutoff.setDate(cutoff.getDate()-7);
 const by=new Map();
-metricasCache.forEach(r=>{const g=String(r.group||r.organizacao||r.faccao||'').trim(),
+estado.metricasCache.forEach(r=>{const g=String(r.group||r.organizacao||r.faccao||'').trim(),
 d=metricDateValue(r);if(!g||!d||d<cutoff||metricGroupOccupied(g))return;const vals=Object.values(metricSlots(r)).map(Number).filter(Number.isFinite),
 mx=vals.length?Math.max(...vals):0;if(mx<=0)return;const cur=by.get(alvesNorm(g));if(!cur||d>cur.date)by.set(alvesNorm(g),{group:g,
 date:d,
 value:mx,
 row:r})});
 
- return [...by.values()].filter(x=>!anomalyIsCleared(x.group,x.date)).map(x=>{const f=faccoes.find(z=>alvesNorm(z.group)===alvesNorm(x.group));const lastDelivery=historico.filter(h=>h.tipo==='ENTREGA_GROUP'&&alvesNorm(h.group)===alvesNorm(x.group)).sort((a,b)=>historyMillis(b)-historyMillis(a))[0];return {...x,
+ return [...by.values()].filter(x=>!anomalyIsCleared(x.group,x.date)).map(x=>{const f=estado.faccoes.find(z=>alvesNorm(z.group)===alvesNorm(x.group));const lastDelivery=estado.historico.filter(h=>h.tipo==='ENTREGA_GROUP'&&alvesNorm(h.group)===alvesNorm(x.group)).sort((a,b)=>historyMillis(b)-historyMillis(a))[0];return {...x,
 qg:f?.qg||'',
 staff:f?.staff||'',
 hasExtract:!!lastDelivery};}).sort((a,b)=>b.date-a.date);
@@ -10452,24 +10367,24 @@ function renderCommandDashboard(){
  const box=$('#commandDashboard');
 if(!box)return;
 
- const active=faccoes.filter(f=>f.status==='ATIVA'&&f.faccao),
-vacant=faccoes.filter(f=>f.status!=='ATIVA'||!f.faccao),
+ const active=estado.faccoes.filter(f=>f.status==='ATIVA'&&f.faccao),
+vacant=estado.faccoes.filter(f=>f.status!=='ATIVA'||!f.faccao),
 weekly=weeklyContingentAlerts(),
 visibleWeekly=weekly.filter(x=>x.state!=='LIMPO'),
 openAlerts=visibleWeekly.filter(x=>x.state!=='CONCLUIDO'),
 critical=openAlerts.filter(x=>x.level==='CRÍTICO').length;
 
- const pending=solicitacoes.filter(x=>String(x.status||'').toUpperCase()==='PENDENTE').length,
+ const pending=estado.solicitacoes.filter(x=>String(x.status||'').toUpperCase()==='PENDENTE').length,
 health=dashboardHealth(weekly),
 anomalies=vacantMetricAnomalies();
 
  const segs={};
-faccoes.forEach(f=>{const k=f.segmento||'OUTROS';if(!segs[k])segs[k]={all:0,
+estado.faccoes.forEach(f=>{const k=f.segmento||'OUTROS';if(!segs[k])segs[k]={all:0,
 on:0};segs[k].all++;if(f.status==='ATIVA'&&f.faccao)segs[k].on++});
 
- const movements=historico.slice(0,6),
-rec30=historico.filter(h=>historyFamily(h.tipo)==='RECOLHIMENTO').length,
-ent30=historico.filter(h=>historyFamily(h.tipo)==='ENTREGA').length;
+ const movements=estado.historico.slice(0,6),
+rec30=estado.historico.filter(h=>historyFamily(h.tipo)==='RECOLHIMENTO').length,
+ent30=estado.historico.filter(h=>historyFamily(h.tipo)==='ENTREGA').length;
 
  const bars=Object.entries(segs).map(([k,
 v])=>`<div class="dash-seg-row"><span>${esc(k)}</span><div><i style="width:${v.all?Math.max(3,v.on/v.all*100):0}%"></i></div><b>${v.on}/${v.all}</b></div>`).join('');
@@ -10480,11 +10395,11 @@ v])=>`<div class="dash-seg-row"><span>${esc(k)}</span><div><i style="width:${v.a
 
  const activity=movements.map(h=>`<div class="dash-activity-row"><i></i><div><b>${esc(historyTitle(h))}</b><span>${esc([h.group,h.faccao].filter(Boolean).join(' • ')||h.descricao||'Operação administrativa')}</span><small>${esc(formatHistoryDate(h))}${h.usuario?' • '+esc(h.usuario):''}</small></div></div>`).join('')||'<div class="dash-empty">Nenhuma movimentação registrada.</div>';
 
- box.innerHTML=`<section class="dash-command-hero"><div><span class="dash-hero-kicker">HIGH OS • CENTRAL EXECUTIVA</span><h3>VISÃO GERAL DO ILEGAL</h3><p>Indicadores, alertas e ações prioritárias reunidos em uma leitura rápida da operação.</p></div><div class="dash-hero-actions"><button type="button" data-open-management>ABRIR GESTÃO DO ILEGAL</button><button type="button" class="primary" data-open-general-report>GERAR RELATÓRIO GERAL</button></div></section><div class="dash-kpis"><button data-go="faccoes"><span>FACÇÕES ATIVAS</span><b>${active.length}</b><small>somente ocupadas</small></button><button data-go="faccoes"><span>QGs VAGOS</span><b>${vacant.length}</b><small>fora de métricas globais</small></button><button data-go="metricas" class="${openAlerts.length?'warn':''}"><span>ALERTAS SEMANAIS</span><b>${openAlerts.length}</b><small>${critical?critical+' crítico(s)':'comparação com semana anterior'}</small></button><button data-go="solicitacoes"><span>SOLICITAÇÕES</span><b>${pending||solicitacoes.length}</b><small>${pending?'pendentes':'modelos cadastrados'}</small></button><article class="health ${health.toLowerCase()}"><span>SAÚDE DO ILEGAL</span><b>${health}</b><small>${openAlerts.length?openAlerts.length+' alerta(s) pendente(s)':'sem alertas pendentes'}</small></article></div>
+ box.innerHTML=`<section class="dash-command-hero"><div><span class="dash-hero-kicker">HIGH OS • CENTRAL EXECUTIVA</span><h3>VISÃO GERAL DO ILEGAL</h3><p>Indicadores, alertas e ações prioritárias reunidos em uma leitura rápida da operação.</p></div><div class="dash-hero-actions"><button type="button" data-open-management>ABRIR GESTÃO DO ILEGAL</button><button type="button" class="primary" data-open-general-report>GERAR RELATÓRIO GERAL</button></div></section><div class="dash-kpis"><button data-go="faccoes"><span>FACÇÕES ATIVAS</span><b>${active.length}</b><small>somente ocupadas</small></button><button data-go="faccoes"><span>QGs VAGOS</span><b>${vacant.length}</b><small>fora de métricas globais</small></button><button data-go="metricas" class="${openAlerts.length?'warn':''}"><span>ALERTAS SEMANAIS</span><b>${openAlerts.length}</b><small>${critical?critical+' crítico(s)':'comparação com semana anterior'}</small></button><button data-go="solicitacoes"><span>SOLICITAÇÕES</span><b>${pending||estado.solicitacoes.length}</b><small>${pending?'pendentes':'modelos cadastrados'}</small></button><article class="health ${health.toLowerCase()}"><span>SAÚDE DO ILEGAL</span><b>${health}</b><small>${openAlerts.length?openAlerts.length+' alerta(s) pendente(s)':'sem alertas pendentes'}</small></article></div>
  <div class="dash-grid"><section class="dash-panel dash-wide"><header><div><span>COMPARAÇÃO SEMANAL</span><h3>ALERTAS OBJETIVOS DE CONTINGENTE</h3></div><button data-go="metricas">ABRIR CENTRAL →</button></header><p class="dash-rule-note">A semana atual é comparada com os mesmos dias e horários da semana anterior. Facções sem ocupação nunca geram alerta.</p><div class="dash-week-alerts">${attention}</div></section>
  <section class="dash-panel"><header><div><span>PATRIMÔNIO</span><h3>OCUPAÇÃO POR SEGMENTO</h3></div><button data-go="faccoes">VER ORGANIZAÇÕES →</button></header><div class="dash-segments">${bars}</div></section>
  <section class="dash-panel dash-wide"><header><div><span>VALIDAÇÃO AUTOMÁTICA</span><h3>INCONSISTÊNCIAS • GROUP VAGO COM PLAYER</h3></div></header><div class="dash-anomalies">${anomalyHtml}</div></section>
- <section class="dash-panel"><header><div><span>30 DIAS / HISTÓRICO</span><h3>MOVIMENTAÇÃO DE FACÇÕES</h3></div><button data-go="historico">VER HISTÓRICO →</button></header><div class="dash-move-kpis"><div><b>${ent30}</b><span>ENTREGAS</span></div><div><b>${rec30}</b><span>RECOLHIMENTOS</span></div><div><b>${historico.length}</b><span>EVENTOS</span></div></div></section>
+ <section class="dash-panel"><header><div><span>30 DIAS / HISTÓRICO</span><h3>MOVIMENTAÇÃO DE FACÇÕES</h3></div><button data-go="historico">VER HISTÓRICO →</button></header><div class="dash-move-kpis"><div><b>${ent30}</b><span>ENTREGAS</span></div><div><b>${rec30}</b><span>RECOLHIMENTOS</span></div><div><b>${estado.historico.length}</b><span>EVENTOS</span></div></div></section>
  <section class="dash-panel dash-wide"><header><div><span>AUDITORIA</span><h3>ATIVIDADE RECENTE</h3></div><button data-go="historico">ABRIR HISTÓRICO →</button></header><div class="dash-activity">${activity}</div></section></div>`;
 
  box.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>dashboardGo(b.dataset.go));
@@ -10492,7 +10407,7 @@ box.querySelector('[data-open-management]')?.addEventListener('click',()=>{activ
 box.querySelector('[data-open-general-report]')?.addEventListener('click',mgmtOpenRichReport);
 box.querySelectorAll('[data-alert-group]').forEach(b=>b.onclick=()=>openMetricForGroup(b.dataset.alertGroup));
 box.querySelectorAll('[data-alert-state]').forEach(b=>b.onclick=e=>{e.stopPropagation();setDashboardAlertState(b.dataset.group,b.dataset.week,b.dataset.alertState)});
-box.querySelectorAll('[data-anomaly-group]').forEach(b=>b.onclick=()=>{activateAppPage('faccoes');const f=faccoes.find(x=>alvesNorm(x.group)===alvesNorm(b.dataset.anomalyGroup));if(f)openFac(f.id)});
+box.querySelectorAll('[data-anomaly-group]').forEach(b=>b.onclick=()=>{activateAppPage('faccoes');const f=estado.faccoes.find(x=>alvesNorm(x.group)===alvesNorm(b.dataset.anomalyGroup));if(f)openFac(f.id)});
 box.querySelectorAll('[data-clear-anomaly]').forEach(b=>b.onclick=e=>{e.stopPropagation();clearVacantMetricAlert(b.dataset.clearAnomaly,new Date(b.dataset.anomalyDate))});
 
 }
@@ -10632,7 +10547,7 @@ async function persistCurrentTechProfile(group, {reload=true}={}){
 updatedAt:serverTimestamp(),
 updatedBy:currentUser?.email||''},{merge:true});
 
- const local=faccoes.find(x=>x.group===group);
+ const local=estado.faccoes.find(x=>x.group===group);
 
  if(local)local.perfilTecnico=clonePlain(perfilTecnico);
 
@@ -10643,12 +10558,12 @@ updatedBy:currentUser?.email||''},{merge:true});
      const fresh={id:snap.id,
 ...snap.data()};
 
-     const pos=faccoes.findIndex(x=>x.group===group);
+     const pos=estado.faccoes.findIndex(x=>x.group===group);
 
-     if(pos>=0)faccoes[pos]={...faccoes[pos],
+     if(pos>=0)estado.faccoes[pos]={...estado.faccoes[pos],
 ...fresh};
 
-     techDraft=mergedTechProfile(faccoes[pos>=0?pos:faccoes.findIndex(x=>x.group===group)]||fresh);
+     techDraft=mergedTechProfile(estado.faccoes[pos>=0?pos:estado.faccoes.findIndex(x=>x.group===group)]||fresh);
 
    }
  }
@@ -10686,7 +10601,7 @@ insumos=readIngredientEditor();
  if(btn){btn.disabled=true;btn.textContent='SALVANDO...'}
  try{
    if(!group)throw new Error('Group não identificado.');
-   const local=faccoes.find(x=>x.group===group);
+   const local=estado.faccoes.find(x=>x.group===group);
    const oldPerfil=clonePlain(mergedTechProfile(local||{}));
    const perfilTecnico=getTechProfileFromForm();
    const oldRecipe=(oldPerfil?.craft?.receitas||[]).find(x=>craftRecipeKey(x)===craftRecipeKey(r));
@@ -10712,7 +10627,7 @@ createdAtText:new Date().toISOString(),
 createdBy:currentUser?.email||'',
 fingerprint:requestFingerprint({group,
 tipo:'CRAFT_ITEM',
-texto:generatedRequest.texto})};const dup=requestRecords.find(x=>x.status==='PENDENTE'&&x.fingerprint===craftPayload.fingerprint);if(dup){requestRef={id:dup.id}}else{requestRef=await addDoc(reqCol,craftPayload);requestRecords.unshift({id:requestRef.id,
+texto:generatedRequest.texto})};const dup=estado.requestRecords.find(x=>x.status==='PENDENTE'&&x.fingerprint===craftPayload.fingerprint);if(dup){requestRef={id:dup.id}}else{requestRef=await addDoc(reqCol,craftPayload);estado.requestRecords.unshift({id:requestRef.id,
 ...clonePlain(craftPayload),
 createdAt:null})};
    }
@@ -10793,7 +10708,7 @@ f.group||''].filter(Boolean).join(' - ');
 }
 
 async function saveAvailableImageLink(group,input,button){
- const f=faccoes.find(x=>x.group===group);
+ const f=estado.faccoes.find(x=>x.group===group);
 if(!f||!currentUser)return;
 
  const url=String(input?.value||'').trim();
@@ -10828,7 +10743,7 @@ if(button){button.disabled=false;
 button.textContent='SALVAR LINK'}}
 }
 async function saveAvailableContingent(group,card,button){
- const f=faccoes.find(x=>x.group===group);
+ const f=estado.faccoes.find(x=>x.group===group);
 if(!f||!currentUser)return;
 
  const min=Math.max(1,Number(card?.querySelector('.available-cont-min')?.value||15));
@@ -10884,7 +10799,7 @@ renderAvailableSegmentCards();
 seg=$('#availableSegment')?.value||'',
 dc=$('#availableDiscord')?.value||'';
 
- const all=faccoes.filter(f=>f.status!=='ATIVA'||!String(f.faccao||'').trim());
+ const all=estado.faccoes.filter(f=>f.status!=='ATIVA'||!String(f.faccao||'').trim());
 
  const list=all.filter(f=>(!seg||segmentKey(f.segmento)===segmentKey(seg))&&(!q||[f.group,
 f.qg,
@@ -10923,9 +10838,9 @@ ta=card?.querySelector('.available-preview');if(!ta)return;ta.classList.toggle('
 
  box.querySelectorAll('.available-image-input').forEach(i=>i.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();const b=i.closest('.available-image-editor')?.querySelector('.available-save-image');if(b)saveAvailableImageLink(i.dataset.group,i,b)}}));
 
- box.querySelectorAll('.available-copy-text').forEach(b=>b.onclick=()=>{const f=faccoes.find(x=>x.group===b.dataset.group);if(f)copyText(availableAnnouncementText(f),b)});
+ box.querySelectorAll('.available-copy-text').forEach(b=>b.onclick=()=>{const f=estado.faccoes.find(x=>x.group===b.dataset.group);if(f)copyText(availableAnnouncementText(f),b)});
 
- box.querySelectorAll('.available-copy-image').forEach(b=>b.onclick=()=>{const f=faccoes.find(x=>x.group===b.dataset.group);if(f?.imagemAnuncio)copyText(f.imagemAnuncio,b)});
+ box.querySelectorAll('.available-copy-image').forEach(b=>b.onclick=()=>{const f=estado.faccoes.find(x=>x.group===b.dataset.group);if(f?.imagemAnuncio)copyText(f.imagemAnuncio,b)});
 
  box.querySelectorAll('.available-set-posted').forEach(b=>b.onclick=()=>setAvailableDiscordState(b.dataset.group,true));
 
@@ -10933,7 +10848,7 @@ ta=card?.querySelector('.available-preview');if(!ta)return;ta.classList.toggle('
 
 }
 async function setAvailableDiscordState(group,postado){
- const f=faccoes.find(x=>x.group===group);
+ const f=estado.faccoes.find(x=>x.group===group);
 if(!f)return;
 
  if(f.status==='ATIVA'&&String(f.faccao||'').trim())return alert('Este Group está ocupado e não faz parte das facções livres.');
@@ -10975,11 +10890,8 @@ usuario:currentUser.email,
 data:serverTimestamp()});
 await loadFaccoes()}catch(e){alert('Erro ao atualizar status do anúncio: '+e.message)}
 }
-async function toggleAvailablePosted(group){const f=faccoes.find(x=>x.group===group);
-return setAvailableDiscordState(group,!availablePosted(f))}
-
 function freeFaccoesForReport(type='TODAS'){
- const rows=faccoes.filter(f=>!f.removido&&(f.status!=='ATIVA'||!String(f.faccao||'').trim()));
+ const rows=estado.faccoes.filter(f=>!f.removido&&(f.status!=='ATIVA'||!String(f.faccao||'').trim()));
 
  return type==='TODAS'?rows:rows.filter(f=>availableDiscordState(f)===type);
 
@@ -11082,7 +10994,7 @@ boxId:'orgSegmentChips',
 onChange:renderOrganizations})};
 
 function renderAvailableSegmentCards(){
- const rows=faccoes.filter(f=>!f.removido&&(f.status!=='ATIVA'||!String(f.faccao||'').trim()));
+ const rows=estado.faccoes.filter(f=>!f.removido&&(f.status!=='ATIVA'||!String(f.faccao||'').trim()));
 
  renderVisualSegmentFilter({rows,
 field:'segmento',
@@ -11104,15 +11016,6 @@ icon])=>`<button type="button" class="${active===value?'active':''}" data-value=
  box.querySelectorAll('button').forEach(b=>b.onclick=()=>{sel.value=b.dataset.value||'';onChange()});
 
 }
-function renderFacActivityButtonsLegacy(){activityButtons('facStatusButtons','facStatus',[['',
-'TODOS',
-'◉'],
-['ATIVA',
-'OCUPADOS',
-'●'],
-['INATIVA',
-'DISPONÍVEIS',
-'○']],renderFaccoes)}
 function renderOrgActivityButtons(){activityButtons('orgStatusButtons','orgStatus',[['',
 'AMBAS',
 '◉'],
@@ -11125,14 +11028,14 @@ function renderOrgActivityButtons(){activityButtons('orgStatusButtons','orgStatu
 
 // HIGH OS V8.13 · GERENCIAMENTO DE SEGMENTOS
 function segmentUsage(name){const key=segmentKey(name);
-return {groups:faccoes.filter(f=>segmentKey(f.segmento)===key).length,
+return {groups:estado.faccoes.filter(f=>segmentKey(f.segmento)===key).length,
 orgs:derivedOrganizations().filter(o=>segmentKey(orgSegmentValue(o))===key).length}}
 function refreshSegmentAssignEntities(){
  const type=$('#segmentAssignType')?.value||'GROUP',
 el=$('#segmentAssignEntity');
 if(!el)return;
 
- const rows=type==='GROUP'?faccoes.filter(f=>!f.removido).map(f=>({v:f.group,
+ const rows=type==='GROUP'?estado.faccoes.filter(f=>!f.removido).map(f=>({v:f.group,
 t:`${f.group} • ${f.qg||'SEM LOCAL'} • ${f.segmento||'—'}`})):derivedOrganizations().map(o=>({v:o.nome,
 t:`${o.nome} • ${orgSegmentValue(o)||'SEM SEGMENTO'}`}));
 
@@ -11188,10 +11091,10 @@ if(!nome)return alert('Informe o nome do segmento.');
  try{
   if(oldName){const item=segmentDefs().find(x=>segmentKey(x.nome)===segmentKey(oldName));
 const batch=writeBatch(db);
-faccoes.filter(f=>segmentKey(f.segmento)===segmentKey(oldName)).forEach(f=>batch.set(doc(db,'highos','data','faccoes',f.group),{segmento:nome,
+estado.faccoes.filter(f=>segmentKey(f.segmento)===segmentKey(oldName)).forEach(f=>batch.set(doc(db,'highos','data','faccoes',f.group),{segmento:nome,
 updatedAt:serverTimestamp(),
 updatedBy:currentUser.email},{merge:true}));
-organizacoes.filter(o=>segmentKey(orgSegmentValue(o))===segmentKey(oldName)).forEach(o=>batch.set(doc(db,'highos','data','organizacoes',o.id||orgKey(o.nome)),{segmentoAtual:nome,
+estado.organizacoes.filter(o=>segmentKey(orgSegmentValue(o))===segmentKey(oldName)).forEach(o=>batch.set(doc(db,'highos','data','organizacoes',o.id||orgKey(o.nome)),{segmentoAtual:nome,
 segmentoVinculado:nome,
 updatedAt:serverTimestamp(),
 updatedBy:currentUser.email},{merge:true}));
@@ -11230,7 +11133,7 @@ async function assignSegment(){
 entity=$('#segmentAssignEntity')?.value,
 target=$('#segmentAssignTarget')?.value;
 if(!entity||!target)return alert('Selecione o cadastro e o segmento.');
-try{if(type==='GROUP'){const f=faccoes.find(x=>x.group===entity);
+try{if(type==='GROUP'){const f=estado.faccoes.find(x=>x.group===entity);
 if(!f)return;
 await setDoc(doc(db,'highos','data','faccoes',f.group),{segmento:target,
 updatedAt:serverTimestamp(),
@@ -11258,10 +11161,10 @@ if((u.groups||u.orgs)&&!replacement)return alert(`O segmento ${name} está em us
 if(!confirm(`Apagar o segmento ${name}?${replacement?`\n\nTodos os vínculos serão transferidos para ${replacement}.`:''}`))return;
 
  try{if(replacement){const batch=writeBatch(db);
-faccoes.filter(f=>segmentKey(f.segmento)===segmentKey(name)).forEach(f=>batch.set(doc(db,'highos','data','faccoes',f.group),{segmento:replacement,
+estado.faccoes.filter(f=>segmentKey(f.segmento)===segmentKey(name)).forEach(f=>batch.set(doc(db,'highos','data','faccoes',f.group),{segmento:replacement,
 updatedAt:serverTimestamp(),
 updatedBy:currentUser.email},{merge:true}));
-organizacoes.filter(o=>segmentKey(orgSegmentValue(o))===segmentKey(name)).forEach(o=>batch.set(doc(db,'highos','data','organizacoes',o.id||orgKey(o.nome)),{segmentoAtual:replacement,
+estado.organizacoes.filter(o=>segmentKey(orgSegmentValue(o))===segmentKey(name)).forEach(o=>batch.set(doc(db,'highos','data','organizacoes',o.id||orgKey(o.nome)),{segmentoAtual:replacement,
 segmentoVinculado:replacement,
 updatedAt:serverTimestamp(),
 updatedBy:currentUser.email},{merge:true}));
@@ -11282,7 +11185,7 @@ Contrabando02:'CONTRABANDO',
 IlegalMedic1:'APOIO',
 IlegalMedic2:'APOIO',
 IlegalMecanic01:'APOIO'};
-const needs=faccoes.filter(f=>rules[f.group]&&segmentKey(f.segmento)!==segmentKey(rules[f.group]));
+const needs=estado.faccoes.filter(f=>rules[f.group]&&segmentKey(f.segmento)!==segmentKey(rules[f.group]));
 if(!needs.length)return;
 try{const batch=writeBatch(db);
 needs.forEach(f=>{const seg=rules[f.group];batch.set(doc(db,'highos','data','faccoes',f.group),{segmento:seg,
@@ -11292,7 +11195,7 @@ segmentoVinculado:seg,
 updatedAt:serverTimestamp(),
 updatedBy:currentUser.email},{merge:true})});
 await batch.commit();
-faccoes=faccoes.map(f=>rules[f.group]?{...f,
+estado.faccoes=estado.faccoes.map(f=>rules[f.group]?{...f,
 segmento:rules[f.group]}:f);
 await addDoc(histCol,{sessionId:currentSessionId||'',
 tipo:'SEGMENTOS_PADRAO_V813',
@@ -11323,7 +11226,7 @@ if(!box)return;
  const q=String($('#adminGroupSearch')?.value||'').trim().toLowerCase(),
 status=$('#adminGroupStatus')?.value||'';
 
- const rows=faccoes.filter(f=>!f.removido).filter(f=>{const st=adminGroupStatus(f);if(status&&st!==status)return false;const hay=[f.group,
+ const rows=estado.faccoes.filter(f=>!f.removido).filter(f=>{const st=adminGroupStatus(f);if(status&&st!==status)return false;const hay=[f.group,
 f.qg,
 f.segmento,
 f.faccao,
@@ -11331,28 +11234,28 @@ f.produto,
 f.staff,
 f.lider].join(' ').toLowerCase();return !q||hay.includes(q)});
 
- const occupied=faccoes.filter(f=>!f.removido&&adminGroupStatus(f)==='ATIVA').length,
-total=faccoes.filter(f=>!f.removido).length;
+ const occupied=estado.faccoes.filter(f=>!f.removido&&adminGroupStatus(f)==='ATIVA').length,
+total=estado.faccoes.filter(f=>!f.removido).length;
 
  if(stats)stats.innerHTML=`<article><span>TOTAL</span><b>${total}</b><small>Groups cadastrados</small></article><article><span>OCUPADOS</span><b>${occupied}</b><small>com facção ativa</small></article><article><span>VAGOS</span><b>${total-occupied}</b><small>sem ocupação</small></article><article><span>EXIBIDOS</span><b>${rows.length}</b><small>filtro atual</small></article>`;
 
  box.innerHTML=rows.length?rows.map(f=>`<article class="admin-group-row" data-group="${esc(f.group)}"><div class="admin-group-identity"><b>${esc(f.group||'—')}</b><span>${esc(f.qg||'SEM QG')}</span><small>${esc(f.segmento||'OUTROS')} • ${adminGroupStatus(f)==='ATIVA'?'OCUPADO':'VAGO'}</small></div><div class="admin-group-link"><span>VÍNCULO ATUAL</span><b>${esc(f.faccao||'SEM FACÇÃO')}</b><small>${esc(f.lider||f.staff||'—')}</small></div><div class="admin-group-product"><span>PRODUTO / OPERAÇÃO</span><b>${esc(f.produto||'—')}</b></div><div class="admin-group-actions"><button type="button" class="mini-btn admin-group-full-edit" data-id="${esc(f.id||f.group)}">EDITAR COMPLETO</button><button type="button" class="mini-btn admin-group-rename" data-group="${esc(f.group)}">RENOMEAR</button></div></article>`).join(''):'<div class="dash-empty">Nenhum Group encontrado com esse filtro.</div>';
 
- box.querySelectorAll('.admin-group-full-edit').forEach(b=>b.onclick=()=>{const f=faccoes.find(x=>(x.id||x.group)===b.dataset.id);if(!f)return;activateAppPage('faccoes');openFac(f.id||f.group)});
+ box.querySelectorAll('.admin-group-full-edit').forEach(b=>b.onclick=()=>{const f=estado.faccoes.find(x=>(x.id||x.group)===b.dataset.id);if(!f)return;activateAppPage('faccoes');openFac(f.id||f.group)});
 
  box.querySelectorAll('.admin-group-rename').forEach(b=>b.onclick=()=>renameAdminGroup(b.dataset.group));
 
 }
 async function renameAdminGroup(oldGroup){
  if(!isAdmin())return;
-const current=faccoes.find(f=>alvesNorm(f.group)===alvesNorm(oldGroup));
+const current=estado.faccoes.find(f=>alvesNorm(f.group)===alvesNorm(oldGroup));
 if(!current)return alert('Group não encontrado.');
 
  const nextRaw=prompt(`Novo nome para ${current.group}:`,current.group);
 if(nextRaw===null)return;
 const next=String(nextRaw||'').trim();
 if(!next||next===current.group)return;
-if(faccoes.some(f=>alvesNorm(f.group)===alvesNorm(next)))return alert('Já existe um Group com esse nome.');
+if(estado.faccoes.some(f=>alvesNorm(f.group)===alvesNorm(next)))return alert('Já existe um Group com esse nome.');
 
  if(!confirm(`Renomear o Group ${current.group} para ${next}?\n\nO vínculo da facção ocupante será atualizado. O histórico antigo será preservado.`))return;
 
@@ -11368,7 +11271,7 @@ delete payload.id;
   await setDoc(doc(db,'highos','data','faccoes',next),payload,{merge:false});
 await deleteDoc(doc(db,'highos','data','faccoes',current.id||current.group));
 
-  const linked=organizacoes.filter(o=>alvesNorm(o.groupAtual)===alvesNorm(current.group));
+  const linked=estado.organizacoes.filter(o=>alvesNorm(o.groupAtual)===alvesNorm(current.group));
 for(const o of linked){await setDoc(doc(db,'highos','data','organizacoes',o.id||orgKey(o.nome)),{groupAtual:next,
 updatedAt:serverTimestamp(),
 updatedBy:currentUser.email},{merge:true})}
@@ -11415,13 +11318,13 @@ $('#adminOpenUsersBtn')?.addEventListener('click',()=>activateAppPage('usuarios'
 async function normalizeOccupationStatusV820(){
  const changes=[];
 
- faccoes.forEach(f=>{const active=!!String(f.faccao||'').trim(),
+ estado.faccoes.forEach(f=>{const active=!!String(f.faccao||'').trim(),
 wanted=active?'ATIVA':'INATIVA';if(f.status!==wanted)changes.push({f,
 wanted})});
 
  if(!changes.length)return;
 
- faccoes=faccoes.map(f=>{const hit=changes.find(x=>x.f.group===f.group);return hit?{...f,
+ estado.faccoes=estado.faccoes.map(f=>{const hit=changes.find(x=>x.f.group===f.group);return hit?{...f,
 status:hit.wanted}:f});
 
  if(isAdmin()){
@@ -11682,7 +11585,7 @@ function chatTime(v){const d=v?.toDate?v.toDate():v?.seconds?new Date(v.seconds*
 return d&&!isNaN(d)?d.toLocaleString('pt-BR'):'agora'}
 function hmInitials(v=''){const parts=String(v||'H').trim().split(/\s+/).filter(Boolean);
 return (parts[0]?.[0]||'H')+(parts.length>1?(parts.at(-1)?.[0]||''):'')}
-function hmUser(email=''){return usuarios.find(u=>String(u.email||'').toLowerCase()===String(email||'').toLowerCase())||null}
+function hmUser(email=''){return estado.usuarios.find(u=>String(u.email||'').toLowerCase()===String(email||'').toLowerCase())||null}
 function hmUserName(u){return u?.name||u?.nome||u?.displayName||u?.email||'Usuário'}
 function hmUserRole(u){return u?.cargo||u?.role||'MEMBRO'}
 function chatAttachmentHtml(m){const a=m.anexo;
@@ -11705,7 +11608,7 @@ function populateChatRecipients(){const sel=$('#chatRecipientSelect');
 if(!sel||!currentUser)return;
 const me=(currentUser.email||'').toLowerCase(),
 keep=chatRecipientEmail||sel.value;
-const list=usuarios.filter(u=>String(u.email||'').toLowerCase()!==me&&u.active!==false);
+const list=estado.usuarios.filter(u=>String(u.email||'').toLowerCase()!==me&&u.active!==false);
 sel.innerHTML='<option value="">Selecione um usuário</option>'+list.map(u=>`<option value="${esc(u.email)}">${esc(hmUserName(u))} • ${esc(hmUserRole(u))}</option>`).join('');
 if(keep&&list.some(u=>String(u.email||'').toLowerCase()===String(keep).toLowerCase())){sel.value=keep;
 chatRecipientEmail=keep}renderHmContacts()}
@@ -11718,7 +11621,7 @@ function renderHmContacts(){const box=$('#hmContactList');
 if(!box||!currentUser)return;
 const q=String($('#hmContactSearch')?.value||'').trim().toLowerCase(),
 me=String(currentUser.email||'').toLowerCase();
-const list=usuarios.filter(u=>u.active!==false&&String(u.email||'').toLowerCase()!==me).filter(u=>`${hmUserName(u)} ${hmUserRole(u)} ${u.email||''}`.toLowerCase().includes(q)).sort((a,b)=>hmUserName(a).localeCompare(hmUserName(b),'pt-BR'));
+const list=estado.usuarios.filter(u=>u.active!==false&&String(u.email||'').toLowerCase()!==me).filter(u=>`${hmUserName(u)} ${hmUserRole(u)} ${u.email||''}`.toLowerCase().includes(q)).sort((a,b)=>hmUserName(a).localeCompare(hmUserName(b),'pt-BR'));
 box.innerHTML=list.length?list.map(u=>{const active=String(u.email||'').toLowerCase()===String(chatRecipientEmail||'').toLowerCase(),
 last=hmLastMessageFor(u.email);const preview=last?(last.texto||last.sticker||last.anexo?.name||(last.reuniao?'Chamada':'Mensagem')):'Clique para conversar';return `<button type="button" class="hm-contact ${active?'active':''}" data-hm-email="${esc(u.email||'')}"><span class="hm-contact-avatar">${u.photoURL?`<img src="${esc(u.photoURL)}" alt="">`:esc(hmInitials(hmUserName(u)))}</span><span class="hm-contact-copy"><b>${esc(hmUserName(u))}</b><small><i>${esc(hmUserRole(u))}</i> • ${esc(String(preview).slice(0,42))}</small></span><span class="hm-contact-state" title="Usuário cadastrado">●</span></button>`}).join(''):'<div class="chat-empty">Nenhum usuário cadastrado encontrado.</div>';
 box.querySelectorAll('[data-hm-email]').forEach(b=>b.onclick=()=>selectChatRecipient(b.dataset.hmEmail))}
@@ -11730,6 +11633,77 @@ renderChatMessages([]);
 subscribeChatConversation();
 toggleHmPicker(false);
 setTimeout(()=>$('#floatingChatInput')?.focus(),30)}
+
+/* =====================================================================
+   HIGH OS V12.2 - CHAT REPAGINADO
+   ---------------------------------------------------------------------
+   O que fazia o chat parecer amador:
+     - cada mensagem repetia avatar, nome, cargo e hora, mesmo dez
+       seguidas da mesma pessoa;
+     - nao havia separacao por dia: mensagens de ontem e de hoje coladas;
+     - ao enviar, a mensagem so aparecia depois do servidor confirmar,
+       entao havia um engasgo de meio segundo em cada envio.
+
+   Agora: bloco por autor, separador de dia, hora discreta so na ultima
+   do bloco e eco local imediato com marca de "enviando".
+   ===================================================================== */
+function chatDiaRotulo(m){
+ const d=m?.createdAt?.toDate?.()||(m?.createdAtText?new Date(m.createdAtText):null);
+ if(!d||isNaN(d))return '';
+ const hoje=new Date(),ontem=new Date();ontem.setDate(hoje.getDate()-1);
+ const mesmo=(a,b)=>a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate();
+ if(mesmo(d,hoje))return 'Hoje';
+ if(mesmo(d,ontem))return 'Ontem';
+ return d.toLocaleDateString('pt-BR',{day:'2-digit',month:'long'});
+}
+function chatMinutoDe(m){
+ const d=m?.createdAt?.toDate?.()||(m?.createdAtText?new Date(m.createdAtText):null);
+ return d&&!isNaN(d)?Math.floor(d.getTime()/60000):0;
+}
+
+/* Monta a conversa agrupando mensagens seguidas do mesmo autor. */
+function chatCorpoHtml(visible,me){
+ let html='',diaAtual='',autorAtual='',minutoAtual=0;
+ visible.forEach((m,i)=>{
+  const autor=String(m.email||'').toLowerCase();
+  const meu=autor===me;
+  const dia=chatDiaRotulo(m);
+  const minuto=chatMinutoDe(m);
+
+  if(dia&&dia!==diaAtual){
+   if(autorAtual)html+='</div></article>';
+   html+=`<div class="chat-dia"><span>${esc(dia)}</span></div>`;
+   diaAtual=dia;autorAtual='';
+  }
+
+  // mesmo autor, dentro de 5 minutos: continua o bloco
+  const continua=autor===autorAtual&&(minuto-minutoAtual)<=5;
+  if(!continua){
+   if(autorAtual)html+='</div></article>';
+   const foto=m.photoURL?`<img src="${esc(m.photoURL)}" alt="">`:esc(hmInitials(m.nome||m.email));
+   html+=`<article class="chat-bloco ${meu?'meu':''}">`
+       + `<div class="chat-bloco-avatar">${foto}</div>`
+       + `<div class="chat-bloco-corpo">`
+       + `<header><b>${esc(m.nome||m.email||'Usuário')}</b>${m.cargo?`<i>${esc(m.cargo)}</i>`:''}</header>`;
+   autorAtual=autor;
+  }
+  minutoAtual=minuto;
+
+  const ultima=i===visible.length-1
+    ||String(visible[i+1]?.email||'').toLowerCase()!==autor
+    ||chatMinutoDe(visible[i+1])-minuto>5;
+
+  html+=`<div class="chat-balao${m.__pendente?' pendente':''}">`
+     + (m.texto?`<p>${esc(m.texto)}</p>`:'')
+     + chatStickerHtml(m)+chatAttachmentHtml(m)+chatMeetingHtml(m)
+     + (ultima?`<time>${esc(chatTime(m.createdAt||m))}${m.__pendente?' • enviando':''}</time>`:'')
+     + (isAdmin()&&!m.__pendente?`<button type="button" class="chat-delete" data-chat-delete="${esc(m.id)}" title="Excluir mensagem">×</button>`:'')
+     + `</div>`;
+ });
+ if(autorAtual)html+='</div></article>';
+ return html;
+}
+
 function renderChatMessages(items=[]){chatItems=items;
 populateChatRecipients();
 const me=(currentUser?.email||'').toLowerCase(),
@@ -11741,7 +11715,11 @@ av=$('#hmActiveAvatar');
 if(title)title.textContent=target?hmUserName(target):'Selecione uma conversa';
 if(presence)presence.textContent=target?`${hmUserRole(target)} • mensagens disponíveis mesmo offline`:'Usuários cadastrados aparecem mesmo offline';
 if(av){av.innerHTML=target?.photoURL?`<img src="${esc(target.photoURL)}" alt="">`:esc(hmInitials(target?hmUserName(target):'High'));
-}const body=!chatRecipientEmail?'<div class="chat-empty hm-empty"><b>Mensagens diretas</b><span>Selecione um membro da equipe. A conversa fica salva mesmo quando ele estiver offline.</span></div>':visible.length?visible.map(m=>`<article class="chat-message ${String(m.email||'').toLowerCase()===me?'mine':''}"><div class="chat-message-avatar">${m.photoURL?`<img src="${esc(m.photoURL)}" alt="">`:esc(hmInitials(m.nome||m.email))}</div><div class="chat-message-bubble"><header><b>${esc(m.nome||m.email||'Usuário')}</b><small>${esc(m.cargo||'')} • ${esc(chatTime(m.createdAt||m))}</small></header>${m.texto?`<p>${esc(m.texto)}</p>`:''}${chatStickerHtml(m)}${chatAttachmentHtml(m)}${chatMeetingHtml(m)}${isAdmin()?`<button type="button" class="chat-delete" data-chat-delete="${esc(m.id)}" title="Excluir mensagem">×</button>`:''}</div></article>`).join(''):'<div class="chat-empty hm-empty"><b>Nenhuma mensagem ainda</b><span>Envie texto, emoji, GIF, figurinha, foto ou arquivo.</span></div>';
+}const body=!chatRecipientEmail
+  ? '<div class="chat-empty hm-empty"><b>Mensagens diretas</b><span>Selecione um membro da equipe. A conversa fica salva mesmo quando ele estiver offline.</span></div>'
+  : visible.length
+    ? chatCorpoHtml(visible,me)
+    : '<div class="chat-empty hm-empty"><b>Nenhuma mensagem ainda</b><span>Envie texto, emoji, GIF, figurinha, foto ou arquivo.</span></div>';
 ['#chatMessages',
 '#floatingChatMessages'].forEach(sel=>{const b=$(sel);if(!b)return;b.innerHTML=body;b.scrollTop=b.scrollHeight;b.querySelectorAll('[data-chat-delete]').forEach(x=>x.onclick=()=>deleteChatMessage(x.dataset.chatDelete))});
 renderHmContacts()}
@@ -11794,6 +11772,25 @@ const input=$(inputSelector),
 texto=input?.value.trim()||'';
 if(!texto&&!chatPendingAttachment&&!extra.sticker)return;
 if(texto.length>1000)return alert('Mensagem muito longa. Limite: 1000 caracteres.');
+
+/* V12.2 - eco local: a mensagem aparece imediatamente com marca de
+   "enviando" e o snapshot do servidor a substitui quando confirma.
+   Sem isso havia um engasgo visível a cada envio. */
+const eco={
+ __pendente:true,
+ id:'local_'+Date.now(),
+ texto,
+ sticker:extra.sticker||'',
+ anexo:chatPendingAttachment||null,
+ recipientEmail:chatRecipientEmail,
+ email:currentUser.email||'',
+ nome:currentProfile?.name||currentUser.displayName||currentUser.email,
+ cargo:currentProfile?.cargo||currentProfile?.role||'',
+ createdAtText:new Date().toISOString()
+};
+renderChatMessages([...chatItems,eco]);
+if(input)input.value='';
+
 try{await addDoc(chatCol,{texto,
 sticker:extra.sticker||'',
 anexo:chatPendingAttachment||null,
@@ -11840,9 +11837,6 @@ type:file.type||'application/octet-stream',
 size:file.size,
 dataUrl};
 renderChatAttachmentPreview()}
-function hmDisplayName(){const n=currentProfile?.name||currentUser?.displayName||currentUser?.email||'Usuário',
-r=currentProfile?.cargo||currentProfile?.role||'MEMBRO';
-return `${n} • ${r}`}
 // ===== HIGH OS V9.5.3 · HIGH CALL NATIVO (WebRTC + Firestore) =====
 // Sem iframe/Jitsi. Firestore faz somente a sinalizacao; audio/video trafegam por WebRTC.
 const HIGH_RTC_CONFIG={iceServers:[{urls:['stun:stun.l.google.com:19302',
@@ -12107,9 +12101,8 @@ line:line+1})).filter(x=>x.raw).map(x=>({...x,
 p:grParseCoord(x.raw)}));
 }
 function grFmtPoint(p){return `{ ${Number(p.x).toFixed(2)},${Number(p.y).toFixed(2)},${Number(p.z).toFixed(2)}${Number.isFinite(p.h)?','+Number(p.h).toFixed(2):''} },`}
-function grRouteText(){return grParseRoute($('#grRouteInput')?.value||'').filter(x=>x.p).map(x=>grFmtPoint(x.p)).join('\n')}
 function grCurrent(){const g=$('#fGroup')?.value||'';
-return faccoes.find(x=>x.group===g)||currentFactionFromForm()||{};
+return estado.faccoes.find(x=>x.group===g)||currentFactionFromForm()||{};
 }
 function grSavedPoints(f=grCurrent()){return routePointList(mergedTechProfile(f)?.rota?.pontos||f?.beneficios?.rotaBlips||'').map(grParseCoord).filter(Boolean)}
 function grRequestText(action='auto'){
@@ -12321,7 +12314,7 @@ titulo:old.length?'Atualização de rota de farm exclusiva':'Ativação de rota 
 texto:text},f,'ROTA_EXCLUSIVA');
 grRouteDirty=false;
 await loadFaccoes();
-const fresh=faccoes.find(x=>x.group===group);
+const fresh=estado.faccoes.find(x=>x.group===group);
 if(fresh){renderTechProfile(fresh);
 $('#fRotaExclusiva').checked=true}grShowRequest(old.length?'update':'activate');
 grRenderRouteUi(true);
@@ -12409,14 +12402,14 @@ v9=f?.estruturaCatalogoV9||[];
 const hasMap=!!(v9.some(x=>x.tipo==='QG'&&gsCoord(x.cds))||(t?.estruturaCatalogo||[]).some(x=>x.tipo==='QG'&&gsCoord(x.cds))||gsCoord(f?.perfilOperacional?.qg?.cds||f?.perfilOperacional?.coordenadaPrincipal||f?.beneficios?.coordenadaBase||''));
 return v836Occupied(f)||isRegisteredAvailable(f)||hasMap};
 
- const rows=faccoes.filter(f=>!f.removido&&isOperational(f)&&(!seg||segmentKey(f.segmento)===segmentKey(seg))&&(!st||(st==='ATIVA'?v836Occupied(f):!v836Occupied(f)))&&(!q||[f.group,
+ const rows=estado.faccoes.filter(f=>!f.removido&&isOperational(f)&&(!seg||segmentKey(f.segmento)===segmentKey(seg))&&(!st||(st==='ATIVA'?v836Occupied(f):!v836Occupied(f)))&&(!q||[f.group,
 f.faccao,
 f.qg,
 f.lider,
 f.staff,
 f.produto].join(' ').toLowerCase().includes(q)));
 
- const visibleBase=faccoes.filter(f=>!f.removido&&isOperational(f)),
+ const visibleBase=estado.faccoes.filter(f=>!f.removido&&isOperational(f)),
 occupied=visibleBase.filter(v836Occupied).length,
 total=visibleBase.length,
 free=visibleBase.filter(f=>!v836Occupied(f)).length;
@@ -12443,9 +12436,9 @@ dcText=dc==='POSTADO'?'DIVULGADA':dc==='NAO_POSTADO'?'NÃO POSTADA':'DIVULGAÇÃ
 
  box.querySelectorAll('.unified-delivery').forEach(b=>b.onclick=e=>{e.stopPropagation();openNewDelivery(b.dataset.group)});
 
- box.querySelectorAll('.unified-copy-ad').forEach(b=>b.onclick=e=>{e.stopPropagation();const f=faccoes.find(x=>x.group===b.dataset.group);if(f)copyText(availableAnnouncementText(f),b)});
+ box.querySelectorAll('.unified-copy-ad').forEach(b=>b.onclick=e=>{e.stopPropagation();const f=estado.faccoes.find(x=>x.group===b.dataset.group);if(f)copyText(availableAnnouncementText(f),b)});
 
- box.querySelectorAll('.unified-posted').forEach(b=>b.onclick=e=>{e.stopPropagation();const f=faccoes.find(x=>x.group===b.dataset.group);setAvailableDiscordState(b.dataset.group,availableDiscordState(f)!=='POSTADO')});
+ box.querySelectorAll('.unified-posted').forEach(b=>b.onclick=e=>{e.stopPropagation();const f=estado.faccoes.find(x=>x.group===b.dataset.group);setAvailableDiscordState(b.dataset.group,availableDiscordState(f)!=='POSTADO')});
 
  box.querySelectorAll('.req-from-fac').forEach(b=>b.onclick=e=>{e.stopPropagation();openRequestModal('',b.dataset.group)});
 
@@ -12505,7 +12498,7 @@ usuario:currentUser.email,
 data:serverTimestamp()});
 grRouteDirty=false;
 await loadFaccoes();
-const fresh=faccoes.find(x=>x.group===group);
+const fresh=estado.faccoes.find(x=>x.group===group);
 if(fresh)renderTechProfile(fresh);
 grRenderRouteUi(true);
 alert(`${group} agora utiliza ROTA PADRÃO.`)}catch(e){alert('Erro ao confirmar remoção: '+e.message)}
@@ -12533,7 +12526,7 @@ return _activateAppPageV836(page)};
 
 const _loadFaccoesV836=loadFaccoes;
 loadFaccoes=async function(){await _loadFaccoesV836();
-faccoes.forEach(f=>{const pts=v836RoutePoints(f);if(!pts.length&&f.beneficios){f.beneficios.rotaExclusiva=false;f.beneficios.rotaBlips=''} });
+estado.faccoes.forEach(f=>{const pts=v836RoutePoints(f);if(!pts.length&&f.beneficios){f.beneficios.rotaExclusiva=false;f.beneficios.rotaBlips=''} });
 renderFaccoes();
 renderCommandDashboard?.();
 };
@@ -12645,7 +12638,7 @@ group,
 descricao:`Estrutura administrativa atualizada • ${gsRows().length} itens`,
 usuario:currentUser.email,
 data:serverTimestamp()});
-const local=faccoes.find(x=>x.group===group);
+const local=estado.faccoes.find(x=>x.group===group);
 if(local)local.perfilTecnico=clonePlain(techDraft);
 alert(`Estrutura de ${group} salva com ${gsRows().length} itens.`)}catch(e){alert('Erro ao salvar estrutura: '+e.message)}}
 function gsImportArmas01(){if(String(grCurrent()?.group||'').toUpperCase()!=='ARMAS01')return;
@@ -12955,7 +12948,7 @@ group,
 descricao:description,
 usuario:currentUser.email,
 data:serverTimestamp()});
-const local=faccoes.find(x=>x.group===group);
+const local=estado.faccoes.find(x=>x.group===group);
 if(local)local.perfilTecnico=clonePlain(techDraft);
 return true}catch(e){alert('Erro ao salvar: '+e.message);
 return false}
@@ -13376,7 +13369,7 @@ try{techDraft.estruturaCatalogo=v9Clone(after);
 await setDoc(doc(db,'highos','data','faccoes',group),{perfilTecnico:clonePlain(techDraft),
 updatedAt:serverTimestamp(),
 updatedBy:currentUser.email},{merge:true});
-const local=faccoes.find(x=>x.group===group);
+const local=estado.faccoes.find(x=>x.group===group);
 if(local)local.perfilTecnico=clonePlain(techDraft);
 await addDoc(histCol,{sessionId:currentSessionId||'',
 tipo:'ESTRUTURA_ATUALIZADA',
@@ -13428,82 +13421,7 @@ best=Infinity;
 };
 
 /* ===== HIGH OS V9.0.8 · Estruturas com salvamento imediato e persistência completa ===== */
-async function v909CommitStructure(beforeRows, descricao='Estrutura atualizada'){
-  const f=grCurrent(),
- group=f?.group;
 
-  if(!group) throw new Error('Group não identificado.');
-
-  const before=v9CleanRows(v9Clone(beforeRows||[]));
-
-  const after=v9CleanRows(v9Clone(gsRows()));
-
-  const diff=v9Diff(before,after);
-
-  const scrollY=window.scrollY;
-
-  techDraft.estruturaCatalogo=v9Clone(after);
-
-  const ref=doc(db,'highos','data','faccoes',group);
-
-  // V9: grava uma cópia canônica no nível raiz + compatibilidade no perfilTecnico.
-  // Assim nenhuma consolidação legada consegue apagar Post-it/caixas de som na leitura seguinte.
-  await setDoc(ref,{
-    estruturaCatalogoV9:clonePlain(after),
-
-    perfilTecnico:clonePlain(techDraft),
-
-    updatedAt:serverTimestamp(),
-
-    updatedBy:currentUser?.email||''
-  },{merge:true});
-
-  const snap=await getDoc(ref);
-
-  if(!snap.exists()) throw new Error('Não foi possível reler o Group após salvar.');
-
-  const fresh={id:snap.id,
-...snap.data()};
-
-  const persisted=v9CleanRows(v9Clone(fresh.estruturaCatalogoV9||fresh.perfilTecnico?.estruturaCatalogo||[]));
-
-  if(JSON.stringify(persisted)!==JSON.stringify(after)) throw new Error('O Firestore não confirmou todas as coordenadas salvas.');
-
-  const pos=faccoes.findIndex(x=>x.group===group);
-
-  if(pos>=0) faccoes[pos]={...faccoes[pos],
-...fresh};
-
-  techDraft=mergedTechProfile(pos>=0?faccoes[pos]:fresh);
-
-  techDraft.estruturaCatalogo=v9Clone(persisted);
-
-  v9StructureOriginal=v9Clone(persisted);
-
-  v9StructureDirty=false;
-
-  $('#gsDirtyBar')?.classList.add('hidden');
-
-  await addDoc(histCol,{sessionId:currentSessionId||'',
-tipo:'ESTRUTURA_ATUALIZADA',
-group,
-descricao:`${descricao}: ${diff.length} alteração(ões)`,
-usuario:currentUser?.email||'',
-data:serverTimestamp()});
-
-  gsRender(false);
-
-  requestAnimationFrame(()=>window.scrollTo({top:scrollY,
-left:0,
-behavior:'auto'}));
-
-  if(diff.length && confirm(`Alterações salvas.\n\nDeseja gerar uma solicitação ao Dev da cidade com ${diff.length} alteração(ões)?`)){
-    v9ShowRequest(v9StructureRequest(group,diff));
-
-  }
-  return true;
-
-}
 function v908EditorHtml(row={},i=-1,isNew=false){
   const speakers=[...(row.speakers||[]),
 '',
@@ -13580,7 +13498,7 @@ speakers:tipo==='TELÃO'?[...modal.querySelectorAll('.gsmSpeaker')].map(x=>x.val
     if(isNew) rows.push(n);
  else rows[i]=n;
 
-    try{await v909CommitStructure(before,isNew?`Estrutura adicionada: ${n.tipo} ${n.nome}`:`Estrutura editada: ${n.tipo} ${n.nome}`);
+    try{await v9010CommitStructure(before,isNew?`Estrutura adicionada: ${n.tipo} ${n.nome}`:`Estrutura editada: ${n.tipo} ${n.nome}`);
 close()}catch(e){if(isNew)rows.pop();
 else rows[i]=before[i];
 alert('Erro ao salvar estrutura: '+e.message);
@@ -13600,7 +13518,7 @@ r=rows[i];
   const before=v9Clone(rows);
  rows.splice(i,1);
 
-  try{await v909CommitStructure(before,`Estrutura excluída: ${r.tipo} ${r.nome||''}`)}catch(e){techDraft.estruturaCatalogo=before;
+  try{await v9010CommitStructure(before,`Estrutura excluída: ${r.tipo} ${r.nome||''}`)}catch(e){techDraft.estruturaCatalogo=before;
 alert('Erro ao excluir: '+e.message);
 gsRender(false)}
 };
@@ -13673,15 +13591,15 @@ async function v9010CommitStructure(beforeRows, descricao='Estrutura atualizada'
 
   if(JSON.stringify(persisted)!==JSON.stringify(after)) throw new Error('O Firestore não confirmou todas as coordenadas salvas.');
 
-  let pos=faccoes.findIndex(x=>x.group===group);
+  let pos=estado.faccoes.findIndex(x=>x.group===group);
 
-  if(pos>=0) faccoes[pos]={...faccoes[pos],
+  if(pos>=0) estado.faccoes[pos]={...estado.faccoes[pos],
 ...fresh,
-id:faccoes[pos].id||fresh.id};
+id:estado.faccoes[pos].id||fresh.id};
 
-  else {faccoes.push(fresh);
-pos=faccoes.length-1}
-  techDraft=mergedTechProfile(faccoes[pos]);
+  else {estado.faccoes.push(fresh);
+pos=estado.faccoes.length-1}
+  techDraft=mergedTechProfile(estado.faccoes[pos]);
 
   techDraft.estruturaCatalogo=v9Clone(persisted);
 
@@ -13714,7 +13632,6 @@ behavior:'auto'})}catch{};gsMap?.invalidateSize?.()},60);
 
 }
 // Substitui apenas o commit da estrutura; o restante da V9 permanece igual.
-v909CommitStructure=v9010CommitStructure;
 
 // Blindagem: botões da Estrutura dentro do formulário do Group nunca podem submeter o formulário principal.
 document.addEventListener('click',e=>{
@@ -13725,12 +13642,15 @@ document.addEventListener('click',e=>{
 /* ===== HIGH OS V9.1 · CENTRAL DE GESTÃO DO ILEGAL ===== */
 let mgmtLastRows=[];
 
-function mgmtDayKey(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
+
+/* mesma regra de isoDay: mantido como apelido para nao espalhar
+   duas versoes da conversao de data pelo arquivo */
+function mgmtDayKey(d){return isoDay(d)}
 function mgmtStart(days,offset=0){const d=new Date();
 d.setHours(0,0,0,0);
 d.setDate(d.getDate()-offset-days+1);
 return d}
-function mgmtRowsFor(group,start,end){return metricas.filter(m=>alvesNorm(m.group||m.organizacao||m.faccao)===alvesNorm(group)&&metricDateValue(m)>=start&&metricDateValue(m)<=end)}
+function mgmtRowsFor(group,start,end){return estado.metricas.filter(m=>alvesNorm(m.group||m.organizacao||m.faccao)===alvesNorm(group)&&metricDateValue(m)>=start&&metricDateValue(m)<=end)}
 function mgmtPeriodStats(group,days,offset=0){const start=mgmtStart(days,offset),
 end=new Date();
 end.setHours(23,59,59,999);
@@ -13759,7 +13679,7 @@ if(!x.length)return 0;
 const m=Math.floor(x.length/2);
 return x.length%2?x[m]:(x[m-1]+x[m])/2}
 function mgmtBuild(){
- const occupied=faccoes.filter(f=>f.status==='ATIVA'&&String(f.faccao||'').trim());
+ const occupied=estado.faccoes.filter(f=>f.status==='ATIVA'&&String(f.faccao||'').trim());
 
  const base=occupied.map(f=>{const w=mgmtPeriodStats(f.group,7),
 wp=mgmtPeriodStats(f.group,7,7),
@@ -13884,11 +13804,6 @@ w.document.open();
 w.document.write(mgmtRichReportHtml());
 w.document.close();
 w.focus()}
-function mgmtOpenGeneralReport(){if(!mgmtLastRows.length)mgmtLastRows=mgmtBuild();
-const txt=mgmtGeneralReportText();
-const ta=$('#mgmtReportText');
-if(ta)ta.value=txt;
-$('#mgmtReportModal')?.classList.remove('hidden')}
 function mgmtDownloadGeneralReport(){const text=mgmtGeneralReportText(),
 blob=new Blob([text],{type:'text/plain;charset=utf-8'}),
 url=URL.createObjectURL(blob),
@@ -13964,7 +13879,22 @@ if(g.includes('ilegalmec')||g.includes('ilegalmedic'))return 'APOIO';
 return 'OUTROS';
 
 }
-function orgV92Rows(){return faccoes.filter(f=>!f.removido).map(f=>({...f,
+
+/* Leva a contagem para dentro dos chips de situação, que já existem.
+   Assim o número aparece onde a pessoa vai clicar, e não num cartão
+   separado que repete a mesma informação. */
+function aplicarContagemNosChips(cont){
+ const mapa={'':cont.todas,'ASSUMIDA':cont.assumida,'DISPONIVEL':cont.disponivel,'INDISPONIVEL':cont.indisponivel};
+ document.querySelectorAll('#facStatusButtons [data-value]').forEach(b=>{
+  const n=mapa[b.dataset.value??''];
+  if(n===undefined)return;
+  let badge=b.querySelector('.chip-contagem');
+  if(!badge){badge=document.createElement('i');badge.className='chip-contagem';b.appendChild(badge)}
+  badge.textContent=String(n);
+ });
+}
+
+function orgV92Rows(){return estado.faccoes.filter(f=>!f.removido).map(f=>({...f,
 __orgStatus:orgV92Status(f),
 __orgSegment:orgV92Segment(f)}))}
 function orgV92Audit(rows=[]){
@@ -14035,14 +13965,30 @@ renderFacSegmentChips();
 
  const c=s=>all.filter(f=>f.__orgStatus===s).length;
 
- const summary=$('#orgV92Summary');
-if(summary)summary.innerHTML=`<article><span>TOTAL</span><b>${all.length}</b><small>Groups administrativos</small></article><article class="assumed"><span>ASSUMIDAS</span><b>${c('ASSUMIDA')}</b><small>com facção ocupante</small></article><article class="available"><span>DISPONÍVEIS</span><b>${c('DISPONIVEL')}</b><small>livres com QG/Favela</small></article><article class="unavailable"><span>INDISPONÍVEIS</span><b>${c('INDISPONIVEL')}</b><small>ausência de QG/Favela</small></article>`;
+ /* V12.3 - os quatro cartões viram uma linha só. A contagem migra para
+   os próprios chips de filtro logo abaixo, que já existiam: ver
+   aplicarContagemNosChips(). */
+const summary=$('#orgV92Summary');
+if(summary)summary.innerHTML=`<div class="org-resumo-linha">`
+ +`<span class="org-resumo-total"><b>${all.length}</b> Groups</span>`
+ +`<span class="org-resumo-item assumida"><b>${c('ASSUMIDA')}</b> assumidas</span>`
+ +`<span class="org-resumo-item disponivel"><b>${c('DISPONIVEL')}</b> disponíveis</span>`
+ +`<span class="org-resumo-item indisponivel"><b>${c('INDISPONIVEL')}</b> sem QG</span>`
+ +`</div>`;
+aplicarContagemNosChips({todas:all.length,assumida:c('ASSUMIDA'),disponivel:c('DISPONIVEL'),indisponivel:c('INDISPONIVEL')});
+if(false)summary.innerHTML=`<article><span>TOTAL</span><b>${all.length}</b><small>Groups administrativos</small></article><article class="assumed"><span>ASSUMIDAS</span><b>${c('ASSUMIDA')}</b><small>com facção ocupante</small></article><article class="available"><span>DISPONÍVEIS</span><b>${c('DISPONIVEL')}</b><small>livres com QG/Favela</small></article><article class="unavailable"><span>INDISPONÍVEIS</span><b>${c('INDISPONIVEL')}</b><small>ausência de QG/Favela</small></article>`;
 
  const st=$('#facStatus')?.value||'',
 seg=$('#facSegment')?.value||'';
-if($('#orgV92ListTitle'))$('#orgV92ListTitle').textContent=[st?orgV92StatusLabel(st):'TODAS AS ORGANIZAÇÕES',
-seg].filter(Boolean).join(' • ');
-if($('#facStats'))$('#facStats').textContent=`${rows.length} exibida(s) de ${all.length}`;
+/* V12.3 - título e contador ocupavam duas linhas dizendo quase o mesmo.
+   Viram uma linha só, e só aparece quando há filtro ativo. */
+if($('#orgV92ListTitle')){
+ const filtro=[st?orgV92StatusLabel(st):'',seg].filter(Boolean).join(' • ');
+ $('#orgV92ListTitle').textContent=filtro
+  ? `${filtro} — ${rows.length} de ${all.length}`
+  : `${rows.length} organizações`;
+}
+if($('#facStats'))$('#facStats').textContent='';
 
  const box=$('#facList');
 if(!box)return;

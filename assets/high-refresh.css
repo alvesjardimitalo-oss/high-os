@@ -943,3 +943,148 @@ body.busca-aberta{overflow:hidden}
 .busca-atalho span:first-child{font-size:13px;color:var(--hm-brand-2)}
 .busca-atalho kbd{font:700 8.5px/1 inherit;border:1px solid var(--hm-line);border-radius:5px;padding:4px 6px;opacity:.8}
 @media(max-width:900px){.busca-atalho kbd,.busca-atalho-txt{display:none}.busca-atalho{padding:8px 10px}}
+
+/* rodapé do histórico em modo de busca (V10.6) */
+#historyDeepBtn{
+  background:rgba(255,207,92,.14);border:1px solid rgba(255,207,92,.4);color:#ffcf5c;
+  border-radius:9px;padding:9px 14px;font-size:9.5px;font-weight:900;letter-spacing:.08em;cursor:pointer;
+}
+#historyDeepBtn:hover{background:rgba(255,207,92,.25);color:#fff}
+#historyDeepBtn:disabled{opacity:.6;cursor:wait}
+.history-more span b{color:#ffcf5c}
+
+/* =========================================================
+   GRÁFICOS DE MÉTRICAS (V11.5)
+   ========================================================= */
+.metric-week-svg{
+  width:100%;height:300px;display:block;
+  /* preserveAspectRatio="none" no SVG: a largura acompanha o card e as
+     colunas ficam exatamente sobre a régua de dias abaixo */
+}
+.metric-week-col{stroke:rgba(255,255,255,.05);stroke-width:1}
+.metric-week-grid{stroke:rgba(255,255,255,.07);stroke-width:1}
+.metric-week-axis{fill:var(--hm-text-3,#8a7f99);font-size:11px;font-variant-numeric:tabular-nums}
+.metric-week-pending{fill:rgba(255,255,255,.03)}
+/* faixa dos dias que ainda não aconteceram: some a impressão de gráfico truncado */
+.metric-week-pending{
+  fill:rgba(255,255,255,.028);
+  stroke:rgba(255,255,255,.06);
+  stroke-dasharray:4 4;
+}
+.metric-line polyline{fill:none;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+.metric-line circle{stroke:#0d0a12;stroke-width:1.5}
+.metric-line.line-0 polyline{stroke:#b878ff}.metric-line.line-0 circle{fill:#b878ff}
+.metric-line.line-1 polyline{stroke:#4fd2ff}.metric-line.line-1 circle{fill:#4fd2ff}
+.metric-line.line-2 polyline{stroke:#50f5a0}.metric-line.line-2 circle{fill:#50f5a0}
+.metric-line.line-3 polyline{stroke:#ffa53c}.metric-line.line-3 circle{fill:#ffa53c}
+.metric-line circle:hover{r:5.5}
+
+/* barras do contingente */
+.metric-month-footer{
+  margin-top:9px;padding-top:9px;
+  border-top:1px solid var(--hm-line,rgba(255,255,255,.075));
+  font-size:10.5px;color:var(--hm-text-3,#8a7f99);letter-spacing:.03em;
+}
+.metric-month-footer b{color:var(--hm-text,#f4f0f8);font-variant-numeric:tabular-nums}
+.metric-empty-chart{
+  padding:34px 20px;text-align:center;
+  border:1px dashed var(--hm-line-2,rgba(255,255,255,.13));border-radius:14px;
+  color:var(--hm-text-3,#8a7f99);font-size:12.5px;
+}
+
+/* =========================================================
+   TRIAGEM DAS FACÇÕES (V11.6)
+   ========================================================= */
+.metric-triagem{margin-bottom:16px}
+.triagem-head{
+  display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;
+  padding:15px 17px;margin-bottom:12px;
+  background:linear-gradient(180deg,#151020,#100c18);
+  border:1px solid var(--hm-line-2);border-radius:16px;
+}
+.triagem-head b{display:block;font-size:11px;letter-spacing:.13em;color:#fff}
+.triagem-head span{display:block;margin-top:4px;font-size:11px;color:var(--hm-text-3)}
+#triagemCopiar{
+  background:linear-gradient(135deg,#8d35ff,#6321b8);border:none;border-radius:9px;color:#fff;
+  padding:10px 15px;font-size:9.5px;font-weight:900;letter-spacing:.08em;cursor:pointer;
+}
+.triagem-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:12px}
+.triagem-col{
+  border:1px solid var(--hm-line);border-radius:15px;padding:13px;
+  background:rgba(255,255,255,.022);border-top-width:3px;
+}
+.triagem-col header{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.triagem-col header b{font-size:9.5px;letter-spacing:.11em}
+.triagem-col header span{
+  font-size:11px;font-weight:900;padding:2px 9px;border-radius:20px;
+  background:rgba(255,255,255,.08);color:#fff;
+}
+.triagem-col > small{display:block;margin:5px 0 10px;font-size:10px;color:var(--hm-text-3);line-height:1.45}
+.triagem-col.limpar{border-top-color:#ff5b76}
+.triagem-col.limpar header b{color:#ff8a9c}
+.triagem-col.limpar header span{background:rgba(255,91,118,.2);color:#ff8a9c}
+.triagem-col.acompanhar{border-top-color:#ffcf5c}
+.triagem-col.acompanhar header b{color:#ffcf5c}
+.triagem-col.acompanhar header span{background:rgba(255,207,92,.18);color:#ffcf5c}
+.triagem-col.bem{border-top-color:#50f5a0}
+.triagem-col.bem header b{color:#50f5a0}
+.triagem-col.bem header span{background:rgba(80,245,160,.16);color:#50f5a0}
+.triagem-item{
+  display:block;width:100%;text-align:left;cursor:pointer;margin-bottom:5px;
+  background:rgba(255,255,255,.03);border:1px solid var(--hm-line);border-radius:11px;
+  padding:9px 11px;color:var(--hm-text);
+  transition:background 130ms ease,transform 130ms ease;
+}
+.triagem-item:hover{background:rgba(141,53,255,.15);transform:translateX(2px)}
+.triagem-item b{display:block;font-size:12px}
+.triagem-item small{display:block;margin-top:2px;font-size:10.5px;color:var(--hm-text-3)}
+.triagem-item i{display:block;margin-top:3px;font-style:normal;font-size:10px;color:var(--hm-text-3);opacity:.8;font-variant-numeric:tabular-nums}
+.triagem-vazio{padding:14px 4px;font-size:11px;color:var(--hm-text-3);text-align:center}
+
+/* =========================================================
+   MÉTRICAS: OPERAÇÃO NA FRENTE, INFRAESTRUTURA NA ADMIN (V11.8)
+   ========================================================= */
+.metric-resumo-fonte{
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:11px 15px;margin-bottom:12px;
+  background:rgba(255,255,255,.025);
+  border:1px solid var(--hm-line);border-radius:12px;
+  font-size:11.5px;color:var(--hm-text-2);
+}
+.metric-resumo-fonte b{color:#fff}
+.resumo-ponto{width:8px;height:8px;border-radius:50%;flex:0 0 8px}
+.resumo-ponto.ok{background:#50f5a0;box-shadow:0 0 8px rgba(80,245,160,.6)}
+.resumo-ponto.alerta{background:#ffcf5c;box-shadow:0 0 8px rgba(255,207,92,.5)}
+#metricSyncTopo{
+  margin-left:auto;background:rgba(141,53,255,.18);border:1px solid rgba(141,53,255,.4);
+  color:#d9bcff;border-radius:8px;padding:7px 12px;
+  font-size:9px;font-weight:900;letter-spacing:.08em;cursor:pointer;
+}
+#metricSyncTopo:hover{background:rgba(141,53,255,.32);color:#fff}
+#metricSyncTopo:disabled{opacity:.5;cursor:wait}
+#metricIrConfig{font-size:10.5px;color:var(--hm-text-3);text-decoration:none;border-bottom:1px dotted var(--hm-text-3)}
+#metricIrConfig:hover{color:#b878ff;border-color:#b878ff}
+
+/* chips de período */
+.metric-periodos{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.metric-periodos button{
+  background:rgba(255,255,255,.04);border:1px solid var(--hm-line);color:var(--hm-text-3);
+  border-radius:20px;padding:8px 15px;
+  font-size:9.5px;font-weight:900;letter-spacing:.08em;cursor:pointer;
+  transition:background 130ms ease,color 130ms ease,border-color 130ms ease;
+}
+.metric-periodos button:hover{color:#fff;border-color:rgba(141,53,255,.5)}
+.metric-periodos button.active{
+  background:linear-gradient(135deg,#8d35ff,#6321b8);border-color:transparent;color:#fff;
+  box-shadow:0 3px 12px rgba(141,53,255,.32);
+}
+
+/* bloco realocado dentro de Administração > Integrações */
+.infra-metricas{
+  border:1px solid var(--hm-line-2);border-radius:16px;padding:15px;margin-bottom:16px;
+  background:linear-gradient(180deg,#151020,#100c18);
+}
+.infra-head{margin-bottom:12px}
+.infra-head b{display:block;font-size:10.5px;letter-spacing:.12em;color:#fff}
+.infra-head span{display:block;margin-top:4px;font-size:11px;color:var(--hm-text-3);line-height:1.5;max-width:70ch}
+.infra-metricas .metric-head-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}

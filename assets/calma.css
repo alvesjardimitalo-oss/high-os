@@ -1,0 +1,287 @@
+/* =========================================================
+   HIGH OS · CAMADA DE CALMA (V12.1)
+   ---------------------------------------------------------
+   Diagnóstico que originou este arquivo:
+     401 textos em caixa alta no HTML
+     207 usos de letter-spacing
+     761 linhas de contorno
+     144 gradientes
+      35 tamanhos de fonte distintos
+   1.811 cores fixas
+
+   O problema não é cor feia: é falta de hierarquia. Quando tudo
+   está em caixa alta, com contorno e espaçamento de letra, nada
+   se destaca e o olho não sabe onde pousar.
+
+   Esta camada não repinta o sistema. Ela faz três coisas:
+     1. reduz 35 tamanhos de fonte a uma escala de 6;
+     2. tira contorno de caixa dentro de caixa, separando por fundo;
+     3. reserva caixa alta e espaçamento de letra para rótulo de
+        seção, devolvendo o texto de conteúdo ao formato normal.
+
+   Carregue por último, depois de high-refresh.css.
+   ========================================================= */
+
+:root{
+  /* escala única: cada degrau tem função clara */
+  --f-micro:9.5px;   /* rótulo de seção, sempre caixa alta */
+  --f-mini:11px;     /* apoio, legenda, unidade */
+  --f-base:13px;     /* conteúdo */
+  --f-med:15px;      /* nome de item, valor secundário */
+  --f-big:20px;      /* número que importa */
+  --f-hero:30px;     /* título de página */
+
+  --linha:rgba(255,255,255,.07);
+  --linha-forte:rgba(255,255,255,.12);
+}
+
+/* ---------------------------------------------------------
+   1. HIERARQUIA TIPOGRÁFICA
+   Caixa alta e espaçamento de letra só onde identificam seção.
+--------------------------------------------------------- */
+/* V12.4 - o que era escopado em Métricas e Organizações passa a valer
+   para todas as páginas. A navegação e os modais ficam de fora: lá a
+   caixa alta cumpre função de rótulo. */
+.page p, .page td, .page .page-subtitle, .page li{
+  text-transform:none!important;
+  letter-spacing:normal!important;
+  font-size:var(--f-base)!important;
+  line-height:1.6!important;
+}
+/* nome de coisa é nome, não sigla */
+.page .metric-item b, .page .fac-card b, .page .user-row b,
+.page .rh-ranking-row b, .page .org-v92-row b, .page .req-card b,
+.page .mp-point-row b, .page .admin-group-row b{
+  text-transform:none!important;
+  letter-spacing:normal!important;
+  font-size:var(--f-med)!important;
+  font-weight:600!important;
+}
+/* rótulos de seção mantêm o padrão, mas num tamanho só */
+.page h3, .page .eyebrow, .page thead th{
+  font-size:var(--f-micro)!important;
+  letter-spacing:.11em!important;
+  font-weight:800!important;
+}
+.page h2{font-size:var(--f-hero)!important;letter-spacing:.01em!important}
+.page small{font-size:var(--f-mini)!important;letter-spacing:normal!important}
+
+/* números grandes respiram e usam algarismo de largura fixa */
+.page .metric-kpi b, .page .mq-bar span b, .page .mp-kpi b,
+.page .metric-month-value, .page .fac-stats b, .page .saude-card b{
+  font-size:var(--f-big)!important;
+  font-variant-numeric:tabular-nums;
+  letter-spacing:-.01em!important;
+}
+
+/* ---------------------------------------------------------
+   2. CAIXA DENTRO DE CAIXA
+   O contorno interno some; a separação passa a ser pelo fundo.
+--------------------------------------------------------- */
+.page .card .card,
+.page .metric-center-view > div > div,
+.page .org-v92-card .org-v92-row,
+.page .mp-card .mp-card{
+  border:none!important;
+  background:rgba(255,255,255,.02)!important;
+  box-shadow:none!important;
+}
+.page .card{
+  border:1px solid var(--linha)!important;
+  box-shadow:none!important;
+  background:rgba(255,255,255,.018)!important;
+}
+
+/* ---------------------------------------------------------
+   3. MENOS BRILHO, MAIS LEITURA
+   Gradiente fica onde comunica estado; o resto vira fundo liso.
+--------------------------------------------------------- */
+.page .metric-center-tabs, .page .fac-toolbar,
+.page .admin-tab-bar, .page .mp-tabbar{background:transparent!important;border:none!important}
+
+.page .metric-center-tab, .page .fac-filter-chip,
+.page .admin-tab, .page .mp-tab{
+  background:transparent!important;
+  border:1px solid transparent!important;
+  color:var(--hm-text-3)!important;
+  font-size:var(--f-micro)!important;
+  letter-spacing:.09em!important;
+  padding:9px 14px!important;
+}
+.page .metric-center-tab:hover, .page .fac-filter-chip:hover,
+.page .admin-tab:hover, .page .mp-tab:hover{color:#fff!important;background:rgba(255,255,255,.05)!important}
+.page .metric-center-tab.active, .page .fac-filter-chip.active,
+.page .admin-tab.active, .page .mp-tab.active{
+  background:rgba(141,53,255,.16)!important;
+  border-color:rgba(141,53,255,.42)!important;
+  color:#e9dcfa!important;
+  box-shadow:none!important;
+}
+
+/* linha divisória no lugar de moldura completa */
+.page .metric-row, .page .org-v92-row, .page .user-row, .page .admin-group-row{
+  border:none!important;
+  border-bottom:1px solid var(--linha)!important;
+  border-radius:0!important;
+}
+
+/* ---------------------------------------------------------
+   4. RESPIRO
+   Espaçamento consistente entre blocos, em vez de cada um o seu.
+--------------------------------------------------------- */
+.page .card{padding:18px!important;margin-bottom:14px!important}
+.page .metric-center-view > *, .page .page-body > *{margin-bottom:14px}
+
+/* a navegação lateral e os modais mantêm o padrão antigo de propósito:
+   ali a caixa alta identifica destino, não descreve conteúdo */
+.sidebar *, .modal *, .topbar *{text-transform:inherit}
+
+/* =========================================================
+   LOGS (antigo Histórico), agora dentro da Administração
+   ========================================================= */
+.logs-head{
+  display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;
+  padding:15px 17px;margin-bottom:12px;
+  background:rgba(255,255,255,.022);
+  border:1px solid var(--linha);border-radius:14px;
+}
+.logs-head b{display:block;font-size:var(--f-micro);letter-spacing:.12em;color:#fff}
+.logs-head span{display:block;margin-top:5px;font-size:var(--f-mini);color:var(--hm-text-3);line-height:1.55;max-width:70ch}
+.logs-head input{
+  min-width:260px;flex:0 1 320px;
+  background:#0a0810;border:1px solid var(--linha-forte);border-radius:10px;
+  color:var(--hm-text);padding:11px 14px;font-size:var(--f-base);
+}
+.logs-head input:focus{outline:none;border-color:rgba(141,53,255,.55)}
+.logs-stats{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.logs-list{display:grid;gap:6px}
+
+/* =========================================================
+   CHAT REPAGINADO (V12.2)
+   Bloco por autor, separador de dia, hora só no fim do bloco.
+   ========================================================= */
+.hm-messages{padding:18px 16px!important}
+
+.chat-dia{display:flex;align-items:center;gap:12px;margin:18px 0 12px}
+.chat-dia::before,.chat-dia::after{content:"";flex:1;height:1px;background:var(--linha)}
+.chat-dia span{
+  font-size:10px;letter-spacing:.08em;color:var(--hm-text-3);
+  text-transform:uppercase;white-space:nowrap;
+}
+
+.chat-bloco{display:flex;gap:10px;margin-bottom:14px;align-items:flex-start}
+.chat-bloco.meu{flex-direction:row-reverse}
+.chat-bloco-avatar{
+  width:34px;height:34px;flex:0 0 34px;border-radius:50%;overflow:hidden;
+  display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(140deg,#6d2bbf,#3d1a6d);
+  color:#fff;font-size:11px;font-weight:700;
+}
+.chat-bloco-avatar img{width:100%;height:100%;object-fit:cover}
+.chat-bloco.meu .chat-bloco-avatar{display:none}
+.chat-bloco-corpo{min-width:0;max-width:min(78%,540px);display:flex;flex-direction:column;gap:3px}
+.chat-bloco.meu .chat-bloco-corpo{align-items:flex-end}
+.chat-bloco-corpo > header{display:flex;align-items:baseline;gap:7px;margin-bottom:3px}
+.chat-bloco-corpo > header b{font-size:12px;font-weight:600;color:#c79cff}
+.chat-bloco-corpo > header i{font-style:normal;font-size:10px;color:var(--hm-text-3)}
+.chat-bloco.meu .chat-bloco-corpo > header{display:none}
+
+.chat-balao{
+  position:relative;
+  background:#241c30;
+  border-radius:14px 14px 14px 5px;
+  padding:9px 13px 8px;
+  color:#f2eef8;
+}
+.chat-bloco.meu .chat-balao{
+  background:linear-gradient(135deg,#7b2fd6,#5a20a6);
+  border-radius:14px 14px 5px 14px;
+}
+/* dentro do bloco, os balões seguintes ficam menos "pontudos" */
+.chat-balao + .chat-balao{border-top-left-radius:6px}
+.chat-bloco.meu .chat-balao + .chat-balao{border-top-right-radius:6px}
+.chat-balao p{margin:0;font-size:13.5px;line-height:1.5;word-break:break-word}
+.chat-balao img{max-width:100%;border-radius:9px;display:block}
+.chat-balao time{
+  display:block;margin-top:4px;
+  font-size:9.5px;color:rgba(255,255,255,.45);letter-spacing:.02em;
+}
+.chat-balao.pendente{opacity:.62}
+.chat-balao .chat-delete{
+  position:absolute;top:-7px;right:-7px;width:19px;height:19px;border-radius:50%;
+  background:#2a2135;border:1px solid var(--linha-forte);color:var(--hm-text-3);
+  font-size:11px;line-height:1;cursor:pointer;opacity:0;transition:opacity 130ms ease;
+}
+.chat-bloco:hover .chat-delete{opacity:1}
+.chat-balao .chat-delete:hover{background:#ff5b76;color:#fff;border-color:#ff5b76}
+
+.hm-empty{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  height:100%;min-height:220px;gap:6px;text-align:center;
+}
+.hm-empty b{font-size:14px;color:#fff;font-weight:600}
+.hm-empty span{font-size:12px;color:var(--hm-text-3);max-width:34ch;line-height:1.6}
+
+/* =========================================================
+   ORGANIZAÇÕES · TOPO CONSOLIDADO (V12.3.2)
+   ---------------------------------------------------------
+   A primeira tentativa falhou porque style.css tem regras que
+   valem para QUALQUER elemento dentro do resumo:
+       .org-v92-summary span{display:block}
+       .org-v92-summary b{font-size:28px}
+   Os meus spans viraram blocos e os números ficaram gigantes,
+   empilhando tudo em coluna. Aqui a especificidade é maior e
+   o display é reafirmado item a item.
+   ========================================================= */
+#page-faccoes #orgV92Summary{display:block!important;margin:10px 0 12px!important;gap:0!important}
+#page-faccoes #orgV92Summary > article{display:none!important}
+
+#page-faccoes #orgV92Summary .org-resumo-linha{
+  display:flex!important;align-items:center;gap:20px;flex-wrap:wrap;
+  padding:12px 16px;
+  background:rgba(255,255,255,.022);
+  border:1px solid var(--linha);border-radius:12px;
+}
+#page-faccoes #orgV92Summary .org-resumo-linha span{
+  display:inline-flex!important;align-items:center;gap:7px;
+  font-size:var(--f-mini)!important;letter-spacing:normal!important;
+  font-weight:500!important;color:var(--hm-text-3)!important;
+}
+#page-faccoes #orgV92Summary .org-resumo-linha b{
+  display:inline!important;margin:0!important;line-height:1.1!important;
+  font-variant-numeric:tabular-nums;
+}
+#page-faccoes #orgV92Summary .org-resumo-total b{font-size:22px!important;color:#fff!important}
+#page-faccoes #orgV92Summary .org-resumo-item b{font-size:15px!important}
+#page-faccoes #orgV92Summary .org-resumo-item::before{
+  content:"";width:7px;height:7px;border-radius:50%;flex:0 0 7px;
+}
+#page-faccoes #orgV92Summary .org-resumo-item.assumida::before{background:#50f5a0}
+#page-faccoes #orgV92Summary .org-resumo-item.assumida b{color:#50f5a0!important}
+#page-faccoes #orgV92Summary .org-resumo-item.disponivel::before{background:#b878ff}
+#page-faccoes #orgV92Summary .org-resumo-item.disponivel b{color:#c79cff!important}
+#page-faccoes #orgV92Summary .org-resumo-item.indisponivel::before{background:#ff5b76}
+#page-faccoes #orgV92Summary .org-resumo-item.indisponivel b{color:#ff8a9c!important}
+
+/* contagem dentro do chip: precisa de respiro e de peso próprio */
+#facStatusButtons button{display:inline-flex!important;align-items:center;gap:8px}
+#facStatusButtons .chip-contagem{
+  font-style:normal;
+  min-width:20px;padding:2px 7px;border-radius:20px;
+  font-size:9.5px!important;font-weight:800;
+  background:rgba(255,255,255,.12);color:inherit;
+  font-variant-numeric:tabular-nums;line-height:1.5;
+}
+#facStatusButtons button.active .chip-contagem{background:rgba(255,255,255,.24);color:#fff}
+
+#orgV92ListTitle{
+  font-size:var(--f-mini)!important;letter-spacing:.04em!important;
+  text-transform:none!important;color:var(--hm-text-3)!important;
+  font-weight:500!important;margin-bottom:8px!important;
+}
+#page-faccoes .org-v92-legend,#page-faccoes .fac-legend{display:none!important}
+
+/* coluna de carência na triagem (V12.4) */
+.triagem-col.carencia{border-top-color:#7cc7ff}
+.triagem-col.carencia header b{color:#7cc7ff}
+.triagem-col.carencia header span{background:rgba(124,199,255,.16);color:#7cc7ff}
