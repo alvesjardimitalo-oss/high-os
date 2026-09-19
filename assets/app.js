@@ -5806,8 +5806,12 @@ startMetricRealtime();
 
   metricOrigem='COLECAO_ANTIGA';
 
- }catch(e){estado.metricasCache=[];
-estado.metricas=[]}
+ }catch(e){
+  console.error('[MÉTRICAS] planilha, espelho mensal e coleção legada indisponíveis:',e);
+  estado.metricasCache=[];
+  estado.metricas=[];
+  metricSourceState={...metricSourceState,status:'ERRO',error:e?.message||String(e)};
+ }
  refreshMetricPeriodOptions();
 renderMetrics();
 renderMetricSourceStatus();
