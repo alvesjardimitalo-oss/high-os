@@ -2414,6 +2414,7 @@ usuario:currentUser.email,
 data:serverTimestamp()});
 for(const r of generated)await archiveTechnicalRequest(r,data,'ALTERACAO_DO_GROUP');
 await syncGroupsToOfficialSheet([data],{quiet:true});
+try{await syncOrganizationOccupancy(data,{previousName:old?.faccao||''})}catch(orgErr){console.warn('[ORGANIZAÇÕES] Group salvo, mas sincronização do perfil falhou:',orgErr?.code||orgErr?.message||orgErr)}
 closeGroupProfilePage();
 await loadFaccoes()}catch(err){alert('Erro ao salvar: '+err.message)}
 };
@@ -4279,6 +4280,26 @@ group:current?.group||'',
 descricao:`Cadastro da facção ${nome} atualizado`,
 usuario:currentUser.email,
 data:serverTimestamp()});closeOrganizationProfilePage();await loadOrganizations()}catch(err){alert('Erro ao salvar facção: '+err.message)}});
+
+async function syncOrganizationOccupancy(rec,{previousName=''}={}){
+ const nome=String(rec?.faccao||'').trim();
+ if(previousName&&orgNameKey(previousName)!==orgNameKey(nome)){
+  await setDoc(doc(db,'highos','data','organizacoes',orgKey(previousName)),firestoreSafe({
+   nome:previousName,status:'SEM_GROUP',groupAtual:'',qgAtual:'',
+   updatedAt:serverTimestamp(),updatedBy:currentUser.email
+  }),{merge:true});
+ }
+ if(!nome)return;
+ const existing=derivedOrganizations().find(o=>orgNameKey(o.nome)===orgNameKey(nome))||{};
+ await setDoc(doc(db,'highos','data','organizacoes',existing.id||orgKey(nome)),firestoreSafe({
+  nome,status:'ATIVA',lider:rec.lider||existing.lider||'',
+  contato:existing.contato||'',discord:existing.discord||'',
+  desde:existing.desde||rec.dataEntrega||'',observacoes:existing.observacoes||'',
+  groupAtual:rec.group||'',segmentoAtual:rec.segmento||'',
+  segmentoVinculado:rec.segmento||existing.segmentoVinculado||'',
+  qgAtual:rec.qg||'',updatedAt:serverTimestamp(),updatedBy:currentUser.email
+ }),{merge:true});
+}
 
 async function upsertOrganizationFromDelivery(payload,f){
  const id=orgKey(payload.faccao),
@@ -9889,6 +9910,12 @@ $('#movementConfirm')?.addEventListener('click', async () => {
     await batch.commit();
     await syncGroupsToOfficialSheet([a,
 b],{quiet:true});
+    if(movementMode==='TRANSFER_PANEL'){
+      try{
+        await syncOrganizationOccupancy(a,{previousName:src.faccao||''});
+        await syncOrganizationOccupancy(b,{previousName:dst.faccao||''});
+      }catch(orgErr){console.warn('[ORGANIZAÇÕES] transferência concluída, mas perfis precisam de reconciliação:',orgErr?.code||orgErr?.message||orgErr)}
+    }
 
     await addDoc(histCol, {
       tipo: movementMode === 'TRANSFER_PANEL' ? 'TRANSFERENCIA_PAINEL' : 'TROCA_QG',
