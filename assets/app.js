@@ -4175,10 +4175,17 @@ const maxSeg=Math.max(1,...Object.values(segCounts));
 }
 
 async function orgHistory(name){
- try{const qs=await getDocsCached(histCol,'historico'),
-key=String(name||'').toLowerCase();
-return qs.docs.map(d=>({id:d.id,
-...d.data()})).filter(h=>String(h.faccao||h.depois?.faccao||h.antes?.faccao||'').toLowerCase()===key).sort((a,b)=>historyMillis(b)-historyMillis(a)).slice(0,8)}catch{return[]}
+ const key=String(name||'').trim();
+ if(!key)return [];
+ try{
+  const qs=await getDocs(query(histCol,where('faccao','==',key),orderBy('data','desc'),limit(8)));
+  statBump('historico','leituras');statBump('historico','docs',qs.docs.length);
+  return qs.docs.map(d=>({id:d.id,...d.data()}));
+ }catch(e){
+  console.warn('[HISTÓRICO] consulta direta da organização indisponível; usando registros já carregados:',e?.code||e?.message||e);
+  const nk=key.toLowerCase();
+  return estado.historico.filter(h=>String(h.faccao||h.depois?.faccao||h.antes?.faccao||'').toLowerCase()===nk).sort((a,b)=>historyMillis(b)-historyMillis(a)).slice(0,8);
+ }
 }
 async function openOrganizationByName(name=''){
  const o=derivedOrganizations().find(x=>String(x.nome).toLowerCase()===String(name).toLowerCase())||{id:'',
