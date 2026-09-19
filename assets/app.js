@@ -1250,7 +1250,7 @@ async function touchSession(force=false){
  lastTouchAt=Date.now();
 
  try{await setDoc(doc(db,'highos','data','sessoes_usuario',currentSessionId),{lastActivityAt:serverTimestamp(),
-lastActivityText:new Date().toISOString()},{merge:true})}catch(e){}
+lastActivityText:new Date().toISOString()},{merge:true})}catch(e){console.warn('[SESSÃO] falha ao atualizar atividade:',e?.code||e?.message||e)}
 }
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')touchSession()});
 
@@ -7098,7 +7098,7 @@ let best={rows:[],
 sheet:''};
 for(const title of titles){try{const rows=await readMetricSheet(id,title,token);
 if(rows.length>best.rows.length)best={rows,
-sheet:title}}catch(e){}}
+sheet:title}}catch(e){console.warn('[MÉTRICAS] aba ignorada durante detecção automática:',title,e?.message||e)}}
  if(!best.rows.length)throw new Error('Nenhuma aba com o padrão 14H / 16H / 21H / 23H foi encontrada.');
 return best;
 
@@ -7107,7 +7107,7 @@ async function refreshMetricServerConfig(){
  try{const snap=await getDoc(metricConfigDoc);
 if(snap.exists())metricSourceConfig={...metricSourceConfig,
 ...snap.data()};
-renderMetricSourceStatus()}catch(e){}
+renderMetricSourceStatus()}catch(e){console.warn('[MÉTRICAS] falha ao carregar configuração do Firestore:',e?.code||e?.message||e)}
 }
 function metricRowKey(r={}){return alvesNorm(String(r.group||r.organizacao||r.faccao||'')).replace(/\s+/g,'')+'|'+normalizeMetricDate(r.data||r.date)}
 function metricLatestInfo(rows=[]){
