@@ -17,6 +17,10 @@ A partir daqui, qualquer função que grave nesses arrays pode ser movida
 para um módulo — era isso que o corte destravava. Os próximos candidatos
 naturais são `boletim.js`, `chat.js` e `planejador-nuvem.js`.
 
+**Atualização V12.4.x:** `metricas-parser.js` agora importa `alvesNorm` de
+`formatadores.js`. A normalização deixou de ter duas implementações que podiam
+divergir. O parser continua sem depender do estado global do app.
+
 ### Lição do caminho
 
 A primeira tentativa usou o analisador léxico do formatador para trocar
