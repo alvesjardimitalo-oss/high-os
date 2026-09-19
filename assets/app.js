@@ -4083,6 +4083,13 @@ function orgOccupancies(){
 }
 function organizationIntegrity(){
  const occ=orgOccupancies(),issues=[];
+ estado.faccoes.filter(f=>!f.removido).forEach(f=>{
+  const hasLocal=!!String(f.qg||'').trim();
+  const hasOrg=!!String(f.faccao||'').trim();
+  if(hasOrg&&!hasLocal)issues.push({tipo:'OCUPADA_SEM_LOCAL',nome:f.faccao,group:f.group});
+  if(!hasOrg&&String(f.status||'').toUpperCase()==='ATIVA')issues.push({tipo:'ATIVA_SEM_FACCAO',group:f.group});
+  if(hasOrg&&String(f.status||'').toUpperCase()!=='ATIVA')issues.push({tipo:'FACCAO_COM_STATUS_INATIVO',nome:f.faccao,group:f.group});
+ });
  for(const [key,list] of occ){
   if(list.length>1)issues.push({tipo:'DUPLICADA',nome:list[0]?.faccao||key,groups:list.map(x=>x.group).filter(Boolean)});
  }
