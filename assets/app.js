@@ -1748,7 +1748,7 @@ motivo:String(motivo||'')};
 
  mostrarFaixaModoLocal();
 
- try{window.highToast?.('Modo local ativo: o Firebase nao respondeu, mostrando a ultima copia salva. Nada sera gravado ate a conexao voltar.','warn',9000)}catch(e){}
+ try{window.highToast?.('Modo local ativo: o Firebase nao respondeu, mostrando a ultima copia salva. Nada sera gravado ate a conexao voltar.','warn',9000)}catch(e){console.debug('[UI] toast de modo local indisponível:',e?.message||e)}
 }
 function sairModoLocal(){
  if(!window.HighOSOffline.ativo)return;
@@ -1761,7 +1761,7 @@ motivo:''};
 
  document.getElementById('highLocalBanner')?.remove();
 
- try{window.highToast?.('Conexao com o Firebase restabelecida.','ok')}catch(e){}
+ try{window.highToast?.('Conexao com o Firebase restabelecida.','ok')}catch(e){console.debug('[UI] toast de reconexão indisponível:',e?.message||e)}
 }
 function mostrarFaixaModoLocal(){
  if(document.getElementById('highLocalBanner'))return;
@@ -3381,7 +3381,7 @@ data:serverTimestamp()});
 
   await loadFaccoes();
 
-  try{await copyRequestText()}catch{}
+  try{await copyRequestText()}catch(e){console.warn('[SOLICITAÇÕES] solicitação salva, mas a cópia automática falhou:',e?.message||e)}
   if(typeof currentGroupProfile!=='undefined'&&currentGroupProfile?.group===group){const fresh=estado.faccoes.find(x=>x.group===group);
 if(fresh){renderTechProfile(fresh);
 $('#fRotaExclusiva').checked=true;
@@ -3813,7 +3813,7 @@ function buscaResultados(termoBruto){
   .map(u=>({titulo:u.name||u.email,detalhe:[u.email,u.role].filter(Boolean).join(' • '),acao:()=>activateAppPage('usuarios')})),'usuarios');
 
  let missoes=[];
- try{missoes=JSON.parse(localStorage.getItem('highos_mission_planner_v832_missions')||'[]')||[]}catch(e){}
+ try{missoes=JSON.parse(localStorage.getItem('highos_mission_planner_v832_missions')||'[]')||[]}catch(e){console.warn('[BUSCA] cache local do Planejador inválido:',e?.message||e)}
  add('missao','MISSÕES DO PLANEJADOR',missoes
   .filter(m=>buscaCasa(termo,m.name,m.event,m.category))
   .map(m=>({titulo:m.name||'(zona)',detalhe:[m.event,`${(m.points||[]).length} spawns`].filter(Boolean).join(' • '),acao:()=>activateAppPage('planejador')})),'planejador');
@@ -5174,7 +5174,7 @@ metricQuotaAt=new Date();
  stopMetricAutoRecovery();
 
  try{metricLiveUnsub?.();
-metricLiveUnsub=null}catch(err){}
+metricLiveUnsub=null}catch(err){console.warn('[MÉTRICAS] falha ao encerrar listener em tempo real:',err?.message||err)}
  metricSourceState={...metricSourceState,
 status:'COTA ESGOTADA',
 error:'Limite diário gratuito do Firebase atingido.'};
@@ -5502,7 +5502,7 @@ function metricRealtimeAtivo(){
  try{return localStorage.getItem('highos_metric_realtime')==='1'}catch(e){return false}
 }
 function setMetricRealtime(on){
- try{localStorage.setItem('highos_metric_realtime',on?'1':'0')}catch(e){}
+ try{localStorage.setItem('highos_metric_realtime',on?'1':'0')}catch(e){console.warn('[MÉTRICAS] não foi possível persistir preferência de tempo real:',e?.message||e)}
  if(on)startMetricRealtime();
 
  else{try{metricLiveUnsub?.()}catch(e){}metricLiveUnsub=null}
@@ -5623,7 +5623,7 @@ linhas] of porMes){
      Agora a fonte da verdade e o proprio documento; o cache local
      apenas evita a leitura quando ele ja confirma o valor. */
   let anterior='';
-  try{anterior=localStorage.getItem('highos_metric_sig_'+mes)||''}catch(e){}
+  try{anterior=localStorage.getItem('highos_metric_sig_'+mes)||''}catch(e){console.warn('[MÉTRICAS] assinatura local indisponível para',mes,e?.message||e)}
   if(anterior===assinatura){
    try{
     const atual=await getDoc(doc(metricMonthCol,mes));
@@ -5653,7 +5653,7 @@ linhas] of porMes){
    metricWriteCount++;
 gravados++;
 
-   try{localStorage.setItem('highos_metric_sig_'+mes,assinatura)}catch(e){}
+   try{localStorage.setItem('highos_metric_sig_'+mes,assinatura)}catch(e){console.warn('[MÉTRICAS] não foi possível salvar assinatura local de',mes,e?.message||e)}
   }catch(e){
    if(isQuotaError(e)){enterQuotaMode(e);
 break}
@@ -11737,7 +11737,7 @@ function chatConversationQuery(){
   limit(CHAT_PAGE_SIZE));
 
 }
-function stopChat(){if(chatUnsubscribe){try{chatUnsubscribe()}catch(e){}chatUnsubscribe=null}}
+function stopChat(){if(chatUnsubscribe){try{chatUnsubscribe()}catch(e){console.warn('[CHAT] falha ao encerrar listener:',e?.message||e)}chatUnsubscribe=null}}
 function subscribeChatConversation(){
  stopChat();
 
@@ -11976,7 +11976,7 @@ if(signal&&id)await setDoc(callDocRef(id),{status:'ended',
 endedAt:serverTimestamp(),
 updatedAt:serverTimestamp()},{merge:true}).catch(()=>{});
 if(activeCallUnsubscribe){activeCallUnsubscribe();
-activeCallUnsubscribe=null}try{activePeer?.close()}catch{};
+activeCallUnsubscribe=null}try{activePeer?.close()}catch(e){console.warn('[CHAT] falha ao fechar conexão da chamada:',e?.message||e)};
 activePeer=null;
 activeLocalStream?.getTracks().forEach(t=>t.stop());
 activeRemoteStream?.getTracks().forEach(t=>t.stop());
