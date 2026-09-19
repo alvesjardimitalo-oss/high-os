@@ -4071,13 +4071,36 @@ function initDeliveryUi(){
 
 // HIGH OS V5.3 · FACÇÕES COMO ENTIDADE PRÓPRIA
 function orgKey(name){return String(name||'').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'facção'}
+function orgNameKey(v){return alvesNorm(String(v||'').trim()).replace(/\s+/g,' ')}
+function orgOccupancies(){
+ const byOrg=new Map();
+ estado.faccoes.filter(f=>String(f.faccao||'').trim()).forEach(f=>{
+  const k=orgNameKey(f.faccao),list=byOrg.get(k)||[];
+  list.push(f);byOrg.set(k,list);
+ });
+ return byOrg;
+}
+function organizationIntegrity(){
+ const occ=orgOccupancies(),issues=[];
+ for(const [key,list] of occ){
+  if(list.length>1)issues.push({tipo:'DUPLICADA',nome:list[0]?.faccao||key,groups:list.map(x=>x.group).filter(Boolean)});
+ }
+ estado.organizacoes.forEach(o=>{
+  const k=orgNameKey(o.nome||o.id),live=occ.get(k)||[];
+  if(o.groupAtual&&live.length===0)issues.push({tipo:'CADASTRO_DESATUALIZADO',nome:o.nome||o.id,group:o.groupAtual});
+  if(live.length===1&&o.groupAtual&&o.groupAtual!==live[0].group)issues.push({tipo:'GROUP_DIVERGENTE',nome:o.nome||o.id,group:o.groupAtual,correto:live[0].group});
+ });
+ return issues;
+}
+window.highOSVerificarOrganizacoes=()=>{const issues=organizationIntegrity();console.table(issues);return issues};
+
 function derivedOrganizations(){
  const map=new Map();
 
- estado.organizacoes.forEach(o=>map.set(String(o.nome||o.id||'').toLowerCase(),{...o,
+ estado.organizacoes.forEach(o=>map.set(orgNameKey(o.nome||o.id),{...o,
 source:'cadastro'}));
 
- estado.faccoes.filter(f=>f.faccao).forEach(f=>{const k=String(f.faccao).toLowerCase(),
+ estado.faccoes.filter(f=>f.faccao).forEach(f=>{const k=orgNameKey(f.faccao),
 old=map.get(k)||{};map.set(k,{...old,
 id:old.id||orgKey(f.faccao),
 nome:old.nome||f.faccao,
@@ -4149,6 +4172,7 @@ else sel.value='';
 function renderOrganizations(){
  if(!$('#orgList'))return;
 const all=derivedOrganizations();
+const integrity=organizationIntegrity();
 renderOrgSegmentChips(all);
 renderOrgActivityButtons();
 const q=($('#orgSearch')?.value||'').toLowerCase(),
@@ -4173,7 +4197,7 @@ const maxSeg=Math.max(1,...Object.values(segCounts));
 
  if($('#orgOverview'))$('#orgOverview').innerHTML=`<div class="ops-kpis"><article class="ops-kpi purple"><span>FACÇÕES</span><b>${all.length}</b><small>organizações registradas</small></article><article class="ops-kpi good"><span>COM GROUP</span><b>${active}</b><small>ocupando patrimônio da cidade</small></article><article class="ops-kpi warn"><span>SEM GROUP</span><b>${sem}</b><small>ativas aguardando ocupação</small></article><article class="ops-kpi"><span>INATIVAS</span><b>${inativas}</b><small>mantidas apenas no histórico</small></article></div><section class="ops-distribution"><div class="ops-distribution-head"><b>OCUPAÇÃO POR SEGMENTO</b><span>FACÇÕES COM GROUP</span></div><div class="ops-bars">${Object.keys(segCounts).length?Object.entries(segCounts).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="ops-bar-row"><span>${esc(k)}</span><div class="ops-track"><div class="ops-fill" style="width:${Math.max(4,v/maxSeg*100)}%"></div></div><b>${v}</b></div>`).join(''):'<div class="muted">Nenhuma ocupação ativa.</div>'}</div></section>`;
 
- $('#orgStats').innerHTML=`<span><b>${list.length}</b> EXIBIDAS</span>${seg?`<span>SEGMENTO <b>${esc(seg)}</b></span>`:''}${st?`<span>STATUS <b>${esc(st.replace('_',' '))}</b></span>`:''}`;
+ $('#orgStats').innerHTML=`<span><b>${list.length}</b> EXIBIDAS</span>${integrity.length?`<span><b>${integrity.length}</b> VERIFICAÇÃO${integrity.length===1?'':'ÕES'} PENDENTE${integrity.length===1?'':'S'}</span>`:''}${seg?`<span>SEGMENTO <b>${esc(seg)}</b></span>`:''}${st?`<span>STATUS <b>${esc(st.replace('_',' '))}</b></span>`:''}`;
 
  $('#orgList').innerHTML=list.length?list.map(o=>`<article class="org-card" data-org="${esc(o.id||orgKey(o.nome))}"><div class="org-card-head"><div><div class="group-kicker">${esc(orgSegmentValue(o)||'ORGANIZAÇÃO')}</div><h3>${esc(o.nome||'SEM NOME')}</h3></div><span class="status-chip ${o.status==='INATIVA'?'inativa':'ativa'}">${o.status==='INATIVA'?'INATIVA':(o.groupAtual?'OCUPANDO':'ATIVA • SEM GROUP')}</span></div><div class="org-group-link"><span>GROUP ATUAL</span><b>${esc(o.groupAtual||'—')}</b><small>${esc(o.qgAtual||'')}</small></div><div class="muted">${o.lider?'Líder: '+esc(o.lider):'Liderança não cadastrada'}${o.contato?'<br>Contato: '+esc(o.contato):''}</div><button class="mini-btn open-org" data-name="${esc(o.nome)}">PERFIL DA FACÇÃO</button></article>`).join(''):'<div class="placeholder"><b>♜</b><h3>NENHUMA FACÇÃO ENCONTRADA</h3><p>Ajuste a busca ou os filtros.</p></div>';
 
