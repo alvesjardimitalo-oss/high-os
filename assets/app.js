@@ -1517,7 +1517,7 @@ if(page==='planejador')setTimeout(()=>window.HighMissionPlanner?.activate?.(),60
  document.querySelectorAll('.nav-item').forEach(x=>x.classList.toggle('active',x.dataset.page===page));
 
  try{window.scrollTo({top:0,
-behavior:'smooth'})}catch{}
+behavior:'smooth'})}catch(e){console.debug('[UI] rolagem suave indisponível:',e?.message||e)}
 }
 function showGroupProfilePage(f){
  const card=$('#facModal .fac-modal-card-wide')||$('.fac-modal-card-wide');
@@ -9132,7 +9132,7 @@ const _updateDeliveryPreviewV62=updateDeliveryPreview;
 updateDeliveryPreview=function(){getTechProfileFromForm();
 _updateDeliveryPreviewV62();
 try{renderStructureSnapshot(currentFactionFromForm());
-renderConnectedRequests()}catch{}};
+renderConnectedRequests()}catch(e){console.warn('[ESTRUTURA] falha ao atualizar prévia conectada:',e?.message||e)}};
 
 function requestFingerprint(r={}){return `${String(r.group||'').toUpperCase()}|${String(r.tipo||'').toUpperCase()}|${String(r.texto||'').replace(/\s+/g,' ').trim().toLowerCase()}`}
 async function archiveTechnicalRequest(r,f={},origem='ALTERACAO_GROUP'){
@@ -12362,7 +12362,7 @@ $('#grRoutePreview')?.addEventListener('click',()=>{grRenderRows();grRenderMap()
 $('#grRouteSave')?.addEventListener('click',grSaveRoute);
 $('#grRouteRequest')?.addEventListener('click',()=>grShowRequest('auto'));
 $('#grRouteDelete')?.addEventListener('click',grDeleteRoute);
-$('#grRouteCopyRequest')?.addEventListener('click',async()=>{try{await navigator.clipboard.writeText($('#grRouteRequestText').value);$('#grRouteCopyRequest').textContent='COPIADO ✓';setTimeout(()=>$('#grRouteCopyRequest').textContent='COPIAR',1200)}catch{}});
+$('#grRouteCopyRequest')?.addEventListener('click',async()=>{try{await navigator.clipboard.writeText($('#grRouteRequestText').value);$('#grRouteCopyRequest').textContent='COPIADO ✓';setTimeout(()=>$('#grRouteCopyRequest').textContent='COPIAR',1200)}catch(e){console.warn('[ROTAS] falha ao copiar solicitação:',e?.message||e)}});
 $('#grRouteMapPng')?.addEventListener('click',grMapPng);
 $('#grMapRoute')?.addEventListener('change',grRenderMap);
 $('#grMapStructures')?.addEventListener('change',grRenderMap);
