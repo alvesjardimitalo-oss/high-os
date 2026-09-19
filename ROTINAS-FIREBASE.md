@@ -26,13 +26,12 @@ Todas passam pela camada `getDocsCached()`: janela de 20s na memória, espelho n
 | `loadDeliveries()` | `entregas` | aba Entregas | **sim** |
 | `loadRequests()` | `solicitacoes` | aba Solicitações | devagar |
 | `loadUsers()` | `users` | login e aba Usuários | não |
-| `loadHistory()` / `orgHistory()` | `historico` | aba Histórico, perfis, auditoria | **sim, sem limite** |
+| `loadHistory()` / `orgHistory()` | `historico` | aba Histórico, perfis, auditoria | **sim; a tela principal já usa paginação, mas rotinas auxiliares ainda precisam ser auditadas** |
 | `loadUserAudit()` | `sessoes_usuario` | Administração > Acessos | **sim** |
 | `loadDashboardAlertStates()` | `alertas_dashboard` | Dashboard | pouco |
-| `loadMetrics()` | `metricas` | aba Métricas (janela de 2 min) | **sim, o maior volume** |
+| `loadMetrics()` | `metricas` / espelho mensal | aba Métricas (janela de 2 min) | **histórico legado cresce; o fluxo atual prioriza espelho mensal** |
 
-Os três marcados em negrito são os que vão estourar a cota primeiro. A correção
-definitiva é filtrar por período no servidor (`where` + cursor), ainda pendente.
+Coleções históricas continuam merecendo atenção, mas este documento não deve mais assumir leitura integral em todos os fluxos. O histórico principal já recebeu paginação e as métricas atuais usam espelho mensal; rotinas auxiliares/legadas devem ser verificadas individualmente antes de qualquer otimização.
 
 ## 2. Leitura — tempo real (`onSnapshot`)
 
@@ -74,7 +73,7 @@ O que **depende** e não tem substituto local:
 
 Em ordem de retorno:
 
-1. Paginar `historico` e `metricas` por período — hoje é o grosso das leituras.
+1. Auditar e paginar rotinas auxiliares que ainda leem históricos crescentes.
 2. Fechar o listener de métricas quando a aba perder o foco.
 3. Guardar um documento-resumo por conversa em vez de contar mensagens.
 4. Mover anexos do chat (base64, até 600 KB por documento) para o Storage.
