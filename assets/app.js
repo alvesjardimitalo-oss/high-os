@@ -9745,6 +9745,23 @@ function cleanSnapshot(o){
 
 }
 
+/* Firestore rejeita qualquer campo com valor undefined, inclusive dentro de
+   objetos aninhados. Registros antigos podem não possuir todos os campos
+   físicos; ao trocar QG, copiar "undefined" para o outro Group fazia o lote
+   inteiro falhar. Sanitizamos somente o payload de persistência, preservando
+   serverTimestamp e demais valores especiais do SDK. */
+function firestoreSafe(value){
+  if(value === undefined) return null;
+  if(value === null || typeof value !== 'object') return value;
+  if(Array.isArray(value)) return value.filter(v=>v!==undefined).map(firestoreSafe);
+  if(typeof value?.toDate === 'function' || typeof value?._methodName === 'string') return value;
+  const out={};
+  for(const [k,v] of Object.entries(value)){
+    if(v !== undefined) out[k]=firestoreSafe(v);
+  }
+  return out;
+}
+
 function movementOpen(mode){
   if(!isAdmin()) return alert('Apenas ADMIN pode executar transferências e trocas de QG.');
 
@@ -9840,8 +9857,8 @@ $('#movementConfirm')?.addEventListener('click', async () => {
     b.updatedBy = currentUser.email;
 
     const batch = writeBatch(db);
-    batch.set(doc(db,'highos','data','faccoes',src.group), a);
-    batch.set(doc(db,'highos','data','faccoes',dst.group), b);
+    batch.set(doc(db,'highos','data','faccoes',src.group), firestoreSafe(a));
+    batch.set(doc(db,'highos','data','faccoes',dst.group), firestoreSafe(b));
     await batch.commit();
     await syncGroupsToOfficialSheet([a,
 b],{quiet:true});
