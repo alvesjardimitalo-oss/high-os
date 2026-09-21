@@ -9991,29 +9991,6 @@ b],{quiet:true});
       data: serverTimestamp()
     });
 
-    for(const rec of [a,
-b]){
-      if(rec.faccao){
-        await setDoc(doc(db,'highos','data','organizacoes',orgKey(rec.faccao)), {
-          nome: rec.faccao,
-
-          status: 'ATIVA',
-
-          groupAtual: rec.group,
-
-          segmentoAtual: rec.segmento || '',
-
-          qgAtual: rec.qg || '',
-
-          lider: rec.lider || '',
-
-          updatedAt: serverTimestamp(),
-
-          updatedBy: currentUser.email
-        }, {merge:true});
-      }
-    }
-
     $('#movementModal')?.classList.add('hidden');
     closeGroupProfilePage();
     await loadFaccoes();
