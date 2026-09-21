@@ -10975,6 +10975,12 @@ if(!f||!currentUser)return;
  const antes={contingenteMin:Number(f.contingenteMin||15),
 contingenteMax:Number(f.contingenteMax||28)};
 
+/* V10.36 - evita setDoc + histórico quando o contingente não mudou. */
+if(antes.contingenteMin===min&&antes.contingenteMax===max){
+ if(button){const t=button.textContent;button.textContent='JÁ SALVO';setTimeout(()=>{button.textContent=t;button.disabled=false},900)}
+ return;
+}
+
  try{
   if(button){button.disabled=true;
 button.textContent='SALVANDO...'}
