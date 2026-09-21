@@ -1854,7 +1854,9 @@ statBump(nome,'docs',rows.length);
 
   console.warn(`[HIGH OS] Falha ao ler ${nome} no Firestore:`,e?.message||e);
 
-  if(espelho?.rows?.length){
+  /* Cache vazio também é um snapshot válido. Sem isso, coleções
+     legitimamente vazias quebravam o fallback offline. */
+  if(espelho&&Array.isArray(espelho.rows)){
    entrarModoLocal(e?.message||'');
 
    return comoSnapshot(espelho.rows);
