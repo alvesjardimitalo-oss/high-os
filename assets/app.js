@@ -5486,6 +5486,10 @@ data:serverTimestamp()});
   metricWriteCount++;
 
   estado.metricasCache=rows.slice();
+  /* V10.57 - qualquer persistência real torna o espelho legado anterior
+     obsoleto. Invalidar evita que um fallback posterior ressuscite métricas
+     anteriores à sincronização. */
+  cacheInvalidate('metricas');
 
   renderMetricQuotaPanel();
 
