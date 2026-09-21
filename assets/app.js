@@ -14237,7 +14237,12 @@ setTimeout(()=>{if($('#page-faccoes'))renderFaccoes()},0);
 const missionsDoc=doc(db,'highos','data','config','missoes_planejador');
 
 let missionCloudTimer=null,
-missionCloudBusy=false;
+missionCloudBusy=false,
+missionCloudLastSignature='';
+
+function missionCloudSignature(missions=[]){
+ try{return JSON.stringify(missions)}catch(e){return ''}
+}
 
 async function pullMissionsFromCloud(){
  if(!currentUser||!canViewModule('planejador'))return null;
@@ -14250,6 +14255,7 @@ async function pullMissionsFromCloud(){
   const data=snap.data()||{};
 
   if(!Array.isArray(data.missions)||!data.missions.length)return null;
+  missionCloudLastSignature=missionCloudSignature(data.missions);
 
   return {missions:data.missions,
 updatedAtText:data.updatedAtText||'',
@@ -14261,6 +14267,10 @@ return null}
 async function pushMissionsToCloud(missions=[]){
  if(!currentUser||!canEditModule('planejador')||!Array.isArray(missions)||!missions.length)return false;
 
+ const assinatura=missionCloudSignature(missions);
+ /* V10.14 - saveStore também roda em inicialização/re-render. Não grava
+    novamente o mesmo documento de missões se o conteúdo não mudou. */
+ if(assinatura&&assinatura===missionCloudLastSignature)return true;
  if(missionCloudBusy)return false;
 
  missionCloudBusy=true;
@@ -14273,6 +14283,7 @@ updatedAt:serverTimestamp(),
 updatedAtText:new Date().toISOString(),
 updatedBy:currentUser.email||''},{merge:true});
 
+  missionCloudLastSignature=assinatura;
   window.dispatchEvent(new CustomEvent('highos:mission-cloud',{detail:{state:'ok',
 missions:missions.length}}));
 
