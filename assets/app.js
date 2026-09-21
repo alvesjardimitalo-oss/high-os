@@ -10028,7 +10028,16 @@ b],{quiet:true});
 
     $('#movementModal')?.classList.add('hidden');
     closeGroupProfilePage();
-    await loadFaccoes();
+    /* V10.29 - o batch confirmou os dois Groups. Não reler toda a base:
+       substitui somente origem/destino no cache e sincroniza os módulos
+       realmente afetados pela operação. */
+    const srcIndex=estado.faccoes.findIndex(x=>x.group===src.group);
+    const dstIndex=estado.faccoes.findIndex(x=>x.group===dst.group);
+    if(srcIndex>=0)estado.faccoes[srcIndex]=clonePlain(a);
+    if(dstIndex>=0)estado.faccoes[dstIndex]=clonePlain(b);
+    renderFaccoes();
+    renderCommandDashboard?.();
+    await Promise.all([loadHistory(),loadOrganizations()]);
     alert('Operação concluída e registrada no histórico.');
   }catch(e){
     alert('Falha na operação: ' + e.message);
