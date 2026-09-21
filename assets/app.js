@@ -4277,8 +4277,10 @@ $('#orgForm')?.addEventListener('submit',async e=>{e.preventDefault();const nome
 const duplicada=derivedOrganizations().find(o=>orgNameKey(o.nome)===orgNameKey(nome)&&String(o.id||'')!==String($('#orgId').value||''));
 if(duplicada)return alert('Já existe uma organização com esse nome. Abra o cadastro existente para editar.');
 const id=$('#orgId').value||orgKey(nome),
-current=estado.faccoes.find(f=>orgNameKey(f.faccao)===orgNameKey(nome));const data={nome,
-status:current?'ATIVA':'INATIVA',
+current=estado.faccoes.find(f=>orgNameKey(f.faccao)===orgNameKey(nome)),
+requestedStatus=String($('#oStatus')?.value||'SEM_GROUP').toUpperCase(),
+status=current?'ATIVA':(requestedStatus==='INATIVA'?'INATIVA':'SEM_GROUP');const data={nome,
+status,
 lider:$('#oLider').value.trim(),
 contato:$('#oContato').value.trim(),
 discord:$('#oDiscord').value.trim(),
