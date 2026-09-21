@@ -3443,7 +3443,13 @@ origem:'SOLICITACAO_TAKEFARM',
 usuario:currentUser.email,
 data:serverTimestamp()});
 
-  await loadFaccoes();
+  const ix=faccoes.findIndex(x=>x.group===group);
+  if(ix>=0){
+   faccoes[ix]={...faccoes[ix],perfilTecnico:clonePlain(nextT),beneficios:clonePlain(benefits),updatedBy:currentUser.email};
+   queryFreshAt.set('faccoes',Date.now());
+  }
+  renderFaccoes();
+  renderAvailableFaccoes();
 
   try{await copyRequestText()}catch{}
   if(typeof currentGroupProfile!=='undefined'&&currentGroupProfile?.group===group){const fresh=faccoes.find(x=>x.group===group);
