@@ -11244,7 +11244,12 @@ texto:postado?availableAnnouncementText(f):'',
 imagemUrl:f.imagemAnuncio||'',
 usuario:currentUser.email,
 data:serverTimestamp()});
-await loadFaccoes()}catch(e){alert('Erro ao atualizar status do anúncio: '+e.message)}
+f.anuncioDiscordStatus=status;
+f.status='INATIVA';
+f.updatedBy=currentUser.email;
+queryFreshAt.set('faccoes',Date.now());
+renderAvailableFaccoes();
+renderFaccoes()}catch(e){alert('Erro ao atualizar status do anúncio: '+e.message)}
 }
 async function toggleAvailablePosted(group){const f=faccoes.find(x=>x.group===group);
 return setAvailableDiscordState(group,!availablePosted(f))}
