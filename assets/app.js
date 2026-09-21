@@ -2582,7 +2582,8 @@ motivo:reason,
 imagemDataUrl:recollectPanelImage,
 createdAt:serverTimestamp(),
 createdAtText:new Date().toISOString(),
-createdBy:currentUser.email});evidenceId=ev.id}recolhimento.evidenciaId=evidenceId;data.ultimoRecolhimento.evidenciaId=evidenceId;await setDoc(doc(db,'highos','data','faccoes',group),data);if(old.faccao){const oid=orgKey(old.faccao);await setDoc(doc(db,'highos','data','organizacoes',oid),{nome:old.faccao,
+createdBy:currentUser.email});evidenceId=ev.id}recolhimento.evidenciaId=evidenceId;data.ultimoRecolhimento.evidenciaId=evidenceId;await setDoc(doc(db,'highos','data','faccoes',group),data);const recollectBatch=writeBatch(db);
+if(old.faccao){const oid=orgKey(old.faccao);recollectBatch.set(doc(db,'highos','data','organizacoes',oid),{nome:old.faccao,
 status:'SEM_GROUP',
 groupAtual:'',
 segmentoAtual:old.segmento||'',
@@ -2590,10 +2591,14 @@ segmentoVinculado:old.segmento||'',
 qgAtual:'',
 ultimoRecolhimento:recolhimento,
 updatedAt:serverTimestamp(),
-updatedBy:currentUser.email},{merge:true})}const activeDeliveries=entregas.filter(x=>x.group===group&&x.status==='ATIVA');for(const d of activeDeliveries)await setDoc(doc(db,'highos','data','entregas',d.id),{status:'RECOLHIDA',
+updatedBy:currentUser.email},{merge:true})}
+const activeDeliveries=entregas.filter(x=>x.group===group&&x.status==='ATIVA');
+for(const d of activeDeliveries)recollectBatch.set(doc(db,'highos','data','entregas',d.id),{status:'RECOLHIDA',
 recolhimento,
 recolhidaEm:serverTimestamp(),
-recolhidaPor:currentUser.email},{merge:true});await addDoc(histCol,{sessionId:currentSessionId||'',
+recolhidaPor:currentUser.email},{merge:true});
+if(old.faccao||activeDeliveries.length)await recollectBatch.commit();
+await addDoc(histCol,{sessionId:currentSessionId||'',
 tipo:'RECOLHIMENTO',
 group,
 faccao:old.faccao||'',
