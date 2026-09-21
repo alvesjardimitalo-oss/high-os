@@ -68,7 +68,7 @@ quedaCriticaPct:30,
 minComparacoes:4};
 
 let dashboardConfig={...DEFAULT_DASHBOARD_CONFIG},dashboardAlertStates=[],spotifyConfig={url:'',
-clientId:''},chatUnsubscribe=null,chatItems=[],chatPendingAttachment=null,chatRecipientEmail='',spotifyPlayer=null,spotifyDeviceId='',spotifyAccessToken='',spotifyTokenExpiry=0,activeMeetingRoom='',activeMeetingUrl='',activeMeetingChannel='',teamCallPendingFile=null,callInboxUnsubscribe=null,activeCallUnsubscribe=null,activeCallId='',activePeer=null,activeLocalStream=null,activeRemoteStream=null,activeCallMode='audio',seenRemoteCandidates=new Set();
+clientId:''},chatUnsubscribe=null,chatSubscriptionKey='',chatItems=[],chatPendingAttachment=null,chatRecipientEmail='',spotifyPlayer=null,spotifyDeviceId='',spotifyAccessToken='',spotifyTokenExpiry=0,activeMeetingRoom='',activeMeetingUrl='',activeMeetingChannel='',teamCallPendingFile=null,callInboxUnsubscribe=null,activeCallUnsubscribe=null,activeCallId='',activePeer=null,activeLocalStream=null,activeRemoteStream=null,activeCallMode='audio',seenRemoteCandidates=new Set();
 
 function sanitizeDashboardConfig(v={}){
  const legacyBase=Number(v.contingenteAlerta)||0;
@@ -11890,15 +11890,19 @@ function chatConversationQuery(){
   limit(CHAT_PAGE_SIZE));
 
 }
-function stopChat(){if(chatUnsubscribe){try{chatUnsubscribe()}catch(e){}chatUnsubscribe=null}}
+function stopChat(){if(chatUnsubscribe){try{chatUnsubscribe()}catch(e){}chatUnsubscribe=null}chatSubscriptionKey=''}
 function subscribeChatConversation(){
- stopChat();
-
  if(!currentUser||!canViewModule('chat'))return;
 
- if(!chatRecipientEmail){chatItems=[];
+ if(!chatRecipientEmail){stopChat();chatItems=[];
 renderChatMessages([]);
 return}
+ const key=chatConversationId(currentUser.email,chatRecipientEmail);
+ /* V10.12 - entrar novamente na página Chat não recria a mesma assinatura.
+    Um novo listener só é aberto quando a conversa realmente muda. */
+ if(chatUnsubscribe&&chatSubscriptionKey===key)return;
+ stopChat();
+ chatSubscriptionKey=key;
  try{
   chatUnsubscribe=onSnapshot(chatConversationQuery(),qs=>{
    const items=qs.docs.map(d=>({id:d.id,
