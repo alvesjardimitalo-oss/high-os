@@ -12570,9 +12570,8 @@ dcText=dc==='POSTADO'?'DIVULGADA':dc==='NAO_POSTADO'?'NÃO POSTADA':'DIVULGAÇÃ
  box.querySelectorAll('.req-from-fac').forEach(b=>b.onclick=e=>{e.stopPropagation();openRequestModal('',b.dataset.group)});
 
 }
-const _renderFaccoesV836=renderFaccoes;
-renderFaccoes=function(){_renderFaccoesV836();
-v836RenderOrganizations()};
+/* V12.5 - renderFaccoes é definido de forma definitiva na Central de Organizações V9.2.
+   O wrapper visual V8.36 foi removido para evitar render duplo antes da versão atual. */
 
 function v836ApplyUnifiedUi(){
  document.querySelectorAll('.nav-item[data-page="organizacoes"],.nav-item[data-page="disponiveis"],.nav-item[data-page="entregas"]').forEach(x=>x.remove());
@@ -14103,8 +14102,6 @@ if(summary)summary.innerHTML=`<div class="org-resumo-linha">`
  +`<span class="org-resumo-item indisponivel"><b>${c('INDISPONIVEL')}</b> sem QG</span>`
  +`</div>`;
 aplicarContagemNosChips({todas:all.length,assumida:c('ASSUMIDA'),disponivel:c('DISPONIVEL'),indisponivel:c('INDISPONIVEL')});
-if(false)summary.innerHTML=`<article><span>TOTAL</span><b>${all.length}</b><small>Groups administrativos</small></article><article class="assumed"><span>ASSUMIDAS</span><b>${c('ASSUMIDA')}</b><small>com facção ocupante</small></article><article class="available"><span>DISPONÍVEIS</span><b>${c('DISPONIVEL')}</b><small>livres com QG/Favela</small></article><article class="unavailable"><span>INDISPONÍVEIS</span><b>${c('INDISPONIVEL')}</b><small>ausência de QG/Favela</small></article>`;
-
  const st=$('#facStatus')?.value||'',
 seg=$('#facSegment')?.value||'';
 /* V12.3 - título e contador ocupavam duas linhas dizendo quase o mesmo.
