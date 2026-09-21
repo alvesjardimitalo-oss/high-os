@@ -1780,6 +1780,22 @@ rows:data.rows.map(r=>unpackCache(r))};
 
  }catch(e){return null}
 }
+
+/* V10.46 - mantém memória + espelho local coerentes com writes já confirmados.
+   Não consulta o Firebase e evita que um cache de 20s ressuscite dados antigos. */
+function cachePatchRow(nome,id,row){
+ if(!nome||!id)return;
+ const src=cacheMemoria.get(nome)||cacheLer(nome);
+ if(!src||!Array.isArray(src.rows))return;
+ const rows=src.rows.map(x=>String(x.id)===String(id)?{...x,...clonePlain(row),id}:x);
+ if(!rows.some(x=>String(x.id)===String(id)))rows.push({id,...clonePlain(row)});
+ cacheMemoria.set(nome,{at:Date.now(),rows});
+ cacheEscrever(nome,rows);
+}
+function cacheInvalidate(nome){
+ cacheMemoria.delete(nome);
+ try{localStorage.removeItem(CACHE_PREFIX+nome)}catch(e){}
+}
 function comoSnapshot(rows=[]){
  const docs=rows.map(r=>{const {id,
 ...resto}=r;return {id,
@@ -10956,6 +10972,7 @@ function applyFactionPatchLocal(group,patch={}){
  const f=estado.faccoes.find(x=>x.group===group);
  if(!f)return null;
  Object.assign(f,patch);
+ cachePatchRow('faccoes',f.id||f.group,f);
  renderFaccoes();
  renderAvailableFaccoes();
  renderAdminGroupManager();
