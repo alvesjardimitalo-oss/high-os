@@ -10138,28 +10138,28 @@ b],{quiet:true});
       data: serverTimestamp()
     });
 
+    /* V10.31 - sincroniza as organizações movimentadas em uma única
+       confirmação. Em troca de duas facções deixa de fazer duas escritas
+       sequenciais independentes. */
+    const orgMoveBatch=writeBatch(db);
+    let orgMoveCount=0;
     for(const rec of [a,
 b]){
       if(rec.faccao){
-        await setDoc(doc(db,'highos','data','organizacoes',orgKey(rec.faccao)), {
-          nome: rec.faccao,
-
-          status: 'ATIVA',
-
-          groupAtual: rec.group,
-
-          segmentoAtual: rec.segmento || '',
-
-          qgAtual: rec.qg || '',
-
-          lider: rec.lider || '',
-
-          updatedAt: serverTimestamp(),
-
-          updatedBy: currentUser.email
-        }, {merge:true});
+        const existing=derivedOrganizations().find(o=>String(o.nome||'').toLowerCase()===String(rec.faccao).toLowerCase())||{};
+        const next={nome:rec.faccao,status:'ATIVA',groupAtual:rec.group,segmentoAtual:rec.segmento||'',qgAtual:rec.qg||'',lider:rec.lider||''};
+        const igual=existing?.id&&Object.keys(next).every(k=>String(existing[k]??'')===String(next[k]??''));
+        if(!igual){
+          orgMoveBatch.set(doc(db,'highos','data','organizacoes',orgKey(rec.faccao)), {
+            ...next,
+            updatedAt:serverTimestamp(),
+            updatedBy:currentUser.email
+          }, {merge:true});
+          orgMoveCount++;
+        }
       }
     }
+    if(orgMoveCount)await orgMoveBatch.commit();
 
     $('#movementModal')?.classList.add('hidden');
     closeGroupProfilePage();
