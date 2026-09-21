@@ -4370,23 +4370,15 @@ async function syncOrganizationOccupancy(rec,{previousName=''}={}){
 }
 
 async function upsertOrganizationFromDelivery(payload,f){
- const id=orgKey(payload.faccao),
-existing=derivedOrganizations().find(o=>String(o.nome).toLowerCase()===payload.faccao.toLowerCase())||{};
-
- await setDoc(doc(db,'highos','data','organizacoes',id),{nome:payload.faccao,
-status:'ATIVA',
-lider:payload.lider||existing.lider||'',
-contato:existing.contato||'',
-discord:existing.discord||'',
-desde:existing.desde||payload.dataEntrega||'',
-observacoes:existing.observacoes||'',
-groupAtual:f.group,
-segmentoAtual:f.segmento||'',
-segmentoVinculado:f.segmento||existing.segmentoVinculado||'',
-qgAtual:f.qg||'',
-updatedAt:serverTimestamp(),
-updatedBy:currentUser.email},{merge:true});
-
+ /* A entrega ja atualizou faccoes de forma atomica. Reutilizar a rotina
+    central evita manter uma segunda implementacao das regras de ocupacao. */
+ await syncOrganizationOccupancy({
+  ...f,
+  faccao:payload.faccao,
+  lider:payload.lider||f.lider||'',
+  dataEntrega:payload.dataEntrega||f.dataEntrega||'',
+  status:'ATIVA'
+ });
 }
 async function loadDeliveries(){
  try{const qs=await getDocsCached(deliveryCol,'entregas');
