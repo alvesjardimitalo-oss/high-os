@@ -2570,7 +2570,7 @@ extratoRecolhimento:recolhimento.extrato,
 antes:snapshot(old),
 depois:snapshot(data),
 usuario:currentUser.email,
-data:serverTimestamp()});await syncGroupsToOfficialSheet([data],{quiet:true});closeRecollectModal();closeGroupProfilePage();await loadFaccoes();await loadDeliveries();alert('Facção recolhida com sucesso. O extrato e a evidência foram registrados no histórico.')}catch(err){alert('Erro ao recolher: '+err.message)}});
+data:serverTimestamp()});await syncGroupsToOfficialSheet([data],{quiet:true});closeRecollectModal();closeGroupProfilePage();await loadFaccoes();alert('Facção recolhida com sucesso. O extrato e a evidência foram registrados no histórico.')}catch(err){alert('Erro ao recolher: '+err.message)}});
 
 function snapshot(o){if(!o)return null;
 const x={...o};
@@ -4564,8 +4564,9 @@ extrato:extract,
 usuario:currentUser.email,
 data:serverTimestamp()});
 $('#newDeliveryModal').classList.add('hidden');
+/* V10.8 - loadFaccoes já atualiza Entregas pelo wrapper V5; evita a segunda
+   consulta imediatamente após concluir uma entrega. */
 await loadFaccoes();
-await loadDeliveries();
 alert('Entrega registrada. A estrutura permanente do Group foi preservada.');
 
  }catch(err){alert('Erro ao concluir entrega: '+err.message)}
