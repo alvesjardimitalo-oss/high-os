@@ -3479,6 +3479,7 @@ origem:'Biblioteca High OS'};
 updatedAt:serverTimestamp(),
 updatedBy:currentUser.email};
 
+ let ref=null;
  try{
    if(id){
 const old=solicitacoes.find(x=>x.id===id);
@@ -3492,7 +3493,7 @@ descricao:payload.nome,
 usuario:currentUser.email,
 data:serverTimestamp()});
 }
-   else{const ref=await addDoc(reqCol,{...payload,
+   else{ref=await addDoc(reqCol,{...payload,
 createdAt:serverTimestamp(),
 createdBy:currentUser.email});
 await addDoc(histCol,{sessionId:currentSessionId||'',
@@ -3503,7 +3504,16 @@ usuario:currentUser.email,
 data:serverTimestamp()});
 }
    $('#reqModal').classList.add('hidden');
-await loadRequests();
+if(id){
+ const ix=solicitacoes.findIndex(x=>x.id===id);
+ if(ix>=0)solicitacoes[ix]={...solicitacoes[ix],...modelData,updatedBy:currentUser.email};
+}else{
+ const createdId=ref?.id;
+ if(createdId)solicitacoes.unshift({id:createdId,...modelData,createdBy:currentUser.email,updatedBy:currentUser.email});
+}
+requestRecords=solicitacoes.filter(x=>!x.isModelo);
+queryFreshAt.set('solicitacoes',Date.now());
+renderRequests();
 
  }catch(err){alert('Erro ao salvar modelo: '+err.message)}
 }
