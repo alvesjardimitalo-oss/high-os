@@ -4321,9 +4321,8 @@ data:serverTimestamp()});closeOrganizationProfilePage();await loadOrganizations(
 
 async function upsertOrganizationFromDelivery(payload,f){
  const id=orgKey(payload.faccao),
-existing=derivedOrganizations().find(o=>String(o.nome).toLowerCase()===payload.faccao.toLowerCase())||{};
-
- await setDoc(doc(db,'highos','data','organizacoes',id),{nome:payload.faccao,
+existing=derivedOrganizations().find(o=>String(o.nome).toLowerCase()===payload.faccao.toLowerCase())||{},
+next={nome:payload.faccao,
 status:'ATIVA',
 lider:payload.lider||existing.lider||'',
 contato:existing.contato||'',
@@ -4333,9 +4332,18 @@ observacoes:existing.observacoes||'',
 groupAtual:f.group,
 segmentoAtual:f.segmento||'',
 segmentoVinculado:f.segmento||existing.segmentoVinculado||'',
-qgAtual:f.qg||'',
+qgAtual:f.qg||''};
+
+ /* V10.29 - entrega idempotente: se a organização já representa exatamente
+    esta ocupação, não regrava updatedAt/updatedBy nem derruba o cache. */
+ const campos=Object.keys(next);
+ const igual=existing?.id&&campos.every(k=>String(existing[k]??'')===String(next[k]??''));
+ if(igual)return false;
+
+ await setDoc(doc(db,'highos','data','organizacoes',id),{...next,
 updatedAt:serverTimestamp(),
 updatedBy:currentUser.email},{merge:true});
+ return true;
 
 }
 const DELIVERY_RECENT_LIMIT=250;
