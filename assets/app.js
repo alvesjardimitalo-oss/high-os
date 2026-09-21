@@ -1601,17 +1601,53 @@ document.querySelectorAll('.req-from-fac').forEach(b=>b.onclick=(e)=>{e.stopProp
 /* V10.6 - o painel mostrava so as gravacoes de metricas sob o rotulo
    "GRAVACOES", subestimando o consumo real. Agora toda escrita conta. */
 let firestoreWriteCount=0;
-const setDoc=(...a)=>{cacheMemoria.clear();firestoreWriteCount++;return _setDoc(...a)};
-const addDoc=(...a)=>{cacheMemoria.clear();firestoreWriteCount++;return _addDoc(...a)};
-const deleteDoc=(...a)=>{cacheMemoria.clear();firestoreWriteCount++;return _deleteDoc(...a)};
+
+/* V12.5 - invalidacao seletiva do cache.
+   Antes, qualquer escrita limpava TODAS as colecoes em memoria. Uma alteracao
+   pequena no Dashboard, por exemplo, fazia Faccoes, Organizacoes, Usuarios e
+   demais telas relerem o Firestore na proxima navegacao. Agora removemos apenas
+   o cache da colecao realmente alterada. Se a referencia nao puder ser
+   identificada, mantemos o fallback seguro de limpar tudo. */
+const CACHE_COLLECTION_NAMES={
+ faccoes:'faccoes',
+ historico:'historico',
+ solicitacoes:'solicitacoes',
+ entregas:'entregas',
+ organizacoes:'organizacoes',
+ sessoes_usuario:'sessoes_usuario',
+ users:'usuarios',
+ alertas_dashboard:'alertas_dashboard',
+ chat_mensagens:'chat_mensagens',
+ call_signals:'call_signals'
+};
+function cacheNameFromRef(ref){
+ const p=String(ref?.path||ref?._key?.path?.canonicalString?.()||'');
+ if(!p)return '';
+ const parts=p.split('/').filter(Boolean);
+ const leaf=parts.length%2===0?parts[parts.length-2]:parts[parts.length-1];
+ return CACHE_COLLECTION_NAMES[leaf]||leaf||'';
+}
+function invalidateCacheRef(ref){
+ const nome=cacheNameFromRef(ref);
+ if(nome){cacheMemoria.delete(nome);return nome}
+ cacheMemoria.clear();
+ return '';
+}
+const setDoc=(ref,...a)=>{invalidateCacheRef(ref);firestoreWriteCount++;return _setDoc(ref,...a)};
+const addDoc=(ref,...a)=>{invalidateCacheRef(ref);firestoreWriteCount++;return _addDoc(ref,...a)};
+const deleteDoc=(ref,...a)=>{invalidateCacheRef(ref);firestoreWriteCount++;return _deleteDoc(ref,...a)};
 
 const writeBatch=(...a)=>{const b=_writeBatch(...a);
 const commit=b.commit.bind(b);
 let n=0;
+const touched=new Set();
 ['set','update','delete'].forEach(op=>{const orig=b[op].bind(b);
-b[op]=(...args)=>{n++;
-return orig(...args)}});
-b.commit=()=>{cacheMemoria.clear();
+b[op]=(ref,...args)=>{n++;
+const nome=cacheNameFromRef(ref);
+if(nome)touched.add(nome);
+return orig(ref,...args)}});
+b.commit=()=>{
+if(touched.size)touched.forEach(nome=>cacheMemoria.delete(nome));else cacheMemoria.clear();
 firestoreWriteCount+=n||1;
 return commit()};
 return b};
