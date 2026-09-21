@@ -11600,8 +11600,12 @@ data:serverTimestamp()});
   const renamed={...clonePlain(payload),id:next,group:next};
   if(currentIndex>=0)estado.faccoes[currentIndex]=renamed;
   else estado.faccoes.push(renamed);
+  /* O documento antigo deixou de existir; invalidar faccoes evita manter o
+     id antigo no espelho. As organizações podem ser atualizadas por linha. */
+  cacheInvalidate('faccoes');
   const linkedIds=new Set(linked.map(o=>o.id||orgKey(o.nome)));
   estado.organizacoes=estado.organizacoes.map(o=>linkedIds.has(o.id||orgKey(o.nome))?{...o,groupAtual:next}:o);
+  for(const o of estado.organizacoes.filter(x=>linkedIds.has(x.id||orgKey(x.nome))))cachePatchRow('organizacoes',o.id||orgKey(o.nome),o);
   renderFaccoes();
   renderOrganizations();
   renderAvailableFaccoes();
