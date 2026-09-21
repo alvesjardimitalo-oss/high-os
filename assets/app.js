@@ -3620,9 +3620,11 @@ initRequestUi();
 
 const _loadFaccoesV3=loadFaccoes;
 
-loadFaccoes=async function(){await _loadFaccoesV3();
+loadFaccoes=async function(){const ok=await _loadFaccoesV3();
+if(ok===false)return false;
 updateRequestGroupOptions($('#reqGroup')?.value||'');
-await loadRequests()};
+await loadRequests();
+return true};
 
 // ===== HIGH OS V4 · GESTÃO DE USUÁRIOS =====
 function renderUserPermissionMatrix(values={}){
@@ -4698,9 +4700,11 @@ alert(pendencias.length
 initDeliveryUi();
 
 const _loadFaccoesV5=loadFaccoes;
-loadFaccoes=async function(){await _loadFaccoesV5();
+loadFaccoes=async function(){const ok=await _loadFaccoesV5();
+if(ok===false)return false;
 renderFaccoes();
-await loadDeliveries()};
+await loadDeliveries();
+return true};
 
 // ===== HIGH OS V5.1 · PERFIL TÉCNICO + MEMÓRIA OPERACIONAL DO GROUP =====
 
@@ -4993,9 +4997,11 @@ openFac=function(id){_openFacV51(id);
 renderGroupProfileMemory(estado.faccoes.find(x=>x.id===id))};
 
 const _loadFaccoesV51=loadFaccoes;
-loadFaccoes=async function(){await _loadFaccoesV51();
+loadFaccoes=async function(){const ok=await _loadFaccoesV51();
+if(ok===false)return false;
 await loadHistory();
-await loadOrganizations()};
+await loadOrganizations();
+return true};
 
 // ===== HIGH OS V5.2 · PERFIL PADRÃO DE ENTREGA POR GROUP =====
 
@@ -11374,13 +11380,15 @@ $('#segmentAssignType')?.addEventListener('change',refreshSegmentAssignEntities)
 $('#segmentAssignBtn')?.addEventListener('click',assignSegment);
 
 const _loadFaccoesV813=loadFaccoes;
-loadFaccoes=async function(){await _loadFaccoesV813();
+loadFaccoes=async function(){const ok=await _loadFaccoesV813();
+if(ok===false)return false;
 if(String(currentProfile?.role||'').toUpperCase()==='ADMIN'){await applyCoreSegmentMap();
 renderFaccoes();
 renderOrganizations();
 renderAvailableFaccoes();
 renderSegmentAdmin();
-renderAdminGroupManager()}};
+renderAdminGroupManager()}
+return true};
 
 // ===== HIGH OS V8.24 · ADMINISTRAÇÃO MESTRE DE GROUPS =====
 function adminGroupStatus(f={}){return f.status==='ATIVA'&&String(f.faccao||'').trim()?'ATIVA':'INATIVA'}
@@ -11514,8 +11522,10 @@ renderOrganizations();
 }
 const _loadFaccoesV820=loadFaccoes;
 
-loadFaccoes=async function(){await _loadFaccoesV820();
-await normalizeOccupationStatusV820()};
+loadFaccoes=async function(){const ok=await _loadFaccoesV820();
+if(ok===false)return false;
+await normalizeOccupationStatusV820();
+return true};
 
 // ===== HIGH OS V8.26 · COMUNICAÇÃO FLUTUANTE + SPOTIFY CONNECT =====
 function spotifyEmbedUrl(value=''){const v=String(value||'').trim();
@@ -12690,13 +12700,14 @@ activateAppPage=function(page){if(['organizacoes',
 return _activateAppPageV836(page)};
 
 const _loadFaccoesV836=loadFaccoes;
-loadFaccoes=async function(){await _loadFaccoesV836();
+loadFaccoes=async function(){const ok=await _loadFaccoesV836();
+if(ok===false)return false;
 /* V12.5 - não mutar estado persistente só para corrigir apresentação.
    A ausência de pontos já significa Rota Padrão para a UI; alterar beneficios
    em memória aqui mascarava divergências do Firestore e dificultava auditoria. */
 renderFaccoes();
 renderCommandDashboard?.();
-};
+return true};
 
 /* ===== HIGH OS V8.36.1 · Estrutura administrativa + mapa operacional ===== */
 const GS_TYPES=['CRAFT',
