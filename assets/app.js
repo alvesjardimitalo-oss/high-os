@@ -2655,7 +2655,24 @@ extratoRecolhimento:recolhimento.extrato,
 antes:snapshot(old),
 depois:snapshot(data),
 usuario:currentUser.email,
-data:serverTimestamp()});await syncGroupsToOfficialSheet([data],{quiet:true});closeRecollectModal();closeGroupProfilePage();await loadFaccoes();alert('Facção recolhida com sucesso. O extrato e a evidência foram registrados no histórico.')}catch(err){alert('Erro ao recolher: '+err.message)}});
+data:serverTimestamp()});await syncGroupsToOfficialSheet([data],{quiet:true});closeRecollectModal();closeGroupProfilePage();
+/* V10.32 - recolhimento é atômico e já conhece Group, organização e entregas
+   alterados. Atualiza os três caches sem reler as coleções completas. */
+const recollectGroupIndex=estado.faccoes.findIndex(x=>x.group===group);
+if(recollectGroupIndex>=0)estado.faccoes[recollectGroupIndex]=clonePlain(data);
+const activeDeliveryIds=new Set(activeDeliveries.map(x=>x.id));
+estado.entregas=estado.entregas.map(x=>activeDeliveryIds.has(x.id)?{...x,status:'RECOLHIDA',recolhimento,recolhidaPor:currentUser.email}:x);
+if(old.faccao){
+ const oldOrgKey=orgNameKey(old.faccao);
+ estado.organizacoes=estado.organizacoes.map(o=>orgNameKey(o.nome||o.id)===oldOrgKey?{...o,status:'SEM_GROUP',groupAtual:'',qgAtual:'',ultimoRecolhimento:clonePlain(recolhimento)}:o);
+}
+renderFaccoes();
+renderDeliveries();
+renderOrganizations();
+renderAvailableFaccoes();
+renderCommandDashboard?.();
+await loadHistory();
+alert('Facção recolhida com sucesso. O extrato e a evidência foram registrados no histórico.')}catch(err){alert('Erro ao recolher: '+err.message)}});
 
 function snapshot(o){if(!o)return null;
 const x={...o};
