@@ -11301,7 +11301,17 @@ $('#segmentNewIcon').value='';
 $('#segmentNewDesc').value='';
 if($('#segmentCreateBtn'))$('#segmentCreateBtn').textContent='CRIAR SEGMENTO';
 await saveSegmentRegistry();
-await loadFaccoes();
+/* V10.31 - edição de segmento já foi persistida em batch. Reflete a troca
+   nos caches locais em vez de reler todos os módulos via loadFaccoes(). */
+if(oldName){
+ estado.faccoes=estado.faccoes.map(f=>segmentKey(f.segmento)===segmentKey(oldName)?{...f,segmento:nome}:f);
+ estado.organizacoes=estado.organizacoes.map(o=>segmentKey(orgSegmentValue(o))===segmentKey(oldName)?{...o,segmentoAtual:nome,segmentoVinculado:nome}:o);
+}
+renderFaccoes();
+renderOrganizations();
+renderAvailableFaccoes();
+renderSegmentAdmin();
+renderCommandDashboard?.();
 
  }catch(e){alert('Erro ao salvar segmento: '+e.message)}
 }
@@ -11360,7 +11370,16 @@ segmento:name,
 descricao:`Segmento ${name} apagado${replacement?` e vínculos movidos para ${replacement}`:''}`,
 usuario:currentUser.email,
 data:serverTimestamp()});
-await loadFaccoes()}catch(e){alert('Erro ao apagar segmento: '+e.message)}
+if(replacement){
+ estado.faccoes=estado.faccoes.map(f=>segmentKey(f.segmento)===segmentKey(name)?{...f,segmento:replacement}:f);
+ estado.organizacoes=estado.organizacoes.map(o=>segmentKey(orgSegmentValue(o))===segmentKey(name)?{...o,segmentoAtual:replacement,segmentoVinculado:replacement}:o);
+}
+renderFaccoes();
+renderOrganizations();
+renderAvailableFaccoes();
+renderSegmentAdmin();
+renderCommandDashboard?.();
+}catch(e){alert('Erro ao apagar segmento: '+e.message)}
 }
 async function applyCoreSegmentMap(){
  const rules={Manicomio:'DROGAS',
