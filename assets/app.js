@@ -11518,7 +11518,7 @@ segmentoVinculado:target,
 updatedAt:serverTimestamp(),
 updatedBy:currentUser.email},{merge:true});
 applyFactionPatchLocal(f.group,{segmento:target,updatedBy:currentUser.email});
-if(f.faccao){const o=estado.organizacoes.find(x=>orgNameKey(x.nome||x.id)===orgNameKey(f.faccao));if(o)Object.assign(o,{segmentoAtual:target,segmentoVinculado:target})}
+if(f.faccao){const o=estado.organizacoes.find(x=>orgNameKey(x.nome||x.id)===orgNameKey(f.faccao));if(o){Object.assign(o,{segmentoAtual:target,segmentoVinculado:target});cachePatchRow('organizacoes',o.id||orgKey(o.nome),o)}}
 }else{const o=derivedOrganizations().find(x=>x.nome===entity);
 if(!o)return;
 const segmentoAtual=o.groupAtual?o.segmentoAtual||target:target;
@@ -11526,7 +11526,7 @@ await setDoc(doc(db,'highos','data','organizacoes',o.id||orgKey(o.nome)),{segmen
 segmentoAtual,
 updatedAt:serverTimestamp(),
 updatedBy:currentUser.email},{merge:true});
-const local=estado.organizacoes.find(x=>orgNameKey(x.nome||x.id)===orgNameKey(o.nome));if(local)Object.assign(local,{segmentoVinculado:target,segmentoAtual});
+const local=estado.organizacoes.find(x=>orgNameKey(x.nome||x.id)===orgNameKey(o.nome));if(local){Object.assign(local,{segmentoVinculado:target,segmentoAtual});cachePatchRow('organizacoes',local.id||orgKey(local.nome),local)}
 }await addDoc(histCol,{sessionId:currentSessionId||'',
 tipo:'SEGMENTO_VINCULO',
 descricao:`${type==='GROUP'?'Group':'Facção'} ${entity} vinculado(a) ao segmento ${target}`,
