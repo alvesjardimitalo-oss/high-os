@@ -12652,7 +12652,9 @@ return _activateAppPageV836(page)};
 
 const _loadFaccoesV836=loadFaccoes;
 loadFaccoes=async function(){await _loadFaccoesV836();
-estado.faccoes.forEach(f=>{const pts=v836RoutePoints(f);if(!pts.length&&f.beneficios){f.beneficios.rotaExclusiva=false;f.beneficios.rotaBlips=''} });
+/* V12.5 - não mutar estado persistente só para corrigir apresentação.
+   A ausência de pontos já significa Rota Padrão para a UI; alterar beneficios
+   em memória aqui mascarava divergências do Firestore e dificultava auditoria. */
 renderFaccoes();
 renderCommandDashboard?.();
 };
