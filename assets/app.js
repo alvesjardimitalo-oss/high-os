@@ -12477,7 +12477,9 @@ pts=grParseRoute($('#grRouteInput').value).filter(x=>x.p);
 if(!group)return alert('Group não identificado.');
 if(!pts.length)return alert('Cole ao menos uma CDS válida.');
 const old=grSavedPoints(f),
-action=old.length?'update':'activate',
+nextPoints=pts.map(x=>grFmtPoint(x.p).replace(/,$/,''));
+if(old.length&&JSON.stringify(old)===JSON.stringify(nextPoints)){grRouteDirty=false;return alert('Nenhuma alteração na Rota Exclusiva.');}
+const action=old.length?'update':'activate',
 text=grRequestText(action);
 const t=mergedTechProfile(f);
 t.rota={...(t.rota||{}),
@@ -13627,6 +13629,9 @@ async function v909CommitStructure(beforeRows, descricao='Estrutura atualizada')
 
   const diff=v9Diff(before,after);
 
+  /* V10.23 - não grava, relê nem audita quando o editor não mudou a estrutura. */
+  if(!diff.length){v9StructureDirty=false;$('#gsDirtyBar')?.classList.add('hidden');gsRender(false);return true;}
+
   const scrollY=window.scrollY;
 
   techDraft.estruturaCatalogo=v9Clone(after);
@@ -13830,6 +13835,9 @@ async function v9010CommitStructure(beforeRows, descricao='Estrutura atualizada'
   const after=v9CleanRows(v9Clone(gsRows()));
 
   const diff=v9Diff(before,after);
+
+  /* V10.23 - não grava, relê nem audita quando o editor não mudou a estrutura. */
+  if(!diff.length){v9StructureDirty=false;$('#gsDirtyBar')?.classList.add('hidden');gsRender(false);return true;}
 
   const scrollY=window.scrollY;
 
