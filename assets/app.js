@@ -11464,9 +11464,21 @@ group:next},
 usuario:currentUser.email,
 data:serverTimestamp()});
 
-  await loadFaccoes();
-await loadOrganizations();
-renderAdminGroupManager();
+  /* V10.30 - renomeio já conhece o documento novo e os vínculos alterados.
+     Atualiza o cache de Groups e aplica o novo groupAtual nas organizações
+     locais; evita loadFaccoes() + uma segunda loadOrganizations(). */
+  const currentIndex=estado.faccoes.findIndex(f=>alvesNorm(f.group)===alvesNorm(current.group));
+  const renamed={...clonePlain(payload),id:next,group:next};
+  if(currentIndex>=0)estado.faccoes[currentIndex]=renamed;
+  else estado.faccoes.push(renamed);
+  const linkedIds=new Set(linked.map(o=>o.id||orgKey(o.nome)));
+  estado.organizacoes=estado.organizacoes.map(o=>linkedIds.has(o.id||orgKey(o.nome))?{...o,groupAtual:next}:o);
+  renderFaccoes();
+  renderOrganizations();
+  renderAvailableFaccoes();
+  renderAdminGroupManager();
+  renderCommandDashboard?.();
+  await loadHistory();
 alert(`Group renomeado para ${next}.`);
 
  }catch(e){alert('Erro ao renomear Group: '+e.message)}
