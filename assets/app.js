@@ -1503,6 +1503,8 @@ setTimeout(()=>{
 
 // HIGH OS V6.7 · o perfil do Group passa a abrir como página interna, não como modal.
 function activateAppPage(page){
+ /* V12.5 - páginas legadas convergem para a Central de Organizações. */
+ if(['organizacoes','disponiveis','entregas'].includes(page))page='faccoes';
  if(page!=='administracao'&&page!=='usuarios'&&!isAdmin()&&!canViewModule(page)){permissionDeniedMessage(page,false);
 const fallback=firstAllowedModule();
 if(!fallback||fallback===page)return;
@@ -12661,13 +12663,6 @@ confirmBtn=$('#grRouteConfirmDelete');
 if(badge){badge.textContent=status==='AGUARDANDO_REMOCAO'&&pts.length?'AGUARDANDO REMOÇÃO':pts.length?'ROTA EXCLUSIVA':'ROTA PADRÃO';
 badge.classList.toggle('warn',status==='AGUARDANDO_REMOCAO')}if(confirmBtn)confirmBtn.classList.toggle('hidden',!(status==='AGUARDANDO_REMOCAO'&&pts.length));
 };
-
-// Redireciona acessos antigos para a Central de Organizações sem apagar páginas/coleções legadas.
-const _activateAppPageV836=activateAppPage;
-activateAppPage=function(page){if(['organizacoes',
-'disponiveis',
-'entregas'].includes(page))page='faccoes';
-return _activateAppPageV836(page)};
 
 /* V12.5 - carregamento consolidado de Groups.
    Mantém a ordem histórica dos módulos sem a cadeia de wrappers V3→V8.36. */
