@@ -4396,6 +4396,7 @@ const savedOrg={id,...clonePlain(data)};
 const savedOrgIndex=estado.organizacoes.findIndex(o=>String(o.id||'')===String(id)||orgNameKey(o.nome)===orgNameKey(nome));
 if(savedOrgIndex>=0)estado.organizacoes[savedOrgIndex]=savedOrg;
 else estado.organizacoes.push(savedOrg);
+cachePatchRow('organizacoes',id,savedOrg);
 renderOrganizations();
 syncOrgOptions();
 renderCommandDashboard?.();
