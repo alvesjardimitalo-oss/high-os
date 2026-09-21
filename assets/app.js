@@ -11286,19 +11286,26 @@ updatedBy:currentUser.email},{merge:true});
 if(f.faccao)await setDoc(doc(db,'highos','data','organizacoes',orgKey(f.faccao)),{segmentoAtual:target,
 segmentoVinculado:target,
 updatedAt:serverTimestamp(),
-updatedBy:currentUser.email},{merge:true})}else{const o=derivedOrganizations().find(x=>x.nome===entity);
+updatedBy:currentUser.email},{merge:true});
+applyFactionPatchLocal(f.group,{segmento:target,updatedBy:currentUser.email});
+if(f.faccao){const o=estado.organizacoes.find(x=>orgNameKey(x.nome||x.id)===orgNameKey(f.faccao));if(o)Object.assign(o,{segmentoAtual:target,segmentoVinculado:target})}
+}else{const o=derivedOrganizations().find(x=>x.nome===entity);
 if(!o)return;
+const segmentoAtual=o.groupAtual?o.segmentoAtual||target:target;
 await setDoc(doc(db,'highos','data','organizacoes',o.id||orgKey(o.nome)),{segmentoVinculado:target,
-segmentoAtual:o.groupAtual?o.segmentoAtual||target:target,
+segmentoAtual,
 updatedAt:serverTimestamp(),
-updatedBy:currentUser.email},{merge:true})}await addDoc(histCol,{sessionId:currentSessionId||'',
+updatedBy:currentUser.email},{merge:true});
+const local=estado.organizacoes.find(x=>orgNameKey(x.nome||x.id)===orgNameKey(o.nome));if(local)Object.assign(local,{segmentoVinculado:target,segmentoAtual});
+}await addDoc(histCol,{sessionId:currentSessionId||'',
 tipo:'SEGMENTO_VINCULO',
 descricao:`${type==='GROUP'?'Group':'Facção'} ${entity} vinculado(a) ao segmento ${target}`,
 segmento:target,
 usuario:currentUser.email,
 data:serverTimestamp()});
-await loadFaccoes();
-renderSegmentAdmin()}catch(e){alert('Erro ao vincular segmento: '+e.message)}
+renderOrganizations();
+renderSegmentAdmin();
+renderCommandDashboard?.()}catch(e){alert('Erro ao vincular segmento: '+e.message)}
 }
 async function deleteSegment(name,replacement){
  const u=segmentUsage(name);
