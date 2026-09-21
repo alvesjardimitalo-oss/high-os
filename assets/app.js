@@ -11590,6 +11590,22 @@ updatedBy:currentUser.email},{merge:true})});
 await batch.commit();
 estado.faccoes=estado.faccoes.map(f=>rules[f.group]?{...f,
 segmento:rules[f.group]}:f);
+for(const f of needs){
+ const seg=rules[f.group];
+ const local=estado.faccoes.find(x=>x.group===f.group);
+ if(local)cachePatchRow('faccoes',local.id||local.group,local);
+ if(f.faccao){
+  const o=estado.organizacoes.find(x=>orgNameKey(x.nome||x.id)===orgNameKey(f.faccao));
+  if(o){
+   Object.assign(o,{segmentoAtual:seg,segmentoVinculado:seg});
+   cachePatchRow('organizacoes',o.id||orgKey(o.nome),o);
+  }else{
+   /* Organização ausente da memória: o Firestore foi atualizado; não manter
+      um espelho potencialmente incompleto como fonte válida. */
+   cacheInvalidate('organizacoes');
+  }
+ }
+}
 await addDoc(histCol,{sessionId:currentSessionId||'',
 tipo:'SEGMENTOS_PADRAO_V813',
 descricao:'Correção estrutural: Manicomio=DROGAS, Contrabando=CONTRABANDO, IlegalMedic/IlegalMecanic=APOIO',
