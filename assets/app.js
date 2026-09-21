@@ -2470,7 +2470,18 @@ for(const r of generated)await archiveTechnicalRequest(r,data,'ALTERACAO_DO_GROU
 await syncGroupsToOfficialSheet([data],{quiet:true});
 try{await syncOrganizationOccupancy(data,{previousName:old?.faccao||''})}catch(orgErr){console.warn('[ORGANIZAÇÕES] Group salvo, mas sincronização do perfil falhou:',orgErr?.code||orgErr?.message||orgErr)}
 closeGroupProfilePage();
-await loadFaccoes()}catch(err){alert('Erro ao salvar: '+err.message)}
+/* V10.26 - o Group acabou de ser confirmado no Firestore e estado.faccoes
+   já recebeu o payload acima. Evita loadFaccoes(), que relia Groups e ainda
+   encadeava módulos não alterados. Atualizamos a UI local e recarregamos
+   somente os dados que este salvamento realmente pode ter afetado. */
+renderFaccoes();
+renderCommandDashboard?.();
+await Promise.all([
+ loadRequests(),
+ loadHistory(),
+ loadOrganizations()
+]);
+}catch(err){alert('Erro ao salvar: '+err.message)}
 };
 
 let recollectPanelImage='';
