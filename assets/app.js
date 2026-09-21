@@ -12548,12 +12548,17 @@ pts=grParseRoute($('#grRouteInput').value).filter(x=>x.p);
 if(!group)return alert('Group não identificado.');
 if(!pts.length)return alert('Cole ao menos uma CDS válida.');
 const old=grSavedPoints(f),
-action=old.length?'update':'activate',
+newPoints=pts.map(x=>grFmtPoint(x.p).replace(/,$/,'')).join('\n');
+if(old.length&&routePointList(newPoints).join('\n')===old.map(p=>grFmtPoint(p).replace(/,$/,'')).join('\n')&&mergedTechProfile(f)?.rota?.status==='ATIVA'){
+ grRouteDirty=false;
+ return alert('A rota já está salva com estas mesmas CDS.');
+}
+const action=old.length?'update':'activate',
 text=grRequestText(action);
 const t=mergedTechProfile(f);
 t.rota={...(t.rota||{}),
 nome:`RotaExclusiva${group}`,
-pontos:pts.map(x=>grFmtPoint(x.p).replace(/,$/,'')).join('\n'),
+pontos:newPoints,
 status:'ATIVA',
 origem:'TAKEFARM_MANUAL',
 atualizadoPor:currentUser.email,
