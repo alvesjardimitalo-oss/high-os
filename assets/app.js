@@ -11701,6 +11701,10 @@ wanted})=>batch.set(doc(db,'highos','data','faccoes',f.group),{status:wanted,
 updatedAt:serverTimestamp(),
 updatedBy:currentUser.email},{merge:true}));
 await batch.commit();
+for(const {f,wanted} of changes){
+ const local=estado.faccoes.find(x=>x.group===f.group);
+ if(local)cachePatchRow('faccoes',local.id||local.group,{...local,status:wanted,updatedBy:currentUser.email});
+}
 await addDoc(histCol,{sessionId:currentSessionId||'',
 tipo:'STATUS_OCUPACAO_NORMALIZADO',
 descricao:`${changes.length} Group(s) tiveram o status ajustado automaticamente pela ocupação`,
