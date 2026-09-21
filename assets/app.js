@@ -11695,8 +11695,16 @@ group:next},
 usuario:currentUser.email,
 data:serverTimestamp()});
 
-  await loadFaccoes();
-await loadOrganizations();
+  const oldId=current.id||current.group;
+  const localPayload={...clonePlain(current),...clonePlain(payload),id:next,group:next,updatedBy:currentUser.email};
+  faccoes=faccoes.filter(f=>(f.id||f.group)!==oldId);
+  faccoes.push(localPayload);
+  const linkedIds=new Set(linked.map(o=>o.id||orgKey(o.nome)));
+  organizacoes=organizacoes.map(o=>linkedIds.has(o.id||orgKey(o.nome))?{...o,groupAtual:next,updatedBy:currentUser.email}:o);
+  queryFreshAt.set('faccoes',Date.now());
+  queryFreshAt.set('organizacoes',Date.now());
+  renderFaccoes();
+  renderOrganizations();
 renderAdminGroupManager();
 alert(`Group renomeado para ${next}.`);
 
