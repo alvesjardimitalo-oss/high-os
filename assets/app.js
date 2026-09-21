@@ -4348,7 +4348,17 @@ faccao:nome,
 group:current?.group||'',
 descricao:`Cadastro da facção ${nome} atualizado`,
 usuario:currentUser.email,
-data:serverTimestamp()});closeOrganizationProfilePage();await loadOrganizations()}catch(err){alert('Erro ao salvar facção: '+err.message)}});
+data:serverTimestamp()});closeOrganizationProfilePage();
+/* V10.33 - o cadastro salvo já é a fonte confirmada. Atualiza somente a
+   organização correspondente e evita reler toda a coleção após cada edição. */
+const savedOrg={id,...clonePlain(data)};
+const savedOrgIndex=estado.organizacoes.findIndex(o=>String(o.id||'')===String(id)||orgNameKey(o.nome)===orgNameKey(nome));
+if(savedOrgIndex>=0)estado.organizacoes[savedOrgIndex]=savedOrg;
+else estado.organizacoes.push(savedOrg);
+renderOrganizations();
+syncOrgOptions();
+renderCommandDashboard?.();
+}catch(err){alert('Erro ao salvar facção: '+err.message)}});
 
 async function syncOrganizationOccupancy(rec,{previousName=''}={}){
  const nome=String(rec?.faccao||'').trim();
