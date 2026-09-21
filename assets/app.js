@@ -4227,11 +4227,33 @@ updatedAt:serverTimestamp(),
 updatedBy:currentUser.email},{merge:true});
 
 }
+const DELIVERY_RECENT_LIMIT=250;
 async function loadDeliveries(){
- try{const qs=await getDocsCached(deliveryCol,'entregas');
-entregas=qs.docs.map(d=>({id:d.id,
-...d.data()})).sort((a,b)=>String(b.createdAtText||b.dataEntrega||'').localeCompare(String(a.createdAtText||a.dataEntrega||'')));
-renderDeliveries()}catch(e){if($('#deliveryList'))$('#deliveryList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR</h3><p>${esc(e.message)}</p></div>`}
+ try{
+  /* V10.3 - preserva TODAS as entregas ativas (necessárias para recolher e
+     transferir corretamente) e limita o histórico encerrado às 250 mais
+     recentes. Assim o crescimento da coleção não aumenta indefinidamente
+     o custo normal de abertura do painel. */
+  let ativos=[],recentes=[];
+  try{
+   const [qa,qr]=await Promise.all([
+    getDocs(query(deliveryCol,where('status','==','ATIVA'))),
+    getDocs(query(deliveryCol,orderBy('createdAtText','desc'),limit(DELIVERY_RECENT_LIMIT)))
+   ]);
+   statBump('entregas','leituras',2);
+   statBump('entregas','docs',qa.docs.length+qr.docs.length);
+   ativos=qa.docs.map(d=>({id:d.id,...d.data()}));
+   recentes=qr.docs.map(d=>({id:d.id,...d.data()}));
+   const mapa=new Map([...ativos,...recentes].map(x=>[x.id,x]));
+   entregas=[...mapa.values()];
+  }catch(err){
+   console.warn('[ENTREGAS] consultas econômicas indisponíveis, usando cache legado:',err?.code||err?.message);
+   const qs=await getDocsCached(deliveryCol,'entregas',{ttl:300000});
+   entregas=qs.docs.map(d=>({id:d.id,...d.data()}));
+  }
+  entregas.sort((a,b)=>String(b.createdAtText||b.dataEntrega||'').localeCompare(String(a.createdAtText||a.dataEntrega||'')));
+  renderDeliveries();
+ }catch(e){if($('#deliveryList'))$('#deliveryList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR</h3><p>${esc(e.message)}</p></div>`}
 }
 function renderDeliveries(){
  if(!$('#deliveryList'))return;
