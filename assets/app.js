@@ -12433,8 +12433,7 @@ await archiveTechnicalRequest({tipo:'ROTA_FARM',
 titulo:old.length?'Atualização de rota de farm exclusiva':'Ativação de rota de farm exclusiva',
 texto:text},f,'ROTA_EXCLUSIVA');
 grRouteDirty=false;
-await loadFaccoes();
-const fresh=estado.faccoes.find(x=>x.group===group);
+const fresh=applyFactionPatchLocal(group,{perfilTecnico:t,beneficios:benefits,updatedBy:currentUser.email});
 if(fresh){renderTechProfile(fresh);
 $('#fRotaExclusiva').checked=true}grShowRequest(old.length?'update':'activate');
 grRenderRouteUi(true);
@@ -12465,7 +12464,7 @@ titulo:'Remoção de rota de farm exclusiva',
 texto:text},f,'ROTA_EXCLUSIVA');
 grShowRequest('delete');
 grRouteDirty=false;
-await loadFaccoes();
+applyFactionPatchLocal(group,{perfilTecnico:t,updatedBy:currentUser.email});
 grRenderRouteUi(true);
 alert('Solicitação de remoção gerada. As CDS foram preservadas até a remoção ser confirmada.')}catch(e){alert('Erro ao gerar remoção: '+e.message)}}
 async function grMapPng(){grRenderMap();
@@ -12616,8 +12615,7 @@ depois:{tipo:'ROTA_PADRAO'},
 usuario:currentUser.email,
 data:serverTimestamp()});
 grRouteDirty=false;
-await loadFaccoes();
-const fresh=estado.faccoes.find(x=>x.group===group);
+const fresh=applyFactionPatchLocal(group,{perfilTecnico:t,beneficios,updatedBy:currentUser.email});
 if(fresh)renderTechProfile(fresh);
 grRenderRouteUi(true);
 alert(`${group} agora utiliza ROTA PADRÃO.`)}catch(e){alert('Erro ao confirmar remoção: '+e.message)}
