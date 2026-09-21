@@ -1582,8 +1582,12 @@ function cacheNameFromRef(ref){
 }
 function invalidarCacheRef(ref){
  const nome=cacheNameFromRef(ref);
- if(nome)cacheMemoria.delete(nome);
- else cacheMemoria.clear(); // referência desconhecida: segurança primeiro
+ if(nome){
+  cacheMemoria.delete(nome);
+  try{localStorage.removeItem(CACHE_PREFIX+nome)}catch(e){}
+ }else{
+  cacheMemoria.clear(); // referência desconhecida: segurança primeiro
+ }
 }
 const setDoc=(ref,...a)=>{invalidarCacheRef(ref);return _setDoc(ref,...a)};
 const addDoc=(ref,...a)=>{invalidarCacheRef(ref);return _addDoc(ref,...a)};
@@ -1598,7 +1602,7 @@ const writeBatch=(...a)=>{
  }
  b.commit=()=>{
   if(tocadas.has(''))cacheMemoria.clear();
-  else tocadas.forEach(nome=>nome&&cacheMemoria.delete(nome));
+  else tocadas.forEach(nome=>{if(!nome)return;cacheMemoria.delete(nome);try{localStorage.removeItem(CACHE_PREFIX+nome)}catch(e){}});
   return commit();
  };
  return b;
@@ -1606,7 +1610,7 @@ const writeBatch=(...a)=>{
 
 const CACHE_PREFIX='highos_cache_';
 
-const CACHE_TTL_PADRAO=20000;
+const CACHE_TTL_PADRAO=120000;
           // janela curta: agrupa a rajada de leituras da navegacao
 const CACHE_LIMITE_BYTES=1200000;
       // nao espelha colecao gigante
