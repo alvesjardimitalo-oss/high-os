@@ -10497,7 +10497,20 @@ async function facSheetApplyConfirmed(){
 
   facSheetPendingDiffs=[];
   $('#facSheetDiffModal')?.classList.add('hidden');
-  await loadFaccoes();
+  /* V10.56 - o batch já devolve o estado final de cada Group. Atualizar local
+     evita reler Facções + módulos dependentes logo após confirmar a planilha. */
+  for(const item of updatedGroups){
+   const localIndex=estado.faccoes.findIndex(x=>x.group===item.after.group);
+   const localAfter=clonePlain(item.after);
+   if(localIndex>=0)estado.faccoes[localIndex]={...estado.faccoes[localIndex],...localAfter};
+   else estado.faccoes.push(localAfter);
+   cachePatchRow('faccoes',item.after.id||item.after.group,estado.faccoes.find(x=>x.group===item.after.group)||localAfter);
+  }
+  cacheInvalidate('organizacoes');
+  renderFaccoes();
+  renderAvailableFaccoes();
+  renderCommandDashboard?.();
+  await Promise.all([loadOrganizations(),loadHistory()]);
   if(pendencias.length){
    facSheetRenderStatus('warn',`Planilha aplicada. ${pendencias.length} organização(ões) precisam de reconciliação.`);
    alert(`High OS atualizado com a planilha.\n\nA ocupação dos Groups foi salva, mas ${pendencias.length} perfil(is) de organização ficaram pendentes de reconciliação.`);
