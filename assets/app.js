@@ -13654,26 +13654,17 @@ async function v909CommitStructure(beforeRows, descricao='Estrutura atualizada')
     updatedBy:currentUser?.email||''
   },{merge:true});
 
-  const snap=await getDoc(ref);
-
-  if(!snap.exists()) throw new Error('Não foi possível reler o Group após salvar.');
-
-  const fresh={id:snap.id,
-...snap.data()};
-
-  const persisted=v9CleanRows(v9Clone(fresh.estruturaCatalogoV9||fresh.perfilTecnico?.estruturaCatalogo||[]));
-
-  if(JSON.stringify(persisted)!==JSON.stringify(after)) throw new Error('O Firestore não confirmou todas as coordenadas salvas.');
-
+  /* V10.25 - setDoc concluído já confirma a operação no SDK. Evita um getDoc
+     adicional por edição e atualiza o estado local com o mesmo payload salvo. */
+  const persisted=v9Clone(after);
   const pos=faccoes.findIndex(x=>x.group===group);
-
-  if(pos>=0) faccoes[pos]={...faccoes[pos],
-...fresh};
-
-  techDraft=mergedTechProfile(pos>=0?faccoes[pos]:fresh);
-
+  if(pos>=0){
+    faccoes[pos]={...faccoes[pos],
+      estruturaCatalogoV9:clonePlain(persisted),
+      perfilTecnico:clonePlain(techDraft)};
+    techDraft=mergedTechProfile(faccoes[pos]);
+  }
   techDraft.estruturaCatalogo=v9Clone(persisted);
-
   v9StructureOriginal=v9Clone(persisted);
 
   v9StructureDirty=false;
