@@ -4662,8 +4662,20 @@ extrato:extract,
 usuario:currentUser.email,
 data:serverTimestamp()});
 $('#newDeliveryModal').classList.add('hidden');
-await loadFaccoes();
-await loadDeliveries();
+/* V10.28 - a entrega atomica já fornece exatamente o novo Group e as
+   entregas alteradas. Atualiza os dois caches locais sem reler as coleções
+   completas; somente histórico/organizações, que recebem efeitos posteriores,
+   são sincronizados novamente. */
+const groupIndex=estado.faccoes.findIndex(x=>x.group===f.group);
+if(groupIndex>=0)estado.faccoes[groupIndex]=clonePlain(deliveredGroup);
+else estado.faccoes.push(clonePlain(deliveredGroup));
+const previousIds=new Set(previous.map(x=>x.id));
+estado.entregas=estado.entregas.map(x=>previousIds.has(x.id)?{...x,status:'RECOLHIDA',recolhidaPor:currentUser.email}:x);
+estado.entregas.unshift({id:novaEntregaRef.id,...clonePlain(payload)});
+renderFaccoes();
+renderDeliveries();
+renderCommandDashboard?.();
+await Promise.all([loadHistory(),loadOrganizations()]);
 alert(pendencias.length
   ? `Entrega registrada e ocupação trocada. Não foi possível atualizar: ${pendencias.join(' e ')}. Refaça essa parte quando puder.`
   : 'Entrega registrada. A estrutura permanente do Group foi preservada.');
