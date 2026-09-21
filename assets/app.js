@@ -1557,22 +1557,52 @@ const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;',
    Os dados voltam no mesmo formato de um QuerySnapshot (.docs, .size,
    .forEach), entao nenhuma tela precisou ser reescrita.
    ===================================================================== */
-/* Qualquer gravacao limpa a janela de cache: assim uma tela nunca mostra
-   dado velho logo depois de salvar. */
-const setDoc=(...a)=>{cacheMemoria.clear();
-return _setDoc(...a)};
+/* V10.5 - invalidacao seletiva de cache.
+   Antes QUALQUER gravacao limpava TODAS as colecoes em memoria. Uma simples
+   linha no historico fazia Faccoes, Organizacoes, Entregas e Solicitacoes
+   perderem o cache e serem relidas na proxima tela. */
+const CACHE_COLLECTION_NAMES={
+ faccoes:'faccoes',
+ organizacoes:'organizacoes',
+ entregas:'entregas',
+ solicitacoes:'solicitacoes',
+ users:'usuarios',
+ sessoes_usuario:'sessoes_usuario',
+ alertas_dashboard:'alertas_dashboard',
+ metricas:'metricas'
+};
+function cacheNameFromRef(ref){
+ try{
+  const seg=ref?._key?.path?.segments||ref?._path?.segments||[];
+  const dataIx=seg.lastIndexOf('data');
+  if(dataIx>=0&&seg[dataIx+1])return CACHE_COLLECTION_NAMES[seg[dataIx+1]]||seg[dataIx+1];
+  if(seg.length===2&&seg[0]==='users')return 'usuarios';
+ }catch(e){}
+ return '';
+}
+function invalidarCacheRef(ref){
+ const nome=cacheNameFromRef(ref);
+ if(nome)cacheMemoria.delete(nome);
+ else cacheMemoria.clear(); // referência desconhecida: segurança primeiro
+}
+const setDoc=(ref,...a)=>{invalidarCacheRef(ref);return _setDoc(ref,...a)};
+const addDoc=(ref,...a)=>{invalidarCacheRef(ref);return _addDoc(ref,...a)};
+const deleteDoc=(ref,...a)=>{invalidarCacheRef(ref);return _deleteDoc(ref,...a)};
 
-const addDoc=(...a)=>{cacheMemoria.clear();
-return _addDoc(...a)};
-
-const deleteDoc=(...a)=>{cacheMemoria.clear();
-return _deleteDoc(...a)};
-
-const writeBatch=(...a)=>{const b=_writeBatch(...a);
-const commit=b.commit.bind(b);
-b.commit=()=>{cacheMemoria.clear();
-return commit()};
-return b};
+const writeBatch=(...a)=>{
+ const b=_writeBatch(...a),commit=b.commit.bind(b),tocadas=new Set();
+ for(const metodo of ['set','update','delete']){
+  const original=b[metodo]?.bind(b);
+  if(!original)continue;
+  b[metodo]=(ref,...args)=>{tocadas.add(cacheNameFromRef(ref));return original(ref,...args)};
+ }
+ b.commit=()=>{
+  if(tocadas.has(''))cacheMemoria.clear();
+  else tocadas.forEach(nome=>nome&&cacheMemoria.delete(nome));
+  return commit();
+ };
+ return b;
+};
 
 const CACHE_PREFIX='highos_cache_';
 
