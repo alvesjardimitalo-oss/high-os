@@ -4331,13 +4331,23 @@ segmentoAtual:current?.segmento||$('#oSegment')?.value||'',
 segmentoVinculado:$('#oSegment')?.value||current?.segmento||'',
 qgAtual:current?.qg||'',
 updatedAt:serverTimestamp(),
-updatedBy:currentUser.email};try{await setDoc(doc(db,'highos','data','organizacoes',id),data);await addDoc(histCol,{sessionId:currentSessionId||'',
+updatedBy:currentUser.email};
+const existing=organizacoes.find(o=>o.id===id)||derivedOrganizations().find(o=>String(o.nome||'').toLowerCase()===nome.toLowerCase());
+const comparable={...data};delete comparable.updatedAt;delete comparable.updatedBy;
+const same=existing&&Object.keys(comparable).every(k=>String(existing[k]??'')===String(comparable[k]??''));
+if(same){closeOrganizationProfilePage();return}
+try{await setDoc(doc(db,'highos','data','organizacoes',id),data);await addDoc(histCol,{sessionId:currentSessionId||'',
 tipo:'ORGANIZACAO',
 faccao:nome,
 group:current?.group||'',
 descricao:`Cadastro da facção ${nome} atualizado`,
 usuario:currentUser.email,
-data:serverTimestamp()});closeOrganizationProfilePage();await loadOrganizations()}catch(err){alert('Erro ao salvar facção: '+err.message)}});
+data:serverTimestamp()});
+const local={...(existing||{}),...comparable,id,updatedBy:currentUser.email};
+const ix=organizacoes.findIndex(o=>o.id===id);
+if(ix>=0)organizacoes[ix]=local;else organizacoes.push(local);
+queryFreshAt.set('organizacoes',Date.now());
+closeOrganizationProfilePage();renderOrganizations()}catch(err){alert('Erro ao salvar facção: '+err.message)}});
 
 async function upsertOrganizationFromDelivery(payload,f){
  const id=orgKey(payload.faccao),
