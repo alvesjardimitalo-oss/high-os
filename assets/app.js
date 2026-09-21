@@ -4059,8 +4059,17 @@ function renderSaudeSistema(){
 }
 
 const USER_AUDIT_LIMIT=250;
-async function loadUserAudit(){
+const USER_AUDIT_TTL=60000;
+let userAuditLoadedAt=0,
+userAuditLoading=null;
+async function loadUserAudit({force=false}={}){
  if(!isAdmin()||!$('#adminSessionList'))return;
+ if(!force&&estado.userSessions?.length&&Date.now()-userAuditLoadedAt<USER_AUDIT_TTL){
+  renderUserAudit();
+  return;
+ }
+ if(userAuditLoading)return userAuditLoading;
+ userAuditLoading=(async()=>{
  try{
   if(!estado.historico.length)await loadHistory();
   let qs;
@@ -4073,11 +4082,14 @@ async function loadUserAudit(){
   estado.userSessions=qs.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>sessionStartMs(b)-sessionStartMs(a));
   statBump('sessoes_usuario','leituras');
   statBump('sessoes_usuario','docs',estado.userSessions.length);
+  userAuditLoadedAt=Date.now();
   renderUserAudit();
  }catch(e){
   console.error('[AUDITORIA] falha ao carregar sessões:',e);
   $('#adminSessionList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR AUDITORIA</h3><p>${esc(e.message)}</p></div>`;
- }
+ }finally{userAuditLoading=null}
+ })();
+ return userAuditLoading;
 }
 function renderUserAudit(){
  const box=$('#adminSessionList');if(!box)return;const q=String($('#adminAuditSearch')?.value||'').toLowerCase(),user=String($('#adminAuditUser')?.value||'').toLowerCase(),status=$('#adminAuditStatus')?.value||'',day=$('#adminAuditDate')?.value||'';
