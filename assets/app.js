@@ -157,6 +157,13 @@ async function loadDashboardAlertStates(){try{const qs=await getDocsCached(dashb
 dashboardAlertStates=qs.docs.map(d=>({id:d.id,
 ...d.data()}))}catch(e){dashboardAlertStates=[];
 console.warn('Falha ao carregar status dos alertas',e)}}
+function upsertDashboardAlertLocal(id,data={}){
+ const row={id,...data,updatedAt:new Date()};
+ const i=dashboardAlertStates.findIndex(x=>x.id===id);
+ if(i>=0)dashboardAlertStates[i]={...dashboardAlertStates[i],...row};
+ else dashboardAlertStates.push(row);
+ queryFreshAt.set('alertas_dashboard',Date.now());
+}
 function alertStateId(group,weekKey){return `CONTINGENTE_${String(group||'').replace(/[^a-zA-Z0-9_-]/g,'_')}_${weekKey}`}
 function findDashboardAlertState(group,weekKey){return dashboardAlertStates.find(x=>x.id===alertStateId(group,weekKey))||null}
 async function setDashboardAlertState(group,weekKey,status){
@@ -182,7 +189,7 @@ weekKey,
 status},
 usuario:currentUser.email,
 data:serverTimestamp()});
-await loadDashboardAlertStates();
+upsertDashboardAlertLocal(id,{...data,updatedBy:currentUser.email});
 renderCommandDashboard()}catch(e){alert('Erro ao atualizar o alerta: '+e.message)}
 }
 function anomalyAlertId(group){return `VAGO_METRICA_${String(group||'').replace(/[^a-zA-Z0-9_-]/g,'_')}`}
@@ -208,7 +215,7 @@ status:'LIMPO',
 metricAt:metricAt.toISOString()},
 usuario:currentUser.email,
 data:serverTimestamp()});
-await loadDashboardAlertStates();
+upsertDashboardAlertLocal(id,{tipo:'VAGO_COM_METRICA',group,status:'LIMPO',metricAt,updatedBy:currentUser.email});
 renderCommandDashboard()}catch(e){alert('Erro ao limpar o alerta: '+e.message)}}
 const DEFAULT_SEGMENTS=[
  {nome:'ARMAS',
