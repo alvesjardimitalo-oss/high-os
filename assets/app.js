@@ -4038,12 +4038,21 @@ function renderSaudeSistema(){
  document.getElementById('saudeAtualizar')?.addEventListener('click',renderSaudeSistema);
 }
 
+const USER_AUDIT_LIMIT=250;
 async function loadUserAudit(){
  if(!isAdmin()||!$('#adminSessionList'))return;
  try{
   if(!estado.historico.length)await loadHistory();
-  const qs=await getDocsCached(sessionCol,'sessoes_usuario');
+  let qs;
+  try{
+   qs=await getDocs(query(sessionCol,orderBy('startAtText','desc'),limit(USER_AUDIT_LIMIT)));
+  }catch(indexErr){
+   console.warn('[AUDITORIA] consulta ordenada indisponível:',indexErr?.code||indexErr?.message||indexErr);
+   qs=await getDocs(query(sessionCol,limit(USER_AUDIT_LIMIT)));
+  }
   estado.userSessions=qs.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>sessionStartMs(b)-sessionStartMs(a));
+  statBump('sessoes_usuario','leituras');
+  statBump('sessoes_usuario','docs',estado.userSessions.length);
   renderUserAudit();
  }catch(e){
   console.error('[AUDITORIA] falha ao carregar sessões:',e);
