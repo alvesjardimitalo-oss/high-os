@@ -8341,24 +8341,34 @@ if(!entries.length)return alert('Nenhum perfil oficial carregado.');
  if(!confirm(`Atualizar ${entries.length} perfis técnicos com a base oficial de ${GROUP_PROFILE_SOURCE_VERSION}?\n\nA ocupação atual, líderes, status, histórico e receitas personalizadas serão preservados.`))return;
 
  try{let updated=0,
+unchanged=0,
 missing=0;
 const batch=writeBatch(db);
 for(const [sourceGroup,
 src] of entries){const f=(estado.faccoes||[]).find(x=>alvesNorm(x.group).replace(/\s+/g,'')===alvesNorm(sourceGroup).replace(/\s+/g,''));
 if(!f){missing++;
-continue}const patch=sourceToGroupPatch(f,src);
+continue}
+const patch=sourceToGroupPatch(f,src);
+/* V10.54 - compara apenas os campos controlados pela fonte oficial.
+   Ocupação, timestamps e demais campos operacionais não entram na decisão. */
+const currentPatch={};
+Object.keys(patch).forEach(k=>{currentPatch[k]=clonePlain(f[k])});
+if(samePlain(currentPatch,clonePlain(patch))){unchanged++;continue}
 batch.set(doc(db,'highos','data','faccoes',f.group),{...patch,
 updatedAt:serverTimestamp(),
 updatedBy:currentUser.email},{merge:true});
 updated++;
-}await batch.commit();
+}
+if(!updated)return alert(`Nenhuma alteração necessária.\n\nJá atualizados: ${unchanged}\nSem Group correspondente: ${missing}`);
+await batch.commit();
+cacheInvalidate('faccoes');
 await addDoc(histCol,{sessionId:currentSessionId||'',
 tipo:'ATUALIZACAO_PERFIS',
-descricao:`Perfis técnicos oficiais atualizados: ${updated} Group(s) · fonte ${GROUP_PROFILE_SOURCE_VERSION}`,
+descricao:`Perfis técnicos oficiais atualizados: ${updated} Group(s) · ${unchanged} já idêntico(s) · fonte ${GROUP_PROFILE_SOURCE_VERSION}`,
 usuario:currentUser.email,
 data:serverTimestamp()});
 await loadFaccoes();
-alert(`Perfis atualizados com sucesso.\n\nAtualizados: ${updated}\nSem Group correspondente na base atual: ${missing}\n\nFacções/ocupações existentes foram preservadas.`);
+alert(`Perfis atualizados com sucesso.\n\nAtualizados: ${updated}\nJá idênticos: ${unchanged}\nSem Group correspondente na base atual: ${missing}\n\nFacções/ocupações existentes foram preservadas.`);
 }catch(e){alert('Erro ao atualizar perfis: '+e.message)}
 }
 
