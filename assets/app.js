@@ -10752,12 +10752,16 @@ async function persistCurrentTechProfile(group, {reload=false}={}){
  const ref=doc(db,'highos','data','faccoes',group);
 
  const perfilTecnico=getTechProfileFromForm();
+ const local=estado.faccoes.find(x=>x.group===group);
+ const persisted=clonePlain(local?.perfilTecnico||{});
+
+/* V10.38 - o Perfil Técnico é salvo por vários editores. Se o formulário
+   resulta no mesmo perfil já persistido localmente, não consome uma escrita. */
+if(samePlain(persisted,clonePlain(perfilTecnico)))return clonePlain(perfilTecnico);
 
  await setDoc(ref,{perfilTecnico,
 updatedAt:serverTimestamp(),
 updatedBy:currentUser?.email||''},{merge:true});
-
- const local=estado.faccoes.find(x=>x.group===group);
 
  if(local)local.perfilTecnico=clonePlain(perfilTecnico);
 
