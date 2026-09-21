@@ -143,6 +143,7 @@ minComparacoes:Number($('#dashCfgMinComparacoes')?.value)};
 
  const before={...dashboardConfig};
 dashboardConfig=sanitizeDashboardConfig(raw);
+ if(JSON.stringify(before)===JSON.stringify(dashboardConfig)){renderDashboardConfigAdmin();renderCommandDashboard();return alert('Nenhuma alteração nos parâmetros do Dashboard.');}
 
  try{await setDoc(dashboardConfigDoc,{...dashboardConfig,
 updatedAt:serverTimestamp(),
@@ -11646,6 +11647,7 @@ if(url&&!spotifyEmbedUrl(url))return alert('Informe um link válido do open.spot
 const before={...spotifyConfig};
 try{spotifyConfig={...spotifyConfig,
 url};
+if(String(before.url||'')===url){renderSpotify();return alert('Nenhuma alteração no link do Spotify.');}
 await setDoc(spotifyConfigDoc,{url,
 updatedAt:serverTimestamp(),
 updatedBy:currentUser.email},{merge:true});
@@ -11662,6 +11664,7 @@ alert('Erro ao salvar Spotify: '+e.message)}}
 async function saveSpotifyClient(){if(!isAdmin())return;
 const clientId=$('#spotifyClientId')?.value.trim()||'';
 if(clientId&&clientId.length<10)return alert('Client ID inválido.');
+if(String(spotifyConfig.clientId||'')===clientId){renderSpotify();return alert('Nenhuma alteração no Client ID do Spotify.');}
 spotifyConfig={...spotifyConfig,
 clientId};
 await setDoc(spotifyConfigDoc,{clientId,
