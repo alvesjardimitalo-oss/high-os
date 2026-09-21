@@ -3205,20 +3205,34 @@ syncRouteRequestAction();
 $('#reqModal').classList.remove('hidden');
 
 }
+const REQUEST_RECORD_LIMIT=300;
 async function loadRequests(){
  try{
-   const qs=await getDocsCached(reqCol,'solicitacoes'),
-all=qs.docs.map(d=>({id:d.id,
-...d.data()}));
+   /* V10.4 - modelos e histórico operacional têm necessidades diferentes:
+      modelos são poucos e precisam estar todos disponíveis; registros gerados
+      crescem continuamente e ficam limitados aos 300 mais recentes. */
+   let modelos=[],registros=[];
+   try{
+     const [qm,qr]=await Promise.all([
+       getDocs(query(reqCol,where('isModelo','==',true))),
+       getDocs(query(reqCol,where('isModelo','==',false),orderBy('createdAtText','desc'),limit(REQUEST_RECORD_LIMIT)))
+     ]);
+     statBump('solicitacoes','leituras',2);
+     statBump('solicitacoes','docs',qm.docs.length+qr.docs.length);
+     modelos=qm.docs.map(d=>({id:d.id,...d.data()}));
+     registros=qr.docs.map(d=>({id:d.id,...d.data()}));
+   }catch(err){
+     console.warn('[SOLICITAÇÕES] consultas econômicas indisponíveis, usando cache legado:',err?.code||err?.message);
+     const qs=await getDocsCached(reqCol,'solicitacoes',{ttl:300000}),
+     all=qs.docs.map(d=>({id:d.id,...d.data()}));
+     modelos=all.filter(x=>x.isModelo===true);
+     registros=all.filter(x=>x.isModelo!==true);
+   }
 
-   solicitacoes=all.filter(x=>x.isModelo===true);
-
-   requestRecords=all.filter(x=>x.isModelo!==true);
-
+   solicitacoes=modelos;
+   requestRecords=registros;
    solicitacoes.sort((a,b)=>(a.nome||a.assunto||'').localeCompare(b.nome||b.assunto||'','pt-BR'));
-
    requestRecords.sort((a,b)=>String(b.createdAtText||'').localeCompare(String(a.createdAtText||'')));
-
    renderRequests();
 
  }catch(e){$('#reqList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR</h3><p>${esc(e.message)}</p></div>`}
