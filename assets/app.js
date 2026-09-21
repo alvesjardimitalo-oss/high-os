@@ -10134,6 +10134,11 @@ b],{quiet:true});
     const dstIndex=estado.faccoes.findIndex(x=>x.group===dst.group);
     if(srcIndex>=0)estado.faccoes[srcIndex]=clonePlain(a);
     if(dstIndex>=0)estado.faccoes[dstIndex]=clonePlain(b);
+    cachePatchRow('faccoes',src.id||src.group,a);
+    cachePatchRow('faccoes',dst.id||dst.group,b);
+    /* TRANSFER_PANEL também altera organizações via rotina própria; invalidar
+       esse espelho evita uma releitura cacheada anterior à transferência. */
+    if(movementMode==='TRANSFER_PANEL')cacheInvalidate('organizacoes');
     renderFaccoes();
     renderCommandDashboard?.();
     await Promise.all([loadHistory(),loadOrganizations()]);
