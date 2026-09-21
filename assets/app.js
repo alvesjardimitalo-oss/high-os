@@ -3445,10 +3445,10 @@ origem:'SOLICITACAO_TAKEFARM',
 usuario:currentUser.email,
 data:serverTimestamp()});
 
-  await loadFaccoes();
+  const fresh=applyFactionPatchLocal(group,{perfilTecnico:nextT,beneficios,updatedBy:currentUser.email});
 
   try{await copyRequestText()}catch(e){console.warn('[SOLICITAÇÕES] solicitação salva, mas a cópia automática falhou:',e?.message||e)}
-  if(typeof currentGroupProfile!=='undefined'&&currentGroupProfile?.group===group){const fresh=estado.faccoes.find(x=>x.group===group);
+  if(typeof currentGroupProfile!=='undefined'&&currentGroupProfile?.group===group){
 if(fresh){renderTechProfile(fresh);
 $('#fRotaExclusiva').checked=true;
 renderRouteOverview();
