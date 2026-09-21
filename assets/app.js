@@ -11410,15 +11410,21 @@ if(!nome)return alert('Informe o nome do segmento.');
 
  try{
   if(oldName){const item=segmentDefs().find(x=>segmentKey(x.nome)===segmentKey(oldName));
-const batch=writeBatch(db);
-faccoes.filter(f=>segmentKey(f.segmento)===segmentKey(oldName)).forEach(f=>batch.set(doc(db,'highos','data','faccoes',f.group),{segmento:nome,
-updatedAt:serverTimestamp(),
-updatedBy:currentUser.email},{merge:true}));
-organizacoes.filter(o=>segmentKey(orgSegmentValue(o))===segmentKey(oldName)).forEach(o=>batch.set(doc(db,'highos','data','organizacoes',o.id||orgKey(o.nome)),{segmentoAtual:nome,
-segmentoVinculado:nome,
-updatedAt:serverTimestamp(),
-updatedBy:currentUser.email},{merge:true}));
-await batch.commit();
+if(!item)return;
+const registrySame=segmentKey(item.nome)===segmentKey(nome)&&String(item.icone||'')===String(icone||'')&&String(item.descricao||'')===String(descricao||'');
+if(registrySame){editingSegmentName='';if($('#segmentCreateBtn'))$('#segmentCreateBtn').textContent='CRIAR SEGMENTO';return}
+const renamed=segmentKey(nome)!==segmentKey(oldName);
+if(renamed){
+ const batch=writeBatch(db);
+ faccoes.filter(f=>segmentKey(f.segmento)===segmentKey(oldName)).forEach(f=>batch.set(doc(db,'highos','data','faccoes',f.group),{segmento:nome,
+ updatedAt:serverTimestamp(),
+ updatedBy:currentUser.email},{merge:true}));
+ organizacoes.filter(o=>segmentKey(orgSegmentValue(o))===segmentKey(oldName)).forEach(o=>batch.set(doc(db,'highos','data','organizacoes',o.id||orgKey(o.nome)),{segmentoAtual:nome,
+ segmentoVinculado:nome,
+ updatedAt:serverTimestamp(),
+ updatedBy:currentUser.email},{merge:true}));
+ await batch.commit();
+}
 Object.assign(item,{nome,
 icone,
 descricao});
