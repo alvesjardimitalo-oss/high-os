@@ -10292,45 +10292,64 @@ $('#facSheetDiffModal')?.classList.remove('hidden');
 }
 async function facSheetApplyConfirmed(){
  if(!facSheetPendingDiffs.length)return $('#facSheetDiffModal')?.classList.add('hidden');
-if(!confirm(`Confirmar ${facSheetPendingDiffs.length} atualização(ões) da planilha no High OS?`))return;
-const btn=$('#facSheetDiffConfirm');
-if(btn){btn.disabled=true;
-btn.textContent='ATUALIZANDO...'}
- try{const batch=writeBatch(db);
-for(const d of facSheetPendingDiffs){const next={...d.current,
-...d.patch,
-group:d.current.group,
-updatedAt:serverTimestamp(),
-updatedBy:currentUser.email,
-syncSource:'GOOGLE_SHEETS'};
-batch.set(doc(db,'highos','data','faccoes',d.current.group),next,{merge:true})}await batch.commit();
-for(const d of facSheetPendingDiffs){const oldName=String(d.current.faccao||'').trim(),
-newName=String(d.patch.faccao||'').trim();
-if(oldName&&facSheetNorm(oldName)!==facSheetNorm(newName)){await setDoc(doc(db,'highos','data','organizacoes',orgKey(oldName)),{nome:oldName,
-status:'SEM_GROUP',
-groupAtual:'',
-segmentoAtual:'',
-qgAtual:'',
-updatedAt:serverTimestamp(),
-updatedBy:currentUser.email},{merge:true})}if(newName){await setDoc(doc(db,'highos','data','organizacoes',orgKey(newName)),{nome:newName,
-status:d.patch.status==='ATIVA'?'ATIVA':'SEM_GROUP',
-groupAtual:d.patch.status==='ATIVA'?d.current.group:'',
-segmentoAtual:d.patch.status==='ATIVA'?(d.current.segmento||''):'',
-qgAtual:d.patch.status==='ATIVA'?(d.patch.qg||d.current.qg||''):'',
-lider:d.patch.lider||'',
-updatedAt:serverTimestamp(),
-updatedBy:currentUser.email},{merge:true})}}await addDoc(histCol,{sessionId:currentSessionId||'',
-tipo:'SYNC_PLANILHA_FACCOES_IMPORT',
-descricao:`${facSheetPendingDiffs.length} Group(s) atualizados após confirmação da planilha oficial`,
-grupos:facSheetPendingDiffs.map(x=>x.current.group),
-usuario:currentUser.email,
-data:serverTimestamp()});
-facSheetPendingDiffs=[];
-$('#facSheetDiffModal')?.classList.add('hidden');
-await loadFaccoes();
-facSheetRenderStatus('online','Alterações da planilha confirmadas e aplicadas ao High OS.');
-alert('High OS atualizado com os dados confirmados da planilha.')}catch(e){alert('Erro ao aplicar alterações: '+e.message)}finally{if(btn){btn.disabled=false;
-btn.textContent='CONFIRMAR E ATUALIZAR HIGH OS'}}
+ if(!confirm(`Confirmar ${facSheetPendingDiffs.length} atualização(ões) da planilha no High OS?`))return;
+ const btn=$('#facSheetDiffConfirm');
+ if(btn){btn.disabled=true;btn.textContent='ATUALIZANDO...'}
+ const diffs=facSheetPendingDiffs.slice();
+ let groupsCommitted=false;
+ try{
+  const batch=writeBatch(db);
+  const updatedGroups=[];
+  for(const d of diffs){
+   const next={...d.current,...d.patch,group:d.current.group,
+    updatedAt:serverTimestamp(),updatedBy:currentUser.email,syncSource:'GOOGLE_SHEETS'};
+   batch.set(doc(db,'highos','data','faccoes',d.current.group),next,{merge:true});
+   updatedGroups.push({before:d.current,after:next});
+  }
+  await batch.commit();
+  groupsCommitted=true;
+
+  /* V12.5 - faccoes e a fonte operacional. A reconciliacao de organizacoes
+     reutiliza a mesma regra usada por edicao, entrega e transferencia. */
+  const pendencias=[];
+  for(const item of updatedGroups){
+   try{
+    const active=item.after.status==='ATIVA'&&String(item.after.faccao||'').trim();
+    await syncOrganizationOccupancy(active?item.after:{...item.after,faccao:''},{
+     previousName:item.before.faccao||''
+    });
+   }catch(e){
+    pendencias.push(item.after.group);
+    console.warn('[ORGANIZAÇÕES] importação aplicada ao Group; perfil pendente de reconciliação:',item.after.group,e?.code||e?.message||e);
+   }
+  }
+
+  try{
+   await addDoc(histCol,{sessionId:currentSessionId||'',
+    tipo:'SYNC_PLANILHA_FACCOES_IMPORT',
+    descricao:`${diffs.length} Group(s) atualizados após confirmação da planilha oficial`,
+    grupos:diffs.map(x=>x.current.group),
+    organizacoesPendentes:pendencias,
+    usuario:currentUser.email,data:serverTimestamp()});
+  }catch(e){
+   console.warn('[HISTÓRICO] importação concluída, mas auditoria não foi gravada:',e?.code||e?.message||e);
+  }
+
+  facSheetPendingDiffs=[];
+  $('#facSheetDiffModal')?.classList.add('hidden');
+  await loadFaccoes();
+  if(pendencias.length){
+   facSheetRenderStatus('warn',`Planilha aplicada. ${pendencias.length} organização(ões) precisam de reconciliação.`);
+   alert(`High OS atualizado com a planilha.\n\nA ocupação dos Groups foi salva, mas ${pendencias.length} perfil(is) de organização ficaram pendentes de reconciliação.`);
+  }else{
+   facSheetRenderStatus('online','Alterações da planilha confirmadas e aplicadas ao High OS.');
+   alert('High OS atualizado com os dados confirmados da planilha.');
+  }
+ }catch(e){
+  alert(groupsCommitted?'Groups atualizados, mas houve falha ao finalizar a importação: '+e.message:'Erro ao aplicar alterações: '+e.message);
+ }finally{
+  if(btn){btn.disabled=false;btn.textContent='CONFIRMAR E ATUALIZAR HIGH OS'}
+ }
 }
 async function syncGroupsToOfficialSheet(groups=[],{quiet=false,
 forceAuthorize=false}={}){
