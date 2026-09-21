@@ -11754,11 +11754,29 @@ if(!v)return '';
 const m=v.match(/open\.spotify\.com\/(?:intl-[^/]+\/)?(track|playlist|album|artist|episode|show)\/([A-Za-z0-9]+)/i);
 return m?`https://open.spotify.com/embed/${m[1]}/${m[2]}?utm_source=generator`:''}
 function spotifyRedirectUri(){return `${location.origin}${location.pathname}`}
-async function loadSpotifyConfig(){try{const s=await getDoc(spotifyConfigDoc);
-spotifyConfig=s.exists()?{...spotifyConfig,
-...s.data()}:spotifyConfig}catch(e){console.warn('Spotify config',e)}renderSpotify();
-await spotifyHandleCallback();
-await spotifyRestoreSession()}
+const SPOTIFY_CONFIG_TTL=300000;
+let spotifyConfigLoadedAt=0,
+spotifyConfigLoading=null;
+async function loadSpotifyConfig({force=false}={}){
+ if(!force&&spotifyConfigLoadedAt&&Date.now()-spotifyConfigLoadedAt<SPOTIFY_CONFIG_TTL){
+  renderSpotify();
+  await spotifyHandleCallback();
+  await spotifyRestoreSession();
+  return;
+ }
+ if(spotifyConfigLoading)return spotifyConfigLoading;
+ spotifyConfigLoading=(async()=>{
+  try{const s=await getDoc(spotifyConfigDoc);
+   spotifyConfig=s.exists()?{...spotifyConfig,...s.data()}:spotifyConfig;
+   spotifyConfigLoadedAt=Date.now();
+  }catch(e){console.warn('Spotify config',e)}
+  renderSpotify();
+  await spotifyHandleCallback();
+  await spotifyRestoreSession();
+  spotifyConfigLoading=null;
+ })();
+ return spotifyConfigLoading;
+}
 function renderSpotify(){const box=$('#spotifyPlayer'),
 input=$('#spotifyUrl'),
 cid=$('#spotifyClientId'),
@@ -11778,6 +11796,7 @@ url};
 await setDoc(spotifyConfigDoc,{url,
 updatedAt:serverTimestamp(),
 updatedBy:currentUser.email},{merge:true});
+spotifyConfigLoadedAt=Date.now();
 await addDoc(histCol,{sessionId:currentSessionId||'',
 tipo:'SPOTIFY_CONFIG',
 descricao:'Link público Spotify atualizado',
@@ -11798,6 +11817,7 @@ await setDoc(spotifyConfigDoc,{clientId,
 redirectUri:spotifyRedirectUri(),
 updatedAt:serverTimestamp(),
 updatedBy:currentUser.email},{merge:true});
+spotifyConfigLoadedAt=Date.now();
 renderSpotify();
 alert('Client ID salvo. Cadastre a Redirect URI exibida no painel do Spotify exatamente como está.')}
 function base64url(bytes){return btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
