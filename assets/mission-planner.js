@@ -527,7 +527,10 @@ libraryCategory:'dominacao',
 activeEventId:null,
 activeMapName:null,
 workspaceOpen:false,
-cloudState:'local'};
+cloudState:'local',
+cloudRevision:0,
+cloudReady:false,
+cloudDestructive:false};
   const f=n=>Number(n).toFixed(2);
   const num=v=>{const n=Number(v);return Number.isFinite(n)?n:null};
   const nowIso=()=>new Date().toISOString();
@@ -856,7 +859,11 @@ corpo});
       pushBackup(state.missions);
     }catch(e){console.warn('Planejador: falha ao salvar',e);}
     if(state.applyingCloud)return;
-    try{window.HighOSMissionCloud?.push?.(state.missions);}catch(e){console.warn('Planejador: falha ao enfileirar sincronizacao',e);}
+    try{
+      const destructive=state.cloudDestructive===true;
+      window.HighOSMissionCloud?.push?.(state.missions,{baseRevision:state.cloudRevision,destructive});
+      state.cloudDestructive=false;
+    }catch(e){console.warn('Planejador: falha ao enfileirar sincronizacao',e);}
   }
   function applyCloudMissions(list){
     return mergeMissions(list)>0;
@@ -874,12 +881,17 @@ qs('#mpCloudStateTop')].filter(Boolean);if(!els.length)return;
     setCloudState('sync');
     cloud.pull().then(async res=>{
       const remote=Array.isArray(res?.missions)?res.missions:[];
+      state.cloudRevision=Number(res?.revision||0);
+      state.cloudReady=true;
       const add=mergeMissions(remote);
       // V9.5: primeira sincronizacao e sempre uma UNIAO segura. O navegador
       // nunca e substituido pela nuvem; depois da fusao, a lista completa volta
       // ao Firestore para que outros computadores recebam as zonas que so
       // existiam localmente.
-      if(cloud.pushNow){await cloud.pushNow(state.missions);}else cloud.push?.(state.missions);
+      if(cloud.pushNow){
+        const ok=await cloud.pushNow(state.missions,{baseRevision:state.cloudRevision,destructive:false});
+        if(ok)state.cloudRevision+=1;
+      }else cloud.push?.(state.missions,{baseRevision:state.cloudRevision,destructive:false});
       setCloudState('ok',`☁ SINCRONIZADO · ${new Set(state.missions.map(m=>m.eventId).filter(Boolean)).size} eventos · ${state.missions.length} zonas`);
       if(add)setStatus(`${add} missao(oes) da equipe adicionadas.`,'ok');
     }).catch(()=>setCloudState('local'));
@@ -1659,12 +1671,13 @@ block:'center'}),40);}
     state.activeEventId=eventId;state.activeId=zones[0].id;state.libraryCategory=zones[0].category||state.libraryCategory;saveStore();render();updateEditUi();focusActiveMission(false);
   }
   function switchMission(id){if(state.editing&&state.dirty&&!confirm('Existem alterações não salvas. Deseja descartá-las?'))return;if(state.editing)cancelEdit();state.activeId=id;const m=state.missions.find(m=>m.id===id);state.activeEventId=m?.eventId||state.activeEventId;state.libraryCategory=(m?.category||state.libraryCategory||'dominacao');saveStore();setWorkspace(true);render();updateEditUi();focusActiveMission(true);}
-  function deleteZone(){const m=active();if(!m)return;const zones=zonesOfEvent(m.eventId);if(zones.length<=1){alert('Este é o único mapa/zona do evento. Para removê-lo, exclua o evento inteiro.');return;}if(!confirm(`Apagar somente a zona "${m.name}" do evento "${m.event}"?`))return;state.missions=state.missions.filter(x=>x.id!==m.id);const next=zones.find(x=>x.id!==m.id);state.activeId=next?.id||null;saveStore();render();focusActiveMission(false);}
+  function deleteZone(){const m=active();if(!m)return;const zones=zonesOfEvent(m.eventId);if(zones.length<=1){alert('Este é o único mapa/zona do evento. Para removê-lo, exclua o evento inteiro.');return;}if(!confirm(`Apagar somente a zona "${m.name}" do evento "${m.event}"?`))return;state.missions=state.missions.filter(x=>x.id!==m.id);const next=zones.find(x=>x.id!==m.id);state.activeId=next?.id||null;state.cloudDestructive=true;saveStore();render();focusActiveMission(false);}
   function deleteEvent(){
     const m=active();if(!m)return;const zones=zonesOfEvent(m.eventId);
     if(zones.some(z=>z.official)){if(!confirm(`Este evento contém zona(s) cadastrada(s) originalmente no sistema. Excluir o evento "${m.event}" e suas ${zones.length} zona(s)?`))return;}
     else if(!confirm(`Excluir o evento "${m.event}" e TODAS as ${zones.length} zona(s)?`))return;
     state.missions=state.missions.filter(x=>x.eventId!==m.eventId);
+    state.cloudDestructive=true;
     const first=state.missions.find(x=>(x.category||'dominacao')===state.libraryCategory)||state.missions[0];
     state.activeId=first?.id||null;state.activeEventId=first?.eventId||null;saveStore();render();focusActiveMission(false);
   }
