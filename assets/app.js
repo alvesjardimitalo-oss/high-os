@@ -4114,9 +4114,11 @@ status:o.groupAtual?'ATIVA':'INATIVA'})).sort((a,b)=>(a.nome||'').localeCompare(
 
 }
 async function loadOrganizations(){
+ if(queryAindaFresca('organizacoes')&&organizacoes.length){renderOrganizations();syncOrgOptions();return}
  try{const qs=await getDocsCached(orgCol,'organizacoes');
 organizacoes=qs.docs.map(d=>({id:d.id,
 ...d.data()}));
+queryFreshAt.set('organizacoes',Date.now());
 renderOrganizations();
 syncOrgOptions()}catch(e){if($('#orgList'))$('#orgList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR</h3><p>${esc(e.message)}</p></div>`}
 }
@@ -4711,6 +4713,7 @@ let historyCursor=null,
 
 async function loadHistory({append=false}={}){
  if(!$('#historyList')&&!$('#groupHistoryPreview'))return;
+ if(!append&&queryAindaFresca('historico')&&historico.length){renderHistory();return}
 
  try{
   if(!append){historico=[];
@@ -4735,6 +4738,7 @@ limit(HISTORY_PAGE)];
 ...d.data()}));
 
     historico=append?historico.concat(novos):novos;
+    queryFreshAt.set('historico',Date.now());
 
     statBump('historico','leituras');
 statBump('historico','docs',novos.length);
@@ -4754,6 +4758,7 @@ historyEsgotado=true;
   const qs=await getDocsCached(histCol,'historico');
 historico=qs.docs.map(d=>({id:d.id,
 ...d.data()})).sort((a,b)=>(historyDateValue(b)?.getTime()||0)-(historyDateValue(a)?.getTime()||0));
+queryFreshAt.set('historico',Date.now());
 renderHistory();
 
  }catch(e){if($('#historyList'))$('#historyList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR</h3><p>${esc(e.message)}</p></div>`}
