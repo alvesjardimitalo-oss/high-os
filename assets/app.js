@@ -1557,30 +1557,7 @@ async function loadFaccoesBase(){
   return false;
  }
 }
-function renderFaccoes(){
- const q=($('#facSearch').value||'').toLowerCase(),
-seg=$('#facSegment').value,
-st=$('#facStatus').value;
-
- const filtered=estado.faccoes.filter(f=>(!seg||f.segmento===seg)&&(!st||f.status===st)&&(!q||[f.group,
-f.faccao,
-f.qg,
-f.lider,
-f.staff,
-f.produto].join(' ').toLowerCase().includes(q)));
-
- const at=estado.faccoes.filter(f=>f.status==='ATIVA').length;
-
- $('#facStats').innerHTML=`<span><b>${estado.faccoes.length}</b> POSIÇÕES</span><span><b>${at}</b> ATIVAS</span><span><b>${estado.faccoes.length-at}</b> VAGAS</span><span><b>${filtered.length}</b> EXIBIDAS</span>`;
-
- if(!operacionais.length){$('#facList').innerHTML='<div class="placeholder"><b>◆</b><h3>BASE AINDA NÃO IMPORTADA</h3><p>ADMIN: clique em “IMPORTAR BASE INICIAL”.</p></div>';
-return}
- $('#facList').innerHTML=filtered.map(f=>`<article class="fac-card" data-id="${f.id}"><div class="fac-card-head"><h3>${esc(f.group)}</h3><span class="status-chip ${f.status==='ATIVA'?'ativa':'inativa'}">${f.status==='ATIVA'?'ATIVA':'VAGA'}</span></div><div class="fac-name">${esc(f.faccao||'— VAGA —')}</div><div class="muted">${esc(f.segmento)} • ${esc(f.qg||'SEM LOCAL')}</div><div class="muted">${f.lider?'Líder: '+esc(f.lider):''}${f.staff?'<br>Staff: '+esc(f.staff):''}</div><div class="product">${esc(f.produto||'')}</div><div class="card-actions"><button class="mini-btn req-from-fac" data-group="${esc(f.group)}">NOVA SOLICITAÇÃO</button></div></article>`).join('');
-
- document.querySelectorAll('.fac-card').forEach(c=>c.onclick=(e)=>{if(e.target.closest('.req-from-fac'))return;openFac(c.dataset.id)});
-document.querySelectorAll('.req-from-fac').forEach(b=>b.onclick=(e)=>{e.stopPropagation();openRequestModal('',b.dataset.group)});
-
-}
+/* renderFaccoes: implementação histórica removida; V9.2 é a renderização definitiva. */
 
 /* =====================================================================
    HIGH OS V9.4.1 - CAMADA DE RESILIENCIA DO FIRESTORE
@@ -4064,47 +4041,7 @@ function renderFacSegmentChips(all=[]){
  box.querySelectorAll('.fac-segment-chip').forEach(btn=>btn.onclick=()=>{sel.value=btn.dataset.segment||'';renderFaccoes()});
 }
 
-// V5 substitui a leitura visual de "Facções" por "Groups / QGs" sem quebrar a coleção legada.
-renderFaccoes=function(){
- renderFacSegmentChips(estado.faccoes);
-renderFacActivityButtons();
-
- const q=($('#facSearch')?.value||'').toLowerCase(),
-seg=$('#facSegment')?.value||'',
-st=$('#facStatus')?.value||'',
-operacionais=estado.faccoes.filter(f=>!f.removido);
-
- const filtered=operacionais.filter(f=>(!seg||segmentKey(f.segmento)===segmentKey(seg))&&(!st||f.status===st)&&(!q||[f.group,
-f.faccao,
-f.qg,
-f.lider,
-f.staff,
-f.produto].join(' ').toLowerCase().includes(q)));
-
- const ocup=operacionais.filter(f=>f.status==='ATIVA').length,
-vagos=operacionais.length-ocup,
-inst=operacionais.reduce((n,f)=>n+installedCount(f),0);
-
- const segCounts={};
-operacionais.forEach(f=>{const k=f.segmento||'OUTROS';segCounts[k]=(segCounts[k]||0)+1});
-
- const maxSeg=Math.max(1,...Object.values(segCounts));
-
- if($('#facOverview'))$('#facOverview').innerHTML=`<div class="ops-kpis"><article class="ops-kpi purple"><span>GROUPS</span><b>${operacionais.length}</b><small>posições permanentes cadastradas</small></article><article class="ops-kpi good"><span>OCUPADOS</span><b>${ocup}</b><small>${operacionais.length?Math.round(ocup/operacionais.length*100):0}% da base em uso</small></article><article class="ops-kpi warn"><span>DISPONÍVEIS</span><b>${vagos}</b><small>livres para nova ocupação</small></article><article class="ops-kpi"><span>INSTALAÇÕES</span><b>${inst}</b><small>recursos/setagens registrados</small></article></div><section class="ops-distribution"><div class="ops-distribution-head"><b>DISTRIBUIÇÃO POR SEGMENTO</b><span>BASE COMPLETA</span></div><div class="ops-bars">${Object.entries(segCounts).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="ops-bar-row"><span>${esc(k)}</span><div class="ops-track"><div class="ops-fill" style="width:${Math.max(4,v/maxSeg*100)}%"></div></div><b>${v}</b></div>`).join('')}</div></section>`;
-
- $('#facStats').innerHTML=`<span><b>${filtered.length}</b> EXIBIDOS</span>${seg?`<span>SEGMENTO <b>${esc(seg)}</b></span>`:''}${st?`<span>STATUS <b>${st==='ATIVA'?'OCUPADOS':'VAGOS'}</b></span>`:''}`;
-
- if(!operacionais.length){$('#facList').innerHTML='<div class="placeholder"><b>◆</b><h3>BASE AINDA NÃO IMPORTADA</h3><p>ADMIN: clique em “IMPORTAR BASE INICIAL”.</p></div>';
-return}
- if(!filtered.length){$('#facList').innerHTML='<div class="placeholder"><b>⌕</b><h3>NENHUM GROUP ENCONTRADO</h3><p>Ajuste a busca ou os filtros.</p></div>';
-return}
- $('#facList').innerHTML=filtered.map(f=>`<article class="fac-card" data-id="${f.id}"><div class="fac-card-head"><div><div class="group-kicker">${esc(f.segmento||'OUTROS')}</div><h3>${esc(f.group)}</h3></div><span class="status-chip ${f.status==='ATIVA'?'ativa':'inativa'}">${f.status==='ATIVA'?'OCUPADO':'VAGO'}</span></div><div class="fac-name">${esc(f.qg||'SEM LOCAL')}</div><div class="muted">Ocupante: <b>${esc(f.faccao||'— NENHUMA —')}</b>${f.lider?'<br>Líder: '+esc(f.lider):''}</div><div class="product">${esc(f.produto||'')}</div><div class="install-count">${installedCount(f)} instalações/setagens cadastradas no Group</div><div class="group-profile"><button class="mini-btn edit-group" data-id="${f.id}">PERFIL TÉCNICO</button><button class="btn-primary compact deliver-group" data-group="${esc(f.group)}">${f.status==='ATIVA'?'NOVA ENTREGA':'ENTREGAR GROUP'}</button></div></article>`).join('');
-
- document.querySelectorAll('.edit-group').forEach(b=>b.onclick=e=>{e.stopPropagation();openFac(b.dataset.id)});
-
- document.querySelectorAll('.deliver-group').forEach(b=>b.onclick=e=>{e.stopPropagation();openNewDelivery(b.dataset.group)});
-
-};
+/* renderFaccoes V5 removido; Central V9.2 concentra a renderização. */
 
 function initDeliveryUi(){
  $('#newDeliveryBtn')?.addEventListener('click',()=>openNewDelivery());
