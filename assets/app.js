@@ -7210,22 +7210,40 @@ async function saveMetricImport(){
  const rows=parseMetricImport($('#metricImportText')?.value||'');
 if(!rows.length){alert('Nenhuma linha válida. Use um cabeçalho como: Group;Data;18:00;18:30;19:00;...');
 return}
- try{const batch=writeBatch(db);
-rows.forEach(r=>{const existing=estado.metricas.find(x=>alvesNorm(x.group||'')===alvesNorm(r.group)&&normalizeMetricDate(x.data||x.date)===normalizeMetricDate(r.data));r={...r,
-slots:{...metricSlots(existing||{}),
-...r.slots}};r=metricSnapshot(r);const id=(r.group+'_'+r.data).replace(/[^a-zA-Z0-9_-]/g,'_');batch.set(doc(db,'highos','data','metricas',id),{...r,
+ try{
+  const changed=[];
+  let unchanged=0;
+  rows.forEach(source=>{
+   const existing=estado.metricas.find(x=>alvesNorm(x.group||'')===alvesNorm(source.group)&&normalizeMetricDate(x.data||x.date)===normalizeMetricDate(source.data));
+   const mergedSlots={...metricSlots(existing||{}),...source.slots};
+   const same=!!existing&&samePlain(metricSlots(existing),mergedSlots);
+   if(same){unchanged++;return}
+   changed.push(metricSnapshot({...source,slots:mergedSlots}));
+  });
+
+  /* V10.53 - reimportar a mesma planilha não consome writes. */
+  if(!changed.length){
+   $('#metricImportModal')?.classList.add('hidden');
+   $('#metricImportText').value='';
+   return alert(`Nenhuma alteração: ${unchanged} registro(s) já estavam idênticos.`);
+  }
+
+  const batch=writeBatch(db);
+  changed.forEach(r=>{const id=(r.group+'_'+r.data).replace(/[^a-zA-Z0-9_-]/g,'_');batch.set(doc(db,'highos','data','metricas',id),{...r,
 updatedAt:serverTimestamp(),
 updatedBy:currentUser.email},{merge:true})});
-await batch.commit();
-await addDoc(histCol,{sessionId:currentSessionId||'',
+  await batch.commit();
+  cacheInvalidate('metricas');
+  await addDoc(histCol,{sessionId:currentSessionId||'',
 tipo:'IMPORTACAO_METRICAS',
-descricao:`${rows.length} registro(s) importado(s) com horários flexíveis`,
+descricao:`${changed.length} registro(s) alterado(s)/novo(s); ${unchanged} idêntico(s) ignorado(s)`,
 usuario:currentUser.email,
 data:serverTimestamp()});
-$('#metricImportModal')?.classList.add('hidden');
-$('#metricImportText').value='';
-await loadMetrics();
-alert(`${rows.length} registro(s) importado(s). Os horários adicionais foram preservados.`)}catch(e){alert('Erro ao importar métricas: '+e.message)}
+  $('#metricImportModal')?.classList.add('hidden');
+  $('#metricImportText').value='';
+  await loadMetrics();
+  alert(`${changed.length} registro(s) gravado(s). ${unchanged} idêntico(s) foram ignorados.`);
+ }catch(e){alert('Erro ao importar métricas: '+e.message)}
 }
 
 $('#metricSearch')?.addEventListener('input',()=>renderMetrics());
