@@ -11621,13 +11621,17 @@ updatedAt:serverTimestamp(),
 updatedBy:currentUser.email};
 delete payload.id;
 
-  await setDoc(doc(db,'highos','data','faccoes',next),payload,{merge:false});
-await deleteDoc(doc(db,'highos','data','faccoes',current.id||current.group));
+  /* V10.40 - renomeação atômica: novo Group, remoção do documento antigo
+     e vínculos das organizações são confirmados juntos. */
+  const renameBatch=writeBatch(db);
+  renameBatch.set(doc(db,'highos','data','faccoes',next),payload,{merge:false});
+  renameBatch.delete(doc(db,'highos','data','faccoes',current.id||current.group));
 
   const linked=organizacoes.filter(o=>alvesNorm(o.groupAtual)===alvesNorm(current.group));
-for(const o of linked){await setDoc(doc(db,'highos','data','organizacoes',o.id||orgKey(o.nome)),{groupAtual:next,
+  for(const o of linked)renameBatch.set(doc(db,'highos','data','organizacoes',o.id||orgKey(o.nome)),{groupAtual:next,
 updatedAt:serverTimestamp(),
-updatedBy:currentUser.email},{merge:true})}
+updatedBy:currentUser.email},{merge:true});
+  await renameBatch.commit();
   await addDoc(histCol,{sessionId:currentSessionId||'',
 tipo:'RENOMEAR_GROUP',
 group:next,
