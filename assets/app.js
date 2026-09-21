@@ -5770,6 +5770,10 @@ function stopMetricRealtime(){
 }
 async function refreshMetricRealtimeCheap(){
  if(!metricRealtimeAtivo()||metricQuotaBlocked||document.visibilityState==='hidden')return;
+ /* V10.7 - respeita a mesma trava compartilhada entre abas do ciclo normal.
+    O modo "tempo real" pode checar a cada 5 min, mas só uma aba efetivamente
+    sincroniza quando a janela de 30 min estiver liberada. */
+ if(!podeSincronizarAgora())return;
  try{
   await runMetricAutoRecovery({quiet:true});
   metricLiveLastAt=Date.now();
@@ -5939,7 +5943,9 @@ data:serverTimestamp()});
 
 /* Le o espelho mensal. Usado quando o CSV nao esta disponivel. */
 async function lerEspelhoMensal(meses=[]){
- const alvo=meses.length?meses:[currentMetricMonthKey()];
+ /* V10.7 - evita cobrar duas leituras do mesmo documento quando o período
+    selecionado já é o mês atual. */
+ const alvo=[...new Set((meses.length?meses:[currentMetricMonthKey()]).filter(Boolean))];
 
  const out=[];
 
