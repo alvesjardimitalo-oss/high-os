@@ -2624,7 +2624,19 @@ extratoRecolhimento:recolhimento.extrato,
 antes:snapshot(old),
 depois:snapshot(data),
 usuario:currentUser.email,
-data:serverTimestamp()});await syncGroupsToOfficialSheet([data],{quiet:true});closeRecollectModal();closeGroupProfilePage();await loadFaccoes();alert('Facção recolhida com sucesso. O extrato e a evidência foram registrados no histórico.')}catch(err){alert('Erro ao recolher: '+err.message)}});
+data:serverTimestamp()});await syncGroupsToOfficialSheet([data],{quiet:true});
+const fix=faccoes.findIndex(x=>x.group===group);
+if(fix>=0)faccoes[fix]={...clonePlain(data),id:faccoes[fix].id||group,updatedBy:currentUser.email};
+if(old.faccao){
+ const oid=orgKey(old.faccao),oix=organizacoes.findIndex(o=>o.id===oid||String(o.nome||'').toLowerCase()===String(old.faccao).toLowerCase());
+ const orgPatch={nome:old.faccao,status:'SEM_GROUP',groupAtual:'',segmentoAtual:old.segmento||'',segmentoVinculado:old.segmento||'',qgAtual:'',ultimoRecolhimento:clonePlain(recolhimento),updatedBy:currentUser.email};
+ if(oix>=0)organizacoes[oix]={...organizacoes[oix],...orgPatch,id:organizacoes[oix].id||oid};else organizacoes.push({id:oid,...orgPatch});
+}
+const activeIds=new Set(activeDeliveries.map(d=>d.id));
+entregas=entregas.map(d=>activeIds.has(d.id)?{...d,status:'RECOLHIDA',recolhimento:clonePlain(recolhimento),recolhidaPor:currentUser.email}:d);
+queryFreshAt.set('faccoes',Date.now());queryFreshAt.set('organizacoes',Date.now());queryFreshAt.set('entregas',Date.now());
+renderFaccoes();renderOrganizations();renderDeliveries();
+closeRecollectModal();closeGroupProfilePage();alert('Facção recolhida com sucesso. O extrato e a evidência foram registrados no histórico.')}catch(err){alert('Erro ao recolher: '+err.message)}});
 
 function snapshot(o){if(!o)return null;
 const x={...o};
