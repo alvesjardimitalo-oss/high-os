@@ -1613,11 +1613,24 @@ function cacheNameFromRef(ref){
  const leaf=parts.length%2===0?parts[parts.length-2]:parts[parts.length-1];
  return CACHE_COLLECTION_NAMES[leaf]||leaf||'';
 }
+function invalidateCacheName(nome=''){
+ if(nome){
+  cacheMemoria.delete(nome);
+  try{localStorage.removeItem(CACHE_PREFIX+nome)}catch(e){}
+  return;
+ }
+ cacheMemoria.clear();
+ try{
+  for(let i=localStorage.length-1;i>=0;i--){
+   const key=localStorage.key(i);
+   if(key?.startsWith(CACHE_PREFIX))localStorage.removeItem(key);
+  }
+ }catch(e){}
+}
 function invalidateCacheRef(ref){
  const nome=cacheNameFromRef(ref);
- if(nome){cacheMemoria.delete(nome);return nome}
- cacheMemoria.clear();
- return '';
+ invalidateCacheName(nome);
+ return nome;
 }
 function assertFirestoreWritable(){
  if(!window.HighOSOffline?.ativo)return;
@@ -1626,23 +1639,33 @@ function assertFirestoreWritable(){
  try{window.highToast?.(err.message,'warn',7000)}catch(e){}
  throw err;
 }
-const setDoc=(ref,...a)=>{assertFirestoreWritable();invalidateCacheRef(ref);firestoreWriteCount++;return _setDoc(ref,...a)};
-const addDoc=(ref,...a)=>{assertFirestoreWritable();invalidateCacheRef(ref);firestoreWriteCount++;return _addDoc(ref,...a)};
-const deleteDoc=(ref,...a)=>{assertFirestoreWritable();invalidateCacheRef(ref);firestoreWriteCount++;return _deleteDoc(ref,...a)};
+function trackedWrite(writer,ref,args){
+ assertFirestoreWritable();
+ const nome=cacheNameFromRef(ref);
+ firestoreWriteCount++;
+ return writer(ref,...args).then(result=>{invalidateCacheName(nome);return result});
+}
+const setDoc=(ref,...a)=>trackedWrite(_setDoc,ref,a);
+const addDoc=(ref,...a)=>trackedWrite(_addDoc,ref,a);
+const deleteDoc=(ref,...a)=>trackedWrite(_deleteDoc,ref,a);
 
 const writeBatch=(...a)=>{assertFirestoreWritable();const b=_writeBatch(...a);
 const commit=b.commit.bind(b);
 let n=0;
 const touched=new Set();
+let unknownRef=false;
 ['set','update','delete'].forEach(op=>{const orig=b[op].bind(b);
 b[op]=(ref,...args)=>{n++;
 const nome=cacheNameFromRef(ref);
-if(nome)touched.add(nome);
+if(nome)touched.add(nome);else unknownRef=true;
 return orig(ref,...args)}});
 b.commit=()=>{
-if(touched.size)touched.forEach(nome=>cacheMemoria.delete(nome));else cacheMemoria.clear();
 firestoreWriteCount+=n||1;
-return commit()};
+return commit().then(result=>{
+ if(unknownRef||!touched.size)invalidateCacheName();
+ else touched.forEach(nome=>invalidateCacheName(nome));
+ return result;
+})};
 return b};
 
 const CACHE_PREFIX='highos_cache_';
