@@ -3403,20 +3403,29 @@ if(!pts.length)return alert('Não encontrei CDS válidas em “Blips da rota nov
 if(!f)return alert('Group não encontrado na base atual.');
 
  const oldT=mergedTechProfile(f),
-nextT=clonePlain(oldT);
+nextT=clonePlain(oldT),
+routePoints=pts.join('\n'),
+routeName=`RotaExclusiva${group}`,
+oldRoute=oldT.rota||{};
+ const benefits={...(f.beneficios||{}),
+rotaExclusiva:true,
+rotaBlips:routePoints};
+ const routeSame=String(oldRoute.nome||'')===routeName
+  &&String(oldRoute.pontos||'')===routePoints
+  &&String(oldRoute.origem||'')==='SOLICITACAO_TAKEFARM'
+  &&f.beneficios?.rotaExclusiva===true
+  &&String(f.beneficios?.rotaBlips||'')===routePoints;
+ if(routeSame){try{await copyRequestText()}catch{}return alert('Esta rota exclusiva já está cadastrada com as mesmas CDS.')}
+
 nextT.rota=nextT.rota||{};
-nextT.rota.nome=`RotaExclusiva${group}`;
-nextT.rota.pontos=pts.join('\n');
+nextT.rota.nome=routeName;
+nextT.rota.pontos=routePoints;
 nextT.rota.origem='SOLICITACAO_TAKEFARM';
 nextT.rota.atualizadoPor=currentUser.email;
 nextT.rota.atualizadoEm=new Date().toISOString();
 
  // O início/farm do Group não é substituído pelas 35 CDS: elas são somente os pontos da rota exclusiva.
  syncFarmWithCraft(nextT);
-
- const benefits={...(f.beneficios||{}),
-rotaExclusiva:true,
-rotaBlips:pts.join('\n')};
 
  try{
   await setDoc(doc(db,'highos','data','faccoes',group),{perfilTecnico:nextT,
