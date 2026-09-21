@@ -180,8 +180,9 @@ async function setDashboardAlertState(group,weekKey,status){
  if(!canEditModule('dashboard'))return permissionDeniedMessage('dashboard',true);
 
  const id=alertStateId(group,weekKey),
-before=findDashboardAlertState(group,weekKey),
-data={tipo:'CONTINGENTE_SEMANAL',
+before=findDashboardAlertState(group,weekKey);
+ if(before&&String(before.status||'')===String(status||'')){renderCommandDashboard();return}
+ const data={tipo:'CONTINGENTE_SEMANAL',
 group,
 weekKey,
 status,
