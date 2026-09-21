@@ -1610,7 +1610,12 @@ function invalidarCacheRef(ref){
   queryFreshAt.delete(nome);
   try{localStorage.removeItem(CACHE_PREFIX+nome)}catch(e){}
  }else{
-  cacheMemoria.clear(); // referência desconhecida: segurança primeiro
+  /* V10.27 - gravações em documentos de configuração (ex. dashboard,
+     segmentos, Spotify) não pertencem às coleções operacionais cacheadas.
+     Antes elas limpavam TODO o cache em memória e provocavam releituras
+     desnecessárias de facções, organizações, entregas e usuários. */
+  const seg=ref?._key?.path?.segments||ref?._path?.segments||[];
+  if(!seg.length)cacheMemoria.clear(); // só invalida tudo se a referência for realmente indecifrável
  }
 }
 const setDoc=(ref,...a)=>{invalidarCacheRef(ref);return _setDoc(ref,...a)};
