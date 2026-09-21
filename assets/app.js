@@ -12026,7 +12026,8 @@ return}
 }
 function startChat(){if(!currentUser||!canViewModule('chat'))return;
 $('#teamChatLauncher')?.classList.remove('hidden');
-subscribeChatConversation()}
+/* V10.41 - a conversa só entra em realtime quando o chat é aberto. */
+if(!$('#teamChatFloat')?.classList.contains('hidden'))subscribeChatConversation()}
 async function sendChatMessage(inputSelector='#floatingChatInput',extra={}){if(!canEditModule('chat'))return permissionDeniedMessage('chat',true);
 if(!chatRecipientEmail)return alert('Selecione com quem deseja conversar.');
 const input=$(inputSelector),
@@ -12080,8 +12081,14 @@ function toggleFloatingChat(force){const p=$('#teamChatFloat');
 if(!p)return;
 const show=force===undefined?p.classList.contains('hidden'):!!force;
 p.classList.toggle('hidden',!show);
-if(show){renderHmContacts();
-setTimeout(()=>$('#floatingChatInput')?.focus(),50)}}
+if(show){
+ renderHmContacts();
+ subscribeChatConversation();
+ setTimeout(()=>$('#floatingChatInput')?.focus(),50);
+}else{
+ /* V10.41 - chat minimizado não mantém listener de até 80 mensagens ativo. */
+ stopChat();
+}}
 function renderChatAttachmentPreview(){const p=$('#chatAttachmentPreview');
 if(!p)return;
 if(!chatPendingAttachment){p.classList.add('hidden');
