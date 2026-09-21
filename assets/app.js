@@ -9126,9 +9126,11 @@ function readIngredientEditor(){return [...document.querySelectorAll('#recipeIng
 nome:row.querySelector('[data-ing-name]')?.value.trim()||ITEM_META[sp]?.nome||sp,
 qtd:row.querySelector('[data-ing-qty]')?.value.trim()||'',
 imagem:ITEM_META[sp]?.imagem||''}}).filter(x=>x.spawn||x.nome)}
-function closeRecipeEditor(){ $('#recipeEditorModal')?.classList.add('hidden') }
+let recipeEditorOriginal=null;
+function closeRecipeEditor(){ recipeEditorOriginal=null;$('#recipeEditorModal')?.classList.add('hidden') }
 function editRecipe(i){const r=techDraft?.craft?.receitas?.[i];
 if(!r)return;
+recipeEditorOriginal=clonePlain(r);
 $('#recipeEditorIndex').value=String(i);
 $('#recipeEditorName').value=r.nome||'';
 $('#recipeEditorSpawn').value=r.spawn||'';
@@ -10837,6 +10839,8 @@ insumos=readIngredientEditor();
  if(!nome||!spawn)return alert('Informe o nome e o spawn do produto.');
  if(!insumos.length)return alert('Adicione pelo menos um insumo à receita antes de salvar.');
  r.nome=nome;r.spawn=spawn;r.nivel=$('#recipeEditorLevel').value.trim();r.max=$('#recipeEditorMax').value.trim();r.origem=$('#recipeEditorOrigin')?.value||r.origem||'EXTRA DO GROUP';r.disponibilidade=r.origem==='ADQUIRIDO EM LOJA'?'TODAS AS FACÇÕES':(r.disponibilidade||'');r.insumos=insumos;r.imagem=ITEM_META[r.spawn]?.imagem||r.imagem||'';r.origem=r.origem||'EXTRA DO GROUP';
+ const recipeChanged=!recipeEditorOriginal||JSON.stringify(recipeEditorOriginal)!==JSON.stringify(clonePlain(r));
+ if(!recipeChanged){closeRecipeEditor();return alert('Nenhuma alteração na receita.');}
  syncFarmWithCraft();renderCraftRecipes();renderFarmItems();updateDeliveryPreview();renderConnectedRequests();
  const group=$('#fGroup')?.value||'';
  const btn=$('#recipeEditorSave');
