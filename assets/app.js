@@ -84,8 +84,16 @@ quedaCriticaPct:critico,
 minComparacoes};
 
 }
-async function loadDashboardConfig(){
+let dashboardConfigReadAt=0;
+const DASHBOARD_CONFIG_TTL=10*60*1000;
+async function loadDashboardConfig({force=false}={}){
+ if(!force&&dashboardConfigReadAt&&Date.now()-dashboardConfigReadAt<DASHBOARD_CONFIG_TTL){
+  await loadDashboardAlertStates();renderDashboardConfigAdmin();renderCommandDashboard();return;
+ }
  try{const snap=await getDoc(dashboardConfigDoc);
+dashboardConfigReadAt=Date.now();
+statBump('config_dashboard','leituras');
+statBump('config_dashboard','docs',snap.exists()?1:0);
 dashboardConfig=sanitizeDashboardConfig(snap.exists()?snap.data():DEFAULT_DASHBOARD_CONFIG);
 if(!snap.exists()&&isAdmin())await setDoc(dashboardConfigDoc,{...dashboardConfig,
 updatedAt:serverTimestamp(),
@@ -139,6 +147,7 @@ dashboardConfig=sanitizeDashboardConfig(raw);
  try{await setDoc(dashboardConfigDoc,{...dashboardConfig,
 updatedAt:serverTimestamp(),
 updatedBy:currentUser.email},{merge:true});
+dashboardConfigReadAt=Date.now();
 await addDoc(histCol,{sessionId:currentSessionId||'',
 tipo:'DASHBOARD_PARAMETROS',
 descricao:'Parâmetros semanais NORMAL / ATENÇÃO / CRÍTICO alterados',
@@ -273,8 +282,14 @@ metric.innerHTML='<option value="">TODOS OS SEGMENTOS</option>'+opts;
 if(old&&segmentNames().includes(old))metric.value=old;
 }
 }
-async function loadSegmentConfig(){
+let segmentConfigReadAt=0;
+const SEGMENT_CONFIG_TTL=10*60*1000;
+async function loadSegmentConfig({force=false}={}){
+ if(!force&&segmentConfigReadAt&&Date.now()-segmentConfigReadAt<SEGMENT_CONFIG_TTL){syncSegmentSelects();renderSegmentAdmin();return}
  try{const snap=await getDoc(segmentConfigDoc);
+segmentConfigReadAt=Date.now();
+statBump('config_segmentos','leituras');
+statBump('config_segmentos','docs',snap.exists()?1:0);
 if(snap.exists()&&Array.isArray(snap.data().items)&&snap.data().items.length)segmentos=snap.data().items.map(x=>({nome:cleanSegmentName(x.nome),
 icone:x.icone||'◇',
 descricao:x.descricao||cleanSegmentName(x.nome)})).filter(x=>x.nome);
@@ -11297,6 +11312,7 @@ others=segmentNames().filter(x=>segmentKey(x)!==segmentKey(seg.nome));return `<a
 async function saveSegmentRegistry(){await setDoc(segmentConfigDoc,{items:segmentDefs(),
 updatedAt:serverTimestamp(),
 updatedBy:currentUser.email},{merge:true});
+segmentConfigReadAt=Date.now();
 syncSegmentSelects();
 renderSegmentAdmin();
 renderFaccoes();
