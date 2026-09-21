@@ -3884,10 +3884,26 @@ function renderSaudeSistema(){
  document.getElementById('saudeAtualizar')?.addEventListener('click',renderSaudeSistema);
 }
 
+const AUDIT_SESSION_PAGE=150;
 async function loadUserAudit(){
  if(!isAdmin()||!$('#adminSessionList'))return;
- try{if(!historico.length){const hq=await getDocsCached(histCol,'historico');historico=hq.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(historyDateValue(b)?.getTime()||0)-(historyDateValue(a)?.getTime()||0));}
- const qs=await getDocsCached(sessionCol,'sessoes_usuario');userSessions=qs.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>sessionStartMs(b)-sessionStartMs(a));renderUserAudit();}catch(e){$('#adminSessionList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR AUDITORIA</h3><p>${esc(e.message)}</p></div>`}
+ try{
+  /* V10.2 - auditoria respeita a janela paginada do histórico. Antes esta
+     tela ignorava a V9.9 e relia a coleção historico inteira. */
+  if(!historico.length)await loadHistory();
+
+  let qs;
+  try{
+   qs=await getDocs(query(sessionCol,orderBy('startAt','desc'),limit(AUDIT_SESSION_PAGE)));
+   statBump('sessoes_usuario','leituras');
+   statBump('sessoes_usuario','docs',qs.docs.length);
+  }catch(err){
+   console.warn('[AUDITORIA] consulta paginada indisponível, usando cache legado:',err?.code||err?.message);
+   qs=await getDocsCached(sessionCol,'sessoes_usuario',{ttl:300000});
+  }
+  userSessions=qs.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>sessionStartMs(b)-sessionStartMs(a));
+  renderUserAudit();
+ }catch(e){$('#adminSessionList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR AUDITORIA</h3><p>${esc(e.message)}</p></div>`}
 }
 function renderUserAudit(){
  const box=$('#adminSessionList');if(!box)return;const q=String($('#adminAuditSearch')?.value||'').toLowerCase(),user=String($('#adminAuditUser')?.value||'').toLowerCase(),status=$('#adminAuditStatus')?.value||'',day=$('#adminAuditDate')?.value||'';
