@@ -10996,6 +10996,10 @@ if(!f||!currentUser)return;
 
  const antes={contingenteMin:Number(f.contingenteMin||15),
 contingenteMax:Number(f.contingenteMax||28)};
+ if(antes.contingenteMin===min&&antes.contingenteMax===max){
+  if(button){const t=button.textContent;button.textContent='JÁ SALVO';setTimeout(()=>button.textContent=t,900)}
+  return;
+ }
 
  try{
   if(button){button.disabled=true;
