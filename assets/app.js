@@ -1541,12 +1541,19 @@ function closeGroupProfilePage(){activateAppPage('faccoes')}
 $('#groupProfileBack')?.addEventListener('click',closeGroupProfilePage);
 
 async function loadFaccoes(){
- try{const qs=await getDocsCached(facCol,'faccoes');
-estado.faccoes=qs.docs.map(d=>({id:d.id,
-...d.data()}));
-estado.faccoes.sort((a,b)=>(a.numero||999)-(b.numero||999));
-renderFaccoes();definirGroupsConhecidos(estado.faccoes);
-renderAvailableFaccoes()}catch(e){$('#facList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR</h3><p>${e.message}</p></div>`}
+ try{
+  const qs=await getDocsCached(facCol,'faccoes');
+  estado.faccoes=qs.docs.map(d=>({id:d.id,...d.data()}));
+  estado.faccoes.sort((a,b)=>(a.numero||999)-(b.numero||999));
+  renderFaccoes();
+  definirGroupsConhecidos(estado.faccoes);
+  renderAvailableFaccoes();
+  return true;
+ }catch(e){
+  $('#facList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR</h3><p>${esc(e?.message||String(e))}</p></div>`;
+  console.error('[FACÇÕES] falha ao carregar Groups:',e);
+  return false;
+ }
 }
 function renderFaccoes(){
  const q=($('#facSearch').value||'').toLowerCase(),
