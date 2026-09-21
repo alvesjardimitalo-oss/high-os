@@ -4226,10 +4226,26 @@ const maxSeg=Math.max(1,...Object.values(segCounts));
 }
 
 async function orgHistory(name){
- try{const qs=await getDocsCached(histCol,'historico'),
-key=String(name||'').toLowerCase();
-return qs.docs.map(d=>({id:d.id,
-...d.data()})).filter(h=>String(h.faccao||h.depois?.faccao||h.antes?.faccao||'').toLowerCase()===key).sort((a,b)=>historyMillis(b)-historyMillis(a)).slice(0,8)}catch{return[]}
+ const key=String(name||'').trim();
+ if(!key)return [];
+ /* V10.26 - perfil da facção não baixa mais o histórico inteiro.
+    Busca no servidor somente os eventos diretamente vinculados à facção.
+    Registros legados que guardavam o nome apenas em antes/depois continuam
+    aparecendo no Histórico geral paginado, sem transformar a abertura do
+    perfil em uma leitura crescente da coleção inteira. */
+ try{
+  const qs=await getDocs(query(histCol,where('faccao','==',key),limit(24)));
+  statBump('historico_perfil','leituras');
+  statBump('historico_perfil','docs',qs.docs.length);
+  return qs.docs.map(d=>({id:d.id,...d.data()}))
+   .sort((a,b)=>historyMillis(b)-historyMillis(a))
+   .slice(0,8);
+ }catch(e){
+  console.warn('[HISTÓRICO/PERFIL] consulta econômica indisponível:',e?.code||e?.message);
+  return historico.filter(h=>String(h.faccao||h.depois?.faccao||h.antes?.faccao||'').toLowerCase()===key.toLowerCase())
+   .sort((a,b)=>historyMillis(b)-historyMillis(a))
+   .slice(0,8);
+ }
 }
 async function openOrganizationByName(name=''){
  const o=derivedOrganizations().find(x=>String(x.nome).toLowerCase()===String(name).toLowerCase())||{id:'',
