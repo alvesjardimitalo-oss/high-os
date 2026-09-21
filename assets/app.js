@@ -4178,8 +4178,15 @@ desde:old.desde||f.dataEntrega||'',
 observacoes:old.observacoes||'',
 source:old.source||'group'});});
 
+ /* V12.5 - a ocupacao vem exclusivamente de faccoes.
+    Organizacao sem Group nao e automaticamente inativa: SEM_GROUP preserva
+    o cadastro/historico sem inventar uma ocupacao. INATIVA fica reservada
+    para cadastros explicitamente inativados. */
  return [...map.values()].map(o=>({...o,
-status:o.groupAtual?'ATIVA':'INATIVA'})).sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
+status:o.groupAtual?'ATIVA':(String(o.status||'').toUpperCase()==='INATIVA'?'INATIVA':'SEM_GROUP'),
+groupAtual:o.groupAtual||'',
+qgAtual:o.groupAtual?(o.qgAtual||''):''
+ })).sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
 
 }
 async function loadOrganizations(){
