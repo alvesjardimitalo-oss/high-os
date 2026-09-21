@@ -13847,6 +13847,14 @@ async function v9010CommitStructure(beforeRows, descricao='Estrutura atualizada'
 
   const diff=v9Diff(before,after);
 
+/* V10.40 - modal/atalhos podem disparar commit sem mudança efetiva. */
+if(!diff.length){
+ v9StructureDirty=false;
+ $('#gsDirtyBar')?.classList.add('hidden');
+ gsRender(false);
+ return true;
+}
+
   const scrollY=window.scrollY;
 
   const ref=doc(db,'highos','data','faccoes',group);
