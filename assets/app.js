@@ -14238,14 +14238,18 @@ const missionsDoc=doc(db,'highos','data','config','missoes_planejador');
 
 let missionCloudTimer=null,
 missionCloudBusy=false,
-missionCloudLastSignature='';
+missionCloudLastSignature='',
+missionCloudLastPullAt=0,
+missionCloudLastPull=null;
+const MISSION_PULL_TTL=120000;
 
 function missionCloudSignature(missions=[]){
  try{return JSON.stringify(missions)}catch(e){return ''}
 }
 
-async function pullMissionsFromCloud(){
+async function pullMissionsFromCloud({force=false}={}){
  if(!currentUser||!canViewModule('planejador'))return null;
+ if(!force&&missionCloudLastPull&&Date.now()-missionCloudLastPullAt<MISSION_PULL_TTL)return missionCloudLastPull;
 
  try{
   const snap=await getDoc(missionsDoc);
@@ -14256,10 +14260,12 @@ async function pullMissionsFromCloud(){
 
   if(!Array.isArray(data.missions)||!data.missions.length)return null;
   missionCloudLastSignature=missionCloudSignature(data.missions);
-
-  return {missions:data.missions,
+  missionCloudLastPull={missions:data.missions,
 updatedAtText:data.updatedAtText||'',
 updatedBy:data.updatedBy||''};
+  missionCloudLastPullAt=Date.now();
+
+  return missionCloudLastPull;
 
  }catch(e){console.warn('Missoes: falha ao ler da nuvem',e);
 return null}
@@ -14284,6 +14290,8 @@ updatedAtText:new Date().toISOString(),
 updatedBy:currentUser.email||''},{merge:true});
 
   missionCloudLastSignature=assinatura;
+  missionCloudLastPull={missions,updatedAtText:new Date().toISOString(),updatedBy:currentUser.email||''};
+  missionCloudLastPullAt=Date.now();
   window.dispatchEvent(new CustomEvent('highos:mission-cloud',{detail:{state:'ok',
 missions:missions.length}}));
 
