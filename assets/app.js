@@ -4419,11 +4419,28 @@ async function upsertOrganizationFromDelivery(payload,f){
   status:'ATIVA'
  });
 }
+const DELIVERY_INITIAL_LIMIT=250;
 async function loadDeliveries(){
- try{const qs=await getDocsCached(deliveryCol,'entregas');
-estado.entregas=qs.docs.map(d=>({id:d.id,
-...d.data()})).sort((a,b)=>String(b.createdAtText||b.dataEntrega||'').localeCompare(String(a.createdAtText||a.dataEntrega||'')));
-renderDeliveries()}catch(e){if($('#deliveryList'))$('#deliveryList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR</h3><p>${esc(e.message)}</p></div>`}
+ try{
+  /* V10.44 - Entregas é histórico crescente. A operação diária precisa das
+     mais recentes; limitar a carga inicial impede custo crescente por login. */
+  const qs=await getDocs(query(deliveryCol,orderBy('createdAtText','desc'),limit(DELIVERY_INITIAL_LIMIT)));
+  estado.entregas=qs.docs.map(d=>({id:d.id,...d.data()}))
+   .sort((a,b)=>String(b.createdAtText||b.dataEntrega||'').localeCompare(String(a.createdAtText||a.dataEntrega||'')));
+  statBump('entregas','leituras');
+  statBump('entregas','docs',estado.entregas.length);
+  renderDeliveries();
+ }catch(e){
+  console.warn('[ENTREGAS] consulta limitada indisponível:',e?.code||e?.message||e);
+  try{
+   const qs=await getDocs(query(deliveryCol,limit(DELIVERY_INITIAL_LIMIT)));
+   estado.entregas=qs.docs.map(d=>({id:d.id,...d.data()}))
+    .sort((a,b)=>String(b.createdAtText||b.dataEntrega||'').localeCompare(String(a.createdAtText||a.dataEntrega||'')));
+   statBump('entregas','leituras');
+   statBump('entregas','docs',estado.entregas.length);
+   renderDeliveries();
+  }catch(err){if($('#deliveryList'))$('#deliveryList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR</h3><p>${esc(err.message)}</p></div>`}
+ }
 }
 function renderDeliveries(){
  if(!$('#deliveryList'))return;
