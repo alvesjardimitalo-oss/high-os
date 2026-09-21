@@ -869,6 +869,10 @@ corpo});
     return mergeMissions(list)>0;
   }
 
+  window.addEventListener('highos:mission-cloud',e=>{
+    const rev=Number(e?.detail?.revision||0);
+    if(rev>state.cloudRevision)state.cloudRevision=rev;
+  });
   function setCloudState(kind,text){
     state.cloudState=kind;
     const els=[qs('#mpCloudState'),
@@ -889,8 +893,8 @@ qs('#mpCloudStateTop')].filter(Boolean);if(!els.length)return;
       // ao Firestore para que outros computadores recebam as zonas que so
       // existiam localmente.
       if(cloud.pushNow){
-        const ok=await cloud.pushNow(state.missions,{baseRevision:state.cloudRevision,destructive:false});
-        if(ok)state.cloudRevision+=1;
+        const result=await cloud.pushNow(state.missions,{baseRevision:state.cloudRevision,destructive:false});
+        if(Number(result?.revision)>state.cloudRevision)state.cloudRevision=Number(result.revision);
       }else cloud.push?.(state.missions,{baseRevision:state.cloudRevision,destructive:false});
       setCloudState('ok',`☁ SINCRONIZADO · ${new Set(state.missions.map(m=>m.eventId).filter(Boolean)).size} eventos · ${state.missions.length} zonas`);
       if(add)setStatus(`${add} missao(oes) da equipe adicionadas.`,'ok');
