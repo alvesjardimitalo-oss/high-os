@@ -1584,6 +1584,7 @@ function invalidarCacheRef(ref){
  const nome=cacheNameFromRef(ref);
  if(nome){
   cacheMemoria.delete(nome);
+  queryFreshAt.delete(nome);
   try{localStorage.removeItem(CACHE_PREFIX+nome)}catch(e){}
  }else{
   cacheMemoria.clear(); // referência desconhecida: segurança primeiro
@@ -1602,7 +1603,7 @@ const writeBatch=(...a)=>{
  }
  b.commit=()=>{
   if(tocadas.has(''))cacheMemoria.clear();
-  else tocadas.forEach(nome=>{if(!nome)return;cacheMemoria.delete(nome);try{localStorage.removeItem(CACHE_PREFIX+nome)}catch(e){}});
+  else tocadas.forEach(nome=>{if(!nome)return;cacheMemoria.delete(nome);queryFreshAt.delete(nome);try{localStorage.removeItem(CACHE_PREFIX+nome)}catch(e){}});
   return commit();
  };
  return b;
@@ -1616,6 +1617,9 @@ const CACHE_LIMITE_BYTES=1200000;
       // nao espelha colecao gigante
 const cacheMemoria=new Map();
           // nome -> {at, rows}
+const queryFreshAt=new Map();
+const QUERY_CHAIN_TTL=120000;
+function queryAindaFresca(nome){return Date.now()-(queryFreshAt.get(nome)||0)<QUERY_CHAIN_TTL}
 const firestoreStats=new Map();
         // nome -> {leituras, docs, cache, falhas, ultimaAt}
 
@@ -3241,6 +3245,7 @@ $('#reqModal').classList.remove('hidden');
 }
 const REQUEST_RECORD_LIMIT=300;
 async function loadRequests(){
+ if(queryAindaFresca('solicitacoes')&&(solicitacoes.length||requestRecords.length)){renderRequests();return}
  try{
    /* V10.4 - modelos e histórico operacional têm necessidades diferentes:
       modelos são poucos e precisam estar todos disponíveis; registros gerados
@@ -3267,6 +3272,7 @@ async function loadRequests(){
    requestRecords=registros;
    solicitacoes.sort((a,b)=>(a.nome||a.assunto||'').localeCompare(b.nome||b.assunto||'','pt-BR'));
    requestRecords.sort((a,b)=>String(b.createdAtText||'').localeCompare(String(a.createdAtText||'')));
+   queryFreshAt.set('solicitacoes',Date.now());
    renderRequests();
 
  }catch(e){$('#reqList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR</h3><p>${esc(e.message)}</p></div>`}
@@ -4277,6 +4283,7 @@ updatedBy:currentUser.email},{merge:true});
 }
 const DELIVERY_RECENT_LIMIT=250;
 async function loadDeliveries(){
+ if(queryAindaFresca('entregas')&&entregas.length){renderDeliveries();return}
  try{
   /* V10.3 - preserva TODAS as entregas ativas (necessárias para recolher e
      transferir corretamente) e limita o histórico encerrado às 250 mais
@@ -4300,6 +4307,7 @@ async function loadDeliveries(){
    entregas=qs.docs.map(d=>({id:d.id,...d.data()}));
   }
   entregas.sort((a,b)=>String(b.createdAtText||b.dataEntrega||'').localeCompare(String(a.createdAtText||a.dataEntrega||'')));
+  queryFreshAt.set('entregas',Date.now());
   renderDeliveries();
  }catch(e){if($('#deliveryList'))$('#deliveryList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR</h3><p>${esc(e.message)}</p></div>`}
 }
