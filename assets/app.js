@@ -4183,6 +4183,7 @@ else sel.value='';
 
 }
 function renderOrganizations(){
+ try{
  if(!$('#orgList'))return;
 const all=derivedOrganizations();
 const integrity=organizationIntegrity();
@@ -4215,6 +4216,9 @@ const maxSeg=Math.max(1,...Object.values(segCounts));
  $('#orgList').innerHTML=list.length?list.map(o=>`<article class="org-card" data-org="${esc(o.id||orgKey(o.nome))}"><div class="org-card-head"><div><div class="group-kicker">${esc(orgSegmentValue(o)||'ORGANIZAÇÃO')}</div><h3>${esc(o.nome||'SEM NOME')}</h3></div><span class="status-chip ${o.status==='INATIVA'?'inativa':'ativa'}">${o.status==='INATIVA'?'INATIVA':(o.groupAtual?'OCUPANDO':'ATIVA • SEM GROUP')}</span></div><div class="org-group-link"><span>GROUP ATUAL</span><b>${esc(o.groupAtual||'—')}</b><small>${esc(o.qgAtual||'')}</small></div><div class="muted">${o.lider?'Líder: '+esc(o.lider):'Liderança não cadastrada'}${o.contato?'<br>Contato: '+esc(o.contato):''}</div><button class="mini-btn open-org" data-name="${esc(o.nome)}">PERFIL DA FACÇÃO</button></article>`).join(''):'<div class="placeholder"><b>♜</b><h3>NENHUMA FACÇÃO ENCONTRADA</h3><p>Ajuste a busca ou os filtros.</p></div>';
 
  document.querySelectorAll('.open-org').forEach(b=>b.onclick=e=>{e.stopPropagation();openOrganizationByName(b.dataset.name)});
+ }finally{
+  renderCommandDashboard?.();
+ }
 
 }
 
@@ -4870,6 +4874,7 @@ box.className='history-more';
 
 }
 function renderHistory(){
+ try{
  if(!$('#historyList'))return;
 
  const q=($('#historySearch')?.value||'').toLowerCase(),
@@ -4901,6 +4906,9 @@ recInfo=isRec?`<div class="recollect-history-data"><span><b>Motivo</b>${esc(h.mo
  $('#historyList').querySelectorAll('.history-evidence-btn').forEach(btn=>btn.addEventListener('click',()=>openRecollectEvidence(btn.dataset.evidence,btn.dataset.history)));
 
  renderHistoryFooter();
+ }finally{
+  renderCommandDashboard?.();
+ }
 
 }
 function renderGroupProfileMemory(f){
@@ -5804,6 +5812,7 @@ function aplicarLinhasMetricas(rows=[],origem=''){
 }
 
 async function loadMetrics(){
+ try{
  await loadMetricSourceConfig();
 
  metricPeriodKey=metricPeriodKey||currentMetricMonthKey();
@@ -5875,6 +5884,9 @@ renderMetrics();
 renderMetricSourceStatus();
 renderMetricQuotaPanel();
 startMetricRealtime();
+ }finally{
+  renderCommandDashboard?.();
+ }
 
 }
 function metricIdentity(group,row=null){
@@ -10506,18 +10518,6 @@ box.querySelectorAll('[data-anomaly-group]').forEach(b=>b.onclick=()=>{activateA
 box.querySelectorAll('[data-clear-anomaly]').forEach(b=>b.onclick=e=>{e.stopPropagation();clearVacantMetricAlert(b.dataset.clearAnomaly,new Date(b.dataset.anomalyDate))});
 
 }
-const _loadMetricsV78=loadMetrics;
-loadMetrics=async function(){await _loadMetricsV78();
-renderCommandDashboard()};
-
-const _renderHistoryV78=renderHistory;
-renderHistory=function(){_renderHistoryV78();
-renderCommandDashboard()};
-
-const _renderOrganizationsV78=renderOrganizations;
-renderOrganizations=function(){_renderOrganizationsV78();
-renderCommandDashboard()};
-
 // HIGH OS V8.6 — solicitação automática ao salvar Craft adquirido/extra
 function craftRecipeKey(r={}){return String(r.spawn||r.id||r.nome||'').trim().toLowerCase()}
 function farmItemKey(x={}){return String(x.spawn||x.nome||'').trim().toLowerCase()}
