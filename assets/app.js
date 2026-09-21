@@ -11455,16 +11455,24 @@ target=$('#segmentAssignTarget')?.value;
 if(!entity||!target)return alert('Selecione o cadastro e o segmento.');
 try{if(type==='GROUP'){const f=faccoes.find(x=>x.group===entity);
 if(!f)return;
-await setDoc(doc(db,'highos','data','faccoes',f.group),{segmento:target,
+const org=f.faccao?derivedOrganizations().find(x=>String(x.nome||'').toLowerCase()===String(f.faccao).toLowerCase()):null;
+const groupSame=segmentKey(f.segmento)===segmentKey(target);
+const orgSame=!f.faccao||(segmentKey(org?.segmentoAtual)===segmentKey(target)&&segmentKey(org?.segmentoVinculado)===segmentKey(target));
+if(groupSame&&orgSame){renderSegmentAdmin();return}
+const batch=writeBatch(db);
+if(!groupSame)batch.set(doc(db,'highos','data','faccoes',f.group),{segmento:target,
 updatedAt:serverTimestamp(),
 updatedBy:currentUser.email},{merge:true});
-if(f.faccao)await setDoc(doc(db,'highos','data','organizacoes',orgKey(f.faccao)),{segmentoAtual:target,
+if(f.faccao&&!orgSame)batch.set(doc(db,'highos','data','organizacoes',orgKey(f.faccao)),{segmentoAtual:target,
 segmentoVinculado:target,
 updatedAt:serverTimestamp(),
-updatedBy:currentUser.email},{merge:true})}else{const o=derivedOrganizations().find(x=>x.nome===entity);
+updatedBy:currentUser.email},{merge:true});
+await batch.commit()}else{const o=derivedOrganizations().find(x=>x.nome===entity);
 if(!o)return;
+const nextAtual=o.groupAtual?o.segmentoAtual||target:target;
+if(segmentKey(o.segmentoVinculado)===segmentKey(target)&&segmentKey(o.segmentoAtual)===segmentKey(nextAtual)){renderSegmentAdmin();return}
 await setDoc(doc(db,'highos','data','organizacoes',o.id||orgKey(o.nome)),{segmentoVinculado:target,
-segmentoAtual:o.groupAtual?o.segmentoAtual||target:target,
+segmentoAtual:nextAtual,
 updatedAt:serverTimestamp(),
 updatedBy:currentUser.email},{merge:true})}await addDoc(histCol,{sessionId:currentSessionId||'',
 tipo:'SEGMENTO_VINCULO',
