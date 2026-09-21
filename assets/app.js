@@ -14337,7 +14337,12 @@ setTimeout(()=>{if($('#page-faccoes'))renderFaccoes()},0);
 const missionsDoc=doc(db,'highos','data','config','missoes_planejador');
 
 let missionCloudTimer=null,
-missionCloudBusy=false;
+missionCloudBusy=false,
+missionCloudLastSignature='';
+
+function missionCloudSignature(missions=[]){
+ try{return JSON.stringify(missions||[])}catch{return ''}
+}
 
 async function pullMissionsFromCloud(){
  if(!currentUser||!canViewModule('planejador'))return null;
@@ -14351,6 +14356,8 @@ async function pullMissionsFromCloud(){
 
   if(!Array.isArray(data.missions))return null;
 
+  missionCloudLastSignature=missionCloudSignature(data.missions);
+
   return {missions:data.missions,
 updatedAtText:data.updatedAtText||'',
 updatedBy:data.updatedBy||'',
@@ -14363,6 +14370,9 @@ async function pushMissionsToCloud(missions=[],meta={}){
  if(!currentUser||!canEditModule('planejador')||!Array.isArray(missions))return false;
 
  if(missionCloudBusy)return false;
+
+ const nextSignature=missionCloudSignature(missions);
+ if(nextSignature&&nextSignature===missionCloudLastSignature)return {ok:true,unchanged:true};
 
  missionCloudBusy=true;
 
@@ -14385,6 +14395,7 @@ updatedAt:serverTimestamp(),
 updatedAtText:new Date().toISOString(),
 updatedBy:currentUser.email||''},{merge:true});
 
+  missionCloudLastSignature=nextSignature;
   window.dispatchEvent(new CustomEvent('highos:mission-cloud',{detail:{state:'ok',
 missions:missions.length,revision:currentRevision+1}}));
 
