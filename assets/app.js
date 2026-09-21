@@ -11416,6 +11416,10 @@ await saveSegmentRegistry();
 if(oldName){
  estado.faccoes=estado.faccoes.map(f=>segmentKey(f.segmento)===segmentKey(oldName)?{...f,segmento:nome}:f);
  estado.organizacoes=estado.organizacoes.map(o=>segmentKey(orgSegmentValue(o))===segmentKey(oldName)?{...o,segmentoAtual:nome,segmentoVinculado:nome}:o);
+ /* V10.50 - alteração em lote: invalidação é mais segura que reconstruir
+    parcialmente espelhos com dezenas de documentos modificados. */
+ cacheInvalidate('faccoes');
+ cacheInvalidate('organizacoes');
 }
 renderFaccoes();
 renderOrganizations();
@@ -11483,6 +11487,8 @@ data:serverTimestamp()});
 if(replacement){
  estado.faccoes=estado.faccoes.map(f=>segmentKey(f.segmento)===segmentKey(name)?{...f,segmento:replacement}:f);
  estado.organizacoes=estado.organizacoes.map(o=>segmentKey(orgSegmentValue(o))===segmentKey(name)?{...o,segmentoAtual:replacement,segmentoVinculado:replacement}:o);
+ cacheInvalidate('faccoes');
+ cacheInvalidate('organizacoes');
 }
 renderFaccoes();
 renderOrganizations();
