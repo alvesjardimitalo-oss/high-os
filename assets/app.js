@@ -3700,7 +3700,8 @@ async function toggleUserAccess(){
 initUsersUi();
 
 // ===== HIGH OS V8.15 · SESSÕES E AUDITORIA DE USUÁRIOS =====
-let userSessions=[];
+let userSessions=[],userSessionsLoadedAt=0;
+const AUDIT_CACHE_TTL=120000;
 function auditModule(tipo=''){
  const t=String(tipo||'').toUpperCase();
  if(t.includes('SESSION')||t.includes('LOGIN')||t.includes('USUARIO'))return 'ACESSO';
@@ -3946,8 +3947,9 @@ function renderSaudeSistema(){
 }
 
 const AUDIT_SESSION_PAGE=150;
-async function loadUserAudit(){
+async function loadUserAudit({force=false}={}){
  if(!isAdmin()||!$('#adminSessionList'))return;
+ if(!force&&userSessions.length&&Date.now()-userSessionsLoadedAt<AUDIT_CACHE_TTL){renderUserAudit();return}
  try{
   /* V10.2 - auditoria respeita a janela paginada do histórico. Antes esta
      tela ignorava a V9.9 e relia a coleção historico inteira. */
@@ -3963,6 +3965,7 @@ async function loadUserAudit(){
    qs=await getDocsCached(sessionCol,'sessoes_usuario',{ttl:300000});
   }
   userSessions=qs.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>sessionStartMs(b)-sessionStartMs(a));
+  userSessionsLoadedAt=Date.now();
   renderUserAudit();
  }catch(e){$('#adminSessionList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR AUDITORIA</h3><p>${esc(e.message)}</p></div>`}
 }
@@ -3979,7 +3982,7 @@ function renderUserAudit(){
 function openAuditSession(id){const s=userSessions.find(x=>x.sessionId===id);if(!s)return;const acts=sessionActions(s),start=sessionStartMs(s),end=sessionEffectiveEnd(s),ongoing=s.sessionId===currentSessionId&&s.status!=='ENCERRADA';$('#auditSessionTitle').textContent=`SESSÃO • ${s.email||'USUÁRIO'}`;$('#auditSessionMeta').innerHTML=`<span><b>LOGIN</b>${fmtDateMs(start)}</span><span><b>${ongoing?'ÚLTIMA ATIVIDADE':'ENCERRAMENTO'}</b>${ongoing?fmtDateMs(end):fmtDateMs(sessionEndMs(s)||end)}</span><span><b>DURAÇÃO</b>${fmtDuration(sessionDuration(s))}</span><span><b>AÇÕES</b>${acts.length}</span>`;$('#auditSessionTimeline').innerHTML=`<div class="audit-event"><time>${new Date(start).toLocaleTimeString('pt-BR')}</time><div><b>LOGIN</b><span>Usuário entrou no High OS</span></div></div>`+acts.map(h=>{const d=historyDateValue(h);return `<div class="audit-event"><time>${d?d.toLocaleTimeString('pt-BR'):'—'}</time><div><b>${esc(String(h.tipo||'AÇÃO').replaceAll('_',' '))}</b><span>${esc(auditModule(h.tipo))}${auditTarget(h)!=='—'?' • '+esc(auditTarget(h)):''}</span>${h.descricao?`<small>${esc(h.descricao)}</small>`:''}${h.antes||h.depois?`<details><summary>VER ALTERAÇÃO ANTES → DEPOIS</summary><div class="audit-diff"><pre>${esc(JSON.stringify(h.antes||{},null,2))}</pre><pre>${esc(JSON.stringify(h.depois||{},null,2))}</pre></div></details>`:''}</div></div>`}).join('')+(!ongoing?`<div class="audit-event"><time>${new Date(end).toLocaleTimeString('pt-BR')}</time><div><b>FIM DA SESSÃO</b><span>${esc(s.endReason==='TIMEOUT_8H'?'Limite máximo de 8 horas atingido':'Sessão encerrada')}</span></div></div>`:'');$('#auditSessionModal').classList.remove('hidden');}
 $('#auditSessionClose')?.addEventListener('click',()=>$('#auditSessionModal')?.classList.add('hidden'));
 ['adminAuditSearch','adminAuditUser','adminAuditStatus','adminAuditDate'].forEach(id=>{$('#'+id)?.addEventListener(id==='adminAuditSearch'?'input':'change',renderUserAudit)});
-$('#adminAuditRefresh')?.addEventListener('click',loadUserAudit);
+$('#adminAuditRefresh')?.addEventListener('click',()=>loadUserAudit({force:true}));
 function openUserActivity(email){activateAppPage('administracao');loadUserAudit().then(()=>{const s=$('#adminAuditUser');if(s){s.value=String(email||'').toLowerCase();renderUserAudit();}})}
 
 // ===== HIGH OS V5 · GROUP COMO PATRIMÔNIO + ENTREGA COMO VÍNCULO =====
