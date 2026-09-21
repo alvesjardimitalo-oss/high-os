@@ -11416,7 +11416,11 @@ usuario:currentUser.email,
 data:serverTimestamp()});
 await loadFaccoes()}catch(e){alert('Erro ao apagar segmento: '+e.message)}
 }
+let coreSegmentCheckSignature='';
 async function applyCoreSegmentMap(){
+ const signature=faccoes.map(f=>`${f.group}:${f.segmento||''}:${f.faccao||''}`).sort().join('|');
+ if(signature===coreSegmentCheckSignature)return;
+ coreSegmentCheckSignature=signature;
  const rules={Manicomio:'DROGAS',
 Contrabando01:'CONTRABANDO',
 Contrabando02:'CONTRABANDO',
@@ -11553,7 +11557,11 @@ minComparacoes:Number($('#dashCfgMinComparacoes')?.value)||4};const old=dashboar
 $('#adminOpenUsersBtn')?.addEventListener('click',()=>activateAppPage('usuarios'));
 
 // HIGH OS V8.20 · status da facção é determinado pela ocupação do Group.
+let occupationStatusCheckSignature='';
 async function normalizeOccupationStatusV820(){
+ const signature=faccoes.map(f=>`${f.group}:${f.faccao||''}:${f.status||''}`).sort().join('|');
+ if(signature===occupationStatusCheckSignature)return;
+ occupationStatusCheckSignature=signature;
  const changes=[];
 
  faccoes.forEach(f=>{const active=!!String(f.faccao||'').trim(),
