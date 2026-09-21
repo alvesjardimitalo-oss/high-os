@@ -3289,7 +3289,7 @@ if(d)L.push(d);
 
 function openRequestModal(id='',group=''){
  const model=id?[...BUILTIN_REQUEST_MODELS,
-...solicitacoes].find(x=>x.id===id):null;
+...estado.solicitacoes].find(x=>x.id===id):null;
 
  $('#reqId').value=model?.builtin?'':(model?.id||'');
 
@@ -3334,7 +3334,7 @@ all=qs.docs.map(d=>({id:d.id,
  }catch(e){$('#reqList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR</h3><p>${esc(e.message)}</p></div>`}
 }
 function allRequestModels(){return [...BUILTIN_REQUEST_MODELS,
-...solicitacoes]}
+...estado.solicitacoes]}
 function renderRequests(){
  if(!document.getElementById('reqList')&&!document.getElementById('reqTypeFilter'))return;   // V12.3.1 - tela de Solicitações removida
 
