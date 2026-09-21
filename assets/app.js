@@ -2684,11 +2684,15 @@ data:serverTimestamp()});await syncGroupsToOfficialSheet([data],{quiet:true});cl
    alterados. Atualiza os três caches sem reler as coleções completas. */
 const recollectGroupIndex=estado.faccoes.findIndex(x=>x.group===group);
 if(recollectGroupIndex>=0)estado.faccoes[recollectGroupIndex]=clonePlain(data);
+cachePatchRow('faccoes',data.id||group,data);
 const activeDeliveryIds=new Set(activeDeliveries.map(x=>x.id));
 estado.entregas=estado.entregas.map(x=>activeDeliveryIds.has(x.id)?{...x,status:'RECOLHIDA',recolhimento,recolhidaPor:currentUser.email}:x);
+for(const d of estado.entregas.filter(x=>activeDeliveryIds.has(x.id)))cachePatchRow('entregas',d.id,d);
 if(old.faccao){
  const oldOrgKey=orgNameKey(old.faccao);
  estado.organizacoes=estado.organizacoes.map(o=>orgNameKey(o.nome||o.id)===oldOrgKey?{...o,status:'SEM_GROUP',groupAtual:'',qgAtual:'',ultimoRecolhimento:clonePlain(recolhimento)}:o);
+ const patchedOrg=estado.organizacoes.find(o=>orgNameKey(o.nome||o.id)===oldOrgKey);
+ if(patchedOrg)cachePatchRow('organizacoes',patchedOrg.id||orgKey(old.faccao),patchedOrg);
 }
 renderFaccoes();
 renderDeliveries();
@@ -4757,7 +4761,11 @@ if(groupIndex>=0)estado.faccoes[groupIndex]=clonePlain(deliveredGroup);
 else estado.faccoes.push(clonePlain(deliveredGroup));
 const previousIds=new Set(previous.map(x=>x.id));
 estado.entregas=estado.entregas.map(x=>previousIds.has(x.id)?{...x,status:'RECOLHIDA',recolhidaPor:currentUser.email}:x);
-estado.entregas.unshift({id:novaEntregaRef.id,...clonePlain(payload)});
+for(const d of estado.entregas.filter(x=>previousIds.has(x.id)))cachePatchRow('entregas',d.id,d);
+const localNovaEntrega={id:novaEntregaRef.id,...clonePlain(payload)};
+estado.entregas.unshift(localNovaEntrega);
+cachePatchRow('entregas',novaEntregaRef.id,localNovaEntrega);
+cachePatchRow('faccoes',deliveredGroup.id||f.group,deliveredGroup);
 renderFaccoes();
 renderDeliveries();
 renderCommandDashboard?.();
