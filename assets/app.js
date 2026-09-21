@@ -3720,8 +3720,14 @@ async function saveUser(e){
  const original=$('#userOriginalEmail').value.trim().toLowerCase(), email=$('#uEmail').value.trim().toLowerCase();
  if(!email){alert('Informe o e-mail Google.');return}
  const old=original?usuarios.find(x=>x.email===original):null;
- const payload={email,name:$('#uName').value.trim(),cargo:$('#uCargo').value.trim(),role:$('#uRole').value,active:$('#uActive').value==='true',notes:$('#uNotes').value.trim(),permissions:readUserPermissions(),updatedAt:serverTimestamp(),updatedBy:currentUser.email};
+ const userData={email,name:$('#uName').value.trim(),cargo:$('#uCargo').value.trim(),role:$('#uRole').value,active:$('#uActive').value==='true',notes:$('#uNotes').value.trim(),permissions:readUserPermissions()};
+ const payload={...userData,updatedAt:serverTimestamp(),updatedBy:currentUser.email};
  if(email===String(currentUser.email||'').toLowerCase() && payload.active!==true){alert('Você não pode desativar sua própria conta enquanto está logado.');return}
+ if(old){
+  const same=['email','name','cargo','role','active','notes'].every(k=>String(old[k]??'')===String(userData[k]??''))
+   &&JSON.stringify(old.permissions||{})===JSON.stringify(userData.permissions||{});
+  if(same){$('#userModal').classList.add('hidden');return}
+ }
  try{
   await setDoc(doc(db,'users',email),payload,{merge:true});
   await addDoc(histCol,{sessionId:currentSessionId||'',tipo:old?'USUARIO_EDITADO':'USUARIO_CRIADO',usuarioAlvo:email,antes:snapshot(old),depois:snapshot(payload),usuario:currentUser.email,data:serverTimestamp()});
