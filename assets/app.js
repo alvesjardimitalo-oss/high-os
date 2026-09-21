@@ -11629,6 +11629,7 @@ async function saveSpotifyConfig(){if(!canEditModule('spotify'))return permissio
 const url=$('#spotifyUrl')?.value.trim()||'';
 if(url&&!spotifyEmbedUrl(url))return alert('Informe um link válido do open.spotify.com.');
 const before={...spotifyConfig};
+if(String(before.url||'')===url)return;
 try{spotifyConfig={...spotifyConfig,
 url};
 await setDoc(spotifyConfigDoc,{url,
@@ -11646,8 +11647,10 @@ alert('Erro ao salvar Spotify: '+e.message)}}
 async function saveSpotifyClient(){if(!isAdmin())return;
 const clientId=$('#spotifyClientId')?.value.trim()||'';
 if(clientId&&clientId.length<10)return alert('Client ID inválido.');
+if(String(spotifyConfig.clientId||'')===clientId&&String(spotifyConfig.redirectUri||spotifyRedirectUri())===spotifyRedirectUri())return alert('Client ID já está salvo.');
 spotifyConfig={...spotifyConfig,
-clientId};
+clientId,
+redirectUri:spotifyRedirectUri()};
 await setDoc(spotifyConfigDoc,{clientId,
 redirectUri:spotifyRedirectUri(),
 updatedAt:serverTimestamp(),
