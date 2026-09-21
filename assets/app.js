@@ -10232,9 +10232,21 @@ b]){
     }
     if(orgMoveCount)await orgMoveBatch.commit();
 
+    const localA={...clonePlain(a),id:src.id||src.group,updatedBy:currentUser.email};
+    const localB={...clonePlain(b),id:dst.id||dst.group,updatedBy:currentUser.email};
+    faccoes=faccoes.map(f=>f.group===src.group?localA:f.group===dst.group?localB:f);
+    for(const rec of [localA,localB]){
+      if(!rec.faccao)continue;
+      const oid=orgKey(rec.faccao),oix=organizacoes.findIndex(o=>o.id===oid||String(o.nome||'').toLowerCase()===String(rec.faccao).toLowerCase());
+      const patch={nome:rec.faccao,status:'ATIVA',groupAtual:rec.group,segmentoAtual:rec.segmento||'',qgAtual:rec.qg||'',lider:rec.lider||'',updatedBy:currentUser.email};
+      if(oix>=0)organizacoes[oix]={...organizacoes[oix],...patch,id:organizacoes[oix].id||oid};
+      else organizacoes.push({id:oid,...patch});
+    }
+    queryFreshAt.set('faccoes',Date.now());queryFreshAt.set('organizacoes',Date.now());
+    renderFaccoes();renderOrganizations();renderAvailableFaccoes();
+
     $('#movementModal')?.classList.add('hidden');
     closeGroupProfilePage();
-    await loadFaccoes();
     alert('Operação concluída e registrada no histórico.');
   }catch(e){
     alert('Falha na operação: ' + e.message);
