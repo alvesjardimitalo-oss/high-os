@@ -7070,8 +7070,19 @@ if(out)out.innerHTML=`<b>CENTRAL ONLINE</b> • ${metricas.length} registro(s) h
 /* V9.8.1 - Esta funcao havia desaparecido numa das edicoes anteriores do
    arquivo. Sem ela, loadMetrics() lancava ReferenceError e o painel inteiro
    caia na tela de ACESSO NAO AUTORIZADO, mesmo com o cadastro correto. */
-async function loadMetricSourceConfig(){
+let metricConfigReadAt=0;
+const METRIC_CONFIG_TTL=10*60*1000;
+async function loadMetricSourceConfig({force=false}={}){
+ /* V10.11 - a configuração da fonte muda raramente. Evita uma leitura
+    Firestore em cada passagem pelo fluxo de métricas. */
+ if(!force&&metricConfigReadAt&&Date.now()-metricConfigReadAt<METRIC_CONFIG_TTL){
+  renderMetricSourceStatus();
+  return;
+ }
  try{const s=await getDoc(metricConfigDoc);
+metricConfigReadAt=Date.now();
+statBump('config_metricas','leituras');
+statBump('config_metricas','docs',s.exists()?1:0);
 if(s.exists())metricSourceConfig={...metricSourceConfig,
 ...s.data()}}catch(e){console.warn('[MÉTRICAS] config da fonte indisponível:',e?.code||e?.message||e)}
  renderMetricSourceStatus();
@@ -7158,10 +7169,7 @@ return best;
 
 }
 async function refreshMetricServerConfig(){
- try{const snap=await getDoc(metricConfigDoc);
-if(snap.exists())metricSourceConfig={...metricSourceConfig,
-...snap.data()};
-renderMetricSourceStatus()}catch(e){}
+ await loadMetricSourceConfig({force:true});
 }
 function metricRowKey(r={}){return alvesNorm(String(r.group||r.organizacao||r.faccao||'')).replace(/\s+/g,'')+'|'+normalizeMetricDate(r.data||r.date)}
 function metricLatestInfo(rows=[]){
@@ -7427,6 +7435,7 @@ updatedBy:currentUser.email};
  try{await setDoc(metricConfigDoc,cfg,{merge:true});
 metricSourceConfig={...metricSourceConfig,
 ...cfg};
+metricConfigReadAt=Date.now();
 $('#metricSourceModal')?.classList.add('hidden');
 renderMetricSourceStatus();
 alert('Fonte registrada. A sincronização automática é executada pelo Apps Script da planilha, sem Cloud Functions e sem Blaze.')}catch(e){alert('Erro ao salvar a fonte: '+e.message)}
