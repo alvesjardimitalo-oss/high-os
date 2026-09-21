@@ -210,7 +210,12 @@ const cleared=st.metricAt?.toDate?st.metricAt.toDate():st.metricAt?new Date(st.m
 return !!(cleared&&date&&date<=cleared)}
 async function clearVacantMetricAlert(group,date){if(!canEditModule('dashboard'))return permissionDeniedMessage('dashboard',true);
 const id=anomalyAlertId(group),
-metricAt=date instanceof Date?date:new Date(date);
+metricAt=date instanceof Date?date:new Date(date),
+before=dashboardAlertStates.find(x=>x.id===id);
+if(before?.status==='LIMPO'){
+ const oldAt=before.metricAt?.toDate?before.metricAt.toDate():before.metricAt?new Date(before.metricAt):null;
+ if(oldAt&&!isNaN(oldAt)&&oldAt.getTime()>=metricAt.getTime()){renderCommandDashboard();return}
+}
 try{await setDoc(doc(db,'highos','data','alertas_dashboard',id),{tipo:'VAGO_COM_METRICA',
 group,
 status:'LIMPO',
