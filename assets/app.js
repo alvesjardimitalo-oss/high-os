@@ -5667,28 +5667,44 @@ function setMetricRealtime(on){
  try{localStorage.setItem('highos_metric_realtime',on?'1':'0')}catch(e){}
  if(on)startMetricRealtime();
 
- else{try{metricLiveUnsub?.()}catch(e){}metricLiveUnsub=null}
+ else stopMetricRealtime();
  renderMetricQuotaPanel();
 
 }
-function startMetricRealtime(){
- if(!metricRealtimeAtivo()||metricQuotaBlocked)return;
-
- if(metricLiveUnsub)return;
-
- metricLiveUnsub=onSnapshot(metricCol,qs=>{
-  applyMetricSnapshot(qs,{realtime:true});
-  if(typeof renderCommandDashboard==='function')renderCommandDashboard();
- },err=>{
-  if(isQuotaError(err))return enterQuotaMode(err);
-  console.warn('Falha na escuta em tempo real das métricas',err);
-  metricSourceState={...metricSourceState,
-status:'ERRO',
-error:err?.message||String(err)};
-  renderMetricSourceStatus();
- });
-
+/* V10.1 - "Tempo real" nao abre mais listener na colecao legada.
+   A colecao metricas tem milhares de documentos e um onSnapshot nela cobra
+   uma leitura por documento ao iniciar. Quando o usuario pede tempo real,
+   reaproveitamos a sincronizacao barata da planilha/espelho e atualizamos
+   somente enquanto a pagina esta visivel. */
+let metricLiveTimer=null;
+function stopMetricRealtime(){
+ try{metricLiveUnsub?.()}catch(e){}
+ metricLiveUnsub=null;
+ if(metricLiveTimer){clearInterval(metricLiveTimer);metricLiveTimer=null}
 }
+async function refreshMetricRealtimeCheap(){
+ if(!metricRealtimeAtivo()||metricQuotaBlocked||document.visibilityState==='hidden')return;
+ try{
+  await runMetricAutoRecovery({quiet:true});
+  metricLiveLastAt=Date.now();
+ }catch(e){
+  if(isQuotaError(e))return enterQuotaMode(e);
+  console.warn('[MÉTRICAS] atualização econômica falhou',e?.message||e);
+ }
+}
+function startMetricRealtime(){
+ stopMetricRealtime();
+ if(!metricRealtimeAtivo()||metricQuotaBlocked)return;
+ refreshMetricRealtimeCheap();
+ metricLiveTimer=setInterval(refreshMetricRealtimeCheap,5*60*1000);
+}
+document.addEventListener('visibilitychange',()=>{
+ if(document.visibilityState==='hidden'){
+  if(metricLiveTimer){clearInterval(metricLiveTimer);metricLiveTimer=null}
+ }else if(metricRealtimeAtivo()&&!metricLiveTimer){
+  startMetricRealtime();
+ }
+});
 
 /* =====================================================================
    HIGH OS V10 - METRICAS SEM CUSTO DE LEITURA
