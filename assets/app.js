@@ -4351,22 +4351,34 @@ data:serverTimestamp()});closeOrganizationProfilePage();await loadOrganizations(
 
 async function syncOrganizationOccupancy(rec,{previousName=''}={}){
  const nome=String(rec?.faccao||'').trim();
- if(previousName&&orgNameKey(previousName)!==orgNameKey(nome)){
-  await setDoc(doc(db,'highos','data','organizacoes',orgKey(previousName)),firestoreSafe({
-   nome:previousName,status:'SEM_GROUP',groupAtual:'',qgAtual:'',
+ const previousKey=orgNameKey(previousName);
+ const nomeKey=orgNameKey(nome);
+ const batch=writeBatch(db);
+ let changed=false;
+
+ if(previousName&&previousKey!==nomeKey){
+  const previousExisting=estado.organizacoes.find(o=>orgNameKey(o.nome||o.id)===previousKey)||{};
+  batch.set(doc(db,'highos','data','organizacoes',previousExisting.id||orgKey(previousName)),firestoreSafe({
+   nome:previousExisting.nome||previousName,status:'SEM_GROUP',groupAtual:'',qgAtual:'',
    updatedAt:serverTimestamp(),updatedBy:currentUser.email
   }),{merge:true});
+  changed=true;
  }
- if(!nome)return;
- const existing=derivedOrganizations().find(o=>orgNameKey(o.nome)===orgNameKey(nome))||{};
- await setDoc(doc(db,'highos','data','organizacoes',existing.id||orgKey(nome)),firestoreSafe({
-  nome,status:'ATIVA',lider:rec.lider||existing.lider||'',
-  contato:existing.contato||'',discord:existing.discord||'',
-  desde:existing.desde||rec.dataEntrega||'',observacoes:existing.observacoes||'',
-  groupAtual:rec.group||'',segmentoAtual:rec.segmento||'',
-  segmentoVinculado:rec.segmento||existing.segmentoVinculado||'',
-  qgAtual:rec.qg||'',updatedAt:serverTimestamp(),updatedBy:currentUser.email
- }),{merge:true});
+
+ if(nome){
+  const existing=estado.organizacoes.find(o=>orgNameKey(o.nome||o.id)===nomeKey)||{};
+  batch.set(doc(db,'highos','data','organizacoes',existing.id||orgKey(nome)),firestoreSafe({
+   nome,status:'ATIVA',lider:rec.lider||existing.lider||'',
+   contato:existing.contato||'',discord:existing.discord||'',
+   desde:existing.desde||rec.dataEntrega||'',observacoes:existing.observacoes||'',
+   groupAtual:rec.group||'',segmentoAtual:rec.segmento||'',
+   segmentoVinculado:rec.segmento||existing.segmentoVinculado||'',
+   qgAtual:rec.qg||'',updatedAt:serverTimestamp(),updatedBy:currentUser.email
+  }),{merge:true});
+  changed=true;
+ }
+
+ if(changed)await batch.commit();
 }
 
 async function upsertOrganizationFromDelivery(payload,f){
