@@ -12088,8 +12088,12 @@ $('#incomingCallBar')?.classList.add('hidden')}
 function startCallInbox(){if(callInboxUnsubscribe){callInboxUnsubscribe();
 callInboxUnsubscribe=null}if(!currentUser||!canViewModule('chat'))return;
 const me=String(currentUser.email||'').toLowerCase();
-callInboxUnsubscribe=onSnapshot(query(callCol,where('participants','array-contains',me),limit(20)),snap=>{const ringing=snap.docs.map(x=>({id:x.id,
-...x.data()})).filter(x=>String(x.callee||'').toLowerCase()===me&&x.status==='ringing').sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0))[0];const bar=$('#incomingCallBar');if(!bar)return;if(!ringing||activeCallId){bar.classList.add('hidden');return}bar.classList.remove('hidden');$('#incomingCallName').textContent=`${hmUserName(hmUser(ringing.caller))} está chamando`;$('#incomingCallType').textContent=ringing.mode==='video'?'CHAMADA DE VÍDEO':'CHAMADA DE ÁUDIO';$('#incomingCallAccept').onclick=()=>{bar.classList.add('hidden');acceptIncomingCall(ringing.id,ringing)};$('#incomingCallReject').onclick=()=>rejectIncomingCall(ringing.id)},err=>{console.error('[HIGH OS][CALL] inbox Firestore bloqueado:',err?.code||err?.message||err);$('#incomingCallBar')?.classList.add('hidden')});
+/* V12.6 - o inbox precisa apenas das chamadas destinadas ao usuario.
+   Filtrar por callee no servidor evita manter ate 20 chamadas alheias sendo
+   lidas/atualizadas durante toda a sessao. O status continua filtrado no
+   cliente para depender somente do indice simples automatico do Firestore. */
+callInboxUnsubscribe=onSnapshot(query(callCol,where('callee','==',me),limit(5)),snap=>{const ringing=snap.docs.map(x=>({id:x.id,
+...x.data()})).filter(x=>x.status==='ringing').sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0))[0];const bar=$('#incomingCallBar');if(!bar)return;if(!ringing||activeCallId){bar.classList.add('hidden');return}bar.classList.remove('hidden');$('#incomingCallName').textContent=`${hmUserName(hmUser(ringing.caller))} está chamando`;$('#incomingCallType').textContent=ringing.mode==='video'?'CHAMADA DE VÍDEO':'CHAMADA DE ÁUDIO';$('#incomingCallAccept').onclick=()=>{bar.classList.add('hidden');acceptIncomingCall(ringing.id,ringing)};$('#incomingCallReject').onclick=()=>rejectIncomingCall(ringing.id)},err=>{console.error('[HIGH OS][CALL] inbox Firestore bloqueado:',err?.code||err?.message||err);$('#incomingCallBar')?.classList.add('hidden')});
 }
 async function closeTeamMeeting(signal=true){const id=activeCallId;
 if(signal&&id)await setDoc(callDocRef(id),{status:'ended',
