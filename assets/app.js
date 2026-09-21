@@ -1627,7 +1627,15 @@ const writeBatch=(...a)=>{
  for(const metodo of ['set','update','delete']){
   const original=b[metodo]?.bind(b);
   if(!original)continue;
-  b[metodo]=(ref,...args)=>{tocadas.add(cacheNameFromRef(ref));return original(ref,...args)};
+  b[metodo]=(ref,...args)=>{
+   const nome=cacheNameFromRef(ref);
+   if(nome)tocadas.add(nome);
+   else{
+    const seg=ref?._key?.path?.segments||ref?._path?.segments||[];
+    if(!seg.length)tocadas.add('');
+   }
+   return original(ref,...args);
+  };
  }
  b.commit=()=>{
   if(tocadas.has(''))cacheMemoria.clear();
