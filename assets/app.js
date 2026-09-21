@@ -3454,17 +3454,22 @@ async function saveRequestModel(e){
 
  const tipo=$('#reqTipo').value;
 
- const payload={isModelo:true,
+ const modelData={isModelo:true,
 tipo,
 nome:$('#reqModelName').value.trim()||requestTypeName(tipo),
 assunto:$('#reqAssunto').value.trim()||defaultSubject(tipo),
 detalhes:$('#reqDetalhes').value.trim(),
-origem:'Biblioteca High OS',
+origem:'Biblioteca High OS'};
+ const payload={...modelData,
 updatedAt:serverTimestamp(),
 updatedBy:currentUser.email};
 
  try{
-   if(id){await setDoc(doc(db,'highos','data','solicitacoes',id),payload,{merge:true});
+   if(id){
+const old=solicitacoes.find(x=>x.id===id);
+const same=old&&Object.keys(modelData).every(k=>String(old[k]??'')===String(modelData[k]??''));
+if(same){$('#reqModal').classList.add('hidden');return}
+await setDoc(doc(db,'highos','data','solicitacoes',id),payload,{merge:true});
 await addDoc(histCol,{sessionId:currentSessionId||'',
 tipo:'MODELO_SOLICITACAO_EDITADO',
 solicitacaoId:id,
