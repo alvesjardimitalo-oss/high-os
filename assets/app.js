@@ -5727,13 +5727,25 @@ linhas] of porMes){
      continuaria achando que estava sincronizado e nunca regravaria.
      Agora a fonte da verdade e o proprio documento; o cache local
      apenas evita a leitura quando ele ja confirma o valor. */
-  let anterior='';
-  try{anterior=localStorage.getItem('highos_metric_sig_'+mes)||''}catch(e){console.warn('[MÉTRICAS] assinatura local indisponível para',mes,e?.message||e)}
+  let anterior='',verificadoEm=0;
+  try{
+   anterior=localStorage.getItem('highos_metric_sig_'+mes)||'';
+   verificadoEm=Number(localStorage.getItem('highos_metric_verified_'+mes)||0);
+  }catch(e){console.warn('[MÉTRICAS] assinatura local indisponível para',mes,e?.message||e)}
   if(anterior===assinatura){
+   /* V12.6 - uma sincronização sem mudança não precisa confirmar o mesmo
+      documento no Firestore a cada ciclo. Revalidamos no máximo 1x ao dia:
+      mantém autocorreção se o espelho for apagado, mas corta até 47 leituras
+      redundantes por mês/dia no ciclo automático de 30 minutos. */
+   const precisaRevalidar=!verificadoEm||(Date.now()-verificadoEm)>=24*60*60*1000;
+   if(!precisaRevalidar)continue;
    try{
     const atual=await getDoc(doc(metricMonthCol,mes));
     statBump('metricas_mensais','leituras');statBump('metricas_mensais','docs',1);
-    if(atual.exists()&&String(atual.data()?.assinatura||'')===assinatura)continue;
+    if(atual.exists()&&String(atual.data()?.assinatura||'')===assinatura){
+     try{localStorage.setItem('highos_metric_verified_'+mes,String(Date.now()))}catch(e){}
+     continue;
+    }
    }catch(e){ /* na duvida, regrava */ }
   }
   try{
@@ -5758,7 +5770,10 @@ linhas] of porMes){
    metricWriteCount++;
 gravados++;
 
-   try{localStorage.setItem('highos_metric_sig_'+mes,assinatura)}catch(e){console.warn('[MÉTRICAS] não foi possível salvar assinatura local de',mes,e?.message||e)}
+   try{
+    localStorage.setItem('highos_metric_sig_'+mes,assinatura);
+    localStorage.setItem('highos_metric_verified_'+mes,String(Date.now()));
+   }catch(e){console.warn('[MÉTRICAS] não foi possível salvar assinatura local de',mes,e?.message||e)}
   }catch(e){
    if(isQuotaError(e)){enterQuotaMode(e);
 break}
