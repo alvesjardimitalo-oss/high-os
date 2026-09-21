@@ -14211,17 +14211,18 @@ async function pullMissionsFromCloud(){
 
   const data=snap.data()||{};
 
-  if(!Array.isArray(data.missions)||!data.missions.length)return null;
+  if(!Array.isArray(data.missions))return null;
 
   return {missions:data.missions,
 updatedAtText:data.updatedAtText||'',
-updatedBy:data.updatedBy||''};
+updatedBy:data.updatedBy||'',
+revision:Number(data.revision||0)};
 
  }catch(e){console.warn('Missoes: falha ao ler da nuvem',e);
 return null}
 }
-async function pushMissionsToCloud(missions=[]){
- if(!currentUser||!canEditModule('planejador')||!Array.isArray(missions)||!missions.length)return false;
+async function pushMissionsToCloud(missions=[],meta={}){
+ if(!currentUser||!canEditModule('planejador')||!Array.isArray(missions))return false;
 
  if(missionCloudBusy)return false;
 
@@ -14230,7 +14231,18 @@ async function pushMissionsToCloud(missions=[]){
  try{
   window.dispatchEvent(new CustomEvent('highos:mission-cloud',{detail:{state:'sync'}}));
 
+  const snap=await getDoc(missionsDoc);
+  const current=snap.exists()?(snap.data()||{}):{};
+  const currentRevision=Number(current.revision||0);
+  const baseRevision=Number(meta?.baseRevision||0);
+  const destructive=meta?.destructive===true||missions.length===0;
+  if(destructive&&currentRevision!==baseRevision){
+   const err=new Error('PLANEJADOR_DESATUALIZADO');
+   err.code='highos/mission-conflict';
+   throw err;
+  }
   await setDoc(missionsDoc,{missions,
+revision:currentRevision+1,
 updatedAt:serverTimestamp(),
 updatedAtText:new Date().toISOString(),
 updatedBy:currentUser.email||''},{merge:true});
@@ -14252,10 +14264,10 @@ window.HighOSMissionCloud={
 
  pushNow:pushMissionsToCloud,
 
- push(missions){
+ push(missions,meta={}){
   clearTimeout(missionCloudTimer);
 
-  missionCloudTimer=setTimeout(()=>pushMissionsToCloud(missions),2500);
+  missionCloudTimer=setTimeout(()=>pushMissionsToCloud(missions,meta),2500);
 
  }
 };
