@@ -10827,6 +10827,16 @@ f.group||''].filter(Boolean).join(' - ');
 
 }
 
+function applyFactionPatchLocal(group,patch={}){
+ const f=estado.faccoes.find(x=>x.group===group);
+ if(!f)return null;
+ Object.assign(f,patch);
+ renderFaccoes();
+ renderAvailableFaccoes();
+ renderAdminGroupManager();
+ renderCommandDashboard?.();
+ return f;
+}
 async function saveAvailableImageLink(group,input,button){
  const f=estado.faccoes.find(x=>x.group===group);
 if(!f||!currentUser)return;
@@ -10856,7 +10866,7 @@ descricao:url?'Link da imagem do anúncio cadastrado/alterado':'Link da imagem d
 usuario:currentUser.email,
 data:serverTimestamp()});
 
-  await loadFaccoes();
+  applyFactionPatchLocal(group,{imagemAnuncio:url,updatedBy:currentUser.email});
 
  }catch(e){alert('Erro ao salvar link da imagem: '+e.message);
 if(button){button.disabled=false;
@@ -10893,7 +10903,7 @@ descricao:`Contingente do anúncio alterado para ${min} a ${max} membros`,
 usuario:currentUser.email,
 data:serverTimestamp()});
 
-  await loadFaccoes();
+  applyFactionPatchLocal(group,{contingenteMin:min,contingenteMax:max,updatedBy:currentUser.email});
 
  }catch(e){alert('Erro ao salvar contingente: '+e.message);
 if(button){button.disabled=false;
@@ -11008,7 +11018,7 @@ texto:postado?availableAnnouncementText(f):'',
 imagemUrl:f.imagemAnuncio||'',
 usuario:currentUser.email,
 data:serverTimestamp()});
-await loadFaccoes()}catch(e){alert('Erro ao atualizar status do anúncio: '+e.message)}
+applyFactionPatchLocal(group,{anuncioDiscordStatus:status,status:'INATIVA',updatedBy:currentUser.email})}catch(e){alert('Erro ao atualizar status do anúncio: '+e.message)}
 }
 function freeFaccoesForReport(type='TODAS'){
  const rows=estado.faccoes.filter(f=>!f.removido&&(f.status!=='ATIVA'||!String(f.faccao||'').trim()));
