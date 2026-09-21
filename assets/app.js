@@ -1633,11 +1633,18 @@ function invalidateCacheRef(ref){
  cacheMemoria.clear();
  return '';
 }
-const setDoc=(ref,...a)=>{invalidateCacheRef(ref);firestoreWriteCount++;return _setDoc(ref,...a)};
-const addDoc=(ref,...a)=>{invalidateCacheRef(ref);firestoreWriteCount++;return _addDoc(ref,...a)};
-const deleteDoc=(ref,...a)=>{invalidateCacheRef(ref);firestoreWriteCount++;return _deleteDoc(ref,...a)};
+function assertFirestoreWritable(){
+ if(!window.HighOSOffline?.ativo)return;
+ const err=new Error('MODO LOCAL ativo: alteracoes bloqueadas ate a conexao com o Firebase ser restabelecida.');
+ err.code='highos/offline-readonly';
+ try{window.highToast?.(err.message,'warn',7000)}catch(e){}
+ throw err;
+}
+const setDoc=(ref,...a)=>{assertFirestoreWritable();invalidateCacheRef(ref);firestoreWriteCount++;return _setDoc(ref,...a)};
+const addDoc=(ref,...a)=>{assertFirestoreWritable();invalidateCacheRef(ref);firestoreWriteCount++;return _addDoc(ref,...a)};
+const deleteDoc=(ref,...a)=>{assertFirestoreWritable();invalidateCacheRef(ref);firestoreWriteCount++;return _deleteDoc(ref,...a)};
 
-const writeBatch=(...a)=>{const b=_writeBatch(...a);
+const writeBatch=(...a)=>{assertFirestoreWritable();const b=_writeBatch(...a);
 const commit=b.commit.bind(b);
 let n=0;
 const touched=new Set();
