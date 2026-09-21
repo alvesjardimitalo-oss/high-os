@@ -68,7 +68,7 @@ quedaCriticaPct:30,
 minComparacoes:4};
 
 let dashboardConfig={...DEFAULT_DASHBOARD_CONFIG},dashboardAlertStates=[],spotifyConfig={url:'',
-clientId:''},chatUnsubscribe=null,chatSubscriptionKey='',chatItems=[],chatPendingAttachment=null,chatRecipientEmail='',spotifyPlayer=null,spotifyDeviceId='',spotifyAccessToken='',spotifyTokenExpiry=0,activeMeetingRoom='',activeMeetingUrl='',activeMeetingChannel='',teamCallPendingFile=null,callInboxUnsubscribe=null,activeCallUnsubscribe=null,activeCallId='',activePeer=null,activeLocalStream=null,activeRemoteStream=null,activeCallMode='audio',seenRemoteCandidates=new Set();
+clientId:''},chatUnsubscribe=null,chatSubscriptionKey='',chatItems=[],chatPendingAttachment=null,chatRecipientEmail='',spotifyPlayer=null,spotifyDeviceId='',spotifyAccessToken='',spotifyTokenExpiry=0,activeMeetingRoom='',activeMeetingUrl='',activeMeetingChannel='',teamCallPendingFile=null,callInboxUnsubscribe=null,callInboxSubscriptionEmail='',activeCallUnsubscribe=null,activeCallId='',activePeer=null,activeLocalStream=null,activeRemoteStream=null,activeCallMode='audio',seenRemoteCandidates=new Set();
 
 function sanitizeDashboardConfig(v={}){
  const legacyBase=Number(v.contingenteAlerta)||0;
@@ -12133,9 +12133,11 @@ alert('Não foi possível atender: '+e.message)}}
 async function rejectIncomingCall(id){await setDoc(callDocRef(id),{status:'rejected',
 updatedAt:serverTimestamp()},{merge:true}).catch(()=>{});
 $('#incomingCallBar')?.classList.add('hidden')}
-function startCallInbox(){if(callInboxUnsubscribe){callInboxUnsubscribe();
-callInboxUnsubscribe=null}if(!currentUser||!canViewModule('chat'))return;
+function startCallInbox(){if(!currentUser||!canViewModule('chat'))return;
 const me=String(currentUser.email||'').toLowerCase();
+if(callInboxUnsubscribe&&callInboxSubscriptionEmail===me)return;
+if(callInboxUnsubscribe){callInboxUnsubscribe();callInboxUnsubscribe=null}
+callInboxSubscriptionEmail=me;
 callInboxUnsubscribe=onSnapshot(query(callCol,where('participants','array-contains',me),limit(20)),snap=>{const ringing=snap.docs.map(x=>({id:x.id,
 ...x.data()})).filter(x=>String(x.callee||'').toLowerCase()===me&&x.status==='ringing').sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0))[0];const bar=$('#incomingCallBar');if(!bar)return;if(!ringing||activeCallId){bar.classList.add('hidden');return}bar.classList.remove('hidden');$('#incomingCallName').textContent=`${hmUserName(hmUser(ringing.caller))} está chamando`;$('#incomingCallType').textContent=ringing.mode==='video'?'CHAMADA DE VÍDEO':'CHAMADA DE ÁUDIO';$('#incomingCallAccept').onclick=()=>{bar.classList.add('hidden');acceptIncomingCall(ringing.id,ringing)};$('#incomingCallReject').onclick=()=>rejectIncomingCall(ringing.id)},err=>{console.error('[HIGH OS][CALL] inbox Firestore bloqueado:',err?.code||err?.message||err);$('#incomingCallBar')?.classList.add('hidden')});
 }
