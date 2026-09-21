@@ -14248,9 +14248,9 @@ updatedAtText:new Date().toISOString(),
 updatedBy:currentUser.email||''},{merge:true});
 
   window.dispatchEvent(new CustomEvent('highos:mission-cloud',{detail:{state:'ok',
-missions:missions.length}}));
+missions:missions.length,revision:currentRevision+1}}));
 
-  return true;
+  return {ok:true,revision:currentRevision+1};
 
  }catch(e){console.warn('Missoes: falha ao salvar na nuvem',e);
 window.dispatchEvent(new CustomEvent('highos:mission-cloud',{detail:{state:'local'}}));
