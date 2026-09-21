@@ -140,6 +140,13 @@ minComparacoes:Number($('#dashCfgMinComparacoes')?.value)};
  const before={...dashboardConfig};
 dashboardConfig=sanitizeDashboardConfig(raw);
 
+/* V10.35 - não cobra escrita/auditoria quando o admin apenas confirma os
+   mesmos parâmetros que já estão ativos. */
+if(before.quedaAtencaoPct===dashboardConfig.quedaAtencaoPct&&before.quedaCriticaPct===dashboardConfig.quedaCriticaPct&&before.minComparacoes===dashboardConfig.minComparacoes){
+ renderDashboardConfigAdmin();
+ return alert('Nenhuma alteração nos parâmetros do Dashboard.');
+}
+
  try{await setDoc(dashboardConfigDoc,{...dashboardConfig,
 updatedAt:serverTimestamp(),
 updatedBy:currentUser.email},{merge:true});
@@ -167,8 +174,9 @@ async function setDashboardAlertState(group,weekKey,status){
  if(!canEditModule('dashboard'))return permissionDeniedMessage('dashboard',true);
 
  const id=alertStateId(group,weekKey),
-before=findDashboardAlertState(group,weekKey),
-data={tipo:'CONTINGENTE_SEMANAL',
+before=findDashboardAlertState(group,weekKey);
+if(before?.status===status)return;
+const data={tipo:'CONTINGENTE_SEMANAL',
 group,
 weekKey,
 status,
