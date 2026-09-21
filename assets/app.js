@@ -3503,6 +3503,7 @@ updatedAt:serverTimestamp(),
 updatedBy:currentUser.email};
 
  try{
+   let savedId=id;
    if(id){await setDoc(doc(db,'highos','data','solicitacoes',id),payload,{merge:true});
 await addDoc(histCol,{sessionId:currentSessionId||'',
 tipo:'MODELO_SOLICITACAO_EDITADO',
@@ -3514,6 +3515,7 @@ data:serverTimestamp()});
    else{const ref=await addDoc(reqCol,{...payload,
 createdAt:serverTimestamp(),
 createdBy:currentUser.email});
+savedId=ref.id;
 await addDoc(histCol,{sessionId:currentSessionId||'',
 tipo:'MODELO_SOLICITACAO_CRIADO',
 solicitacaoId:ref.id,
@@ -3522,7 +3524,13 @@ usuario:currentUser.email,
 data:serverTimestamp()});
 }
    $('#reqModal').classList.add('hidden');
-await loadRequests();
+/* V10.34 - salvar modelo não precisa reler solicitações inteiras. */
+const localModel={id:savedId,...clonePlain(payload)};
+const modelIndex=estado.solicitacoes.findIndex(x=>x.id===savedId);
+if(modelIndex>=0)estado.solicitacoes[modelIndex]=localModel;
+else estado.solicitacoes.push(localModel);
+estado.solicitacoes.sort((a,b)=>(a.nome||a.assunto||'').localeCompare(b.nome||b.assunto||'','pt-BR'));
+renderRequests();
 
  }catch(err){alert('Erro ao salvar modelo: '+err.message)}
 }
