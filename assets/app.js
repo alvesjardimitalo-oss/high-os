@@ -10671,7 +10671,7 @@ old=b?.textContent||'COPIAR SOLICITAÇÃO';
 // HIGH OS V8.7 — persistência forte de Craft/Farm.
 // Salva diretamente no documento do Group e relê o Firestore para impedir que
 // um rascunho antigo da tela sobrescreva receitas recém-cadastradas.
-async function persistCurrentTechProfile(group, {reload=true}={}){
+async function persistCurrentTechProfile(group, {reload=false}={}){
  if(!group)throw new Error('Group não identificado.');
 
  const ref=doc(db,'highos','data','faccoes',group);
@@ -10740,7 +10740,7 @@ insumos=readIngredientEditor();
    const oldPerfil=clonePlain(mergedTechProfile(local||{}));
    const perfilTecnico=getTechProfileFromForm();
    const oldRecipe=(oldPerfil?.craft?.receitas||[]).find(x=>craftRecipeKey(x)===craftRecipeKey(r));
-   await persistCurrentTechProfile(group,{reload:true});
+   await persistCurrentTechProfile(group);
    const shouldGenerate=String(r.origem||'').toUpperCase()!=='PADRÃO DO SEGMENTO';
    let generatedRequest=null,
 requestRef=null;
