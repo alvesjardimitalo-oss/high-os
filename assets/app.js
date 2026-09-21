@@ -4447,7 +4447,13 @@ async function syncOrganizationOccupancy(rec,{previousName=''}={}){
   changed=true;
  }
 
- if(changed)await batch.commit();
+ if(changed){
+  await batch.commit();
+  /* V10.60 - esta rotina é a fonte central de reconciliação de ocupação.
+     Como pode alterar duas organizações no mesmo lote, invalidar o espelho
+     garante que o próximo load não devolva a ocupação anterior por TTL. */
+  cacheInvalidate('organizacoes');
+ }
 }
 
 async function upsertOrganizationFromDelivery(payload,f){
