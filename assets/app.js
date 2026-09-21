@@ -10189,6 +10189,11 @@ async function adminWipe(target){
 
     const n = await wipeCollection(target);
 
+    /* V10.52 - uma limpeza administrativa invalida qualquer espelho da
+       coleção removida antes de uma nova leitura. */
+    const wipeCacheName={faccoes:'faccoes',organizacoes:'organizacoes',solicitacoes:'solicitacoes',entregas:'entregas',metricas:'metricas'}[target];
+    if(wipeCacheName)cacheInvalidate(wipeCacheName);
+
     alert(`${n} registro(s) apagado(s) de ${target}. O log de auditoria foi preservado.`);
 
     if(target === 'faccoes') await loadFaccoes();
@@ -10223,6 +10228,7 @@ $('#adminResetAll')?.addEventListener('click', async () => {
 'solicitacoes',
 'entregas',
 'metricas']) total += await wipeCollection(c);
+    ['faccoes','organizacoes','solicitacoes','entregas','metricas'].forEach(cacheInvalidate);
     await loadFaccoes();
     alert(`Reset concluído. ${total} registro(s) operacionais removidos. Histórico preservado.`);
   }catch(e){
