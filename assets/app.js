@@ -4681,7 +4681,7 @@ status:'RECOLHIDA',
 recolhidaEm:serverTimestamp(),
 recolhidaPor:currentUser.email},{merge:true});
 
-  await addDoc(deliveryCol,payload);
+  const deliveryRef=await addDoc(deliveryCol,payload);
 const deliveredGroup={...f,
 status:'ATIVA',
 faccao,
@@ -4709,9 +4709,13 @@ extrato:extract,
 usuario:currentUser.email,
 data:serverTimestamp()});
 $('#newDeliveryModal').classList.add('hidden');
-/* V10.8 - loadFaccoes já atualiza Entregas pelo wrapper V5; evita a segunda
-   consulta imediatamente após concluir uma entrega. */
-await loadFaccoes();
+const previousIds=new Set(previous.map(d=>d.id));
+entregas=entregas.map(d=>previousIds.has(d.id)?{...d,status:'RECOLHIDA',recolhidaPor:currentUser.email}:d);
+entregas.unshift({id:deliveryRef.id,...clonePlain(payload),createdAt:null});
+const fix=faccoes.findIndex(x=>x.group===f.group);
+if(fix>=0)faccoes[fix]={...clonePlain(deliveredGroup),id:faccoes[fix].id||f.group,updatedBy:currentUser.email};
+queryFreshAt.set('faccoes',Date.now());queryFreshAt.set('entregas',Date.now());
+renderFaccoes();renderDeliveries();renderOrganizations();
 alert('Entrega registrada. A estrutura permanente do Group foi preservada.');
 
  }catch(err){alert('Erro ao concluir entrega: '+err.message)}
