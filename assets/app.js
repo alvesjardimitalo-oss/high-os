@@ -3215,12 +3215,12 @@ async function loadRequests(){
    try{
      const [qm,qr]=await Promise.all([
        getDocs(query(reqCol,where('isModelo','==',true))),
-       getDocs(query(reqCol,where('isModelo','==',false),orderBy('createdAtText','desc'),limit(REQUEST_RECORD_LIMIT)))
+       getDocs(query(reqCol,orderBy('createdAtText','desc'),limit(REQUEST_RECORD_LIMIT)))
      ]);
      statBump('solicitacoes','leituras',2);
      statBump('solicitacoes','docs',qm.docs.length+qr.docs.length);
      modelos=qm.docs.map(d=>({id:d.id,...d.data()}));
-     registros=qr.docs.map(d=>({id:d.id,...d.data()}));
+     registros=qr.docs.map(d=>({id:d.id,...d.data()})).filter(x=>x.isModelo!==true);
    }catch(err){
      console.warn('[SOLICITAÇÕES] consultas econômicas indisponíveis, usando cache legado:',err?.code||err?.message);
      const qs=await getDocsCached(reqCol,'solicitacoes',{ttl:300000}),
