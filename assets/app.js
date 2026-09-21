@@ -4893,10 +4893,15 @@ historyEsgotado=true;
 
    }
   }
-  const qs=await getDocsCached(histCol,'historico');
-estado.historico=qs.docs.map(d=>({id:d.id,
-...d.data()})).sort((a,b)=>(historyDateValue(b)?.getTime()||0)-(historyDateValue(a)?.getTime()||0));
-renderHistory();
+  /* V10.43 - fallback legado também precisa de teto. Um índice ausente não
+     pode transformar a abertura do Histórico em leitura integral da coleção. */
+  const qs=await getDocs(query(histCol,limit(HISTORY_PAGE)));
+  const novos=qs.docs.map(d=>({id:d.id,...d.data()}));
+  estado.historico=novos.sort((a,b)=>(historyDateValue(b)?.getTime()||0)-(historyDateValue(a)?.getTime()||0));
+  historyEsgotado=true;
+  statBump('historico','leituras');
+  statBump('historico','docs',novos.length);
+  renderHistory();
 
  }catch(e){if($('#historyList'))$('#historyList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR</h3><p>${esc(e.message)}</p></div>`}
 }
