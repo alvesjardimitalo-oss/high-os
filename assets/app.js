@@ -11603,7 +11603,14 @@ if(!v)return '';
 const m=v.match(/open\.spotify\.com\/(?:intl-[^/]+\/)?(track|playlist|album|artist|episode|show)\/([A-Za-z0-9]+)/i);
 return m?`https://open.spotify.com/embed/${m[1]}/${m[2]}?utm_source=generator`:''}
 function spotifyRedirectUri(){return `${location.origin}${location.pathname}`}
-async function loadSpotifyConfig(){try{const s=await getDoc(spotifyConfigDoc);
+let spotifyConfigReadAt=0;
+const SPOTIFY_CONFIG_TTL=10*60*1000;
+async function loadSpotifyConfig({force=false}={}){
+ if(!force&&spotifyConfigReadAt&&Date.now()-spotifyConfigReadAt<SPOTIFY_CONFIG_TTL){renderSpotify();await spotifyHandleCallback();await spotifyRestoreSession();return}
+ try{const s=await getDoc(spotifyConfigDoc);
+spotifyConfigReadAt=Date.now();
+statBump('config_spotify','leituras');
+statBump('config_spotify','docs',s.exists()?1:0);
 spotifyConfig=s.exists()?{...spotifyConfig,
 ...s.data()}:spotifyConfig}catch(e){console.warn('Spotify config',e)}renderSpotify();
 await spotifyHandleCallback();
@@ -11626,6 +11633,7 @@ url};
 await setDoc(spotifyConfigDoc,{url,
 updatedAt:serverTimestamp(),
 updatedBy:currentUser.email},{merge:true});
+spotifyConfigReadAt=Date.now();
 await addDoc(histCol,{sessionId:currentSessionId||'',
 tipo:'SPOTIFY_CONFIG',
 descricao:'Link público Spotify atualizado',
@@ -11644,6 +11652,7 @@ await setDoc(spotifyConfigDoc,{clientId,
 redirectUri:spotifyRedirectUri(),
 updatedAt:serverTimestamp(),
 updatedBy:currentUser.email},{merge:true});
+spotifyConfigReadAt=Date.now();
 renderSpotify();
 alert('Client ID salvo. Cadastre a Redirect URI exibida no painel do Spotify exatamente como está.')}
 function base64url(bytes){return btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
