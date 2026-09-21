@@ -11063,7 +11063,11 @@ descricao:url?'Link da imagem do anúncio cadastrado/alterado':'Link da imagem d
 usuario:currentUser.email,
 data:serverTimestamp()});
 
-  await loadFaccoes();
+  f.imagemAnuncio=url;
+  f.updatedBy=currentUser.email;
+  queryFreshAt.set('faccoes',Date.now());
+  renderAvailableFaccoes();
+  renderFaccoes();
 
  }catch(e){alert('Erro ao salvar link da imagem: '+e.message);
 if(button){button.disabled=false;
@@ -11104,7 +11108,12 @@ descricao:`Contingente do anúncio alterado para ${min} a ${max} membros`,
 usuario:currentUser.email,
 data:serverTimestamp()});
 
-  await loadFaccoes();
+  f.contingenteMin=min;
+  f.contingenteMax=max;
+  f.updatedBy=currentUser.email;
+  queryFreshAt.set('faccoes',Date.now());
+  renderAvailableFaccoes();
+  renderFaccoes();
 
  }catch(e){alert('Erro ao salvar contingente: '+e.message);
 if(button){button.disabled=false;
