@@ -96,6 +96,12 @@ service cloud.firestore {
       allow read: if canView('faccoes');
       allow write: if canEdit('faccoes');
     }
+    // V12.5 - trilha permanente de ocupações/transferências entre Groups.
+    match /highos/data/ocupacoes/{docId} {
+      allow read: if canView('faccoes') || canView('metricas');
+      allow create: if canEdit('faccoes');
+      allow update, delete: if isAdmin();
+    }
     match /highos/data/solicitacoes/{docId} {
       allow read: if canView('solicitacoes');
       allow write: if canEdit('solicitacoes');
