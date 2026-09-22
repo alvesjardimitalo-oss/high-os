@@ -1683,7 +1683,11 @@ function invalidarCacheRef(ref){
  if(nome){
   cacheMemoria.delete(nome);
   queryFreshAt.delete(nome);
-  try{localStorage.removeItem(CACHE_PREFIX+nome)}catch(e){}
+  try{
+   localStorage.removeItem(CACHE_PREFIX+nome);
+   if(nome==='entregas')localStorage.removeItem(CACHE_PREFIX+'entregas_resumo');
+   if(nome==='solicitacoes')localStorage.removeItem(CACHE_PREFIX+'solicitacoes_resumo');
+  }catch(e){}
  }else{
   /* V10.27 - gravações em documentos de configuração (ex. dashboard,
      segmentos, Spotify) não pertencem às coleções operacionais cacheadas.
@@ -3418,6 +3422,15 @@ const REQUEST_RECORD_LIMIT=300;
 async function loadRequests(){
  if(queryAindaFresca('solicitacoes')){renderRequests();return}
  try{
+   const cached=cacheLer('solicitacoes_resumo');
+   if(cached&&Number(cached.at)>0&&Date.now()-Number(cached.at)<QUERY_CHAIN_TTL&&Array.isArray(cached.rows)){
+    solicitacoes=cached.rows.filter(x=>x.isModelo===true);
+    requestRecords=cached.rows.filter(x=>x.isModelo!==true);
+    queryFreshAt.set('solicitacoes',Number(cached.at));
+    statBump('solicitacoes','cache');
+    renderRequests();
+    return;
+   }
    /* V10.4 - modelos e histórico operacional têm necessidades diferentes:
       modelos são poucos e precisam estar todos disponíveis; registros gerados
       crescem continuamente e ficam limitados aos 300 mais recentes. */
@@ -3447,6 +3460,7 @@ async function loadRequests(){
    solicitacoes.sort((a,b)=>(a.nome||a.assunto||'').localeCompare(b.nome||b.assunto||'','pt-BR'));
    requestRecords.sort((a,b)=>String(b.createdAtText||'').localeCompare(String(a.createdAtText||'')));
    queryFreshAt.set('solicitacoes',Date.now());
+   cacheEscrever('solicitacoes_resumo',[...solicitacoes,...requestRecords]);
    renderRequests();
 
  }catch(e){$('#reqList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR</h3><p>${esc(e.message)}</p></div>`}
@@ -4554,6 +4568,14 @@ const DELIVERY_RECENT_LIMIT=250;
 async function loadDeliveries(){
  if(queryAindaFresca('entregas')){renderDeliveries();return}
  try{
+  const cached=cacheLer('entregas_resumo');
+  if(cached&&Number(cached.at)>0&&Date.now()-Number(cached.at)<QUERY_CHAIN_TTL&&Array.isArray(cached.rows)){
+   entregas=cached.rows;
+   queryFreshAt.set('entregas',Number(cached.at));
+   statBump('entregas','cache');
+   renderDeliveries();
+   return;
+  }
   /* V10.3 - preserva TODAS as entregas ativas (necessárias para recolher e
      transferir corretamente) e limita o histórico encerrado às 250 mais
      recentes. Assim o crescimento da coleção não aumenta indefinidamente
@@ -4584,6 +4606,7 @@ async function loadDeliveries(){
   }
   entregas.sort((a,b)=>String(b.createdAtText||b.dataEntrega||'').localeCompare(String(a.createdAtText||a.dataEntrega||'')));
   queryFreshAt.set('entregas',Date.now());
+  cacheEscrever('entregas_resumo',entregas);
   renderDeliveries();
  }catch(e){if($('#deliveryList'))$('#deliveryList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR</h3><p>${esc(e.message)}</p></div>`}
 }
