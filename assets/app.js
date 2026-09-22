@@ -1250,11 +1250,11 @@ function startSessionClock(email=''){if(sessionTimer)clearInterval(sessionTimer)
 renderSessionClock(email);
 sessionTimer=setInterval(()=>renderSessionClock(email),1000)}
 let lastTouchAt=0;
-const SESSION_TOUCH_REMOTE_MS=15*60*1000;
+const SESSION_TOUCH_REMOTE_MS=30*60*1000;
 
 /* V10.32 - a sessão continua contando localmente a cada segundo, mas a
    presença remota não precisa gravar a cada troca de aba. Persistimos no
-   máximo a cada 15 min; login e logout continuam registrando imediatamente. */
+   máximo a cada 30 min; login e logout continuam registrando imediatamente. */
 async function touchSession(force=false){
  if(!currentUser||!currentSessionId)return;
 
