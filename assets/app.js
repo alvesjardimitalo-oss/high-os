@@ -1487,7 +1487,9 @@ userPhotoEl=$('#userPhoto');
  }
 });
 
-document.querySelectorAll('.nav-item').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));$('#page-'+btn.dataset.page).classList.add('active');if(btn.dataset.page==='administracao'&&isAdmin()){loadUserAudit();setTimeout(renderSaudeSistema,0)}if(btn.dataset.page==='planejador')setTimeout(()=>window.HighMissionPlanner?.activate?.(),60)}));
+/* V10.50 - toda navegacao passa por um unico ciclo de vida.
+   Evita caminhos paralelos que ativavam telas sem aplicar cache/timers/permissoes. */
+document.querySelectorAll('.nav-item').forEach(btn=>btn.addEventListener('click',()=>activateAppPage(btn.dataset.page)));
 
 // HIGH OS V6.7 · o perfil do Group passa a abrir como página interna, não como modal.
 function activateAppPage(page){
@@ -1505,6 +1507,13 @@ if(page==='planejador')setTimeout(()=>window.HighMissionPlanner?.activate?.(),60
 
  document.querySelectorAll('.nav-item').forEach(x=>x.classList.toggle('active',x.dataset.page===page));
 
+ /* V10.50 - trabalhos periodicos caros so ficam ativos nas telas que os usam.
+    Dashboard e Metricas podem consumir a atualizacao economica; demais telas
+    encerram o timer imediatamente. Ao voltar, o cache/TTL continua valendo. */
+ try{
+  if(['dashboard','metricas'].includes(page))startMetricRealtime();
+  else stopMetricRealtime();
+ }catch(e){console.warn('[HIGH OS] ciclo de vida da pagina',e)}
  try{window.scrollTo({top:0,
 behavior:'smooth'})}catch{}
 }
@@ -5957,7 +5966,8 @@ document.addEventListener('visibilitychange',()=>{
  if(document.visibilityState==='hidden'){
   if(metricLiveTimer){clearInterval(metricLiveTimer);metricLiveTimer=null}
  }else if(metricRealtimeAtivo()&&!metricLiveTimer){
-  startMetricRealtime();
+  const activePage=document.querySelector('.page.active')?.id?.replace('page-','')||'';
+  if(['dashboard','metricas'].includes(activePage))startMetricRealtime();
  }
 });
 
