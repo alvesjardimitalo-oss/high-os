@@ -7644,14 +7644,19 @@ return false;
 btn.textContent=old||'ATUALIZAR CENTRAL'}}
 }
 async function saveMetricSource(){
- const cfg={url:$('#metricSourceUrl')?.value?.trim()||metricSourceConfig.url||'',
+ const baseCfg={url:$('#metricSourceUrl')?.value?.trim()||metricSourceConfig.url||'',
 sheet:$('#metricSourceSheet')?.value?.trim()||metricSourceConfig.sheet||'',
 autoSync:true,
 mode:'GOOGLE_APPS_SCRIPT_FREE',
 schedule:'14:05,16:05,21:05,23:05',
-timeZone:'America/Sao_Paulo',
-updatedAt:serverTimestamp(),
-updatedBy:currentUser.email};
+timeZone:'America/Sao_Paulo'};
+ const same=['url','sheet','autoSync','mode','schedule','timeZone'].every(k=>String(metricSourceConfig?.[k]??'')===String(baseCfg[k]??''));
+ if(same){
+  $('#metricSourceModal')?.classList.add('hidden');
+  renderMetricSourceStatus();
+  return alert('A fonte de métricas já está salva com estes dados.');
+ }
+ const cfg={...baseCfg,updatedAt:serverTimestamp(),updatedBy:currentUser.email};
 
  try{await setDoc(metricConfigDoc,cfg,{merge:true});
 metricSourceConfig={...metricSourceConfig,
