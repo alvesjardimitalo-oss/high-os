@@ -4987,7 +4987,9 @@ const HISTORY_PAGE=250;
 
 let historyCursor=null,
  historyEsgotado=false,
- historyModoLegado=false;
+ historyModoLegado=false,
+ historyFromPersistentCache=false;
+const HISTORY_CACHE_TTL=120000;
 
 async function loadHistory({append=false}={}){
  if(!$('#historyList')&&!$('#groupHistoryPreview'))return;
@@ -4997,9 +4999,28 @@ async function loadHistory({append=false}={}){
   if(!append){historico=[];
 historyCursor=null;
 historyEsgotado=false;
-historyModoLegado=false}
+historyModoLegado=false;
+historyFromPersistentCache=false;
+const cached=cacheLer('historico_pagina');
+if(cached&&Number(cached.at)>0&&Date.now()-Number(cached.at)<HISTORY_CACHE_TTL&&Array.isArray(cached.rows)){
+ historico=cached.rows;
+ historyEsgotado=historico.length<HISTORY_PAGE;
+ historyFromPersistentCache=true;
+ queryFreshAt.set('historico',Number(cached.at));
+ statBump('historico','cache');
+ renderHistory();
+ return;
+}}
   if(!historyModoLegado){
    try{
+    if(append&&historyFromPersistentCache){
+     historyFromPersistentCache=false;
+     historico=[];
+     historyCursor=null;
+     historyEsgotado=false;
+     await loadHistory();
+     if(historyEsgotado)return;
+    }
     const partes=[histCol,
 orderBy('data','desc'),
 limit(HISTORY_PAGE)];
@@ -5017,6 +5038,7 @@ limit(HISTORY_PAGE)];
 
     historico=append?historico.concat(novos):novos;
     queryFreshAt.set('historico',Date.now());
+    if(!append)cacheEscrever('historico_pagina',novos);
 
     statBump('historico','leituras');
 statBump('historico','docs',novos.length);
