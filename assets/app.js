@@ -11575,7 +11575,20 @@ descricao:`${type==='GROUP'?'Group':'Facção'} ${entity} vinculado(a) ao segmen
 segmento:target,
 usuario:currentUser.email,
 data:serverTimestamp()});
-await loadFaccoes();
+if(type==='GROUP'){
+ const f=faccoes.find(x=>x.group===entity);
+ if(f){f.segmento=target;f.updatedBy=currentUser.email}
+ if(f?.faccao){
+  const oid=orgKey(f.faccao),ix=organizacoes.findIndex(o=>o.id===oid||String(o.nome||'').toLowerCase()===String(f.faccao).toLowerCase());
+  if(ix>=0)organizacoes[ix]={...organizacoes[ix],segmentoAtual:target,segmentoVinculado:target,updatedBy:currentUser.email};
+ }
+ queryFreshAt.set('faccoes',Date.now());
+}else{
+ const ix=organizacoes.findIndex(o=>o.id===entity||o.nome===entity);
+ if(ix>=0){const o=organizacoes[ix];organizacoes[ix]={...o,segmentoVinculado:target,segmentoAtual:o.groupAtual?(o.segmentoAtual||target):target,updatedBy:currentUser.email}}
+}
+queryFreshAt.set('organizacoes',Date.now());
+renderFaccoes();renderOrganizations();
 renderSegmentAdmin()}catch(e){alert('Erro ao vincular segmento: '+e.message)}
 }
 async function deleteSegment(name,replacement){
