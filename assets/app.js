@@ -1483,7 +1483,6 @@ userPhotoEl=$('#userPhoto');
   /* V10.61 - módulos não essenciais deixam de consumir Firestore no login.
      Spotify e Usuários carregam somente quando a respectiva tela é aberta. */
   if(canViewModule('chat'))$('#teamChatLauncher')?.classList.remove('hidden');
-  if(canViewModule('economia'))loadMarketCatalog();
  }catch(e){
   show(deniedView);
   $('#deniedText').innerHTML=`Falha ao carregar o painel: <b>${esc(e.code||'')}</b> ${esc(e.message||String(e))}`+
@@ -1507,6 +1506,7 @@ if(page==='usuarios'&&isAdmin())setTimeout(()=>loadUsers(),0);
 if(['dashboard','metricas','faccoes','organizacoes','disponiveis','entregas','group-profile','group-settings','org-profile'].includes(page))setTimeout(()=>loadSegmentConfig(),0);
 if(page==='dashboard')setTimeout(()=>loadDashboardConfig(),0);
 if(page==='spotify')setTimeout(()=>loadSpotifyConfig(),0);
+if(page==='economia')setTimeout(()=>loadMarketCatalog(),0);
 if(page==='solicitacoes')setTimeout(()=>loadRequests(),0);
 if(['dashboard','metricas','faccoes','organizacoes','disponiveis','entregas','group-profile','group-settings','org-profile'].includes(page)&&!faccoesLoaded)setTimeout(()=>loadFaccoes().catch(e=>console.warn('[FACÇÕES] lazy-load falhou',e)),0);
 if(['dashboard','metricas'].includes(page)&&!metricsLoaded)setTimeout(async()=>{try{if(!faccoesLoaded)await loadFaccoes();await loadMetrics()}catch(e){console.warn('[MÉTRICAS] lazy-load falhou',e)}},0);
