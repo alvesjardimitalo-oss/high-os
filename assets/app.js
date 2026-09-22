@@ -1714,10 +1714,13 @@ const writeBatch=(...a)=>{
    return original(ref,...args);
   };
  }
- b.commit=()=>{
-  if(tocadas.has(''))cacheMemoria.clear();
-  else tocadas.forEach(nome=>{if(!nome)return;cacheMemoria.delete(nome);queryFreshAt.delete(nome);try{localStorage.removeItem(CACHE_PREFIX+nome)}catch(e){}});
-  return commit();
+ b.commit=async()=>{
+  const r=await commit();
+  if(tocadas.has('')){
+   cacheMemoria.clear();
+   queryFreshAt.clear();
+  }else tocadas.forEach(nome=>{if(!nome)return;cacheMemoria.delete(nome);queryFreshAt.delete(nome);try{localStorage.removeItem(CACHE_PREFIX+nome)}catch(e){}});
+  return r;
  };
  return b;
 };
