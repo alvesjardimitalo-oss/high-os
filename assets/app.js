@@ -12476,7 +12476,17 @@ const l=$('#teamCallLocalVideo'),
 r=$('#teamCallRemoteVideo');
 if(l)l.srcObject=null;
 if(r)r.srcObject=null;
-callUiStatus('')}
+callUiStatus('');
+/* V10.71 - após a chamada, mantém listeners somente se o Chat continuar
+   realmente visível (página ou janela flutuante). */
+const activePage=document.querySelector('.page.active')?.id?.replace('page-','')||'';
+const floatOpen=!$('#teamChatFloat')?.classList.contains('hidden');
+if(activePage==='chat'||floatOpen){
+ startChat();
+}else{
+ stopChat();
+ stopCallInbox();
+}}
 function toggleCallMic(){const t=activeLocalStream?.getAudioTracks?.()[0];
 if(t){t.enabled=!t.enabled;
 setCallButtons()}}
