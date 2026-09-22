@@ -2669,7 +2669,8 @@ $('#copyRecollectExtract')?.addEventListener('click',e=>copyText(recollectExtrac
 
 $('#recollectModal')?.addEventListener('paste',async e=>{const item=[...(e.clipboardData?.items||[])].find(x=>x.type?.startsWith('image/'));if(item){e.preventDefault();await setRecollectPrint(item.getAsFile())}});
 
-$('#recollectForm')?.addEventListener('submit',async e=>{e.preventDefault();const group=$('#rGroup').value,
+let recollectInFlight=false;
+$('#recollectForm')?.addEventListener('submit',async e=>{e.preventDefault();if(recollectInFlight)return;const group=$('#rGroup').value,
 old=faccoes.find(x=>x.group===group);if(!old||old.status!=='ATIVA')return alert('A ocupação deste Group já foi alterada. Atualize a tela e tente novamente.');const reason=$('#rReason').value;if(!reason)return alert('Selecione o motivo do recolhimento.');if(reason==='BAIXO_CONTINGENTE'&&!recollectPanelImage)return alert('Para recolhimento por baixo contingente, o print do painel é obrigatório.');if(reason==='BAIXO_CONTINGENTE'&&!$('#rContingentObserved').value)return alert('Informe o contingente observado.');const recolhimento={motivo:reason,
 motivoLabel:recollectReasonLabel(reason),
 responsavel:$('#rResponsible').value.trim(),
@@ -2683,7 +2684,11 @@ metrica:$('#rContingentMetric').value.trim(),
 possuiPrint:!!recollectPanelImage}:null,
 extrato:recollectExtract(),
 createdAtText:new Date().toISOString(),
-createdBy:currentUser.email};if(!recolhimento.responsavel||!recolhimento.data||!recolhimento.hora||!recolhimento.justificativa)return alert('Preencha responsável, data, hora e justificativa.');if(!confirm(`Confirmar recolhimento de ${old.faccao||group}?\n\nMotivo: ${recolhimento.motivoLabel}\nO Group ficará vago e o histórico será preservado.`))return;const data={...old,
+createdBy:currentUser.email};if(!recolhimento.responsavel||!recolhimento.data||!recolhimento.hora||!recolhimento.justificativa)return alert('Preencha responsável, data, hora e justificativa.');if(!confirm(`Confirmar recolhimento de ${old.faccao||group}?\n\nMotivo: ${recolhimento.motivoLabel}\nO Group ficará vago e o histórico será preservado.`))return;
+recollectInFlight=true;
+const submitBtn=e?.submitter||$('#recollectForm')?.querySelector('[type="submit"]');
+if(submitBtn)submitBtn.disabled=true;
+const data={...old,
 status:'INATIVA',
 faccao:'',
 lider:'',
@@ -2749,7 +2754,7 @@ const activeIds=new Set(activeDeliveries.map(d=>d.id));
 entregas=entregas.map(d=>activeIds.has(d.id)?{...d,status:'RECOLHIDA',recolhimento:clonePlain(recolhimento),recolhidaPor:currentUser.email}:d);
 queryFreshAt.set('faccoes',Date.now());queryFreshAt.set('organizacoes',Date.now());queryFreshAt.set('entregas',Date.now());
 renderFaccoes();renderOrganizations();renderDeliveries();
-closeRecollectModal();closeGroupProfilePage();alert('Facção recolhida com sucesso. O extrato e a evidência foram registrados no histórico.')}catch(err){alert('Erro ao recolher: '+err.message)}});
+closeRecollectModal();closeGroupProfilePage();alert('Facção recolhida com sucesso. O extrato e a evidência foram registrados no histórico.')}catch(err){alert('Erro ao recolher: '+err.message)}finally{recollectInFlight=false;if(submitBtn)submitBtn.disabled=false}});
 
 function snapshot(o){if(!o)return null;
 const x={...o};
@@ -13189,6 +13194,8 @@ if(!group||!old.length)return alert('Este Group já está usando a Rota Padrão.
 if(t?.rota?.status!=='AGUARDANDO_REMOCAO'&&!confirm(`Confirmar que a Rota Exclusiva de ${group} já foi removida na cidade?`))return;
 
  if(t?.rota?.status==='AGUARDANDO_REMOCAO'&&!confirm(`A remoção da rota de ${group} foi executada na cidade?\n\nAo confirmar, o High OS apagará as CDS exclusivas e o Group passará automaticamente para ROTA PADRÃO.`))return;
+ const routeKey='confirm-delete:'+group,routeBtn=$('#grRouteConfirmDelete');
+ if(!routeActionStart(routeKey,routeBtn))return;
 
  t.rota={...(t.rota||{}),
 nome:'',
@@ -13222,6 +13229,7 @@ const fresh=faccoes.find(x=>x.group===group);
 if(fresh)renderTechProfile(fresh);
 grRenderRouteUi(true);
 alert(`${group} agora utiliza ROTA PADRÃO.`)}catch(e){alert('Erro ao confirmar remoção: '+e.message)}
+ finally{routeActionEnd(routeKey,routeBtn)}
 }
 $('#grRouteConfirmDelete')?.addEventListener('click',grConfirmRouteRemovalV836);
 
