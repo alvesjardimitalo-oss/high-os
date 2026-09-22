@@ -12289,8 +12289,14 @@ function toggleFloatingChat(force){const p=$('#teamChatFloat');
 if(!p)return;
 const show=force===undefined?p.classList.contains('hidden'):!!force;
 p.classList.toggle('hidden',!show);
-if(show){renderHmContacts();
-setTimeout(()=>$('#floatingChatInput')?.focus(),50)}}
+if(show){
+ startChat();
+ renderHmContacts();
+ setTimeout(()=>$('#floatingChatInput')?.focus(),50);
+}else{
+ const activePage=document.querySelector('.page.active')?.id?.replace('page-','')||'';
+ if(activePage!=='chat'&&!activeCallId){stopChat();stopCallInbox()}
+}}
 function renderChatAttachmentPreview(){const p=$('#chatAttachmentPreview');
 if(!p)return;
 if(!chatPendingAttachment){p.classList.add('hidden');
