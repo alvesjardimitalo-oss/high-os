@@ -12679,7 +12679,10 @@ await archiveTechnicalRequest({tipo:'ROTA_FARM',
 titulo:old.length?'Atualização de rota de farm exclusiva':'Ativação de rota de farm exclusiva',
 texto:text},f,'ROTA_EXCLUSIVA');
 grRouteDirty=false;
-await loadFaccoes();
+const fix=faccoes.findIndex(x=>x.group===group);
+if(fix>=0)faccoes[fix]={...faccoes[fix],perfilTecnico:clonePlain(t),beneficios:clonePlain(benefits),updatedBy:currentUser.email};
+queryFreshAt.set('faccoes',Date.now());
+renderFaccoes();renderAvailableFaccoes();
 const fresh=faccoes.find(x=>x.group===group);
 if(fresh){renderTechProfile(fresh);
 $('#fRotaExclusiva').checked=true}grShowRequest(old.length?'update':'activate');
@@ -12711,7 +12714,10 @@ titulo:'Remoção de rota de farm exclusiva',
 texto:text},f,'ROTA_EXCLUSIVA');
 grShowRequest('delete');
 grRouteDirty=false;
-await loadFaccoes();
+const fix=faccoes.findIndex(x=>x.group===group);
+if(fix>=0)faccoes[fix]={...faccoes[fix],perfilTecnico:clonePlain(t),updatedBy:currentUser.email};
+queryFreshAt.set('faccoes',Date.now());
+renderFaccoes();
 grRenderRouteUi(true);
 alert('Solicitação de remoção gerada. As CDS foram preservadas até a remoção ser confirmada.')}catch(e){alert('Erro ao gerar remoção: '+e.message)}}
 async function grMapPng(){grRenderMap();
