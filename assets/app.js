@@ -3375,7 +3375,9 @@ async function loadRequests(){
      if(!qs)throw err;
      const all=qs.docs.map(d=>({id:d.id,...d.data()}));
      modelos=all.filter(x=>x.isModelo===true);
-     registros=all.filter(x=>x.isModelo!==true).slice(0,REQUEST_RECORD_LIMIT);
+     registros=all.filter(x=>x.isModelo!==true)
+      .sort((a,b)=>String(b.createdAtText||'').localeCompare(String(a.createdAtText||'')))
+      .slice(0,REQUEST_RECORD_LIMIT);
    }
 
    solicitacoes=modelos;
@@ -4500,7 +4502,13 @@ async function loadDeliveries(){
    console.warn('[ENTREGAS] consultas econômicas indisponíveis; coleção inteira não será lida:',err?.code||err?.message);
    const qs=cachedSnapshotOnly('entregas');
    if(!qs)throw err;
-   entregas=qs.docs.map(d=>({id:d.id,...d.data()})).slice(0,DELIVERY_RECENT_LIMIT);
+   const all=qs.docs.map(d=>({id:d.id,...d.data()}));
+   const ativosCache=all.filter(x=>x.status==='ATIVA');
+   const recentesCache=all.slice()
+    .sort((a,b)=>String(b.createdAtText||b.dataEntrega||'').localeCompare(String(a.createdAtText||a.dataEntrega||'')))
+    .slice(0,DELIVERY_RECENT_LIMIT);
+   const mapaCache=new Map([...ativosCache,...recentesCache].map(x=>[x.id,x]));
+   entregas=[...mapaCache.values()];
   }
   entregas.sort((a,b)=>String(b.createdAtText||b.dataEntrega||'').localeCompare(String(a.createdAtText||a.dataEntrega||'')));
   queryFreshAt.set('entregas',Date.now());
@@ -4985,7 +4993,7 @@ if(!lista)return;
 box.className='history-more';
 
  box.innerHTML=historyEsgotado
-  ? `<span>${historico.length} registro(s) — fim do histórico${historyModoLegado?' (leitura completa)':''}.</span>`
+  ? `<span>${historico.length} registro(s) — fim do histórico${historyModoLegado?' (cache local)':''}.</span>`
   : `<span>${historico.length} registro(s) carregados</span><button type="button" id="historyMoreBtn">CARREGAR MAIS ${HISTORY_PAGE}</button>`;
 
  lista.insertAdjacentElement('afterend',box);
