@@ -428,3 +428,20 @@ tbody tr:hover{background:rgba(147,60,255,.028)!important}
  #appView .page-head h2,#appView .page-head h1{font-size:20px!important}
  #page-metricas .metric-center-tabs{top:64px}
 }
+
+
+/* PRIME 11.2 · explicit page scopes */
+#page-faccoes .org-v92-head,#page-faccoes .org-v92-toolbar,
+#page-organizacoes .org-toolbar,#page-disponiveis .available-toolbar,
+#page-entregas .delivery-toolbar,#page-solicitacoes .req-toolbar,
+#page-historico .history-toolbar,#page-usuarios .user-toolbar{
+ box-shadow:0 8px 24px rgba(0,0,0,.08)!important;
+}
+#page-faccoes .org-v92-table-wrap,#page-organizacoes .org-grid,
+#page-disponiveis .available-grid,#page-entregas .delivery-list,
+#page-solicitacoes .req-list,#page-historico .history-list,#page-usuarios .user-list{min-width:0}
+#page-faccoes .org-v92-list-head,#page-organizacoes .org-toolbar-full,
+#page-disponiveis .available-toolbar,#page-entregas .delivery-toolbar,
+#page-solicitacoes .req-toolbar,#page-historico .history-toolbar,#page-usuarios .user-toolbar{
+ gap:8px!important;
+}
