@@ -11612,7 +11612,12 @@ segmento:name,
 descricao:`Segmento ${name} apagado${replacement?` e vínculos movidos para ${replacement}`:''}`,
 usuario:currentUser.email,
 data:serverTimestamp()});
-await loadFaccoes()}catch(e){alert('Erro ao apagar segmento: '+e.message)}
+if(replacement){
+ faccoes=faccoes.map(f=>segmentKey(f.segmento)===segmentKey(name)?{...f,segmento:replacement,updatedBy:currentUser.email}:f);
+ organizacoes=organizacoes.map(o=>segmentKey(orgSegmentValue(o))===segmentKey(name)?{...o,segmentoAtual:replacement,segmentoVinculado:replacement,updatedBy:currentUser.email}:o);
+ queryFreshAt.set('faccoes',Date.now());queryFreshAt.set('organizacoes',Date.now());
+}
+renderFaccoes();renderOrganizations();renderSegmentAdmin()}catch(e){alert('Erro ao apagar segmento: '+e.message)}
 }
 let coreSegmentCheckSignature='';
 async function applyCoreSegmentMap(){
