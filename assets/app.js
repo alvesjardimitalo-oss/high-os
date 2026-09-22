@@ -11492,12 +11492,13 @@ if(!nome)return alert('Informe o nome do segmento.');
  if(oldName&&segmentKey(nome)!==segmentKey(oldName)&&segmentNames().some(x=>segmentKey(x)===segmentKey(nome)))return alert('Já existe um segmento com esse nome.');
 
  try{
+  let linksChanged=false;
   if(oldName){const item=segmentDefs().find(x=>segmentKey(x.nome)===segmentKey(oldName));
 if(!item)return;
 const registrySame=segmentKey(item.nome)===segmentKey(nome)&&String(item.icone||'')===String(icone||'')&&String(item.descricao||'')===String(descricao||'');
 if(registrySame){editingSegmentName='';if($('#segmentCreateBtn'))$('#segmentCreateBtn').textContent='CRIAR SEGMENTO';return}
 const renamed=segmentKey(nome)!==segmentKey(oldName);
-if(renamed){
+if(renamed){linksChanged=true;
  const batch=writeBatch(db);
  faccoes.filter(f=>segmentKey(f.segmento)===segmentKey(oldName)).forEach(f=>batch.set(doc(db,'highos','data','faccoes',f.group),{segmento:nome,
  updatedAt:serverTimestamp(),
@@ -11533,7 +11534,12 @@ $('#segmentNewIcon').value='';
 $('#segmentNewDesc').value='';
 if($('#segmentCreateBtn'))$('#segmentCreateBtn').textContent='CRIAR SEGMENTO';
 await saveSegmentRegistry();
-await loadFaccoes();
+if(linksChanged){
+ faccoes=faccoes.map(f=>segmentKey(f.segmento)===segmentKey(oldName)?{...f,segmento:nome,updatedBy:currentUser.email}:f);
+ organizacoes=organizacoes.map(o=>segmentKey(orgSegmentValue(o))===segmentKey(oldName)?{...o,segmentoAtual:nome,segmentoVinculado:nome,updatedBy:currentUser.email}:o);
+ queryFreshAt.set('faccoes',Date.now());queryFreshAt.set('organizacoes',Date.now());
+ renderFaccoes();renderOrganizations();
+}
 
  }catch(e){alert('Erro ao salvar segmento: '+e.message)}
 }
