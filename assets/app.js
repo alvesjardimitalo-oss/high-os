@@ -1475,7 +1475,8 @@ userPhotoEl=$('#userPhoto');
   await loadSegmentConfig();
   await loadDashboardConfig();
   await loadFaccoes();
-  await loadMetrics();
+  const initialPage=document.querySelector('.page.active')?.id?.replace('page-','')||'';
+  if(['dashboard','metricas'].includes(initialPage))await loadMetrics();
   /* V10.62 - recuperação periódica de métricas inicia apenas quando
      Dashboard/Métricas estiverem ativos; não cria timer global no login. */
   /* V10.61 - módulos não essenciais deixam de consumir Firestore no login.
@@ -1504,6 +1505,7 @@ page=fallback}
 if(page==='usuarios'&&isAdmin())setTimeout(()=>loadUsers(),0);
 if(page==='spotify')setTimeout(()=>loadSpotifyConfig(),0);
 if(page==='solicitacoes')setTimeout(()=>loadRequests(),0);
+if(['dashboard','metricas'].includes(page)&&!metricsLoaded)setTimeout(()=>loadMetrics().catch(e=>console.warn('[MÉTRICAS] lazy-load falhou',e)),0);
 if(page==='chat')setTimeout(()=>startChat(),0);
 if(page==='planejador')setTimeout(()=>window.HighMissionPlanner?.activate?.(),60);
 
@@ -5197,6 +5199,8 @@ document.querySelectorAll('#alvesQuick [data-q]').forEach(b=>b.addEventListener(
 // ===== HIGH OS V5.8 · PARSER DA PLANILHA OFICIAL + GOOGLE SHEETS SOMENTE LEITURA =====
 let metricas=[],
 metricasCache=[],
+metricsLoaded=false,
+metricsLoadPromise=null,
 metricPeriodKey='',
 metricDateStart='',
 metricDateEnd='',
@@ -6169,6 +6173,8 @@ function aplicarLinhasMetricas(rows=[],origem=''){
 }
 
 async function loadMetrics(){
+ if(metricsLoadPromise)return metricsLoadPromise;
+ metricsLoadPromise=(async()=>{
  await loadMetricSourceConfig();
 
  metricPeriodKey=metricPeriodKey||currentMetricMonthKey();
@@ -6190,6 +6196,7 @@ error:''};
     salvarEspelhoMensal(r.rows,r.sheet);
           // espelho em segundo plano
     startMetricRealtime();
+    metricsLoaded=true;
 
     return;
 
@@ -6212,6 +6219,7 @@ error:'Planilha indisponível; exibindo a última cópia mensal.'};
    renderMetricSourceStatus();
 renderMetricQuotaPanel();
 startMetricRealtime();
+metricsLoaded=true;
 
    return;
 
@@ -6234,7 +6242,10 @@ renderMetrics();
 renderMetricSourceStatus();
 renderMetricQuotaPanel();
 startMetricRealtime();
-
+ metricsLoaded=true;
+ })();
+ try{return await metricsLoadPromise}
+ finally{metricsLoadPromise=null}
 }
 function metricIdentity(group,row=null){
  const f=faccoes.find(x=>alvesNorm(x.group)===alvesNorm(group))||SEED.find(x=>alvesNorm(x.group)===alvesNorm(group))||{};
