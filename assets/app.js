@@ -3774,7 +3774,14 @@ async function saveUser(e){
  try{
   await setDoc(doc(db,'users',email),payload,{merge:true});
   await addDoc(histCol,{sessionId:currentSessionId||'',tipo:old?'USUARIO_EDITADO':'USUARIO_CRIADO',usuarioAlvo:email,antes:snapshot(old),depois:snapshot(payload),usuario:currentUser.email,data:serverTimestamp()});
-  $('#userModal').classList.add('hidden'); if(email===String(currentUser?.email||'').toLowerCase()){currentProfile={...currentProfile,...payload};if($('#userName'))$('#userName').textContent=payload.name||currentUser?.displayName||email;if($('#userRole'))$('#userRole').textContent=payload.cargo||payload.role;if($('#userAccessLevel'))$('#userAccessLevel').textContent='ACESSO: '+String(payload.role||'CONSULTA').toUpperCase();renderSessionClock(email);applyModuleAccess(payload.role);} await loadUsers();
+  $('#userModal').classList.add('hidden');
+  const local={...(old||{}),...clonePlain(userData),updatedBy:currentUser.email};
+  const ix=usuarios.findIndex(x=>x.email===email);
+  if(ix>=0)usuarios[ix]=local;else usuarios.push(local);
+  usuarios.sort((a,b)=>(a.name||a.email).localeCompare(b.name||b.email,'pt-BR'));
+  queryFreshAt.set('usuarios',Date.now());
+  if(email===String(currentUser?.email||'').toLowerCase()){currentProfile={...currentProfile,...local};if($('#userName'))$('#userName').textContent=local.name||currentUser?.displayName||email;if($('#userRole'))$('#userRole'].textContent=local.cargo||local.role;if($('#userAccessLevel'))$('#userAccessLevel'].textContent='ACESSO: '+String(local.role||'CONSULTA').toUpperCase();renderSessionClock(email);applyModuleAccess(local.role);}
+  renderUsers();
  }catch(err){alert('Erro ao salvar usuário: '+err.message)}
 }
 async function toggleUserAccess(){
@@ -3786,7 +3793,11 @@ async function toggleUserAccess(){
  try{
   await setDoc(doc(db,'users',email),{...old,active:next,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true});
   await addDoc(histCol,{sessionId:currentSessionId||'',tipo:next?'USUARIO_REATIVADO':'USUARIO_DESATIVADO',usuarioAlvo:email,usuario:currentUser.email,data:serverTimestamp()});
-  $('#userModal').classList.add('hidden'); await loadUsers();
+  $('#userModal').classList.add('hidden');
+  const ix=usuarios.findIndex(x=>x.email===email);
+  if(ix>=0)usuarios[ix]={...usuarios[ix],active:next,updatedBy:currentUser.email};
+  queryFreshAt.set('usuarios',Date.now());
+  renderUsers();
  }catch(err){alert('Erro ao alterar acesso: '+err.message)}
 }
 initUsersUi();
