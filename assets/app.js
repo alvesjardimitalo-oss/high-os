@@ -1476,7 +1476,8 @@ userPhotoEl=$('#userPhoto');
   await loadMetrics();
   startMetricAutoRecovery();
   if(canViewModule('spotify'))await loadSpotifyConfig();
-  if(canViewModule('chat')){startChat();startCallInbox();}
+  /* V10.51 - listeners de chat/chamada iniciam sob demanda. */
+  if(canViewModule('chat'))$('#teamChatLauncher')?.classList.remove('hidden');
   if(canViewModule('economia'))loadMarketCatalog();
   if(role==='ADMIN') await loadUsers();
  }catch(e){
@@ -1513,6 +1514,8 @@ if(page==='planejador')setTimeout(()=>window.HighMissionPlanner?.activate?.(),60
  try{
   if(['dashboard','metricas'].includes(page))startMetricRealtime();
   else stopMetricRealtime();
+  if(page==='chat')startChat();
+  else if(!activeCallId){stopChat();stopCallInbox()}
  }catch(e){console.warn('[HIGH OS] ciclo de vida da pagina',e)}
  try{window.scrollTo({top:0,
 behavior:'smooth'})}catch{}
@@ -12187,7 +12190,8 @@ return}
 }
 function startChat(){if(!currentUser||!canViewModule('chat'))return;
 $('#teamChatLauncher')?.classList.remove('hidden');
-subscribeChatConversation()}
+subscribeChatConversation();
+startCallInbox()}
 async function sendChatMessage(inputSelector='#floatingChatInput',extra={}){if(!canEditModule('chat'))return permissionDeniedMessage('chat',true);
 if(!chatRecipientEmail)return alert('Selecione com quem deseja conversar.');
 const input=$(inputSelector),
@@ -12371,6 +12375,11 @@ alert('Não foi possível atender: '+e.message)}}
 async function rejectIncomingCall(id){await setDoc(callDocRef(id),{status:'rejected',
 updatedAt:serverTimestamp()},{merge:true}).catch(()=>{});
 $('#incomingCallBar')?.classList.add('hidden')}
+function stopCallInbox(){
+ if(callInboxUnsubscribe){try{callInboxUnsubscribe()}catch(e){}callInboxUnsubscribe=null}
+ callInboxSubscriptionEmail='';
+ $('#incomingCallBar')?.classList.add('hidden');
+}
 function startCallInbox(){if(!currentUser||!canViewModule('chat'))return;
 const me=String(currentUser.email||'').toLowerCase();
 if(callInboxUnsubscribe&&callInboxSubscriptionEmail===me)return;
