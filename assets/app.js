@@ -13615,6 +13615,7 @@ gsRender(false);
 alert('Solicitação copiada. A configuração atual foi preservada até você confirmar a execução.')}}}}
 window.gsConfirmPending=async function(i){const r=gsRows()[i];
 if(!r)return;
+if(!['PENDENTE','ALTERACAO_PENDENTE','REMOCAO_PENDENTE'].includes(r.status))return;
 if(r.status==='PENDENTE'){r.status='ATIVO';
 r.origem='BASE'}else if(r.status==='ALTERACAO_PENDENTE'&&r.pending){Object.assign(r,r.pending);
 r.pending=null;
@@ -13627,12 +13628,16 @@ return}const ok=await gsPersist('ESTRUTURA_EXECUCAO_CONFIRMADA',`${r.nome||r.tip
 if(ok)gsRender(false)}
 window.gsCancelPending=async function(i){const r=gsRows()[i];
 if(!r)return;
+if(!['PENDENTE','ALTERACAO_PENDENTE','REMOCAO_PENDENTE'].includes(r.status))return;
 if(r.status==='PENDENTE'){gsRows().splice(i,1)}else{r.pending=null;
 r.status='ATIVO'};
 const ok=await gsPersist('ESTRUTURA_PENDENCIA_CANCELADA','Pendência de estrutura cancelada');
 if(ok)gsRender(false)}
 window.gsRequestRemoval=async function(i){const r=gsRows()[i];
-if(!r||!confirm(`Solicitar remoção de ${r.nome||r.tipo}?`))return;
+if(!r)return;
+if(r.status==='REMOCAO_PENDENTE')return alert('A remoção desta estrutura já está pendente.');
+if((r.status||'ATIVO')!=='ATIVO')return alert('Conclua ou cancele a pendência atual antes de solicitar remoção.');
+if(!confirm(`Solicitar remoção de ${r.nome||r.tipo}?`))return;
 r.status='REMOCAO_PENDENTE';
 navigator.clipboard?.writeText(gsRequestText(r,'REMOVER'));
 const ok=await gsPersist('ESTRUTURA_REMOCAO_SOLICITADA',`Remoção solicitada: ${r.nome||r.tipo}`);
