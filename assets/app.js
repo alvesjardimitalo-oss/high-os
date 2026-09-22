@@ -4170,9 +4170,19 @@ async function loadUserAudit({force=false}={}){
 
   let qs;
   try{
-   qs=await getDocs(query(sessionCol,orderBy('startAt','desc'),limit(AUDIT_SESSION_PAGE)));
-   statBump('sessoes_usuario','leituras');
-   statBump('sessoes_usuario','docs',qs.docs.length);
+   /* V10.77 - a janela paginada de auditoria também reaproveita o espelho
+      entre reloads. Force continua ignorando o cache para atualização manual. */
+   const cached=!force?cacheLer('sessoes_auditoria'):null;
+   if(cached&&Number(cached.at)>0&&Date.now()-Number(cached.at)<AUDIT_CACHE_TTL&&Array.isArray(cached.rows)){
+    qs=comoSnapshot(cached.rows);
+    statBump('sessoes_usuario','cache');
+   }else{
+    qs=await getDocs(query(sessionCol,orderBy('startAt','desc'),limit(AUDIT_SESSION_PAGE)));
+    const auditRows=qs.docs.map(d=>({id:d.id,...d.data()}));
+    cacheEscrever('sessoes_auditoria',auditRows);
+    statBump('sessoes_usuario','leituras');
+    statBump('sessoes_usuario','docs',qs.docs.length);
+   }
   }catch(err){
    console.warn('[AUDITORIA] consulta paginada indisponível, usando cache legado:',err?.code||err?.message);
    qs=await getDocsCached(sessionCol,'sessoes_usuario',{ttl:300000});
