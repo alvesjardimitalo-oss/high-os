@@ -7516,7 +7516,8 @@ result=await metricTimeout(readMetricsDirect({authorize:false}),15000,'leitura a
 
  }
  const sheetRows=result.rows.map(metricSnapshot),
-diff=compareMetricSources(sheetRows,fireRows);
+diff=compareMetricSources(sheetRows,fireRows),
+fireLastBefore=metricLatestInfo(fireRows);
 
  if(!metricQuotaBlocked){
   // V10 - um documento por mes alterado, no lugar de um por linha
@@ -7536,7 +7537,7 @@ renderMetrics();
 renderMetricQuotaPanel();
 
  const sheetLast=metricLatestInfo(sheetRows),
-fireLast=metricLatestInfo(metricas);
+fireLast=fireLastBefore;
 
  metricSourceState={...metricSourceState,
 status:'ONLINE',
