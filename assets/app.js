@@ -12838,9 +12838,15 @@ async function grDeleteRoute(){const f=grCurrent(),
 group=f.group,
 old=grSavedPoints(f);
 if(!group||!old.length)return alert('Este Group não possui rota exclusiva cadastrada.');
+const currentTech=mergedTechProfile(f);
+if(currentTech.rota?.status==='AGUARDANDO_REMOCAO'){
+ grRouteDirty=false;
+ grRenderRouteUi(true);
+ return alert('A remoção desta Rota Exclusiva já está aguardando confirmação.');
+}
 if(!confirm(`Gerar solicitação de remoção da rota exclusiva de ${group}?\n\nA rota ficará como AGUARDANDO REMOÇÃO e não será apagada até a confirmação final.`))return;
 const text=grRequestText('delete'),
-t=mergedTechProfile(f);
+t=currentTech;
 t.rota={...(t.rota||{}),
 status:'AGUARDANDO_REMOCAO',
 remocaoSolicitadaEm:new Date().toISOString(),
