@@ -1477,11 +1477,10 @@ userPhotoEl=$('#userPhoto');
   await loadFaccoes();
   await loadMetrics();
   startMetricAutoRecovery();
-  if(canViewModule('spotify'))await loadSpotifyConfig();
-  /* V10.51 - listeners de chat/chamada iniciam sob demanda. */
+  /* V10.61 - módulos não essenciais deixam de consumir Firestore no login.
+     Spotify e Usuários carregam somente quando a respectiva tela é aberta. */
   if(canViewModule('chat'))$('#teamChatLauncher')?.classList.remove('hidden');
   if(canViewModule('economia'))loadMarketCatalog();
-  if(role==='ADMIN') await loadUsers();
  }catch(e){
   show(deniedView);
   $('#deniedText').innerHTML=`Falha ao carregar o painel: <b>${esc(e.code||'')}</b> ${esc(e.message||String(e))}`+
@@ -1501,6 +1500,7 @@ const fallback=firstAllowedModule();
 if(!fallback||fallback===page)return;
 page=fallback}
  if(page==='administracao'&&isAdmin())setTimeout(()=>loadUserAudit(),0);
+if(page==='usuarios'&&isAdmin())setTimeout(()=>loadUsers(),0);
 if(page==='spotify')setTimeout(()=>loadSpotifyConfig(),0);
 if(page==='solicitacoes')setTimeout(()=>loadRequests(),0);
 if(page==='chat')setTimeout(()=>startChat(),0);
