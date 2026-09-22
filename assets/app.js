@@ -11008,23 +11008,14 @@ async function persistCurrentTechProfile(group, {reload=true}={}){
 updatedAt:serverTimestamp(),
 updatedBy:currentUser?.email||''},{merge:true});
 
- if(local)local.perfilTecnico=clonePlain(perfilTecnico);
-
- if(reload){
-   const snap=await getDoc(ref);
-
-   if(snap.exists()){
-     const fresh={id:snap.id,
-...snap.data()};
-
-     const pos=faccoes.findIndex(x=>x.group===group);
-
-     if(pos>=0)faccoes[pos]={...faccoes[pos],
-...fresh};
-
-     techDraft=mergedTechProfile(faccoes[pos>=0?pos:faccoes.findIndex(x=>x.group===group)]||fresh);
-
-   }
+ /* V10.69 - o setDoc concluído já confirma o perfil enviado. Craft/Farm
+    continua usando o mesmo payload para solicitação e histórico, sem reler
+    o documento inteiro do Group após cada edição. */
+ if(local){
+   local.perfilTecnico=clonePlain(perfilTecnico);
+   techDraft=mergedTechProfile(local);
+ }else{
+   techDraft=clonePlain(perfilTecnico);
  }
  return clonePlain(perfilTecnico);
 
