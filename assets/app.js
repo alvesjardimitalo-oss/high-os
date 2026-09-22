@@ -162,16 +162,26 @@ alert('Parâmetros semanais do Dashboard salvos.');
  catch(e){dashboardConfig=before;
 alert('Não foi possível salvar os parâmetros: '+e.message)}
 }
-async function loadDashboardAlertStates(){try{const qs=await getDocsCached(dashboardAlertCol,'alertas_dashboard');
-dashboardAlertStates=qs.docs.map(d=>({id:d.id,
-...d.data()}))}catch(e){dashboardAlertStates=[];
-console.warn('Falha ao carregar status dos alertas',e)}}
+let dashboardAlertsReadAt=0;
+const DASHBOARD_ALERTS_TTL=5*60*1000;
+async function loadDashboardAlertStates({force=false}={}){
+ if(!force&&dashboardAlertsReadAt&&Date.now()-dashboardAlertsReadAt<DASHBOARD_ALERTS_TTL)return dashboardAlertStates;
+ try{
+  const qs=await getDocsCached(dashboardAlertCol,'alertas_dashboard',{ttl:DASHBOARD_ALERTS_TTL,force});
+  dashboardAlertStates=qs.docs.map(d=>({id:d.id,...d.data()}));
+  dashboardAlertsReadAt=Date.now();
+ }catch(e){
+  console.warn('Falha ao carregar status dos alertas',e);
+ }
+ return dashboardAlertStates;
+}
 function upsertDashboardAlertLocal(id,data={}){
  const row={id,...data,updatedAt:new Date()};
  const i=dashboardAlertStates.findIndex(x=>x.id===id);
  if(i>=0)dashboardAlertStates[i]={...dashboardAlertStates[i],...row};
  else dashboardAlertStates.push(row);
  queryFreshAt.set('alertas_dashboard',Date.now());
+ dashboardAlertsReadAt=Date.now();
 }
 function alertStateId(group,weekKey){return `CONTINGENTE_${String(group||'').replace(/[^a-zA-Z0-9_-]/g,'_')}_${weekKey}`}
 function findDashboardAlertState(group,weekKey){return dashboardAlertStates.find(x=>x.id===alertStateId(group,weekKey))||null}
