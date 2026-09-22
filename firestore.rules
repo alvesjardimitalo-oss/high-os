@@ -1,7 +1,7 @@
 rules_version = '2';
 
 /* =============================================================
-   HIGH OS · REGRAS DE SEGURANCA DO FIRESTORE (V9.4)
+   HIGH OS · REGRAS DE SEGURANCA DO FIRESTORE (V12.5)
    -------------------------------------------------------------
    Ate a V9.3 nao existia arquivo de regras no repositorio: toda a
    autorizacao era feita apenas no navegador (isAdmin / canEditModule),
@@ -96,6 +96,20 @@ service cloud.firestore {
       allow read: if canView('faccoes');
       allow write: if canEdit('faccoes');
     }
+    // V12.5 - o print do painel anexado ao recolhimento mora aqui. Sem esta
+    // regra o catch-all no fim do arquivo recusava a gravacao e o recolhimento
+    // COM print abortava inteiro (o Group nem chegava a ficar vago).
+    // O registro e prova: ninguem altera; so ADMIN apaga.
+    match /highos/data/evidencias_recolhimento/{docId} {
+      allow read: if canView('faccoes');
+      allow create: if canEdit('faccoes')
+                    && request.resource.data.get('createdBy', '').lower() == myEmail()
+                    && request.resource.data.get('imagemDataUrl', '') is string
+                    && request.resource.data.imagemDataUrl.matches('^data:image/(jpeg|png|webp);base64,.*')
+                    && request.resource.data.imagemDataUrl.size() <= 800000;
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
     match /highos/data/solicitacoes/{docId} {
       allow read: if canView('solicitacoes');
       allow write: if canEdit('solicitacoes');
@@ -115,12 +129,23 @@ service cloud.firestore {
     // mas ninguem altera ou apaga registro passado, exceto ADMIN.
     match /highos/data/historico/{docId} {
       allow read: if canView('historico') || isAdmin();
-      allow create: if activeUser();
+      // V12.5 - o autor do evento precisa ser quem esta logado: antes qualquer
+      // usuario ativo podia gravar um log em nome de outra pessoa.
+      allow create: if activeUser()
+                    && request.resource.data.get('usuario', '') is string
+                    && request.resource.data.usuario.lower() == myEmail();
       allow update, delete: if isAdmin();
     }
+    // V12.5 - cada um cria e atualiza apenas a PROPRIA sessao, e nao pode
+    // trocar o dono de uma sessao existente.
     match /highos/data/sessoes_usuario/{docId} {
       allow read: if isAdmin();
-      allow create, update: if activeUser();
+      allow create: if activeUser()
+                    && request.resource.data.get('email', '') is string
+                    && request.resource.data.email.lower() == myEmail();
+      allow update: if activeUser()
+                    && resource.data.get('email', '').lower() == myEmail()
+                    && request.resource.data.get('email', '') == resource.data.get('email', '');
       allow delete: if isAdmin();
     }
     match /highos/data/alertas_dashboard/{docId} {
@@ -142,6 +167,7 @@ service cloud.firestore {
                     && request.resource.data.participants is list
                     && request.resource.data.participants.size() == 2
                     && myEmail() in request.resource.data.participants
+                    && request.resource.data.recipientEmail.lower() in request.resource.data.participants
                     && request.resource.data.get('texto', '').size() <= 1000;
       // update liberado apenas para ADMIN: e o que permite rodar a migracao
       // que preenche participants nas mensagens antigas (tools/migrar-chat.html)
