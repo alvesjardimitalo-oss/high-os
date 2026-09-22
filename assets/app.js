@@ -6225,16 +6225,17 @@ startMetricRealtime();
   }
  }catch(e){console.warn('[MÉTRICAS] espelho indisponível:',e?.message||e)}
 
- // 3) colecao antiga, so como ultimo recurso
- try{
-  const qs=await getDocsCached(metricCol,'metricas',{ttl:300000});
-
-  applyMetricSnapshot(qs);
-
-  metricOrigem='COLECAO_ANTIGA';
-
- }catch(e){metricasCache=[];
-metricas=[]}
+ // 3) V10.54 - nunca abrir automaticamente a coleção legada gigante.
+ // Usa somente cache local já existente; sem cache, mantém a tela vazia e segura.
+ const legacyCache=cachedSnapshotOnly('metricas');
+ if(legacyCache){
+  applyMetricSnapshot(legacyCache);
+  metricOrigem='CACHE_LEGADO';
+ }else{
+  metricasCache=[];
+  metricas=[];
+  metricOrigem='SEM_DADOS';
+ }
  refreshMetricPeriodOptions();
 renderMetrics();
 renderMetricSourceStatus();
@@ -7442,14 +7443,15 @@ async function recoverMetricsAutomatically({quiet=true}={}){
     Agora usa a copia que ja esta em memoria (carregada no loadMetrics). */
  let fireRows=metricasCache.slice();
 
+ /* V10.54 - recuperação automática não pode disparar leitura da coleção
+    histórica inteira. Se não houver dados em memória, compara com cache local
+    ou parte de uma base vazia; a planilha continua sendo a fonte oficial. */
  if(!fireRows.length){
-  const qs=await metricTimeout(getDocsCached(metricCol,'metricas',{ttl:120000}),12000,'leitura do Firestore');
-
-  fireRows=qs.docs.map(d=>({id:d.id,
-...d.data()}));
-
-  applyMetricSnapshot(qs);
-
+  const qs=cachedSnapshotOnly('metricas');
+  if(qs){
+   fireRows=qs.docs.map(d=>({id:d.id,...d.data()}));
+   applyMetricSnapshot(qs);
+  }
  }
  if(!extractSpreadsheetId(metricSourceConfig.url))return {ok:true,
 source:'firestore',
@@ -7515,7 +7517,7 @@ async function runMetricAutoRecovery({quiet=true}={}){
  if(metricAutoRecoveryBusy)return false;
 metricAutoRecoveryBusy=true;
 
- try{return await recoverMetricsAutomatically({quiet})}catch(e){console.warn('[MÉTRICAS AUTO] planilha indisponível; mantendo Firestore:',e?.message||e);
+ try{return await recoverMetricsAutomatically({quiet})}catch(e){console.warn('[MÉTRICAS AUTO] planilha indisponível; mantendo dados locais/espelho:',e?.message||e);
 metricSourceState={...metricSourceState,
 error:''};
 renderMetricSourceStatus();
@@ -7581,10 +7583,10 @@ action=d.pendingRows?`Sincronização recuperada: ${d.pendingRows} registro(s) e
   return true;
 
  }catch(e){
-  console.warn('[MÉTRICAS AUTO] atualização manual caiu para Firestore:',e);
+  console.warn('[MÉTRICAS AUTO] atualização manual manteve dados locais/espelho:',e);
 
   try{await loadMetrics()}catch(_){}
-  if(!quiet)alert('A planilha não respondeu agora. A Central foi mantida com os dados do Firestore e tentará sincronizar novamente automaticamente.\n\nDetalhe: '+(e.message||e));
+  if(!quiet)alert('A planilha não respondeu agora. A Central manteve o último espelho/cache disponível e tentará sincronizar novamente automaticamente.\n\nDetalhe: '+(e.message||e));
 return false;
 
  }finally{if(btn){btn.disabled=false;
