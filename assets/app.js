@@ -12869,7 +12869,10 @@ depois:{tipo:'ROTA_PADRAO'},
 usuario:currentUser.email,
 data:serverTimestamp()});
 grRouteDirty=false;
-await loadFaccoes();
+const fix=faccoes.findIndex(x=>x.group===group);
+if(fix>=0)faccoes[fix]={...faccoes[fix],perfilTecnico:clonePlain(t),beneficios:clonePlain(benefits),updatedBy:currentUser.email};
+queryFreshAt.set('faccoes',Date.now());
+renderFaccoes();renderAvailableFaccoes();
 const fresh=faccoes.find(x=>x.group===group);
 if(fresh)renderTechProfile(fresh);
 grRenderRouteUi(true);
