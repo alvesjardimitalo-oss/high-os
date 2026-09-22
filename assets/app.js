@@ -3368,7 +3368,7 @@ $('#reqModal').classList.remove('hidden');
 }
 const REQUEST_RECORD_LIMIT=300;
 async function loadRequests(){
- if(queryAindaFresca('solicitacoes')&&(solicitacoes.length||requestRecords.length)){renderRequests();return}
+ if(queryAindaFresca('solicitacoes')){renderRequests();return}
  try{
    /* V10.4 - modelos e histórico operacional têm necessidades diferentes:
       modelos são poucos e precisam estar todos disponíveis; registros gerados
@@ -4289,7 +4289,7 @@ status:o.groupAtual?'ATIVA':'INATIVA'})).sort((a,b)=>(a.nome||'').localeCompare(
 
 }
 async function loadOrganizations(){
- if(queryAindaFresca('organizacoes')&&organizacoes.length){renderOrganizations();syncOrgOptions();return}
+ if(queryAindaFresca('organizacoes')){renderOrganizations();syncOrgOptions();return}
  try{const qs=await getDocsCached(orgCol,'organizacoes');
 organizacoes=qs.docs.map(d=>({id:d.id,
 ...d.data()}));
@@ -4494,7 +4494,7 @@ updatedBy:currentUser.email},{merge:true});
 }
 const DELIVERY_RECENT_LIMIT=250;
 async function loadDeliveries(){
- if(queryAindaFresca('entregas')&&entregas.length){renderDeliveries();return}
+ if(queryAindaFresca('entregas')){renderDeliveries();return}
  try{
   /* V10.3 - preserva TODAS as entregas ativas (necessárias para recolher e
      transferir corretamente) e limita o histórico encerrado às 250 mais
@@ -4933,7 +4933,7 @@ let historyCursor=null,
 
 async function loadHistory({append=false}={}){
  if(!$('#historyList')&&!$('#groupHistoryPreview'))return;
- if(!append&&queryAindaFresca('historico')&&historico.length){renderHistory();return}
+ if(!append&&queryAindaFresca('historico')){renderHistory();return}
 
  try{
   if(!append){historico=[];
