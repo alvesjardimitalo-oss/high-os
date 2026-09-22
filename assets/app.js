@@ -1786,6 +1786,12 @@ empty:!docs.length,
 forEach:fn=>docs.forEach(fn)};
 
 }
+function cachedSnapshotOnly(nome){
+ const mem=cacheMemoria.get(nome);
+ const espelho=mem||cacheLer(nome);
+ if(espelho?.rows?.length){statBump(nome,'cache');return comoSnapshot(espelho.rows)}
+ return null;
+}
 
 window.HighOSOffline={ativo:false,
 desde:null,
@@ -3337,11 +3343,12 @@ async function loadRequests(){
      modelos=qm.docs.map(d=>({id:d.id,...d.data()}));
      registros=qr.docs.map(d=>({id:d.id,...d.data()})).filter(x=>x.isModelo!==true);
    }catch(err){
-     console.warn('[SOLICITAÇÕES] consultas econômicas indisponíveis, usando cache legado:',err?.code||err?.message);
-     const qs=await getDocsCached(reqCol,'solicitacoes',{ttl:300000}),
-     all=qs.docs.map(d=>({id:d.id,...d.data()}));
+     console.warn('[SOLICITAÇÕES] consultas econômicas indisponíveis; coleção inteira não será lida:',err?.code||err?.message);
+     const qs=cachedSnapshotOnly('solicitacoes');
+     if(!qs)throw err;
+     const all=qs.docs.map(d=>({id:d.id,...d.data()}));
      modelos=all.filter(x=>x.isModelo===true);
-     registros=all.filter(x=>x.isModelo!==true);
+     registros=all.filter(x=>x.isModelo!==true).slice(0,REQUEST_RECORD_LIMIT);
    }
 
    solicitacoes=modelos;
@@ -4463,9 +4470,10 @@ async function loadDeliveries(){
    const mapa=new Map([...ativos,...recentes].map(x=>[x.id,x]));
    entregas=[...mapa.values()];
   }catch(err){
-   console.warn('[ENTREGAS] consultas econômicas indisponíveis, usando cache legado:',err?.code||err?.message);
-   const qs=await getDocsCached(deliveryCol,'entregas',{ttl:300000});
-   entregas=qs.docs.map(d=>({id:d.id,...d.data()}));
+   console.warn('[ENTREGAS] consultas econômicas indisponíveis; coleção inteira não será lida:',err?.code||err?.message);
+   const qs=cachedSnapshotOnly('entregas');
+   if(!qs)throw err;
+   entregas=qs.docs.map(d=>({id:d.id,...d.data()})).slice(0,DELIVERY_RECENT_LIMIT);
   }
   entregas.sort((a,b)=>String(b.createdAtText||b.dataEntrega||'').localeCompare(String(a.createdAtText||a.dataEntrega||'')));
   queryFreshAt.set('entregas',Date.now());
