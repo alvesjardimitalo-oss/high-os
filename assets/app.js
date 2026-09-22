@@ -14157,24 +14157,19 @@ async function v9010CommitStructure(beforeRows, descricao='Estrutura atualizada'
     updatedBy:currentUser?.email||''
   },{merge:true});
 
-  const snap=await getDoc(ref);
-
-  if(!snap.exists()) throw new Error('Não foi possível reler o Group após salvar.');
-
-  const fresh={id:snap.id,
-...snap.data()};
-
-  const persisted=v9CleanRows(v9Clone(fresh.estruturaCatalogoV9||[]));
-
-  if(JSON.stringify(persisted)!==JSON.stringify(after)) throw new Error('O Firestore não confirmou todas as coordenadas salvas.');
+  /* V10.68 - setDoc resolvido já confirma a gravação no SDK.
+     Reaplica exatamente o payload salvo no estado local e elimina 1 getDoc
+     por edição de estrutura. */
+  const persisted=v9CleanRows(v9Clone(after));
+  const savedProfile=clonePlain(techDraft);
 
   let pos=faccoes.findIndex(x=>x.group===group);
 
   if(pos>=0) faccoes[pos]={...faccoes[pos],
-...fresh,
-id:faccoes[pos].id||fresh.id};
+estruturaCatalogoV9:clonePlain(persisted),
+perfilTecnico:savedProfile};
 
-  else {faccoes.push(fresh);
+  else {faccoes.push({id:group,group,estruturaCatalogoV9:clonePlain(persisted),perfilTecnico:savedProfile});
 pos=faccoes.length-1}
   techDraft=mergedTechProfile(faccoes[pos]);
 
