@@ -1815,7 +1815,8 @@ forEach:fn=>docs.forEach(fn)};
 function cachedSnapshotOnly(nome){
  const mem=cacheMemoria.get(nome);
  const espelho=mem||cacheLer(nome);
- if(espelho?.rows?.length){statBump(nome,'cache');return comoSnapshot(espelho.rows)}
+ /* V10.65 - coleção vazia também é um cache válido. */
+ if(espelho&&Array.isArray(espelho.rows)){statBump(nome,'cache');return comoSnapshot(espelho.rows)}
  return null;
 }
 
@@ -1897,7 +1898,7 @@ statBump(nome,'docs',rows.length);
 
   console.warn(`[HIGH OS] Falha ao ler ${nome} no Firestore:`,e?.message||e);
 
-  if(espelho?.rows?.length){
+  if(espelho&&Array.isArray(espelho.rows)){
    entrarModoLocal(e?.message||'');
 
    return comoSnapshot(espelho.rows);
