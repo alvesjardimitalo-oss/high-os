@@ -300,10 +300,11 @@ statBump('config_segmentos','docs',snap.exists()?1:0);
 if(snap.exists()&&Array.isArray(snap.data().items)&&snap.data().items.length)segmentos=snap.data().items.map(x=>({nome:cleanSegmentName(x.nome),
 icone:x.icone||'◇',
 descricao:x.descricao||cleanSegmentName(x.nome)})).filter(x=>x.nome);
-else{segmentos=[...DEFAULT_SEGMENTS];
-if(String(currentProfile?.role||'').toUpperCase()==='ADMIN')await setDoc(segmentConfigDoc,{items:segmentos,
-updatedAt:serverTimestamp(),
-updatedBy:currentUser.email},{merge:true})}syncSegmentSelects();
+else{
+ segmentos=[...DEFAULT_SEGMENTS];
+ /* V10.58 - leitura não cria configuração no Firestore. Os padrões ficam
+    somente em memória até que um admin realmente altere/salve segmentos. */
+}syncSegmentSelects();
 renderSegmentAdmin();
 }catch(e){console.warn('Falha ao carregar segmentos',e);
 segmentos=[...DEFAULT_SEGMENTS];
@@ -13046,9 +13047,13 @@ setTimeout(()=>$('#gsList .gs-row:last-child .gs-name')?.focus(),30)}
 async function gsSave(){const f=grCurrent(),
 group=f?.group;
 if(!group)return;
+const local=faccoes.find(x=>x.group===group)||f;
+const before=clonePlain(mergedTechProfile(local)||{});
 getTechProfileFromForm();
 techDraft.estruturaCatalogo=gsRows();
-try{await setDoc(doc(db,'highos','data','faccoes',group),{perfilTecnico:clonePlain(techDraft),
+const next=clonePlain(techDraft);
+if(JSON.stringify(before)===JSON.stringify(next))return alert('Nenhuma alteração na estrutura para salvar.');
+try{await setDoc(doc(db,'highos','data','faccoes',group),{perfilTecnico:next,
 updatedAt:serverTimestamp(),
 updatedBy:currentUser.email},{merge:true});
 await addDoc(histCol,{sessionId:currentSessionId||'',
@@ -13057,8 +13062,8 @@ group,
 descricao:`Estrutura administrativa atualizada • ${gsRows().length} itens`,
 usuario:currentUser.email,
 data:serverTimestamp()});
-const local=faccoes.find(x=>x.group===group);
-if(local)local.perfilTecnico=clonePlain(techDraft);
+if(local)local.perfilTecnico=next;
+queryFreshAt.set('faccoes',Date.now());
 alert(`Estrutura de ${group} salva com ${gsRows().length} itens.`)}catch(e){alert('Erro ao salvar estrutura: '+e.message)}}
 function gsImportArmas01(){if(String(grCurrent()?.group||'').toUpperCase()!=='ARMAS01')return;
 const seed=[
