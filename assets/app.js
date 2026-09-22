@@ -2497,6 +2497,19 @@ updatedBy:currentUser.email};
 
  if(data.status==='ATIVA'&&!data.faccao){alert('Informe o nome da facção para marcar como ATIVA.');
 return}
+ /* V10.73 - salvar o perfil sem mudanças não deve consumir Firestore nem
+    gerar um evento de auditoria vazio. Timestamps técnicos não entram na comparação. */
+ const comparableData=clonePlain(data);
+ delete comparableData.updatedAt;
+ delete comparableData.updatedBy;
+ const comparableOld=clonePlain(old||{});
+ delete comparableOld.updatedAt;
+ delete comparableOld.updatedBy;
+ delete comparableOld.id;
+ if(old&&JSON.stringify(comparableOld)===JSON.stringify(comparableData)){
+  closeGroupProfilePage();
+  return;
+ }
  try{const generated=autoDeliveryRequests(data);
 await setDoc(doc(db,'highos','data','faccoes',group),data);
 const localIndex=faccoes.findIndex(x=>x.group===group);
