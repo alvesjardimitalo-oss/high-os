@@ -1497,6 +1497,7 @@ if(!fallback||fallback===page)return;
 page=fallback}
  if(page==='administracao'&&isAdmin())setTimeout(()=>loadUserAudit(),0);
 if(page==='spotify')setTimeout(()=>loadSpotifyConfig(),0);
+if(page==='solicitacoes')setTimeout(()=>loadRequests(),0);
 if(page==='chat')setTimeout(()=>startChat(),0);
 if(page==='planejador')setTimeout(()=>window.HighMissionPlanner?.activate?.(),60);
 
@@ -3655,8 +3656,7 @@ initRequestUi();
 const _loadFaccoesV3=loadFaccoes;
 
 loadFaccoes=async function(){await _loadFaccoesV3();
-updateRequestGroupOptions($('#reqGroup')?.value||'');
-await loadRequests()};
+updateRequestGroupOptions($('#reqGroup')?.value||'')};
 
 // ===== HIGH OS V4 · GESTÃO DE USUÁRIOS =====
 function renderUserPermissionMatrix(values={}){
