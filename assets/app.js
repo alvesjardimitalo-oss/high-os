@@ -6009,6 +6009,8 @@ async function refreshMetricRealtimeCheap(){
 }
 function startMetricRealtime(){
  stopMetricRealtime();
+ const activePage=document.querySelector('.page.active')?.id?.replace('page-','')||'';
+ if(!['dashboard','metricas'].includes(activePage))return;
  if(!metricRealtimeAtivo()||metricQuotaBlocked)return;
  refreshMetricRealtimeCheap();
  metricLiveTimer=setInterval(refreshMetricRealtimeCheap,5*60*1000);
@@ -6234,6 +6236,7 @@ error:''};
 
     salvarEspelhoMensal(r.rows,r.sheet);
           // espelho em segundo plano
+    startMetricAutoRecovery();
     startMetricRealtime();
     metricsLoaded=true;
 
@@ -6257,7 +6260,8 @@ error:'Planilha indisponível; exibindo a última cópia mensal.'};
 
    renderMetricSourceStatus();
 renderMetricQuotaPanel();
-startMetricRealtime();
+startMetricAutoRecovery();
+    startMetricRealtime();
 metricsLoaded=true;
 
    return;
@@ -6280,7 +6284,8 @@ metricsLoaded=true;
 renderMetrics();
 renderMetricSourceStatus();
 renderMetricQuotaPanel();
-startMetricRealtime();
+startMetricAutoRecovery();
+    startMetricRealtime();
  metricsLoaded=true;
  })();
  try{return await metricsLoadPromise}
@@ -7594,6 +7599,8 @@ metricAutoRecoveryTimer=null}
 }
 function startMetricAutoRecovery(){
  if(metricAutoRecoveryTimer)return;
+ const activePage=document.querySelector('.page.active')?.id?.replace('page-','')||'';
+ if(!['dashboard','metricas'].includes(activePage))return;
 
  if(!extractSpreadsheetId(metricSourceConfig.url))return;
 
