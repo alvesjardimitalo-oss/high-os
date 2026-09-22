@@ -1695,9 +1695,15 @@ function invalidarCacheRef(ref){
 }
 /* V10.76 - só invalida o espelho depois que o Firestore confirma a escrita.
    Se quota/permissão/rede falhar, a última cópia local válida continua disponível. */
-const setDoc=async(ref,...a)=>{const r=await _setDoc(ref,...a);invalidarCacheRef(ref);return r};
-const addDoc=async(ref,...a)=>{const r=await _addDoc(ref,...a);invalidarCacheRef(ref);return r};
-const deleteDoc=async(ref,...a)=>{const r=await _deleteDoc(ref,...a);invalidarCacheRef(ref);return r};
+function assertRemoteWriteAvailable(){
+ if(!window.HighOSOffline?.ativo)return;
+ const e=new Error('Modo local ativo: reconecte ao Firebase antes de gravar alterações.');
+ e.code='highos/offline-write-blocked';
+ throw e;
+}
+const setDoc=async(ref,...a)=>{assertRemoteWriteAvailable();const r=await _setDoc(ref,...a);invalidarCacheRef(ref);return r};
+const addDoc=async(ref,...a)=>{assertRemoteWriteAvailable();const r=await _addDoc(ref,...a);invalidarCacheRef(ref);return r};
+const deleteDoc=async(ref,...a)=>{assertRemoteWriteAvailable();const r=await _deleteDoc(ref,...a);invalidarCacheRef(ref);return r};
 
 const writeBatch=(...a)=>{
  const b=_writeBatch(...a),commit=b.commit.bind(b),tocadas=new Set();
@@ -1715,6 +1721,7 @@ const writeBatch=(...a)=>{
   };
  }
  b.commit=async()=>{
+  assertRemoteWriteAvailable();
   const r=await commit();
   if(tocadas.has('')){
    cacheMemoria.clear();
