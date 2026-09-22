@@ -2455,8 +2455,9 @@ usuario:currentUser.email,
 data:serverTimestamp()});
 for(const r of generated)await archiveTechnicalRequest(r,data,'ALTERACAO_DO_GROUP');
 await syncGroupsToOfficialSheet([data],{quiet:true});
-closeGroupProfilePage();
-await loadFaccoes()}catch(err){alert('Erro ao salvar: '+err.message)}
+queryFreshAt.set('faccoes',Date.now());
+renderFaccoes();renderAvailableFaccoes();renderOrganizations();
+closeGroupProfilePage()}catch(err){alert('Erro ao salvar: '+err.message)}
 };
 
 let recollectPanelImage='';
