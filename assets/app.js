@@ -5272,6 +5272,7 @@ let metricLiveUnsub=null,
 metricLiveLastAt=0;
 
 const metricCol=collection(db,'highos','data','metricas');
+const occupationCol=collection(db,'highos','data','ocupacoes');
 
 const metricConfigDoc=doc(db,'highos','metricas_config');
 
@@ -5346,8 +5347,15 @@ year:'numeric'}).replace(/^./,c=>c.toUpperCase());
 function parseIsoMetricDate(v=''){const m=String(v).match(/^(\d{4})-(\d{2})-(\d{2})$/);
 return m?new Date(+m[1],+m[2]-1,+m[3]):null}
 function metricGroupOccupied(group){return faccoes.some(f=>alvesNorm(f.group)===alvesNorm(group)&&f.status==='ATIVA'&&String(f.faccao||'').trim())}
+function metricRowHasHistoricalOccupant(m={}){
+ return !!String(m.faccaoSnapshot||m.faccaoHistorica||'').trim();
+}
 function activeMetricRows(){
- const occupied=m=>metricGroupOccupied(m.group||m.organizacao||m.faccao);
+ /* V12.5 - uma métrica histórica pertence à facção que ocupava o Group
+    no dia da coleta. Não descartamos o passado só porque o Group hoje
+    está vago ou foi assumido por outra organização. Linhas antigas de
+    Group vazio continuam fora porque não possuem faccaoSnapshot. */
+ const occupied=m=>metricRowHasHistoricalOccupant(m)||metricGroupOccupied(m.group||m.organizacao||m.faccao);
 
  if(metricDateStart||metricDateEnd){const a=parseIsoMetricDate(metricDateStart),
 b=parseIsoMetricDate(metricDateEnd);
@@ -5375,7 +5383,20 @@ if(!keys.includes(metricPeriodKey))metricPeriodKey=current;
  el.innerHTML=keys.map(k=>`<option value="${esc(k)}"${k===metricPeriodKey?' selected':''}>${esc(metricPeriodLabel(k))}${k===current?' • ATUAL':''}</option>`).join('');
 
 }
-function metricGroupRecords(group){return activeMetricRows().filter(m=>alvesNorm(m.group||m.organizacao||m.faccao)===alvesNorm(group)).sort((a,b)=>metricDateValue(a)-metricDateValue(b))}
+function metricGroupRecords(group){
+ const current=faccoes.find(f=>alvesNorm(f.group)===alvesNorm(group));
+ const faction=String(current?.faccao||'').trim();
+ const rows=activeMetricRows().filter(m=>{
+   const sameGroup=alvesNorm(m.group||m.organizacao||m.faccao)===alvesNorm(group);
+   if(!faction)return sameGroup;
+   const historical=String(m.faccaoSnapshot||m.faccaoHistorica||'').trim();
+   /* Se existe identidade histórica, acompanha a FACÇÃO através de qualquer
+      Group/segmento. Snapshot vazio só vale para o Group atual quando ele
+      está ocupado hoje; isso mantém compatibilidade com registros legados. */
+   return historical ? alvesNorm(historical)===alvesNorm(faction) : sameGroup;
+ }).sort((a,b)=>metricDateValue(a)-metricDateValue(b));
+ return rows;
+}
 function metricPredominanceRange(values=[],width=5){
  const vals=values.map(Number).filter(Number.isFinite);
 if(!vals.length)return {label:'—',
@@ -10211,10 +10232,12 @@ function movementOpen(mode){
   $('#movementTitle').textContent = mode === 'TRANSFER_PANEL' ? 'TRANSFERIR PAINEL / FACÇÃO' : 'TROCAR QG / LOCAL FÍSICO';
 
   $('#movementHelp').textContent = mode === 'TRANSFER_PANEL'
-    ? 'Move a ocupação, líder e facção para outro Group. A estrutura física do QG de destino é preservada. Se o destino estiver ocupado, as ocupações são trocadas.'
-    : 'Troca o patrimônio físico dos dois QGs sem trocar as facções ou os Groups.';
+    ? 'TRANSFERIR FACÇÃO: a organização muda de Group e o histórico de métricas acompanha a facção. O Group não leva o histórico da ocupante anterior. Se o destino estiver ocupado, as duas facções trocam de Group.'
+    : 'TROCAR QG / LOCAL: as facções permanecem nos mesmos Groups. Somente os locais/estruturas físicas são trocados — use esta opção quando quiser, por exemplo, manter ARMAS04 e levar DROGAS03 para o local de ARMAS04.';
 
   $('#movementReason').value = '';
+  const effective=$('#movementEffectiveDate');
+  if(effective)effective.value=new Date().toISOString().slice(0,10);
 
   show($('#movementModal'));
 
@@ -10230,8 +10253,8 @@ function movementPreview(){
   if(!src || !dst) return;
 
   $('#movementPreview').innerHTML = movementMode === 'TRANSFER_PANEL'
-    ? `<b>PRÉVIA</b><span>${esc(src.faccao || 'VAGO')} : ${esc(src.group)} → ${esc(dst.group)}</span>${dst.faccao ? `<span>${esc(dst.faccao)} : ${esc(dst.group)} → ${esc(src.group)}</span>` : ''}`
-    : `<b>PRÉVIA DO LOCAL</b><span>${esc(src.group)}: ${esc(src.qg || 'SEM LOCAL')} → ${esc(dst.qg || 'SEM LOCAL')}</span><span>${esc(dst.group)}: ${esc(dst.qg || 'SEM LOCAL')} → ${esc(src.qg || 'SEM LOCAL')}</span>`;
+    ? `<b>PRÉVIA • FACÇÃO / GROUP</b><span>${esc(src.faccao || 'VAGO')} : ${esc(src.group)} → ${esc(dst.group)} • histórico acompanha a facção</span>${dst.faccao ? `<span>${esc(dst.faccao)} : ${esc(dst.group)} → ${esc(src.group)} • histórico acompanha a facção</span>` : ''}<small>Os locais físicos dos Groups permanecem onde estão.</small>`
+    : `<b>PRÉVIA • SOMENTE QG / LOCAL</b><span>${esc(src.group)} continua com ${esc(src.faccao||'VAGO')} • local: ${esc(src.qg || 'SEM LOCAL')} → ${esc(dst.qg || 'SEM LOCAL')}</span><span>${esc(dst.group)} continua com ${esc(dst.faccao||'VAGO')} • local: ${esc(dst.qg || 'SEM LOCAL')} → ${esc(src.qg || 'SEM LOCAL')}</span><small>Nenhuma facção muda de Group e nenhum histórico de métricas é transferido.</small>`;
 
 }
 
@@ -10240,6 +10263,7 @@ $('#transferPanelBtn')?.addEventListener('click', () => movementOpen('TRANSFER_P
 $('#swapQGBtn')?.addEventListener('click', () => movementOpen('SWAP_QG'));
 
 $('#movementDestination')?.addEventListener('change', movementPreview);
+$('#movementEffectiveDate')?.addEventListener('change', movementPreview);
 
 $('#movementClose')?.addEventListener('click', () => $('#movementModal')?.classList.add('hidden'));
 
@@ -10250,6 +10274,7 @@ $('#movementConfirm')?.addEventListener('click', async () => {
   const src = faccoes.find(x => x.group === movementSourceGroup);
   const dst = faccoes.find(x => x.group === $('#movementDestination')?.value);
   const reason = $('#movementReason')?.value.trim() || '';
+  const effectiveDate = $('#movementEffectiveDate')?.value || new Date().toISOString().slice(0,10);
   if(!src || !dst) return;
   if(!reason) return alert('Informe o motivo da operação.');
   if(!confirm(`Confirmar operação entre ${src.group} e ${dst.group}? Esta ação será registrada no histórico.`)) return;
@@ -10297,6 +10322,7 @@ b],{quiet:true});
       qg: src.qg || '',
 
       motivo: reason,
+      dataEfetiva: effectiveDate,
 
       antes: {origem: cleanSnapshot(src),
  destino: cleanSnapshot(dst)},
@@ -10308,6 +10334,42 @@ b],{quiet:true});
 
       data: serverTimestamp()
     });
+
+    /* V12.5 - trilha estruturada de ocupação. Não move nem duplica as
+       métricas brutas: registra qual facção passou a ocupar cada Group e
+       a data efetiva. Falha desta trilha não cancela a transferência já
+       concluída; o histórico auditável acima continua preservado. */
+    if(movementMode === 'TRANSFER_PANEL'){
+      try{
+        const occupationBatch=writeBatch(db);
+        const stamp=Date.now();
+        const moved=[
+          {before:src,after:b,from:src.group,to:dst.group},
+          ...(dst.faccao?[{before:dst,after:a,from:dst.group,to:src.group}]:[])
+        ];
+        moved.forEach((mv,n)=>{
+          const faction=String(mv.before?.faccao||'').trim();
+          if(!faction)return;
+          const oid=(orgKey(faction)+'_'+effectiveDate+'_'+stamp+'_'+n).replace(/[^a-zA-Z0-9_-]/g,'_');
+          occupationBatch.set(doc(db,'highos','data','ocupacoes',oid),{
+            organizacaoId:orgKey(faction),
+            faccao:faction,
+            groupOrigem:mv.from,
+            groupDestino:mv.to,
+            segmentoOrigem:mv.before?.segmento||'',
+            segmentoDestino:mv.after?.segmento||'',
+            qgOrigem:mv.before?.qg||'',
+            qgDestino:mv.after?.qg||'',
+            dataEfetiva:effectiveDate,
+            motivo:reason,
+            tipo:'TRANSFERENCIA_GROUP',
+            createdAt:serverTimestamp(),
+            createdBy:currentUser.email
+          });
+        });
+        await occupationBatch.commit();
+      }catch(occErr){console.warn('[OCUPAÇÕES] transferência concluída, mas trilha estruturada não foi gravada:',occErr?.message||occErr)}
+    }
 
     /* V10.31 - sincroniza as organizações movimentadas em uma única
        confirmação. Em troca de duas facções deixa de fazer duas escritas
