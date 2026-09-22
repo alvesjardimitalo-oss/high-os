@@ -1149,12 +1149,8 @@ durationMs:duration,
 endReason:reason,
 updatedBy:currentUser.email},{merge:true});
 
- await addDoc(histCol,{sessionId:currentSessionId||'',
-tipo:'SESSION_END',
-descricao:reason==='TIMEOUT_8H'?'Sessão encerrada automaticamente ao atingir 8 horas':'Sessão encerrada pelo usuário',
-duracaoMs:duration,
-usuario:currentUser.email,
-data:serverTimestamp()});
+ /* V10.56 - status, duração, motivo e timestamps já ficam em sessoes_usuario.
+    Não duplica o encerramento no Histórico. */
 }catch(e){console.warn('Falha ao encerrar sessão no log',e)}
  try{localStorage.removeItem(sessionStorageKey(currentUser.email))}catch(e){}
  currentSessionId='';
@@ -1198,12 +1194,8 @@ lastActivityAt:serverTimestamp(),
 lastActivityText:new Date(now).toISOString(),
 createdBy:email});
 
-  await addDoc(histCol,{sessionId:currentSessionId||'',
-tipo:'SESSION_START',
-descricao:'Login no High OS',
-role:String(profile?.role||'CONSULTA').toUpperCase(),
-usuario:email,
-data:serverTimestamp()});
+  /* V10.56 - o documento sessoes_usuario já é a auditoria canônica de login.
+     Evita duplicar cada início de sessão também no Histórico. */
 }catch(e){console.warn('Falha ao registrar início da sessão',e)}
  }
  startSessionClock(email);
