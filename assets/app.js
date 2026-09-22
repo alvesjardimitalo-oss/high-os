@@ -11465,16 +11465,23 @@ others=segmentNames().filter(x=>segmentKey(x)!==segmentKey(seg.nome));return `<a
  box.querySelectorAll('.segment-rename').forEach(b=>b.onclick=()=>beginEditSegment(b.dataset.seg));
 
 }
-async function saveSegmentRegistry(){await setDoc(segmentConfigDoc,{items:segmentDefs(),
-updatedAt:serverTimestamp(),
-updatedBy:currentUser.email},{merge:true});
-segmentConfigReadAt=Date.now();
-syncSegmentSelects();
-renderSegmentAdmin();
-renderFaccoes();
-renderOrganizations();
-renderAvailableFaccoes();
-if(typeof renderMetrics==='function')renderMetrics()}
+async function saveSegmentRegistry(){
+ const items=segmentDefs();
+ const signature=JSON.stringify(items.map(x=>({nome:x.nome||'',icone:x.icone||'',descricao:x.descricao||''})));
+ let previous='';
+ try{previous=localStorage.getItem('highos_segment_registry_sig')||''}catch(e){}
+ if(previous!==signature){
+  await setDoc(segmentConfigDoc,{items,updatedAt:serverTimestamp(),updatedBy:currentUser.email},{merge:true});
+  segmentConfigReadAt=Date.now();
+  try{localStorage.setItem('highos_segment_registry_sig',signature)}catch(e){}
+ }
+ syncSegmentSelects();
+ renderSegmentAdmin();
+ renderFaccoes();
+ renderOrganizations();
+ renderAvailableFaccoes();
+ if(typeof renderMetrics==='function')renderMetrics()
+}
 let editingSegmentName='';
 
 function beginEditSegment(name){const item=segmentDefs().find(x=>segmentKey(x.nome)===segmentKey(name));
