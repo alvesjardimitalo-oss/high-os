@@ -9670,6 +9670,7 @@ try{renderStructureSnapshot(currentFactionFromForm());
 renderConnectedRequests()}catch{}};
 
 function requestFingerprint(r={}){return `${String(r.group||'').toUpperCase()}|${String(r.tipo||'').toUpperCase()}|${String(r.texto||'').replace(/\s+/g,' ').trim().toLowerCase()}`}
+const technicalRequestInFlight=new Map();
 async function archiveTechnicalRequest(r,f={},origem='ALTERACAO_GROUP'){
  const group=f.group||r.group||'',
 texto=r.texto||'',
@@ -9681,7 +9682,9 @@ tipo,
 texto}),
 dup=requestRecords.find(x=>x.status==='PENDENTE'&&x.fingerprint===fp);
 if(dup)return dup;
+if(technicalRequestInFlight.has(fp))return technicalRequestInFlight.get(fp);
 
+ const createPromise=(async()=>{
  const payload={isModelo:false,
 status:'PENDENTE',
 tipo,
@@ -9703,6 +9706,10 @@ item={id:ref.id,
 createdAt:null};
 requestRecords.unshift(item);
 return item;
+ })();
+ technicalRequestInFlight.set(fp,createPromise);
+ try{return await createPromise}
+ finally{technicalRequestInFlight.delete(fp)}
 
 }
 function fmtRequestWhen(r={}){const d=r.createdAtText?new Date(r.createdAtText):null;
