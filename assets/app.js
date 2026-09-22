@@ -1476,7 +1476,8 @@ userPhotoEl=$('#userPhoto');
   await loadDashboardConfig();
   await loadFaccoes();
   await loadMetrics();
-  startMetricAutoRecovery();
+  /* V10.62 - recuperação periódica de métricas inicia apenas quando
+     Dashboard/Métricas estiverem ativos; não cria timer global no login. */
   /* V10.61 - módulos não essenciais deixam de consumir Firestore no login.
      Spotify e Usuários carregam somente quando a respectiva tela é aberta. */
   if(canViewModule('chat'))$('#teamChatLauncher')?.classList.remove('hidden');
@@ -1514,8 +1515,13 @@ if(page==='planejador')setTimeout(()=>window.HighMissionPlanner?.activate?.(),60
     Dashboard e Metricas podem consumir a atualizacao economica; demais telas
     encerram o timer imediatamente. Ao voltar, o cache/TTL continua valendo. */
  try{
-  if(['dashboard','metricas'].includes(page))startMetricRealtime();
-  else stopMetricRealtime();
+  if(['dashboard','metricas'].includes(page)){
+   startMetricAutoRecovery();
+   startMetricRealtime();
+  }else{
+   stopMetricAutoRecovery();
+   stopMetricRealtime();
+  }
   if(page==='chat')startChat();
   else if(!activeCallId){stopChat();stopCallInbox()}
  }catch(e){console.warn('[HIGH OS] ciclo de vida da pagina',e)}
