@@ -5790,15 +5790,8 @@ updatedBy:currentUser.email},{merge:true});
    metricWriteCount+=chunk.length;
 
   }
-  // historico so quando houve mudanca de verdade (antes gravava a cada ciclo)
-  await addDoc(histCol,{sessionId:currentSessionId||'',
-tipo:'SINCRONIZACAO_METRICAS',
-descricao:`${pendentes.length} registro(s) atualizados a partir da planilha oficial${sheet?' • aba '+sheet:''}`,
-usuario:currentUser.email,
-data:serverTimestamp()});
-
-  metricWriteCount++;
-
+  /* V10.55 - compatibilidade legada: a gravação dos próprios registros já
+     contém updatedAt/updatedBy. Evita uma escrita adicional de Histórico. */
   metricasCache=rows.slice();
 
   renderMetricQuotaPanel();
@@ -6103,19 +6096,11 @@ break}
 
   }
  }
+ /* V10.55 - sincronização automática é telemetria técnica, não auditoria
+    administrativa. O próprio documento mensal já guarda updatedAt/updatedBy;
+    não criamos mais um documento extra no Histórico a cada ciclo. */
  if(gravados){
-  try{
-   await addDoc(histCol,{sessionId:currentSessionId||'',
-tipo:'SINCRONIZACAO_METRICAS',
-
-    descricao:`${gravados} mês(es) atualizado(s) no espelho a partir da planilha oficial${sheet?' • aba '+sheet:''}`,
-
-    usuario:currentUser.email,
-data:serverTimestamp()});
-
-   metricWriteCount++;
-
-  }catch(e){}
+  metricSourceState={...metricSourceState,lastSync:Date.now()};
  }
  renderMetricQuotaPanel();
 
