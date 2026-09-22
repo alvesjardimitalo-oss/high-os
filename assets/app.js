@@ -3525,7 +3525,7 @@ if(id){
  const createdId=ref?.id;
  if(createdId)solicitacoes.unshift({id:createdId,...modelData,createdBy:currentUser.email,updatedBy:currentUser.email});
 }
-requestRecords=solicitacoes.filter(x=>!x.isModelo);
+solicitacoes.sort((a,b)=>(a.nome||a.assunto||'').localeCompare(b.nome||b.assunto||'','pt-BR'));
 queryFreshAt.set('solicitacoes',Date.now());
 renderRequests();
 
