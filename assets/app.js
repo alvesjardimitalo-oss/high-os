@@ -167,11 +167,25 @@ const DASHBOARD_ALERTS_TTL=5*60*1000;
 async function loadDashboardAlertStates({force=false}={}){
  if(!force&&dashboardAlertsReadAt&&Date.now()-dashboardAlertsReadAt<DASHBOARD_ALERTS_TTL)return dashboardAlertStates;
  try{
-  const qs=await getDocsCached(dashboardAlertCol,'alertas_dashboard',{ttl:DASHBOARD_ALERTS_TTL,force});
-  dashboardAlertStates=qs.docs.map(d=>({id:d.id,...d.data()}));
+  /* V10.66 - o Dashboard não precisa reler alertas semanais históricos.
+     Busca somente a semana corrente e os estados persistentes de anomalia. */
+  const weekKey=isoDay(startOfWeekMonday(new Date()));
+  const [qw,qa]=await Promise.all([
+   getDocs(query(dashboardAlertCol,where('weekKey','==',weekKey))),
+   getDocs(query(dashboardAlertCol,where('tipo','==','VAGO_COM_METRICA')))
+  ]);
+  const mapa=new Map([...qw.docs,...qa.docs].map(d=>[d.id,{id:d.id,...d.data()}]));
+  dashboardAlertStates=[...mapa.values()];
+  const rows=dashboardAlertStates.map(x=>({...x}));
+  cacheMemoria.set('alertas_dashboard',{at:Date.now(),rows});
+  cacheEscrever('alertas_dashboard',rows);
+  statBump('alertas_dashboard','leituras',2);
+  statBump('alertas_dashboard','docs',qw.docs.length+qa.docs.length);
   dashboardAlertsReadAt=Date.now();
  }catch(e){
-  console.warn('Falha ao carregar status dos alertas',e);
+  console.warn('Falha ao carregar status dos alertas; usando cache local quando disponível',e);
+  const qs=cachedSnapshotOnly('alertas_dashboard');
+  if(qs)dashboardAlertStates=qs.docs.map(d=>({id:d.id,...d.data()}));
  }
  return dashboardAlertStates;
 }
