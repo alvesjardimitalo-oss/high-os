@@ -166,6 +166,19 @@ let dashboardAlertsReadAt=0;
 const DASHBOARD_ALERTS_TTL=5*60*1000;
 async function loadDashboardAlertStates({force=false}={}){
  if(!force&&dashboardAlertsReadAt&&Date.now()-dashboardAlertsReadAt<DASHBOARD_ALERTS_TTL)return dashboardAlertStates;
+ /* V10.74 - reaproveita o espelho persistido entre reloads/novas abas.
+    Se ele ainda estiver dentro do TTL, evita as duas queries do Dashboard. */
+ if(!force&&!dashboardAlertsReadAt){
+  const cached=cacheMemoria.get('alertas_dashboard')||cacheLer('alertas_dashboard');
+  const cachedAt=Number(cached?.at)||0;
+  if(cached&&Array.isArray(cached.rows)&&cachedAt&&Date.now()-cachedAt<DASHBOARD_ALERTS_TTL){
+   dashboardAlertStates=cached.rows.map(x=>({...x}));
+   cacheMemoria.set('alertas_dashboard',{at:cachedAt,rows:dashboardAlertStates.map(x=>({...x}))});
+   dashboardAlertsReadAt=cachedAt;
+   statBump('alertas_dashboard','cache');
+   return dashboardAlertStates;
+  }
+ }
  try{
   /* V10.66 - o Dashboard não precisa reler alertas semanais históricos.
      Busca somente a semana corrente e os estados persistentes de anomalia. */
