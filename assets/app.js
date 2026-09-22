@@ -12965,6 +12965,17 @@ $('#grRouteStatus').classList.toggle('warn',status==='AGUARDANDO_REMOCAO');
 grRenderRows();
 grRenderMap();
 }
+const routeActionInFlight=new Set();
+function routeActionStart(key,btn){
+ if(routeActionInFlight.has(key))return false;
+ routeActionInFlight.add(key);
+ if(btn)btn.disabled=true;
+ return true;
+}
+function routeActionEnd(key,btn){
+ routeActionInFlight.delete(key);
+ if(btn)btn.disabled=false;
+}
 async function grSaveRoute(){const f=grCurrent(),
 group=f.group,
 pts=grParseRoute($('#grRouteInput').value).filter(x=>x.p);
@@ -12973,6 +12984,8 @@ if(!pts.length)return alert('Cole ao menos uma CDS válida.');
 const old=grSavedPoints(f),
 nextPoints=pts.map(x=>grFmtPoint(x.p).replace(/,$/,''));
 if(old.length&&JSON.stringify(old)===JSON.stringify(nextPoints)){grRouteDirty=false;return alert('Nenhuma alteração na Rota Exclusiva.');}
+const routeKey='save:'+group,routeBtn=$('#grRouteSave');
+if(!routeActionStart(routeKey,routeBtn))return;
 const action=old.length?'update':'activate',
 text=grRequestText(action);
 const t=mergedTechProfile(f);
@@ -13011,7 +13024,7 @@ const fresh=faccoes.find(x=>x.group===group);
 if(fresh){renderTechProfile(fresh);
 $('#fRotaExclusiva').checked=true}grShowRequest(old.length?'update':'activate');
 grRenderRouteUi(true);
-alert(`Rota de ${group} salva com ${pts.length} pontos. A solicitação foi gerada e arquivada.`)}catch(e){alert('Erro ao salvar rota: '+e.message)}}
+alert(`Rota de ${group} salva com ${pts.length} pontos. A solicitação foi gerada e arquivada.`)}catch(e){alert('Erro ao salvar rota: '+e.message)}finally{routeActionEnd(routeKey,routeBtn)}}
 async function grDeleteRoute(){const f=grCurrent(),
 group=f.group,
 old=grSavedPoints(f);
@@ -13023,6 +13036,8 @@ if(currentTech.rota?.status==='AGUARDANDO_REMOCAO'){
  return alert('A remoção desta Rota Exclusiva já está aguardando confirmação.');
 }
 if(!confirm(`Gerar solicitação de remoção da rota exclusiva de ${group}?\n\nA rota ficará como AGUARDANDO REMOÇÃO e não será apagada até a confirmação final.`))return;
+const routeKey='delete:'+group,routeBtn=$('#grRouteDelete');
+if(!routeActionStart(routeKey,routeBtn))return;
 const text=grRequestText('delete'),
 t=currentTech;
 t.rota={...(t.rota||{}),
@@ -13049,7 +13064,7 @@ if(fix>=0)faccoes[fix]={...faccoes[fix],perfilTecnico:clonePlain(t),updatedBy:cu
 queryFreshAt.set('faccoes',Date.now());
 renderFaccoes();
 grRenderRouteUi(true);
-alert('Solicitação de remoção gerada. As CDS foram preservadas até a remoção ser confirmada.')}catch(e){alert('Erro ao gerar remoção: '+e.message)}}
+alert('Solicitação de remoção gerada. As CDS foram preservadas até a remoção ser confirmada.')}catch(e){alert('Erro ao gerar remoção: '+e.message)}finally{routeActionEnd(routeKey,routeBtn)}}
 async function grMapPng(){grRenderMap();
 await new Promise(r=>setTimeout(r,500));
 if(!window.html2canvas)return alert('Captura de imagem indisponível.');
