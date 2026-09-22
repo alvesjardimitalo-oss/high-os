@@ -95,9 +95,8 @@ dashboardConfigReadAt=Date.now();
 statBump('config_dashboard','leituras');
 statBump('config_dashboard','docs',snap.exists()?1:0);
 dashboardConfig=sanitizeDashboardConfig(snap.exists()?snap.data():DEFAULT_DASHBOARD_CONFIG);
-if(!snap.exists()&&isAdmin())await setDoc(dashboardConfigDoc,{...dashboardConfig,
-updatedAt:serverTimestamp(),
-updatedBy:currentUser.email},{merge:true});
+/* V10.59 - carregar Dashboard não cria documento de configuração.
+   Defaults ficam em memória até um admin realmente alterar os parâmetros. */
 await loadDashboardAlertStates();
 renderDashboardConfigAdmin();
 renderCommandDashboard();
@@ -10920,12 +10919,15 @@ async function persistCurrentTechProfile(group, {reload=true}={}){
  const ref=doc(db,'highos','data','faccoes',group);
 
  const perfilTecnico=getTechProfileFromForm();
+ const local=faccoes.find(x=>x.group===group);
+ const before=clonePlain(mergedTechProfile(local||{}));
+ if(JSON.stringify(before)===JSON.stringify(clonePlain(perfilTecnico))){
+   return clonePlain(perfilTecnico);
+ }
 
  await setDoc(ref,{perfilTecnico,
 updatedAt:serverTimestamp(),
 updatedBy:currentUser?.email||''},{merge:true});
-
- const local=faccoes.find(x=>x.group===group);
 
  if(local)local.perfilTecnico=clonePlain(perfilTecnico);
 
