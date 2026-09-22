@@ -1900,6 +1900,16 @@ async function getDocsCached(colRef,nome,opts={}){
 
  if(mem&&ttl>0&&(Date.now()-mem.at)<ttl){statBump(nome,'cache');
 return comoSnapshot(mem.rows)}
+ /* V10.75 - o espelho persistido também vale entre reloads/novas abas.
+    Antes ele só era usado após falha do Firestore, desperdiçando o TTL. */
+ if(!mem&&ttl>0){
+  const local=cacheLer(nome);
+  if(local&&Number(local.at)>0&&(Date.now()-Number(local.at))<ttl&&Array.isArray(local.rows)){
+   cacheMemoria.set(nome,{at:Number(local.at),rows:local.rows});
+   statBump(nome,'cache');
+   return comoSnapshot(local.rows);
+  }
+ }
  try{
   const qs=await getDocs(colRef);
 
