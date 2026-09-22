@@ -4919,18 +4919,14 @@ statBump('historico','docs',novos.length);
     return;
 
    }catch(e){
-    console.warn('[HISTÓRICO] consulta ordenada indisponível, usando leitura completa:',e?.code||e?.message);
-
-    historyModoLegado=true;
-historyEsgotado=true;
-
+    console.warn('[HISTÓRICO] consulta ordenada indisponível; leitura completa bloqueada:',e?.code||e?.message);
+    historyModoLegado=true; historyEsgotado=true;
+    const qs=cachedSnapshotOnly('historico');
+    if(!qs)throw e;
+    historico=qs.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(historyDateValue(b)?.getTime()||0)-(historyDateValue(a)?.getTime()||0)).slice(0,HISTORY_PAGE);
+    queryFreshAt.set('historico',Date.now()); renderHistory(); return;
    }
   }
-  const qs=await getDocsCached(histCol,'historico');
-historico=qs.docs.map(d=>({id:d.id,
-...d.data()})).sort((a,b)=>(historyDateValue(b)?.getTime()||0)-(historyDateValue(a)?.getTime()||0));
-queryFreshAt.set('historico',Date.now());
-renderHistory();
 
  }catch(e){if($('#historyList'))$('#historyList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR</h3><p>${esc(e.message)}</p></div>`}
 }
