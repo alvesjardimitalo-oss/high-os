@@ -3600,8 +3600,10 @@ renderRouteOverview();
  }catch(err){alert('Erro ao salvar a rota no perfil: '+err.message)}
 }
 
+let requestModelSaveInFlight=false;
 async function saveRequestModel(e){
  e.preventDefault();
+ if(requestModelSaveInFlight)return;
 
  const id=$('#reqId').value;
 
@@ -3618,6 +3620,9 @@ updatedAt:serverTimestamp(),
 updatedBy:currentUser.email};
 
  let ref=null;
+ requestModelSaveInFlight=true;
+ const submitBtn=e?.submitter||$('#reqForm')?.querySelector('[type="submit"]');
+ if(submitBtn)submitBtn.disabled=true;
  try{
    if(id){
 const old=solicitacoes.find(x=>x.id===id);
@@ -3654,6 +3659,10 @@ queryFreshAt.set('solicitacoes',Date.now());
 renderRequests();
 
  }catch(err){alert('Erro ao salvar modelo: '+err.message)}
+ finally{
+  requestModelSaveInFlight=false;
+  if(submitBtn)submitBtn.disabled=false;
+ }
 }
 function manualRequestMutation(tipo,d,f={}){
  const t=mergedTechProfile(f),
@@ -4808,8 +4817,10 @@ try{await navigator.clipboard.writeText(text);
 const o=btn.textContent;
 btn.textContent='COPIADO ✓';
 setTimeout(()=>btn.textContent=o,1300)}catch(e){alert('Não foi possível copiar automaticamente.')}}
+let deliverySaveInFlight=false;
 async function saveNewDelivery(e){
  e.preventDefault();
+ if(deliverySaveInFlight)return;
 const f=faccoes.find(x=>x.group===$('#dGroup').value);
 if(!f)return alert('Selecione um Group.');
 const faccao=$('#dFaccao').value.trim();
@@ -4817,6 +4828,10 @@ if(!faccao)return alert('Informe a facção que está assumindo.');
 const active=selectedDeliveryBenefits(),
 requests=currentDeliveryRequests(),
 extract=deliveryExtractV5();
+
+ deliverySaveInFlight=true;
+ const submitBtn=e?.submitter||$('#newDeliveryForm')?.querySelector('[type="submit"]');
+ if(submitBtn)submitBtn.disabled=true;
 
  const payload={group:f.group,
 qg:f.qg||'',
@@ -4881,6 +4896,10 @@ renderFaccoes();renderDeliveries();renderOrganizations();
 alert('Entrega registrada. A estrutura permanente do Group foi preservada.');
 
  }catch(err){alert('Erro ao concluir entrega: '+err.message)}
+ finally{
+  deliverySaveInFlight=false;
+  if(submitBtn)submitBtn.disabled=false;
+ }
 }
 initDeliveryUi();
 
