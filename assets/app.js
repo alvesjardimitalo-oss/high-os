@@ -1693,9 +1693,11 @@ function invalidarCacheRef(ref){
   if(!seg.length)cacheMemoria.clear(); // só invalida tudo se a referência for realmente indecifrável
  }
 }
-const setDoc=(ref,...a)=>{invalidarCacheRef(ref);return _setDoc(ref,...a)};
-const addDoc=(ref,...a)=>{invalidarCacheRef(ref);return _addDoc(ref,...a)};
-const deleteDoc=(ref,...a)=>{invalidarCacheRef(ref);return _deleteDoc(ref,...a)};
+/* V10.76 - só invalida o espelho depois que o Firestore confirma a escrita.
+   Se quota/permissão/rede falhar, a última cópia local válida continua disponível. */
+const setDoc=async(ref,...a)=>{const r=await _setDoc(ref,...a);invalidarCacheRef(ref);return r};
+const addDoc=async(ref,...a)=>{const r=await _addDoc(ref,...a);invalidarCacheRef(ref);return r};
+const deleteDoc=async(ref,...a)=>{const r=await _deleteDoc(ref,...a);invalidarCacheRef(ref);return r};
 
 const writeBatch=(...a)=>{
  const b=_writeBatch(...a),commit=b.commit.bind(b),tocadas=new Set();
