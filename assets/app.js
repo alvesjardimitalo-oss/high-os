@@ -13450,7 +13450,13 @@ async function gsPersist(eventType='ESTRUTURA_ATUALIZADA',description='Estrutura
  const f=grCurrent(),
 group=f?.group;
 if(!group)return false;
-try{techDraft.estruturaCatalogo=gsRows().map(gsCleanRow);
+const local=faccoes.find(x=>x.group===group)||f;
+const before=(mergedTechProfile(local)?.estruturaCatalogo||[]).map(gsCleanRow);
+const after=gsRows().map(gsCleanRow);
+/* V10.72 - fluxos legados de Estruturas também respeitam no-op.
+   Evita gravar o Group e criar Histórico quando o catálogo não mudou. */
+if(JSON.stringify(before)===JSON.stringify(after))return true;
+try{techDraft.estruturaCatalogo=after;
 await setDoc(doc(db,'highos','data','faccoes',group),{perfilTecnico:clonePlain(techDraft),
 updatedAt:serverTimestamp(),
 updatedBy:currentUser.email},{merge:true});
@@ -13460,8 +13466,8 @@ group,
 descricao:description,
 usuario:currentUser.email,
 data:serverTimestamp()});
-const local=faccoes.find(x=>x.group===group);
 if(local)local.perfilTecnico=clonePlain(techDraft);
+queryFreshAt.set('faccoes',Date.now());
 return true}catch(e){alert('Erro ao salvar: '+e.message);
 return false}
 }
