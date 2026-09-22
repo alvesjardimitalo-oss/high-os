@@ -1474,8 +1474,8 @@ userPhotoEl=$('#userPhoto');
   renderSessionClock(email);
   await loadSegmentConfig();
   await loadDashboardConfig();
-  await loadFaccoes();
   const initialPage=document.querySelector('.page.active')?.id?.replace('page-','')||'';
+  if(['dashboard','metricas','faccoes','organizacoes','disponiveis','entregas','group-profile','group-settings','org-profile'].includes(initialPage))await loadFaccoes();
   if(['dashboard','metricas'].includes(initialPage))await loadMetrics();
   /* V10.62 - recuperação periódica de métricas inicia apenas quando
      Dashboard/Métricas estiverem ativos; não cria timer global no login. */
@@ -1505,7 +1505,8 @@ page=fallback}
 if(page==='usuarios'&&isAdmin())setTimeout(()=>loadUsers(),0);
 if(page==='spotify')setTimeout(()=>loadSpotifyConfig(),0);
 if(page==='solicitacoes')setTimeout(()=>loadRequests(),0);
-if(['dashboard','metricas'].includes(page)&&!metricsLoaded)setTimeout(()=>loadMetrics().catch(e=>console.warn('[MÉTRICAS] lazy-load falhou',e)),0);
+if(['dashboard','metricas','faccoes','organizacoes','disponiveis','entregas','group-profile','group-settings','org-profile'].includes(page)&&!faccoesLoaded)setTimeout(()=>loadFaccoes().catch(e=>console.warn('[FACÇÕES] lazy-load falhou',e)),0);
+if(['dashboard','metricas'].includes(page)&&!metricsLoaded)setTimeout(async()=>{try{if(!faccoesLoaded)await loadFaccoes();await loadMetrics()}catch(e){console.warn('[MÉTRICAS] lazy-load falhou',e)}},0);
 if(page==='chat')setTimeout(()=>startChat(),0);
 if(page==='planejador')setTimeout(()=>window.HighMissionPlanner?.activate?.(),60);
 
@@ -1551,13 +1552,25 @@ if(st)st.innerHTML=`<span class="status-chip ${(f?.status||'INATIVA').toLowerCas
 function closeGroupProfilePage(){activateAppPage('faccoes')}
 $('#groupProfileBack')?.addEventListener('click',closeGroupProfilePage);
 
+let faccoesLoaded=false,faccoesLoadPromise=null;
 async function loadFaccoes(){
- try{const qs=await getDocsCached(facCol,'faccoes');
-faccoes=qs.docs.map(d=>({id:d.id,
-...d.data()}));
-faccoes.sort((a,b)=>(a.numero||999)-(b.numero||999));
-renderFaccoes();
-renderAvailableFaccoes()}catch(e){$('#facList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR</h3><p>${e.message}</p></div>`}
+ if(faccoesLoadPromise)return faccoesLoadPromise;
+ faccoesLoadPromise=(async()=>{
+  try{
+   const qs=await getDocsCached(facCol,'faccoes');
+   faccoes=qs.docs.map(d=>({id:d.id,...d.data()}));
+   faccoes.sort((a,b)=>(a.numero||999)-(b.numero||999));
+   faccoesLoaded=true;
+   renderFaccoes();
+   renderAvailableFaccoes();
+   return faccoes;
+  }catch(e){
+   $('#facList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR</h3><p>${e.message}</p></div>`;
+   throw e;
+  }
+ })();
+ try{return await faccoesLoadPromise}
+ finally{faccoesLoadPromise=null}
 }
 function renderFaccoes(){
  const q=($('#facSearch').value||'').toLowerCase(),
