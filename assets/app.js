@@ -1472,10 +1472,11 @@ userPhotoEl=$('#userPhoto');
   document.querySelectorAll('.admin-only').forEach(el=>el.style.display=role==='ADMIN'?'flex':'none');
   applyModuleAccess(role);
   renderSessionClock(email);
-  await loadSegmentConfig();
-  await loadDashboardConfig();
   const initialPage=document.querySelector('.page.active')?.id?.replace('page-','')||'';
-  if(['dashboard','metricas','faccoes','organizacoes','disponiveis','entregas','group-profile','group-settings','org-profile'].includes(initialPage))await loadFaccoes();
+  const needsSegments=['dashboard','metricas','faccoes','organizacoes','disponiveis','entregas','group-profile','group-settings','org-profile'].includes(initialPage);
+  if(needsSegments)await loadSegmentConfig();
+  if(initialPage==='dashboard')await loadDashboardConfig();
+  if(needsSegments)await loadFaccoes();
   if(['dashboard','metricas'].includes(initialPage))await loadMetrics();
   /* V10.62 - recuperação periódica de métricas inicia apenas quando
      Dashboard/Métricas estiverem ativos; não cria timer global no login. */
@@ -1503,6 +1504,8 @@ if(!fallback||fallback===page)return;
 page=fallback}
  if(page==='administracao'&&isAdmin())setTimeout(()=>loadUserAudit(),0);
 if(page==='usuarios'&&isAdmin())setTimeout(()=>loadUsers(),0);
+if(['dashboard','metricas','faccoes','organizacoes','disponiveis','entregas','group-profile','group-settings','org-profile'].includes(page))setTimeout(()=>loadSegmentConfig(),0);
+if(page==='dashboard')setTimeout(()=>loadDashboardConfig(),0);
 if(page==='spotify')setTimeout(()=>loadSpotifyConfig(),0);
 if(page==='solicitacoes')setTimeout(()=>loadRequests(),0);
 if(['dashboard','metricas','faccoes','organizacoes','disponiveis','entregas','group-profile','group-settings','org-profile'].includes(page)&&!faccoesLoaded)setTimeout(()=>loadFaccoes().catch(e=>console.warn('[FACÇÕES] lazy-load falhou',e)),0);
