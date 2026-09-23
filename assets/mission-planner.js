@@ -1270,8 +1270,10 @@ iconAnchor:[12,
   }
   function safeStageValid(s){return !!s&&validCoord(s.x)&&validCoord(s.y)&&Number(s.radius)>0;}
   function ensureSafeRouteUi(){
-    const anchor=qs('#mpCoverageBox');if(!anchor||qs('#mpSafeRouteBox'))return;
-    const box=document.createElement('div');box.id='mpSafeRouteBox';box.className='mp-card';box.style.marginTop='10px';
+    if(qs('#mpSafeRouteBox'))return;
+    const zonePanel=plannerPanel('zona'),anchor=qs('#mpCoverageBox')||qs('#mpCenterValidation');
+    if(!zonePanel&&!anchor)return;
+    const box=document.createElement('div');box.id='mpSafeRouteBox';box.className='mp-card';box.dataset.forceTab='zona';box.style.marginTop='10px';
     box.innerHTML=`<h3>ROTA PROGRESSIVA DA SAFE</h3>
       <p class="mp-note">Fluxo: <b>FECHA 1 → MOVE → FECHA 2 → MOVE → FECHA FINAL</b>. Os respawns da missão não são alterados.</p>
       <div id="mpSafeRouteStatus" class="mp-readout"></div>
@@ -1283,7 +1285,7 @@ iconAnchor:[12,
         <button type="button" id="mpSafePreview" class="primary">▶ PREVIEW DA ROTA</button>
         <button type="button" id="mpSafeStop">■ PARAR</button>
       </div>`;
-    anchor.insertAdjacentElement('afterend',box);
+    if(zonePanel)zonePanel.appendChild(box);else anchor.insertAdjacentElement('afterend',box);
     qs('#mpSafeUseCenter')?.addEventListener('click',()=>{if(!requireEdit())return;const m=active(),r=ensureSafeRoute(m);if(!m||!r)return;r.stages[0].x=num(m.center.x);r.stages[0].y=num(m.center.y);r.stages[0].z=num(m.center.z);commit('Safe 1 vinculada ao centro da missão');});
     qs('#mpSafePlace2')?.addEventListener('click',()=>beginSafePlacement(1));
     qs('#mpSafePlace3')?.addEventListener('click',()=>beginSafePlacement(2));
@@ -1544,7 +1546,7 @@ j+1];}if(d<(Number(m.spawnRadius)||100)*2)over++;}
   function tpCds(p){const z=Number.isFinite(Number(p?.z))?Number(p.z):0;const h=Number.isFinite(Number(p?.h))?Number(p.h):0;return `${f(p.x)},${f(p.y)},${f(z)},${f(h)}`;}
   function updateExport(){const m=active(),
 out=qs('#mpExport');if(out&&m)out.value=m.points.filter(isValidated).map((p,i)=>`${p.id||i+1} - ${rawCds(p)}`).join('\n');}
-  function render(){adoptStrayCards();renderMissionList();renderPointList();renderMap();analyze();updateExport();syncForm();renderCenterValidation();renderCoverage();renderPlannerBadges();renderWorkspaceBar();renderBackupList();const rt=qs('#mpRequestText'),
+  function render(){adoptStrayCards();ensureSafeRouteUi();adoptStrayCards();renderMissionList();renderPointList();renderMap();analyze();updateExport();syncForm();renderCenterValidation();renderCoverage();renderPlannerBadges();renderWorkspaceBar();renderBackupList();const rt=qs('#mpRequestText'),
 m=active();if(rt&&document.activeElement!==rt)rt.value=m?.requestText||'';loadSnapshotPreview();}
 
   function syncForm(){
@@ -2058,8 +2060,9 @@ category:cat})));
     const side=qs('.mission-planner-side');if(!side||!qs('#mpTabBar'))return;
     Array.from(side.children).forEach(el=>{
       if(!el.classList||!el.classList.contains('mp-card'))return;
-      plannerPanel(cardTabKey(el))?.appendChild(el);
+      plannerPanel(el.dataset.forceTab||cardTabKey(el))?.appendChild(el);
     });
+    const safe=qs('#mpSafeRouteBox');if(safe&&!safe.closest('.mp-tabpanel[data-tab="zona"]'))plannerPanel('zona')?.appendChild(safe);
   }
   function setPlannerTab(id){
     qsa('.mp-tab').forEach(b=>{const on=b.dataset.tab===id;b.classList.toggle('active',on);b.setAttribute('aria-selected',on?'true':'false');});
