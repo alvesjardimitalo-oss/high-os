@@ -1270,9 +1270,14 @@ iconAnchor:[12,
   }
   function safeStageValid(s){return !!s&&validCoord(s.x)&&validCoord(s.y)&&Number(s.radius)>0;}
   function ensureSafeRouteUi(){
-    if(qs('#mpSafeRouteBox'))return;
-    const zonePanel=plannerPanel('zona'),anchor=qs('#mpCoverageBox')||qs('#mpCenterValidation');
-    if(!zonePanel&&!anchor)return;
+    const existing=qs('#mpSafeRouteBox');
+    if(existing){
+      const coverage=qs('#mpCoverageBox');
+      if(coverage&&existing.previousElementSibling!==coverage)coverage.insertAdjacentElement('afterend',existing);
+      return;
+    }
+    const anchor=qs('#mpCoverageBox')||qs('#mpCenterValidation'),zonePanel=plannerPanel('zona');
+    if(!anchor&&!zonePanel)return;
     const box=document.createElement('div');box.id='mpSafeRouteBox';box.className='mp-card';box.dataset.forceTab='zona';box.style.marginTop='10px';
     box.innerHTML=`<h3>ROTA PROGRESSIVA DA SAFE</h3>
       <p class="mp-note">Fluxo: <b>FECHA 1 → MOVE → FECHA 2 → MOVE → FECHA FINAL</b>. Os respawns da missão não são alterados.</p>
@@ -1285,7 +1290,7 @@ iconAnchor:[12,
         <button type="button" id="mpSafePreview" class="primary">▶ PREVIEW DA ROTA</button>
         <button type="button" id="mpSafeStop">■ PARAR</button>
       </div>`;
-    if(zonePanel)zonePanel.appendChild(box);else anchor.insertAdjacentElement('afterend',box);
+    if(anchor)anchor.insertAdjacentElement('afterend',box);else zonePanel.appendChild(box);
     qs('#mpSafeUseCenter')?.addEventListener('click',()=>{if(!requireEdit())return;const m=active(),r=ensureSafeRoute(m);if(!m||!r)return;r.stages[0].x=num(m.center.x);r.stages[0].y=num(m.center.y);r.stages[0].z=num(m.center.z);commit('Safe 1 vinculada ao centro da missão');});
     qs('#mpSafePlace2')?.addEventListener('click',()=>beginSafePlacement(1));
     qs('#mpSafePlace3')?.addEventListener('click',()=>beginSafePlacement(2));
@@ -1313,7 +1318,8 @@ iconAnchor:[12,
     ensureSafeRouteUi();const box=qs('#mpSafeRouteBox'),m=active();if(!box||!m)return;
     const gas=(m.category||'dominacao')==='gas';
     box.style.display=gas?'block':'none';if(!gas)return;
-    if(box.parentElement!==plannerPanel('zona'))plannerPanel('zona')?.appendChild(box);
+    const coverage=qs('#mpCoverageBox');
+    if(coverage&&box.previousElementSibling!==coverage)coverage.insertAdjacentElement('afterend',box);
     const r=ensureSafeRoute(m),host=qs('#mpSafeStages'),status=qs('#mpSafeRouteStatus');if(!r||!host)return;
     const initial=effectiveEventRadius(m);
     host.innerHTML=r.stages.map((s,i)=>`<div class="mp-readout" style="margin-top:8px"><b>SAFE ${i+1}${i===2?' • FINAL':''}</b>
@@ -1483,7 +1489,7 @@ s=coverageStats(m);if(!m||!s)return;applyRadius(s.recommended);});
     qs('#mpGenerateInsideZone')?.addEventListener('click',generateInsideZone);
   }
   function renderCoverage(){
-    ensureCoverageUi();const m=active(),
+    ensureCoverageUi();ensureSafeRouteUi();const m=active(),
 el=qs('#mpCoverageStatus'),
 title=qs('#mpCoverageTitle'),
 inp=qs('#mpEventRadius'),
