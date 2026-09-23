@@ -1905,6 +1905,13 @@ intro='';
     const selectorNote=kind==='create-zone'?`
 
 - A nova zona deverá ser adicionada à seleção de zonas do evento "${eventName}".`:'';
+    const gasHeightNote=category==='gas'?`
+
+OBSERVAÇÃO — ALTURA DA SAFE:
+
+- A Safe não deve ficar presa ao Z da CDS do centro. Como poderá se movimentar entre locais com alturas diferentes, o gás deve ter cobertura vertical do chão/abaixo do terreno até uma altura suficiente para permanecer visível durante todo o percurso.
+
+- A movimentação e a verificação da Safe devem considerar principalmente X/Y e o raio atual, evitando que o gás fique enterrado ou suspenso devido à diferença de altitude do mapa.`:'';
     const text=`Assunto:
 
 - ${subject};
@@ -1933,7 +1940,7 @@ DISTRIBUIÇÃO:
 
 - Nenhuma organização deverá compartilhar o mesmo ponto de spawn.
 
-${mechanic}
+${mechanic}${gasHeightNote}
 
 - As demais configurações, regras, premiações, duração e funcionamento do evento deverão permanecer inalterados.`;
     m.requestText=text;if(qs('#mpRequestText'))qs('#mpRequestText').value=text;
