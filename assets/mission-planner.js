@@ -1364,9 +1364,12 @@ iconAnchor:[12,
       {type:'move',a:r.stages[1],b:r.stages[2],from:r.stages[1].radius,to:r.stages[1].radius},
       {type:'close',a:r.stages[2],from:r.stages[1].radius,to:r.stages[2].radius}
     ];
-    let pi=0,t=0;const steps=45;
-    state.safePreviewLayer=L.circle(ll(r.stages[0].x,r.stages[0].y),{radius:initial,weight:5,fillOpacity:.09}).addTo(state.map);
-    state.safePreviewTimer=setInterval(()=>{const p=phases[pi];t++;const u=Math.min(1,t/steps);let x=p.a.x,y=p.a.y,rad=p.from+(p.to-p.from)*u;if(p.type==='move'){x=p.a.x+(p.b.x-p.a.x)*u;y=p.a.y+(p.b.y-p.a.y)*u;}state.safePreviewLayer.setLatLng(ll(x,y));state.safePreviewLayer.setRadius(rad);if(u>=1){pi++;t=0;if(pi>=phases.length){stopSafePreview();renderMap();}}},70);
+    let pi=0,t=0;const steps=60;
+    const gasStyle={radius:initial,weight:4,color:'#a855f7',opacity:.92,fillColor:'#7e22ce',fillOpacity:.16,dashArray:'10 7',interactive:false};
+    state.safePreviewLayer=L.circle(ll(r.stages[0].x,r.stages[0].y),gasStyle).addTo(state.map);
+    const routeLine=L.polyline([ll(r.stages[0].x,r.stages[0].y),ll(r.stages[1].x,r.stages[1].y),ll(r.stages[2].x,r.stages[2].y)],{color:'#c084fc',weight:3,opacity:.72,dashArray:'8 8',interactive:false}).addTo(state.map);state.drawn.push(routeLine);
+    const status=qs('#mpSafeRouteStatus');if(status)status.innerHTML=`<b>PREVIEW EM EXECUÇÃO</b> • rota sorteada: SAFE 1 → SAFE 2 → SAFE 3<br><small>O círculo roxo representa a área do gás durante fechamento e deslocamento.</small>`;
+    state.safePreviewTimer=setInterval(()=>{const p=phases[pi];t++;const u=Math.min(1,t/steps),smooth=u*u*(3-2*u);let x=p.a.x,y=p.a.y,rad=p.from+(p.to-p.from)*smooth;if(p.type==='move'){x=p.a.x+(p.b.x-p.a.x)*smooth;y=p.a.y+(p.b.y-p.a.y)*smooth;}state.safePreviewLayer.setLatLng(ll(x,y));state.safePreviewLayer.setRadius(rad);if(u>=1){pi++;t=0;if(pi>=phases.length){stopSafePreview();renderMap();}}},45);
   }
 
   function renderMap(){
