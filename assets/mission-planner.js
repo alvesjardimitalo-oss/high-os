@@ -1311,7 +1311,9 @@ iconAnchor:[12,
   }
   function renderSafeRouteUi(){
     ensureSafeRouteUi();const box=qs('#mpSafeRouteBox'),m=active();if(!box||!m)return;
-    box.style.display=(m.category||'dominacao')==='gas'?'block':'none';if(box.style.display==='none')return;
+    const gas=(m.category||'dominacao')==='gas';
+    box.style.display=gas?'block':'none';if(!gas)return;
+    if(box.parentElement!==plannerPanel('zona'))plannerPanel('zona')?.appendChild(box);
     const r=ensureSafeRoute(m),host=qs('#mpSafeStages'),status=qs('#mpSafeRouteStatus');if(!r||!host)return;
     const initial=effectiveEventRadius(m);
     host.innerHTML=r.stages.map((s,i)=>`<div class="mp-readout" style="margin-top:8px"><b>SAFE ${i+1}${i===2?' • FINAL':''}</b>
@@ -1591,7 +1593,7 @@ cb=qs('#mpCancelEdit');
     qsa('#page-planejador input:not(#mpRequestText),#page-planejador select,#page-planejador textarea:not(#mpRequestText):not(#mpExport)').forEach(el=>{if(!['mpValidateCds',
 'mpCenterRealCds',
 'mpCloneTarget'].includes(el.id))el.disabled=!edit;});
-    ['mpPlaceBtn',
+    ['mpSafeUseCenter','mpSafePlace2','mpSafePlace3','mpSafeClearOptions','mpPlaceBtn',
 'mpGenerateCircle',
 'mpImport',
 'mpAddCoord',
@@ -1925,6 +1927,24 @@ intro='';
     const selectorNote=kind==='create-zone'?`
 
 - A nova zona deverá ser adicionada à seleção de zonas do evento "${eventName}".`:'';
+    const safeRoute=category==='gas'?ensureSafeRoute(m):null;
+    const safeRouteText=category==='gas'&&safeRoute?(()=>{
+      const s=safeRoute.stages||[],o2=(safeRoute.stage2Options||[]).filter(p=>validCoord(p.x)&&validCoord(p.y)),o3=(safeRoute.stage3Options||[]).filter(p=>validCoord(p.x)&&validCoord(p.y));
+      if(!o2.length&&!o3.length)return '';
+      const fmtOpt=(p,i,prefix)=>`- ${prefix}${String.fromCharCode(65+i)}: ${f(p.x)},${f(p.y)} • raio da etapa: ${Math.round(Number(s[prefix==='SAFE 2'?1:2]?.radius)||0)} m`;
+      return `
+
+MOVIMENTAÇÃO DA SAFE:
+
+- SAFE 1: ${f(s[0]?.x)},${f(s[0]?.y)} • fecha até ${Math.round(Number(s[0]?.radius)||0)} m • dano ${Number(s[0]?.damage)||0} • fechamento ${Number(s[0]?.closeSeconds)||0}s.
+${o2.map((p,i)=>fmtOpt(p,i,'SAFE 2')).join('\n')}
+${o3.map((p,i)=>fmtOpt(p,i,'SAFE 3')).join('\n')}
+
+- A cada execução, sortear uma opção de SAFE 2 e uma opção de SAFE 3 dentre as CDS configuradas.
+- Fluxo: SAFE 1 fecha → círculo inteiro se desloca até SAFE 2 mantendo o raio alcançado → fecha novamente → desloca até SAFE 3 → fechamento final.
+- Movimento SAFE 1→2: ${Number(s[0]?.moveSeconds)||0}s. Movimento SAFE 2→3: ${Number(s[1]?.moveSeconds)||0}s.
+- Durante o deslocamento, centro e área do gás devem se mover continuamente, sem teleporte da zona.`;
+    })():'';
     const gasHeightNote=category==='gas'?`
 
 OBSERVAÇÃO — ALTURA DA SAFE:
@@ -1960,7 +1980,7 @@ DISTRIBUIÇÃO:
 
 - Nenhuma organização deverá compartilhar o mesmo ponto de spawn.
 
-${mechanic}${gasHeightNote}
+${mechanic}${safeRouteText}${gasHeightNote}
 
 - As demais configurações, regras, premiações, duração e funcionamento do evento deverão permanecer inalterados.`;
     m.requestText=text;if(qs('#mpRequestText'))qs('#mpRequestText').value=text;
