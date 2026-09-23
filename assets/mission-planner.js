@@ -1247,8 +1247,94 @@ iconSize:[24,
 iconAnchor:[12,
 12]});}
   function clearLayers(){state.drawn.forEach(o=>{try{state.map.removeLayer(o)}catch{}});state.drawn=[];}
+  // V12.6 — rota progressiva da Safe: FECHA -> MOVE -> FECHA -> MOVE -> FECHA FINAL
+  function ensureSafeRoute(m){
+    if(!m||((m.category||'dominacao')!=='gas'))return null;
+    const initial=effectiveEventRadius(m);
+    if(!m.safeRoute||!Array.isArray(m.safeRoute.stages)){
+      m.safeRoute={version:1,stages:[
+        {x:num(m.center?.x),y:num(m.center?.y),z:num(m.center?.z),radius:Math.max(50,Math.round(initial*.65)),damage:5,closeSeconds:180,moveSeconds:90},
+        {x:null,y:null,z:null,radius:Math.max(50,Math.round(initial*.35)),damage:10,closeSeconds:150,moveSeconds:75},
+        {x:null,y:null,z:null,radius:Math.max(30,Math.round(initial*.12)),damage:20,closeSeconds:120,moveSeconds:0}
+      ]};
+    }
+    const s=m.safeRoute.stages;
+    while(s.length<3)s.push({x:null,y:null,z:null,radius:100,damage:5,closeSeconds:120,moveSeconds:60});
+    s.length=3;
+    if(!validCoord(s[0].x)&&validCoord(m.center?.x)){s[0].x=num(m.center.x);s[0].y=num(m.center.y);s[0].z=num(m.center.z);}
+    return m.safeRoute;
+  }
+  function safeStageValid(s){return !!s&&validCoord(s.x)&&validCoord(s.y)&&Number(s.radius)>0;}
+  function ensureSafeRouteUi(){
+    const anchor=qs('#mpCoverageBox');if(!anchor||qs('#mpSafeRouteBox'))return;
+    const box=document.createElement('div');box.id='mpSafeRouteBox';box.className='mp-card';box.style.marginTop='10px';
+    box.innerHTML=`<h3>ROTA PROGRESSIVA DA SAFE</h3>
+      <p class="mp-note">Fluxo: <b>FECHA 1 → MOVE → FECHA 2 → MOVE → FECHA FINAL</b>. Os respawns da missão não são alterados.</p>
+      <div id="mpSafeRouteStatus" class="mp-readout"></div>
+      <div id="mpSafeStages"></div>
+      <div class="mp-actions" style="display:flex;gap:6px;flex-wrap:wrap">
+        <button type="button" id="mpSafeUseCenter">SAFE 1 = CENTRO ATUAL</button>
+        <button type="button" id="mpSafePreview" class="primary">▶ PREVIEW DA ROTA</button>
+        <button type="button" id="mpSafeStop">■ PARAR</button>
+      </div>`;
+    anchor.insertAdjacentElement('afterend',box);
+    qs('#mpSafeUseCenter')?.addEventListener('click',()=>{if(!requireEdit())return;const m=active(),r=ensureSafeRoute(m);if(!m||!r)return;r.stages[0].x=num(m.center.x);r.stages[0].y=num(m.center.y);r.stages[0].z=num(m.center.z);commit('Safe 1 vinculada ao centro da missão');});
+    qs('#mpSafePreview')?.addEventListener('click',startSafePreview);
+    qs('#mpSafeStop')?.addEventListener('click',stopSafePreview);
+  }
+  function renderSafeRouteUi(){
+    ensureSafeRouteUi();const box=qs('#mpSafeRouteBox'),m=active();if(!box||!m)return;
+    box.style.display=(m.category||'dominacao')==='gas'?'block':'none';if(box.style.display==='none')return;
+    const r=ensureSafeRoute(m),host=qs('#mpSafeStages'),status=qs('#mpSafeRouteStatus');if(!r||!host)return;
+    const initial=effectiveEventRadius(m);
+    host.innerHTML=r.stages.map((s,i)=>`<div class="mp-readout" style="margin-top:8px"><b>SAFE ${i+1}${i===2?' • FINAL':''}</b>
+      <div class="mp-grid" style="margin-top:6px">
+        <label>X<input data-safe="${i}" data-k="x" inputmode="decimal" value="${s.x??''}"></label>
+        <label>Y<input data-safe="${i}" data-k="y" inputmode="decimal" value="${s.y??''}"></label>
+        <label>Raio final (m)<input data-safe="${i}" data-k="radius" type="number" min="30" value="${s.radius??''}"></label>
+        <label>Dano<input data-safe="${i}" data-k="damage" type="number" min="0" value="${s.damage??''}"></label>
+        <label>Fechamento (s)<input data-safe="${i}" data-k="closeSeconds" type="number" min="1" value="${s.closeSeconds??''}"></label>
+        ${i<2?`<label>Movimento (s)<input data-safe="${i}" data-k="moveSeconds" type="number" min="1" value="${s.moveSeconds??''}"></label>`:''}
+      </div></div>`).join('');
+    qsa('[data-safe]',host).forEach(inp=>inp.addEventListener('change',e=>{if(!requireEdit())return;const mm=active(),rr=ensureSafeRoute(mm),i=Number(e.target.dataset.safe),k=e.target.dataset.k,v=Number(e.target.value);if(!Number.isFinite(v)){renderSafeRouteUi();return;}rr.stages[i][k]=v;if(k==='radius')rr.stages[i][k]=Math.max(30,v);state.dirty=true;setSaveState('Rota da Safe alterada • NÃO SALVO');renderMap();renderSafeRouteUi();}));
+    const ok=r.stages.filter(safeStageValid).length;
+    status.innerHTML=`Raio inicial: <b>${Math.round(initial)} m</b> • Etapas configuradas: <b>${ok}/3</b><br><small>O raio inicial de cada etapa é herdado do fechamento anterior.</small>`;
+  }
+  function drawSafeRoute(m){
+    if(!state.map||!m||((m.category||'dominacao')!=='gas'))return;
+    const r=ensureSafeRoute(m);if(!r)return;
+    const valid=r.stages.filter(safeStageValid);
+    if(valid.length>1){
+      const line=L.polyline(valid.map(s=>ll(s.x,s.y)),{weight:4,dashArray:'10 8',opacity:.85,interactive:false}).addTo(state.map);state.drawn.push(line);
+    }
+    r.stages.forEach((s,i)=>{if(!safeStageValid(s))return;
+      const circle=L.circle(ll(s.x,s.y),{radius:Number(s.radius),weight:3,fillOpacity:.025,dashArray:i===2?'4 4':'10 7',interactive:false}).addTo(state.map);
+      const icon=L.divIcon({className:'',html:`<div class="mp-center-pin validated" style="font-size:11px;font-weight:900">S${i+1}</div>`,iconSize:[32,32],iconAnchor:[16,16]});
+      const pin=L.marker(ll(s.x,s.y),{icon,interactive:true}).addTo(state.map).bindPopup(`<b>SAFE ${i+1}</b><br>Raio final: ${Math.round(Number(s.radius))}m<br>Dano: ${Number(s.damage)||0}<br>Fecha: ${Number(s.closeSeconds)||0}s${i<2?`<br>Move: ${Number(s.moveSeconds)||0}s`:''}`);
+      state.drawn.push(circle,pin);
+    });
+  }
+  function stopSafePreview(){
+    if(state.safePreviewTimer){clearInterval(state.safePreviewTimer);state.safePreviewTimer=null;}
+    if(state.safePreviewLayer&&state.map){try{state.map.removeLayer(state.safePreviewLayer)}catch{}state.safePreviewLayer=null;}
+  }
+  function startSafePreview(){
+    const m=active(),r=ensureSafeRoute(m);if(!m||!r||r.stages.some(s=>!safeStageValid(s))){alert('Configure X, Y e raio das 3 Safes antes do preview.');return;}
+    stopSafePreview();
+    const initial=effectiveEventRadius(m),phases=[
+      {type:'close',a:r.stages[0],from:initial,to:r.stages[0].radius},
+      {type:'move',a:r.stages[0],b:r.stages[1],from:r.stages[0].radius,to:r.stages[0].radius},
+      {type:'close',a:r.stages[1],from:r.stages[0].radius,to:r.stages[1].radius},
+      {type:'move',a:r.stages[1],b:r.stages[2],from:r.stages[1].radius,to:r.stages[1].radius},
+      {type:'close',a:r.stages[2],from:r.stages[1].radius,to:r.stages[2].radius}
+    ];
+    let pi=0,t=0;const steps=45;
+    state.safePreviewLayer=L.circle(ll(r.stages[0].x,r.stages[0].y),{radius:initial,weight:5,fillOpacity:.09}).addTo(state.map);
+    state.safePreviewTimer=setInterval(()=>{const p=phases[pi];t++;const u=Math.min(1,t/steps);let x=p.a.x,y=p.a.y,rad=p.from+(p.to-p.from)*u;if(p.type==='move'){x=p.a.x+(p.b.x-p.a.x)*u;y=p.a.y+(p.b.y-p.a.y)*u;}state.safePreviewLayer.setLatLng(ll(x,y));state.safePreviewLayer.setRadius(rad);if(u>=1){pi++;t=0;if(pi>=phases.length){stopSafePreview();renderMap();}}},70);
+  }
+
   function renderMap(){
-    if(!state.map)return;clearLayers();const m=active();if(!m)return;
+    if(!state.map)return;clearLayers();const m=active();if(!m)return;renderSafeRouteUi();
     if(validCoord(m.center.x)&&validCoord(m.center.y)){
       const cicon=L.divIcon({className:'',
 html:`<div class="mp-center-pin ${isCenterValidated(m)?'validated':'planned'}">◎</div>`,
@@ -1270,6 +1356,7 @@ interactive:false}).addTo(state.map);
         state.drawn.push(zone);
       }
     }
+    drawSafeRoute(m);
     m.points.forEach((p,i)=>{
       p.id=i+1;const valid=isValidated(p),
 outside=((m.category||'dominacao')==='gas')&&!pointInsideZone(m,p),
