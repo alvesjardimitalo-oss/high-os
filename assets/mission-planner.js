@@ -530,7 +530,8 @@ libraryCategory:'dominacao',
 activeEventId:null,
 activeMapName:null,
 workspaceOpen:false,
-cloudState:'local'};
+cloudState:'local',
+safePlacementStage:null};
   const f=n=>Number(n).toFixed(2);
   const num=v=>{const n=Number(v);return Number.isFinite(n)?n:null};
   const nowIso=()=>new Date().toISOString();
@@ -1225,6 +1226,7 @@ get err(){return errCount}};
       const m=active();if(!m)return;
       if(!state.editing){if(qs('#mpClicked'))qs('#mpClicked').textContent='Modo visualização: clique em EDITAR EVENTO para alterar posições.';return;}
       if(qs('#mpClicked'))qs('#mpClicked').textContent=`${f(e.latlng.lng)},${f(e.latlng.lat)}`;
+      if(state.safePlacementStage!==null){placeSafeOnMap(e.latlng);return;}
       if(state.placing){m.points.push(normalizePoint({x:e.latlng.lng,
 y:e.latlng.lat,
 z:0,
@@ -1274,13 +1276,32 @@ iconAnchor:[12,
       <div id="mpSafeStages"></div>
       <div class="mp-actions" style="display:flex;gap:6px;flex-wrap:wrap">
         <button type="button" id="mpSafeUseCenter">SAFE 1 = CENTRO ATUAL</button>
+        <button type="button" id="mpSafePlace2">MARCAR SAFE 2 NO MAPA</button>
+        <button type="button" id="mpSafePlace3">MARCAR SAFE 3 NO MAPA</button>
         <button type="button" id="mpSafePreview" class="primary">▶ PREVIEW DA ROTA</button>
         <button type="button" id="mpSafeStop">■ PARAR</button>
       </div>`;
     anchor.insertAdjacentElement('afterend',box);
     qs('#mpSafeUseCenter')?.addEventListener('click',()=>{if(!requireEdit())return;const m=active(),r=ensureSafeRoute(m);if(!m||!r)return;r.stages[0].x=num(m.center.x);r.stages[0].y=num(m.center.y);r.stages[0].z=num(m.center.z);commit('Safe 1 vinculada ao centro da missão');});
+    qs('#mpSafePlace2')?.addEventListener('click',()=>beginSafePlacement(1));
+    qs('#mpSafePlace3')?.addEventListener('click',()=>beginSafePlacement(2));
     qs('#mpSafePreview')?.addEventListener('click',startSafePreview);
     qs('#mpSafeStop')?.addEventListener('click',stopSafePreview);
+  }
+  function beginSafePlacement(stageIndex){
+    if(!requireEdit())return;
+    const m=active();if(!m||((m.category||'dominacao')!=='gas'))return;
+    ensureSafeRoute(m);state.safePlacementStage=stageIndex;state.placing=false;
+    const status=qs('#mpSafeRouteStatus');if(status)status.innerHTML=`<b>MARCAÇÃO ATIVA: SAFE ${stageIndex+1}</b><br>Clique no mapa no local onde o centro da Safe deverá chegar.`;
+    if(state.map?.getContainer())state.map.getContainer().style.cursor='crosshair';
+  }
+  function placeSafeOnMap(latlng){
+    const m=active(),idx=state.safePlacementStage;if(!m||idx===null||idx===undefined)return false;
+    const r=ensureSafeRoute(m),s=r?.stages?.[idx];if(!s)return false;
+    s.x=latlng.lng;s.y=latlng.lat;s.z=num(m.center?.z)||0;
+    state.safePlacementStage=null;if(state.map?.getContainer())state.map.getContainer().style.cursor='';
+    commit(`Safe ${idx+1} marcada no mapa`);
+    state.map?.panTo(latlng);renderSafeRouteUi();return true;
   }
   function renderSafeRouteUi(){
     ensureSafeRouteUi();const box=qs('#mpSafeRouteBox'),m=active();if(!box||!m)return;
