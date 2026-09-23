@@ -1264,6 +1264,8 @@ iconAnchor:[12,
     while(s.length<3)s.push({x:null,y:null,z:null,radius:100,damage:5,closeSeconds:120,moveSeconds:60});
     s.length=3;
     if(!validCoord(s[0].x)&&validCoord(m.center?.x)){s[0].x=num(m.center.x);s[0].y=num(m.center.y);s[0].z=num(m.center.z);}
+    if(!Array.isArray(m.safeRoute.stage2Options))m.safeRoute.stage2Options=safeStageValid?.(s[1])?[{x:s[1].x,y:s[1].y,z:s[1].z}]:[];
+    if(!Array.isArray(m.safeRoute.stage3Options))m.safeRoute.stage3Options=safeStageValid?.(s[2])?[{x:s[2].x,y:s[2].y,z:s[2].z}]:[];
     return m.safeRoute;
   }
   function safeStageValid(s){return !!s&&validCoord(s.x)&&validCoord(s.y)&&Number(s.radius)>0;}
@@ -1276,8 +1278,8 @@ iconAnchor:[12,
       <div id="mpSafeStages"></div>
       <div class="mp-actions" style="display:flex;gap:6px;flex-wrap:wrap">
         <button type="button" id="mpSafeUseCenter">SAFE 1 = CENTRO ATUAL</button>
-        <button type="button" id="mpSafePlace2">MARCAR SAFE 2 NO MAPA</button>
-        <button type="button" id="mpSafePlace3">MARCAR SAFE 3 NO MAPA</button>
+        <button type="button" id="mpSafePlace2">ADICIONAR OPÇÃO SAFE 2</button>
+        <button type="button" id="mpSafePlace3">ADICIONAR OPÇÃO SAFE 3</button>
         <button type="button" id="mpSafePreview" class="primary">▶ PREVIEW DA ROTA</button>
         <button type="button" id="mpSafeStop">■ PARAR</button>
       </div>`;
@@ -1299,6 +1301,8 @@ iconAnchor:[12,
     const m=active(),idx=state.safePlacementStage;if(!m||idx===null||idx===undefined)return false;
     const r=ensureSafeRoute(m),s=r?.stages?.[idx];if(!s)return false;
     s.x=latlng.lng;s.y=latlng.lat;s.z=num(m.center?.z)||0;
+    const key=idx===1?'stage2Options':'stage3Options';if(!Array.isArray(r[key]))r[key]=[];
+    r[key].push({x:s.x,y:s.y,z:s.z});
     state.safePlacementStage=null;if(state.map?.getContainer())state.map.getContainer().style.cursor='';
     commit(`Safe ${idx+1} marcada no mapa`);
     state.map?.panTo(latlng);renderSafeRouteUi();return true;
@@ -1319,12 +1323,19 @@ iconAnchor:[12,
       </div></div>`).join('');
     qsa('[data-safe]',host).forEach(inp=>inp.addEventListener('change',e=>{if(!requireEdit())return;const mm=active(),rr=ensureSafeRoute(mm),i=Number(e.target.dataset.safe),k=e.target.dataset.k,v=Number(e.target.value);if(!Number.isFinite(v)){renderSafeRouteUi();return;}rr.stages[i][k]=v;if(k==='radius')rr.stages[i][k]=Math.max(30,v);state.dirty=true;setSaveState('Rota da Safe alterada • NÃO SALVO');renderMap();renderSafeRouteUi();}));
     const ok=r.stages.filter(safeStageValid).length;
-    status.innerHTML=`Raio inicial: <b>${Math.round(initial)} m</b> • Etapas configuradas: <b>${ok}/3</b><br><small>O raio inicial de cada etapa é herdado do fechamento anterior.</small>`;
+    const o2=r.stage2Options||[],o3=r.stage3Options||[];
+    const opts=document.createElement('div');opts.className='mp-note';opts.style.marginTop='8px';opts.innerHTML=`Opções aleatórias: <b>Safe 2: ${o2.length}</b> • <b>Safe 3: ${o3.length}</b> <button type="button" id="mpSafeClearOptions" style="margin-left:8px">LIMPAR OPÇÕES</button>`;host.appendChild(opts);
+    qs('#mpSafeClearOptions')?.addEventListener('click',()=>{if(!requireEdit())return;r.stage2Options=[];r.stage3Options=[];r.stages[1].x=r.stages[1].y=null;r.stages[2].x=r.stages[2].y=null;commit('Opções aleatórias da Safe removidas');});
+    status.innerHTML=`Raio inicial: <b>${Math.round(initial)} m</b> • Etapas configuradas: <b>${ok}/3</b><br><small>Adicione várias opções de Safe 2 e Safe 3 clicando no mapa. A execução poderá sortear uma rota.</small>`;
   }
   function drawSafeRoute(m){
     if(!state.map||!m||((m.category||'dominacao')!=='gas'))return;
     const r=ensureSafeRoute(m);if(!r)return;
-    const valid=r.stages.filter(safeStageValid);
+    const o2=(r.stage2Options||[]).filter(s=>validCoord(s.x)&&validCoord(s.y)),o3=(r.stage3Options||[]).filter(s=>validCoord(s.x)&&validCoord(s.y));
+    const s1=r.stages[0],valid=r.stages.filter(safeStageValid);
+    if(safeStageValid(s1)){o2.forEach((p,i)=>{const line=L.polyline([ll(s1.x,s1.y),ll(p.x,p.y)],{weight:2,dashArray:'7 7',opacity:.55,interactive:false}).addTo(state.map);const icon=L.divIcon({className:'',html:`<div class="mp-center-pin planned" style="font-size:10px;font-weight:900">S2-${i+1}</div>`,iconSize:[36,30],iconAnchor:[18,15]});state.drawn.push(line,L.marker(ll(p.x,p.y),{icon}).addTo(state.map));});}
+    o2.forEach(a=>o3.forEach((b,i)=>{const line=L.polyline([ll(a.x,a.y),ll(b.x,b.y)],{weight:1.5,dashArray:'4 8',opacity:.28,interactive:false}).addTo(state.map);state.drawn.push(line);}));
+    o3.forEach((p,i)=>{const icon=L.divIcon({className:'',html:`<div class="mp-center-pin planned" style="font-size:10px;font-weight:900">S3-${i+1}</div>`,iconSize:[36,30],iconAnchor:[18,15]});state.drawn.push(L.marker(ll(p.x,p.y),{icon}).addTo(state.map));});
     if(valid.length>1){
       const line=L.polyline(valid.map(s=>ll(s.x,s.y)),{weight:4,dashArray:'10 8',opacity:.85,interactive:false}).addTo(state.map);state.drawn.push(line);
     }
@@ -1340,7 +1351,11 @@ iconAnchor:[12,
     if(state.safePreviewLayer&&state.map){try{state.map.removeLayer(state.safePreviewLayer)}catch{}state.safePreviewLayer=null;}
   }
   function startSafePreview(){
-    const m=active(),r=ensureSafeRoute(m);if(!m||!r||r.stages.some(s=>!safeStageValid(s))){alert('Configure X, Y e raio das 3 Safes antes do preview.');return;}
+    const m=active(),r=ensureSafeRoute(m);if(!m||!r||!safeStageValid(r.stages[0])){alert('Configure a Safe 1 antes do preview.');return;}
+    const o2=(r.stage2Options||[]).filter(s=>validCoord(s.x)&&validCoord(s.y)),o3=(r.stage3Options||[]).filter(s=>validCoord(s.x)&&validCoord(s.y));
+    if(!o2.length||!o3.length){alert('Adicione pelo menos uma opção de Safe 2 e uma de Safe 3 no mapa.');return;}
+    const p2=o2[Math.floor(Math.random()*o2.length)],p3=o3[Math.floor(Math.random()*o3.length)];
+    r.stages[1].x=p2.x;r.stages[1].y=p2.y;r.stages[2].x=p3.x;r.stages[2].y=p3.y;
     stopSafePreview();
     const initial=effectiveEventRadius(m),phases=[
       {type:'close',a:r.stages[0],from:initial,to:r.stages[0].radius},
