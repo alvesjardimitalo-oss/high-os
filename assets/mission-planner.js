@@ -1651,12 +1651,19 @@ j+1];}if(d<(Number(m.spawnRadius)||100)*2)over++;}
   function tpCds(p){const z=Number.isFinite(Number(p?.z))?Number(p.z):0;const h=Number.isFinite(Number(p?.h))?Number(p.h):0;return `${f(p.x)},${f(p.y)},${f(z)},${f(h)}`;}
   /* V9.6 DEV — pacote de produtividade/validação do Planejador */
   function median(nums){const a=nums.filter(Number.isFinite).sort((x,y)=>x-y);if(!a.length)return null;const i=Math.floor(a.length/2);return a.length%2?a[i]:(a[i-1]+a[i])/2;}
+  function dominationAccessAnalysis(m){
+    const pts=(m?.points||[]).filter(isValidated);if(!m||pts.length<2||!validCoord(m.center?.x)||!validCoord(m.center?.y))return null;
+    const radius=effectiveEventRadius(m),access=pts.map(p=>{let deg=Math.atan2(Number(p.y)-Number(m.center.y),Number(p.x)-Number(m.center.x))*180/Math.PI;if(deg<0)deg+=360;return {id:p.id,deg,distanceToEdge:Math.max(0,pointDistanceFromCenter(m,p)-radius)};}).sort((a,b)=>a.deg-b.deg);
+    let largestGap=0;for(let i=0;i<access.length;i++){const a=access[i].deg,b=i===access.length-1?access[0].deg+360:access[i+1].deg;largestGap=Math.max(largestGap,b-a);}
+    const sectors=new Set(access.map(x=>Math.floor(x.deg/90)%4));
+    return {access,largestGap,sectors:sectors.size};
+  }
   function plannerAudit(m){
     const issues=[],warns=[]; if(!m)return {issues:['Nenhuma zona ativa.'],warns:[]};
     if(!validCoord(m.center?.x)||!validCoord(m.center?.y))issues.push('Centro da zona não definido.');
     const pending=(m.points||[]).filter(p=>!isValidated(p)); if(pending.length)issues.push(pending.length+' spawn(s) ainda pendente(s) de validação.');
     if((m.category||'dominacao')==='gas'){const c=zoneCoverageCounts(m);if(c.outside)issues.push(c.outside+' spawn(s) fora da safe inicial.');const r=ensureSafeRoute(m);const configured=r?.stages?.filter(safeStageValid).length||0;if(configured<3)warns.push('Rota progressiva da Safe está com '+configured+'/3 etapas configuradas.');safeRouteAudit(m).forEach(x=>issues.push(x));}
-    else{const radius=effectiveEventRadius(m);if(!Number.isFinite(radius)||radius<=0)issues.push('Raio da Zona de Pontuação inválido.');if(radius<150)warns.push('Zona de Pontuação pequena ('+Math.round(radius)+' m de raio). Confira se há espaço suficiente para movimentação, cobertura e flancos.');const ds=(m.points||[]).filter(isValidated).map(p=>Math.max(0,pointDistanceFromCenter(m,p)-radius));if(ds.length>=4){const min=Math.min(...ds),max=Math.max(...ds);if(max-min>300)warns.push('Acessos com diferença relevante: há cerca de '+Math.round(max-min)+' m entre a entrada mais próxima e a mais distante da borda da zona.');}}
+    else{const radius=effectiveEventRadius(m);if(!Number.isFinite(radius)||radius<=0)issues.push('Raio da Zona de Pontuação inválido.');if(radius<150)warns.push('Zona de Pontuação pequena ('+Math.round(radius)+' m de raio). Confira se há espaço suficiente para movimentação, cobertura e flancos.');const ds=(m.points||[]).filter(isValidated).map(p=>Math.max(0,pointDistanceFromCenter(m,p)-radius));if(ds.length>=4){const min=Math.min(...ds),max=Math.max(...ds);if(max-min>300)warns.push('Acessos com diferença relevante: há cerca de '+Math.round(max-min)+' m entre a entrada mais próxima e a mais distante da borda da zona.');const aa=dominationAccessAnalysis(m);if(aa&&aa.sectors<3)warns.push('Acessos concentrados em apenas '+aa.sectors+' setor(es) ao redor da zona; confira se existem rotas de aproximação por lados diferentes.');if(aa&&aa.largestGap>180)warns.push('Há mais de 180° da Zona de Pontuação sem entrada cadastrada; confira risco de concentração da disputa em um único lado.');}}
     const allProblems=spawnProblems(m);if(allProblems.duplicates.length)issues.push(allProblems.duplicates.length+' par(es) de spawns praticamente duplicados (< 2 m).');
     const pts=(m.points||[]).filter(p=>isValidated(p));
     let nearest=Infinity,pair=null;for(let i=0;i<pts.length;i++)for(let j=i+1;j<pts.length;j++){const d=distXY(pts[i],pts[j]);if(d<nearest){nearest=d;pair=[pts[i].id,pts[j].id];}}
