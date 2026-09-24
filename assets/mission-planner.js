@@ -1418,10 +1418,20 @@ iconAnchor:[12,
     if(!o3.length&&!fixed3){alert('Configure a Safe 3 ou adicione pelo menos uma opção de Safe 3 no mapa.');return;}
     const valid2=o2.filter(p=>safeCircleFits(r.stages[0],{...r.stages[1],x:p.x,y:p.y,z:0}));
     if(o2.length&&!valid2.length){alert('Nenhuma opção da Safe 2 cabe dentro da Safe 1. Corrija as opções antes do preview.');return;}
-    const random2=valid2.length>0,p2=random2?valid2[Math.floor(Math.random()*valid2.length)]:r.stages[1];
-    const parent2={...r.stages[1],x:p2.x,y:p2.y,z:0},valid3=o3.filter(p=>safeCircleFits(parent2,{...r.stages[2],x:p.x,y:p.y,z:0}));
-    if(o3.length&&!valid3.length){alert('Nenhuma opção da Safe 3 cabe dentro da Safe 2 selecionada. Corrija as opções antes do preview.');return;}
-    const random3=valid3.length>0,p3=random3?valid3[Math.floor(Math.random()*valid3.length)]:r.stages[2];
+    const fixedP2=r.stages[1],fixedP3=r.stages[2];let p2=fixedP2,p3=fixedP3,random2=false,random3=false;
+    if(valid2.length&&o3.length){
+      const pairs=[];valid2.forEach(a=>{const parent={...r.stages[1],x:a.x,y:a.y,z:0};o3.forEach(b=>{if(safeCircleFits(parent,{...r.stages[2],x:b.x,y:b.y,z:0}))pairs.push([a,b]);});});
+      if(!pairs.length){alert('Não existe nenhuma combinação válida entre as opções de Safe 2 e Safe 3. Corrija a rota antes do preview.');return;}
+      [p2,p3]=pairs[Math.floor(Math.random()*pairs.length)];random2=random3=true;
+    }else if(valid2.length){
+      const compatible2=valid2.filter(a=>safeCircleFits({...r.stages[1],x:a.x,y:a.y,z:0},fixedP3));
+      if(!compatible2.length){alert('Nenhuma opção da Safe 2 é compatível com a Safe 3 fixa. Corrija a rota antes do preview.');return;}
+      p2=compatible2[Math.floor(Math.random()*compatible2.length)];random2=true;
+    }else if(o3.length){
+      const valid3=o3.filter(b=>safeCircleFits(fixedP2,{...r.stages[2],x:b.x,y:b.y,z:0}));
+      if(!valid3.length){alert('Nenhuma opção da Safe 3 é compatível com a Safe 2 fixa. Corrija a rota antes do preview.');return;}
+      p3=valid3[Math.floor(Math.random()*valid3.length)];random3=true;
+    }
     // Preview usa cópias: rota sorteada ou fixa nunca altera a configuração salva.
     const s1={...r.stages[0]},s2={...r.stages[1],x:p2.x,y:p2.y,z:0},s3={...r.stages[2],x:p3.x,y:p3.y,z:0},routeMode=(random2||random3)?((random2&&random3)?'ALEATÓRIA':'MISTA'):'FIXA';
     stopSafePreview();
