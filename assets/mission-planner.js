@@ -1630,7 +1630,7 @@ counts=zoneCoverageCounts(m);
     const note=qs('#mpCoverageBox .mp-note');renderDominationPolygonUi();
     if(category==='dominacao'){
       const geom=dominationZoneGeometry(m),outsideAccess=(m.points||[]).filter(isValidated).map(p=>dominationAccessDistance(m,p)),minAccess=outsideAccess.length?Math.min(...outsideAccess):null,maxAccess=outsideAccess.length?Math.max(...outsideAccess):null,aa=dominationAccessAnalysis(m);
-      const usedEdges=aa?new Set(aa.access.map(x=>x.edge).filter(Boolean)).size:0,accessSummary=aa?`${geom.mode==='polygon'?`Bordas com aproximação: <b>${usedEdges}/${geom.vertices}</b> • `:''}Cobertura angular: <b>${aa.sectors}/4 quadrantes</b> • maior trecho sem entrada: <b>${aa.largestGap.toFixed(0)}°</b><br>`:'';
+      const fair=dominationFairnessAnalysis(m),fairWarn=dominationFairnessWarnings(m),usedEdges=aa?new Set(aa.access.map(x=>x.edge).filter(Boolean)).size:0,accessSummary=aa?`${geom.mode==='polygon'?`Bordas com aproximação: <b>${usedEdges}/${geom.vertices}</b> • `:''}Cobertura angular: <b>${aa.sectors}/4 quadrantes</b> • maior trecho sem entrada: <b>${aa.largestGap.toFixed(0)}°</b><br>${fair?`Mediana de aproximação: <b>${fair.median.toFixed(0)} m</b> • amplitude: <b>${fair.spread.toFixed(0)} m</b><br>`:''}${fairWarn.length?`<span style="color:#ffd27a"><b>Crítica de equidade:</b><br>${fairWarn.map(x=>'• '+esc(x)).join('<br>')}</span><br>`:''}`:'';
       el.innerHTML=`${geom.mode==='polygon'?`Zona por polígono: <b>${geom.vertices} vértices</b> • área ~<b>${Math.round(geom.area).toLocaleString('pt-BR')} m²</b><br>`:`Zona por raio: <b>${used} m</b><br>`}Spawns/entradas cadastrados: <b>${counts.total}</b><br>${minAccess!==null?`Distância até a borda da zona: <b>${minAccess.toFixed(0)}–${maxAccess.toFixed(0)} m</b><br>`:''}${accessSummary}<span style="color:#9ed7ff">A pontuação acontece dentro da zona. Os spawns podem e normalmente devem ficar externos, funcionando como pontos de entrada para a disputa.</span>`;
       if(note)note.textContent='Projete uma área ampla de disputa, com espaço para movimentação, cobertura e flancos. Evite zonas pequenas que permitam marcar facilmente os jogadores ou controlar todas as entradas.';
       if(btn){btn.style.display='none';btn.disabled=true;}
@@ -1697,12 +1697,27 @@ j+1];}if(d<(Number(m.spawnRadius)||100)*2)over++;}
     const sectors=new Set(access.map(x=>Math.floor(x.deg/90)%4));
     return {access,largestGap,sectors:sectors.size};
   }
+  function dominationFairnessAnalysis(m){
+    const aa=dominationAccessAnalysis(m);if(!aa?.access?.length)return null;const ds=aa.access.map(x=>x.distanceToEdge).filter(Number.isFinite),med=median(ds);if(med===null)return null;
+    const sorted=[...ds].sort((a,b)=>a-b),q1=sorted[Math.floor((sorted.length-1)*.25)]||0,q3=sorted[Math.floor((sorted.length-1)*.75)]||0,spread=(Math.max(...ds)-Math.min(...ds));
+    const short=aa.access.filter(x=>x.distanceToEdge<Math.max(30,med*.55)),long=aa.access.filter(x=>x.distanceToEdge>Math.max(med*1.65,med+180));
+    const edgeCounts={};aa.access.forEach(x=>{if(x.edge)edgeCounts[x.edge]=(edgeCounts[x.edge]||0)+1;});const maxEdge=Object.entries(edgeCounts).sort((a,b)=>b[1]-a[1])[0]||null;
+    return {median:med,q1,q3,spread,short,long,maxEdge,total:aa.access.length,access:aa.access};
+  }
+  function dominationFairnessWarnings(m){
+    const f=dominationFairnessAnalysis(m),w=[];if(!f||f.total<3)return w;
+    if(f.short.length)w.push('Aproximação muito curta em relação ao conjunto: spawn(s) '+f.short.map(x=>String(x.id).padStart(2,'0')).join(', ')+'. Confira possível vantagem de chegada.');
+    if(f.long.length)w.push('Aproximação muito longa em relação ao conjunto: spawn(s) '+f.long.map(x=>String(x.id).padStart(2,'0')).join(', ')+'. Confira possível desvantagem de chegada.');
+    if(f.maxEdge&&Number(f.maxEdge[1])>=Math.ceil(f.total*.6))w.push('Concentração de acessos: '+f.maxEdge[1]+'/'+f.total+' spawns se aproximam pela borda L'+f.maxEdge[0]+'. Confira gargalo/camping de entrada.');
+    return w;
+  }
+
   function plannerAudit(m){
     const issues=[],warns=[]; if(!m)return {issues:['Nenhuma zona ativa.'],warns:[]};
     if(!validCoord(m.center?.x)||!validCoord(m.center?.y))issues.push('Centro da zona não definido.');
     const pending=(m.points||[]).filter(p=>!isValidated(p)); if(pending.length)issues.push(pending.length+' spawn(s) ainda pendente(s) de validação.');
     if((m.category||'dominacao')==='gas'){const c=zoneCoverageCounts(m);if(c.outside)issues.push(c.outside+' spawn(s) fora da safe inicial.');const r=ensureSafeRoute(m);const configured=r?.stages?.filter(safeStageValid).length||0;if(configured<3)warns.push('Rota progressiva da Safe está com '+configured+'/3 etapas configuradas.');safeRouteAudit(m).forEach(x=>issues.push(x));}
-    else{const poly=dominationPolygon(m),radius=effectiveEventRadius(m);if(poly.length){const pa=dominationPolygonAudit(m);issues.push(...pa.issues);warns.push(...pa.warns);}else{if(!Number.isFinite(radius)||radius<=0)issues.push('Raio da Zona de Pontuação inválido.');if(radius<150)warns.push('Zona de Pontuação pequena ('+Math.round(radius)+' m de raio). Confira se há espaço suficiente para movimentação, cobertura e flancos.');}const ds=(m.points||[]).filter(isValidated).map(p=>dominationAccessDistance(m,p));if(ds.length>=4){const min=Math.min(...ds),max=Math.max(...ds);if(max-min>300)warns.push('Acessos com diferença relevante: há cerca de '+Math.round(max-min)+' m entre a entrada mais próxima e a mais distante da borda da zona.');const aa=dominationAccessAnalysis(m);if(aa&&aa.sectors<3)warns.push('Acessos concentrados em apenas '+aa.sectors+' setor(es) ao redor da zona; confira se existem rotas de aproximação por lados diferentes.');if(aa&&aa.largestGap>180)warns.push('Há mais de 180° da Zona de Pontuação sem entrada cadastrada; confira risco de concentração da disputa em um único lado.');}}
+    else{const poly=dominationPolygon(m),radius=effectiveEventRadius(m);if(poly.length){const pa=dominationPolygonAudit(m);issues.push(...pa.issues);warns.push(...pa.warns);}else{if(!Number.isFinite(radius)||radius<=0)issues.push('Raio da Zona de Pontuação inválido.');if(radius<150)warns.push('Zona de Pontuação pequena ('+Math.round(radius)+' m de raio). Confira se há espaço suficiente para movimentação, cobertura e flancos.');}const ds=(m.points||[]).filter(isValidated).map(p=>dominationAccessDistance(m,p));if(ds.length>=4){const min=Math.min(...ds),max=Math.max(...ds);if(max-min>300)warns.push('Acessos com diferença relevante: há cerca de '+Math.round(max-min)+' m entre a entrada mais próxima e a mais distante da borda da zona.');dominationFairnessWarnings(m).forEach(x=>warns.push(x));const aa=dominationAccessAnalysis(m);if(aa&&aa.sectors<3)warns.push('Acessos concentrados em apenas '+aa.sectors+' setor(es) ao redor da zona; confira se existem rotas de aproximação por lados diferentes.');if(aa&&aa.largestGap>180)warns.push('Há mais de 180° da Zona de Pontuação sem entrada cadastrada; confira risco de concentração da disputa em um único lado.');}}
     const allProblems=spawnProblems(m);if(allProblems.duplicates.length)issues.push(allProblems.duplicates.length+' par(es) de spawns praticamente duplicados (< 2 m).');
     const pts=(m.points||[]).filter(p=>isValidated(p));
     let nearest=Infinity,pair=null;for(let i=0;i<pts.length;i++)for(let j=i+1;j<pts.length;j++){const d=distXY(pts[i],pts[j]);if(d<nearest){nearest=d;pair=[pts[i].id,pts[j].id];}}
