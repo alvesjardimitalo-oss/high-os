@@ -1283,8 +1283,14 @@ iconAnchor:[12,
     const initialStage={x:m.center?.x,y:m.center?.y,radius:initial};
     if(safeStageValid(r.stages[0])&&!safeCircleFits(initialStage,r.stages[0]))issues.push('SAFE 1 não cabe completamente dentro da Safe inicial.');
     for(let i=1;i<3;i++)if(safeStageValid(r.stages[i-1])&&safeStageValid(r.stages[i])&&!safeCircleFits(r.stages[i-1],r.stages[i]))issues.push('SAFE '+(i+1)+' ultrapassa os limites da SAFE '+i+'.');
-    const optionSets=[r.stage2Options||[],r.stage3Options||[]];
-    optionSets.forEach((opts,idx)=>{const childStage=r.stages[idx+1],parent=r.stages[idx];opts.forEach((p,j)=>{const candidate={...childStage,x:p.x,y:p.y,z:0};if(safeStageValid(candidate)&&safeStageValid(parent)&&!safeCircleFits(parent,candidate))issues.push('Opção '+(j+1)+' da SAFE '+(idx+2)+' ultrapassa os limites da SAFE '+(idx+1)+'.');});});
+    const o2=(r.stage2Options||[]).filter(p=>validCoord(p.x)&&validCoord(p.y)),o3=(r.stage3Options||[]).filter(p=>validCoord(p.x)&&validCoord(p.y));
+    const valid2=o2.filter(p=>safeCircleFits(r.stages[0],{...r.stages[1],x:p.x,y:p.y,z:0}));
+    o2.forEach((p,j)=>{if(!valid2.includes(p))issues.push('Opção '+(j+1)+' da SAFE 2 ultrapassa os limites da SAFE 1.');});
+    if(o3.length){
+      const parents=valid2.length?valid2:(safeStageValid(r.stages[1])?[r.stages[1]]:[]);
+      o3.forEach((p,j)=>{const candidate={...r.stages[2],x:p.x,y:p.y,z:0},fits=parents.some(parent=>safeCircleFits({...r.stages[1],x:parent.x,y:parent.y,z:0},candidate));if(!fits)issues.push('Opção '+(j+1)+' da SAFE 3 não cabe em nenhuma SAFE 2 válida.');});
+      if(valid2.length&&!o3.some(p=>valid2.some(parent=>safeCircleFits({...r.stages[1],x:parent.x,y:parent.y,z:0},{...r.stages[2],x:p.x,y:p.y,z:0}))))issues.push('Não existe combinação válida entre as opções da SAFE 2 e SAFE 3.');
+    }else if(valid2.length&&safeStageValid(r.stages[2])&&!valid2.some(parent=>safeCircleFits({...r.stages[1],x:parent.x,y:parent.y,z:0},r.stages[2])))issues.push('Nenhuma opção da SAFE 2 é compatível com a SAFE 3 fixa.');
     return [...new Set(issues)];
   }
   function ensureSafeRouteUi(){
