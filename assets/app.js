@@ -14833,7 +14833,8 @@ let missionCloudTimer=null,
 missionCloudBusy=false,
 missionCloudLastSignature='',
 missionCloudLastPullAt=0,
-missionCloudLastPull=null;
+missionCloudLastPull=null,
+missionCloudPendingMissions=null;
 const MISSION_PULL_TTL=120000;
 
 function missionCloudSignature(missions=[]){
@@ -14866,34 +14867,43 @@ return null}
 async function pushMissionsToCloud(missions=[]){
  if(!currentUser||!canEditModule('planejador')||!Array.isArray(missions)||!missions.length)return false;
 
- const assinatura=missionCloudSignature(missions);
- /* V10.14 - saveStore também roda em inicialização/re-render. Não grava
-    novamente o mesmo documento de missões se o conteúdo não mudou. */
+ /* V10.76 - nunca descarta uma edição feita enquanto outra gravação está
+    em andamento. Guarda sempre a versão mais recente e drena a fila ao fim. */
+ const snapshot=JSON.parse(JSON.stringify(missions));
+ const assinatura=missionCloudSignature(snapshot);
  if(assinatura&&assinatura===missionCloudLastSignature)return true;
- if(missionCloudBusy)return false;
+ if(missionCloudBusy){missionCloudPendingMissions=snapshot;return true;}
 
  missionCloudBusy=true;
-
+ let ok=false;
  try{
   window.dispatchEvent(new CustomEvent('highos:mission-cloud',{detail:{state:'sync'}}));
 
-  await setDoc(missionsDoc,{missions,
+  await setDoc(missionsDoc,{missions:snapshot,
 updatedAt:serverTimestamp(),
 updatedAtText:new Date().toISOString(),
 updatedBy:currentUser.email||''},{merge:true});
 
   missionCloudLastSignature=assinatura;
-  missionCloudLastPull={missions,updatedAtText:new Date().toISOString(),updatedBy:currentUser.email||''};
+  missionCloudLastPull={missions:snapshot,updatedAtText:new Date().toISOString(),updatedBy:currentUser.email||''};
   missionCloudLastPullAt=Date.now();
   window.dispatchEvent(new CustomEvent('highos:mission-cloud',{detail:{state:'ok',
-missions:missions.length}}));
-
-  return true;
+missions:snapshot.length}}));
+  ok=true;
 
  }catch(e){console.warn('Missoes: falha ao salvar na nuvem',e);
-window.dispatchEvent(new CustomEvent('highos:mission-cloud',{detail:{state:'local'}}));
-return false}
- finally{missionCloudBusy=false}
+  /* Mantém a última versão para nova tentativa em vez de perdê-la. */
+  missionCloudPendingMissions=snapshot;
+  window.dispatchEvent(new CustomEvent('highos:mission-cloud',{detail:{state:'local'}}));
+ }finally{
+  missionCloudBusy=false;
+  const pending=missionCloudPendingMissions;
+  missionCloudPendingMissions=null;
+  if(pending&&missionCloudSignature(pending)!==missionCloudLastSignature){
+   setTimeout(()=>pushMissionsToCloud(pending),350);
+  }
+ }
+ return ok;
 }
 window.HighOSMissionCloud={
  canEdit:()=>!!currentUser&&canEditModule('planejador'),
