@@ -3918,7 +3918,7 @@ async function saveUser(e){
   if(ix>=0)usuarios[ix]=local;else usuarios.push(local);
   usuarios.sort((a,b)=>(a.name||a.email).localeCompare(b.name||b.email,'pt-BR'));
   queryFreshAt.set('usuarios',Date.now());
-  if(email===String(currentUser?.email||'').toLowerCase()){currentProfile={...currentProfile,...local};if($('#userName'))$('#userName').textContent=local.name||currentUser?.displayName||email;if($('#userRole'))$('#userRole'].textContent=local.cargo||local.role;if($('#userAccessLevel'))$('#userAccessLevel'].textContent='ACESSO: '+String(local.role||'CONSULTA').toUpperCase();renderSessionClock(email);applyModuleAccess(local.role);}
+  if(email===String(currentUser?.email||'').toLowerCase()){currentProfile={...currentProfile,...local};if($('#userName'))$('#userName').textContent=local.name||currentUser?.displayName||email;if($('#userRole'))$('#userRole').textContent=local.cargo||local.role;if($('#userAccessLevel'))$('#userAccessLevel').textContent='ACESSO: '+String(local.role||'CONSULTA').toUpperCase();renderSessionClock(email);applyModuleAccess(local.role);}
   renderUsers();
  }catch(err){alert('Erro ao salvar usuário: '+err.message)}
 }
