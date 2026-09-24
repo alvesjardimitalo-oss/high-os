@@ -1140,12 +1140,11 @@ b].map(v=>v.toString(16).padStart(2,'0')).join('');
     };
     qsa('[data-base]',box).forEach(b=>b.addEventListener('click',()=>trocarBase(b.dataset.base)));
 
-    // overlays de Cayo comecam visiveis, como antes
-    Object.values(overlays).forEach(l=>{try{l.addTo(state.map)}catch(e){}});
-    qsa('[data-over]',box).forEach(inp=>inp.addEventListener('change',()=>{
+    // Overlays de Cayo são ativados apenas quando a missão está em Cayo.
+    qsa('[data-over]',box).forEach(inp=>{inp.checked=false;inp.addEventListener('change',()=>{
       const l=overlays[inp.dataset.over];if(!l)return;
       try{inp.checked?l.addTo(state.map):state.map.removeLayer(l)}catch(e){}
-    }));
+    });});
 
     const alternar=()=>{
       const aberto=box.classList.toggle('collapsed');
@@ -1200,20 +1199,12 @@ cayoPostal});
     state.cayoBounds=cayoBounds;state.cayoOceanBounds=cayoOceanBounds;state.cayoOceanLayer=cayoOcean;state.cayoLayer=cayo;state.cayoPostalLayer=cayoPostal;state.atlasLayer=atlas;state.satLayer=sat;state.gridLayer=grid;
     let cayoOk=false;cayo.on('load',()=>{cayoOk=true;if(/cayo/i.test(active()?.name||'')||/cayo/i.test(active()?.event||''))mapNotice('Cayo Perico carregado','ok',false)});cayo.on('error',()=>{if(!cayoOk)mapNotice('Imagem de Cayo indisponível • coordenadas e ferramentas continuam funcionando','warn',true)});
     state.map.setView(ll(900,-600),3);
-    let okCount=0,
-errCount=0,
-fallbackUsed=false;
-    const ok=()=>{okCount++;setStatus('Mapa GTA V carregado','ok');};
-    const err=()=>{errCount++;if(okCount===0&&errCount>4&&!fallbackUsed){fallbackUsed=true;setStatus('Alternando servidor do mapa…','warn');try{state.map.removeLayer(atlas);}catch{}atlas=layer('styleAtlas','jpg',5,1);atlas.on('tileload',ok);atlas.addTo(state.map);}};
-    [atlas,
-sat,
-grid].forEach(x=>{x.on('tileload',ok);x.on('tileerror',err);watchOcean(x);});
-    state.mapLayers={atlas,
-sat,
-grid};
-    state.tileCounters={get ok(){return okCount},
-get err(){return errCount}};
-    startMapWatchdog(()=>okCount,()=>errCount);
+    state.tileBase=0;
+    state.mapLayers={atlas,sat,grid};state.atlasLayer=atlas;state.satLayer=sat;state.gridLayer=grid;
+    state.tileCounters=attachMapLayerHealth(state.mapLayers);
+    let initialFallback=false;
+    const initialErr=()=>{if(initialFallback||state.tileCounters.ok>0||state.tileCounters.err<=4)return;initialFallback=true;state.tileBase=1;mapNotice('Servidor principal falhou • alternando automaticamente…','warn',false);replaceMapBases(1);};
+    [atlas,sat,grid].forEach(x=>x.on('tileerror',()=>setTimeout(initialErr,0)));
     applyOceanColor(OCEAN_FALLBACK);
     state.map.on('baselayerchange',ev=>{state.oceanLocked=false;watchOcean(ev.layer);setTimeout(()=>{if(!state.oceanLocked)applyOceanColor(OCEAN_FALLBACK);},1200);});
     state.map.on('mousemove',e=>{if(qs('#mpCursor'))qs('#mpCursor').textContent=`X ${f(e.latlng.lng)} | Y ${f(e.latlng.lat)}`;});
@@ -1945,13 +1936,17 @@ eid=activeEventId();
     const pts=[m.center,
 ...(m.points||[])].filter(p=>validCoord(p?.x)&&validCoord(p?.y));
     const isCayo=/cayo\s*perico/i.test(`${m.name||''} ${m.event||''}`)||pts.some(p=>Number(p.x)>3800&&Number(p.y)<-3800);
-    const overlays=[state.cayoLayer,
-state.cayoPostalLayer].filter(Boolean);
+    const overlays=[state.cayoLayer,state.cayoPostalLayer].filter(Boolean),checks=qsa('#mpLayerControl [data-over]');
     if(isCayo){
       if(state.cayoOceanLayer&&!state.map.hasLayer(state.cayoOceanLayer))state.cayoOceanLayer.addTo(state.map);
-      if(state.cayoLayer&&!state.map.hasLayer(state.cayoLayer)&&!state.map.hasLayer(state.cayoPostalLayer))state.cayoLayer.addTo(state.map);
-      qsa('#mpLayerControl [data-over]').forEach(x=>x.disabled=false);
-    }else{overlays.forEach(l=>{if(state.map.hasLayer(l))state.map.removeLayer(l);});qsa('#mpLayerControl [data-over]').forEach(x=>{x.checked=false;});}
+      const satCheck=qs('#mpLayerControl [data-over="cayo"]'),postalCheck=qs('#mpLayerControl [data-over="cayoPostal"]');
+      // Ao entrar em Cayo sem preferência ativa, liga somente o satélite para evitar duas imagens sobrepostas.
+      if(state.cayoLayer&&!state.map.hasLayer(state.cayoLayer)&&!state.map.hasLayer(state.cayoPostalLayer)){state.cayoLayer.addTo(state.map);if(satCheck)satCheck.checked=true;if(postalCheck)postalCheck.checked=false;}
+      checks.forEach(x=>{x.disabled=false;const layer=x.dataset.over==='cayo'?state.cayoLayer:state.cayoPostalLayer;x.checked=!!layer&&state.map.hasLayer(layer);});
+    }else{
+      [...overlays,state.cayoOceanLayer].filter(Boolean).forEach(l=>{if(state.map.hasLayer(l))state.map.removeLayer(l);});
+      checks.forEach(x=>{x.checked=false;x.disabled=false;});
+    }
   }
   function focusActiveMission(scrollToMap=false){
     const m=active();if(!state.map||!m)return;syncMapRegion(m);
