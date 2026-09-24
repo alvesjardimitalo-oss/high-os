@@ -1042,8 +1042,13 @@ b].map(v=>v.toString(16).padStart(2,'0')).join('');
      esta acontecendo, tenta o servidor alternativo sozinho e oferece
      um botao de recarregar sem precisar atualizar a pagina inteira.
   --------------------------------------------------------------- */
+  function updateMapDiagnostics(extra=''){
+    const el=qs('#mpMapDiagnostics');if(!el)return;
+    const base=qs('#mpLayerControl [data-base].active')?.dataset.base||'atlas',ok=state.tileCounters?.ok||0,err=state.tileCounters?.err||0,server=(Number(state.tileBase)||0)+1,cayo=!!(state.cayoLayer&&state.map?.hasLayer(state.cayoLayer)),postal=!!(state.cayoPostalLayer&&state.map?.hasLayer(state.cayoPostalLayer)),box=qs('#missionPlannerMap');
+    el.textContent='Servidor '+server+'/'+remoteBases.length+' • '+base.toUpperCase()+' • tiles '+ok+' OK / '+err+' falha(s) • Cayo '+(cayo?'SAT':postal?'POSTAL':'OFF')+(box?' • '+box.clientWidth+'×'+box.clientHeight:'')+(extra?' • '+extra:'');
+  }
   function mapNotice(texto,tipo='warn',comBotao=false){
-    setStatus(texto,tipo);
+    setStatus(texto,tipo);updateMapDiagnostics(texto);
     const barra=qs('.mp-map-status');if(!barra)return;
     let acao=qs('#mpMapRetry');
     if(!comBotao){acao?.remove();return;}
@@ -1056,7 +1061,7 @@ b].map(v=>v.toString(16).padStart(2,'0')).join('');
     }
   }
   function attachMapLayerHealth(layers){
-    let ok=0,err=0;Object.values(layers).forEach(l=>{l.on('tileload',()=>{ok++;mapNotice('Mapa GTA V carregado','ok',false)});l.on('tileerror',()=>err++);watchOcean(l);});
+    let ok=0,err=0;Object.values(layers).forEach(l=>{l.on('tileload',()=>{ok++;mapNotice('Mapa GTA V carregado','ok',false)});l.on('tileerror',()=>{err++;updateMapDiagnostics('falha de tile')});watchOcean(l);});
     startMapWatchdog(()=>ok,()=>err);return {get ok(){return ok},get err(){return err}};
   }
   function replaceMapBases(baseIndex=0){
@@ -1128,15 +1133,17 @@ b].map(v=>v.toString(16).padStart(2,'0')).join('');
           <label class="mp-switch"><input type="checkbox" data-over="cayo" checked><i></i><span>Satélite</span></label>
           <label class="mp-switch"><input type="checkbox" data-over="cayoPostal" checked><i></i><span>Postal</span></label>
         </div>
+        <div class="mp-layer-group"><span class="mp-layer-title">DIAGNÓSTICO</span><small id="mpMapDiagnostics" style="display:block;max-width:230px;line-height:1.45;opacity:.72">Aguardando mapa…</small><button type="button" id="mpMapDiagRefresh" style="margin-top:6px">ATUALIZAR</button></div>
       </div>`;
     host.appendChild(box);
+    qs('#mpMapDiagRefresh',box)?.addEventListener('click',()=>{state.map?.invalidateSize();updateMapDiagnostics('diagnóstico atualizado');});
     if(window.L?.DomEvent){L.DomEvent.disableClickPropagation(box);L.DomEvent.disableScrollPropagation(box);}
 
     const trocarBase=chave=>{
       const live=state.mapLayers||bases;
       Object.entries(live).forEach(([k,l])=>{try{if(k===chave){if(!state.map.hasLayer(l))l.addTo(state.map);}else if(state.map.hasLayer(l))state.map.removeLayer(l);}catch(e){}});
       qsa('[data-base]',box).forEach(b=>b.classList.toggle('active',b.dataset.base===chave));
-      state.oceanLocked=false;state.oceanTries=0;watchOcean(live[chave]);
+      state.oceanLocked=false;state.oceanTries=0;watchOcean(live[chave]);updateMapDiagnostics('base alterada');
     };
     qsa('[data-base]',box).forEach(b=>b.addEventListener('click',()=>trocarBase(b.dataset.base)));
 
@@ -1947,6 +1954,7 @@ eid=activeEventId();
       [...overlays,state.cayoOceanLayer].filter(Boolean).forEach(l=>{if(state.map.hasLayer(l))state.map.removeLayer(l);});
       checks.forEach(x=>{x.checked=false;x.disabled=false;});
     }
+    updateMapDiagnostics(isCayo?'região Cayo':'região Los Santos');
   }
   function focusActiveMission(scrollToMap=false){
     const m=active();if(!state.map||!m)return;syncMapRegion(m);
