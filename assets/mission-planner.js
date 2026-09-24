@@ -1275,11 +1275,17 @@ iconAnchor:[12,
     r.stages.forEach((st,i)=>{at+=Math.max(0,Number(st.closeSeconds)||0);out.push({label:'SAFE '+(i+1)+' FECHADA',at,radius:Number(st.radius)||0});if(i<2){at+=Math.max(0,Number(st.moveSeconds)||0);out.push({label:'MOVE → SAFE '+(i+2),at,radius:Number(st.radius)||0});}});
     return out;
   }
+  function safeCircleFits(parent,child){if(!safeStageValid(parent)||!safeStageValid(child))return true;return distXY(parent,child)+Number(child.radius)<=Number(parent.radius)+.01;}
   function safeRouteAudit(m){
     const r=ensureSafeRoute(m),issues=[];if(!r)return issues;
     const initial=effectiveEventRadius(m);let prev=initial;
     r.stages.forEach((st,i)=>{if(!safeStageValid(st))issues.push('SAFE '+(i+1)+' sem centro/raio válido.');if(Number(st.z)!==0)issues.push('SAFE '+(i+1)+' deve usar Z = 0 na referência visual.');if(Number(st.radius)>=prev)issues.push('Raio da SAFE '+(i+1)+' precisa ser menor que a etapa anterior.');if(Number(st.closeSeconds)<=0)issues.push('Tempo de fechamento da SAFE '+(i+1)+' inválido.');if(i<2&&Number(st.moveSeconds)<=0)issues.push('Tempo de movimento após SAFE '+(i+1)+' inválido.');prev=Number(st.radius)||prev;});
-    return issues;
+    const initialStage={x:m.center?.x,y:m.center?.y,radius:initial};
+    if(safeStageValid(r.stages[0])&&!safeCircleFits(initialStage,r.stages[0]))issues.push('SAFE 1 não cabe completamente dentro da Safe inicial.');
+    for(let i=1;i<3;i++)if(safeStageValid(r.stages[i-1])&&safeStageValid(r.stages[i])&&!safeCircleFits(r.stages[i-1],r.stages[i]))issues.push('SAFE '+(i+1)+' ultrapassa os limites da SAFE '+i+'.');
+    const optionSets=[r.stage2Options||[],r.stage3Options||[]];
+    optionSets.forEach((opts,idx)=>{const childStage=r.stages[idx+1],parent=r.stages[idx];opts.forEach((p,j)=>{const candidate={...childStage,x:p.x,y:p.y,z:0};if(safeStageValid(candidate)&&safeStageValid(parent)&&!safeCircleFits(parent,candidate))issues.push('Opção '+(j+1)+' da SAFE '+(idx+2)+' ultrapassa os limites da SAFE '+(idx+1)+'.');});});
+    return [...new Set(issues)];
   }
   function ensureSafeRouteUi(){
     const existing=qs('#mpSafeRouteBox');
@@ -1409,7 +1415,8 @@ iconAnchor:[12,
     const o2=(r.stage2Options||[]).filter(s=>validCoord(s.x)&&validCoord(s.y)),o3=(r.stage3Options||[]).filter(s=>validCoord(s.x)&&validCoord(s.y)),fixed2=safeStageValid(r.stages[1]),fixed3=safeStageValid(r.stages[2]);
     if(!o2.length&&!fixed2){alert('Configure a Safe 2 ou adicione pelo menos uma opção de Safe 2 no mapa.');return;}
     if(!o3.length&&!fixed3){alert('Configure a Safe 3 ou adicione pelo menos uma opção de Safe 3 no mapa.');return;}
-    const random2=o2.length>0,random3=o3.length>0,p2=random2?o2[Math.floor(Math.random()*o2.length)]:r.stages[1],p3=random3?o3[Math.floor(Math.random()*o3.length)]:r.stages[2];
+    const valid2=o2.filter(p=>safeCircleFits(r.stages[0],{...r.stages[1],x:p.x,y:p.y,z:0})),pool2=valid2.length?valid2:o2,random2=pool2.length>0,p2=random2?pool2[Math.floor(Math.random()*pool2.length)]:r.stages[1];
+    const parent2={...r.stages[1],x:p2.x,y:p2.y,z:0},valid3=o3.filter(p=>safeCircleFits(parent2,{...r.stages[2],x:p.x,y:p.y,z:0})),pool3=valid3.length?valid3:o3,random3=pool3.length>0,p3=random3?pool3[Math.floor(Math.random()*pool3.length)]:r.stages[2];
     // Preview usa cópias: rota sorteada ou fixa nunca altera a configuração salva.
     const s1={...r.stages[0]},s2={...r.stages[1],x:p2.x,y:p2.y,z:0},s3={...r.stages[2],x:p3.x,y:p3.y,z:0},routeMode=(random2||random3)?((random2&&random3)?'ALEATÓRIA':'MISTA'):'FIXA';
     stopSafePreview();
