@@ -1954,17 +1954,15 @@ status:can?'validated':'planned',
 validatedAt:can?nowIso():null},m.points.length));commit(can?'Ponto manual validado':'Ponto manual adicionado como PENDENTE');
   }
   function createEvent(){
-    cleanupSafePresentation();
     if(state.editing&&state.dirty&&!confirm('Descartar alterações não salvas e criar um novo evento?'))return;
-    if(state.editing)cancelEdit();
+    cleanupSafePresentation();if(state.editing)cancelEdit();
     const m=newMission(null,null,state.libraryCategory||'dominacao');
     m.name='Zona Principal';m.requestKind='create-event';
     state.missions.unshift(m);state.activeId=m.id;state.activeEventId=m.eventId;saveStore();setWorkspace(true);render();startEdit();state.map?.setView(ll(900,-600),3);setSaveState('Novo evento criado • configure a Zona Principal e clique SALVAR EVENTO');
   }
   function createZone(){
-    cleanupSafePresentation();
     if(state.editing&&state.dirty&&!confirm('Descartar alterações não salvas e criar uma nova zona?'))return;
-    if(state.editing)cancelEdit();
+    cleanupSafePresentation();if(state.editing)cancelEdit();
     const base=active(),
 eid=activeEventId();
     if(!eid||!base){alert('Selecione primeiro um evento.');return;}
@@ -2006,20 +2004,18 @@ block:'center'}),40);}
     const mapEl=state.map?.getContainer?.();if(mapEl)mapEl.style.cursor='';
   }
   function switchEvent(eventId){
-    cleanupSafePresentation();
     if(state.editing&&state.dirty&&!confirm('Existem alterações não salvas. Deseja descartá-las?'))return;
-    if(state.editing)cancelEdit();
+    cleanupSafePresentation();if(state.editing)cancelEdit();
     const zones=zonesOfEvent(eventId);if(!zones.length)return;
     state.activeEventId=eventId;state.activeId=zones[0].id;state.libraryCategory=zones[0].category||state.libraryCategory;saveStore();render();updateEditUi();focusActiveMission(false);
   }
-  function switchMission(id){cleanupSafePresentation();if(state.editing&&state.dirty&&!confirm('Existem alterações não salvas. Deseja descartá-las?'))return;if(state.editing)cancelEdit();state.activeId=id;const m=state.missions.find(m=>m.id===id);state.activeEventId=m?.eventId||state.activeEventId;state.libraryCategory=(m?.category||state.libraryCategory||'dominacao');saveStore();setWorkspace(true);render();updateEditUi();focusActiveMission(true);}
-  function deleteZone(){cleanupSafePresentation();const m=active();if(!m)return;const zones=zonesOfEvent(m.eventId);if(zones.length<=1){alert('Este é o único mapa/zona do evento. Para removê-lo, exclua o evento inteiro.');return;}if(!confirm(`Apagar somente a zona "${m.name}" do evento "${m.event}"?`))return;state.missions=state.missions.filter(x=>x.id!==m.id);const next=zones.find(x=>x.id!==m.id);state.activeId=next?.id||null;saveStore();render();focusActiveMission(false);}
+  function switchMission(id){if(state.editing&&state.dirty&&!confirm('Existem alterações não salvas. Deseja descartá-las?'))return;cleanupSafePresentation();if(state.editing)cancelEdit();state.activeId=id;const m=state.missions.find(m=>m.id===id);state.activeEventId=m?.eventId||state.activeEventId;state.libraryCategory=(m?.category||state.libraryCategory||'dominacao');saveStore();setWorkspace(true);render();updateEditUi();focusActiveMission(true);}
+  function deleteZone(){const m=active();if(!m)return;const zones=zonesOfEvent(m.eventId);if(zones.length<=1){alert('Este é o único mapa/zona do evento. Para removê-lo, exclua o evento inteiro.');return;}if(!confirm(`Apagar somente a zona "${m.name}" do evento "${m.event}"?`))return;cleanupSafePresentation();state.missions=state.missions.filter(x=>x.id!==m.id);const next=zones.find(x=>x.id!==m.id);state.activeId=next?.id||null;saveStore();render();focusActiveMission(false);}
   function deleteEvent(){
-    cleanupSafePresentation();
     const m=active();if(!m)return;const zones=zonesOfEvent(m.eventId);
     if(zones.some(z=>z.official)){if(!confirm(`Este evento contém zona(s) cadastrada(s) originalmente no sistema. Excluir o evento "${m.event}" e suas ${zones.length} zona(s)?`))return;}
     else if(!confirm(`Excluir o evento "${m.event}" e TODAS as ${zones.length} zona(s)?`))return;
-    state.missions=state.missions.filter(x=>x.eventId!==m.eventId);
+    cleanupSafePresentation();state.missions=state.missions.filter(x=>x.eventId!==m.eventId);
     const first=state.missions.find(x=>(x.category||'dominacao')===state.libraryCategory)||state.missions[0];
     state.activeId=first?.id||null;state.activeEventId=first?.eventId||null;saveStore();render();focusActiveMission(false);
   }
