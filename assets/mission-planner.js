@@ -1460,11 +1460,24 @@ d=35;const hd=L.marker(ll(p.x+Math.sin(a)*d,p.y+Math.cos(a)*d),{icon:headingIcon
     renderCentralV954();
   }
 
+  function spawnProblems(m){
+    const near=new Set(),duplicates=[];if(!m)return {near,duplicates};
+    for(let i=0;i<m.points.length;i++)for(let j=i+1;j<m.points.length;j++){const d=distXY(m.points[i],m.points[j]);if(d<2){near.add(i);near.add(j);duplicates.push([i,j,d]);}else if(d<(Number(m.spawnRadius)||100)*2){near.add(i);near.add(j);}}
+    return {near,duplicates};
+  }
+  function renumberSpawns(){
+    if(!requireEdit())return;const m=active();if(!m)return;m.points.forEach((p,i)=>p.id=i+1);commit('Spawns renumerados sem alterar CDS');
+  }
+  function focusSpawnProblems(){
+    const m=active();if(!m)return;const pr=spawnProblems(m);if(!pr.near.size){alert('Nenhum spawn duplicado ou próximo demais foi detectado.');return;}const pts=[...pr.near].map(i=>m.points[i]).filter(Boolean);if(pts.length===1)state.map?.setView(ll(pts[0].x,pts[0].y),5);else state.map?.fitBounds(L.latLngBounds(pts.map(p=>ll(p.x,p.y))).pad(.2),{maxZoom:5});qsa('.mp-point-row').forEach((el,i)=>el.style.outline=pr.near.has(i)?'2px solid #ff7474':'');setSaveState(pr.near.size+' spawn(s) problemático(s) destacados');
+  }
   function renderPointList(){
     const m=active(),
 box=qs('#mpPointList');if(!box||!m)return;
     if(!m.points.length){box.innerHTML='<div class="mp-note">Nenhum ponto registrado.</div>';return;}
-    box.innerHTML=m.points.map((p,i)=>{const valid=isValidated(p);return `<div class="mp-point-row ${valid?'validated':'planned'}" data-pidx="${i}"><div class="mp-point-num">${String(i+1).padStart(2,'0')}</div><div><b>Ponto ${i+1} <span class="mp-state ${valid?'ok':'warn'}">${valid?'VALIDADO':'PENDENTE'}</span></b><small>${valid?rawCds(p):tpCds(p)+' • Z provisório para TP/NC'}</small></div><div class="mp-row-actions"><button type="button" data-copy="${i}" title="${valid?'Copiar CDS validada':'Copiar CDS provisória para TPCDS'}">⧉</button><button type="button" data-del="${i}" title="Remover">×</button></div></div>`;}).join('');
+    const problems=spawnProblems(m);
+    box.innerHTML='<div class="mp-actions" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"><button type="button" id="mpFocusProblems">VER PROBLEMÁTICOS</button><button type="button" id="mpRenumberSpawns">RENUMERAR 01…'+String(m.points.length).padStart(2,'0')+'</button><span class="mp-note">'+(problems.duplicates.length?problems.duplicates.length+' duplicidade(s) crítica(s) < 2m':'Sem duplicidades exatas')+'</span></div>'+m.points.map((p,i)=>{const valid=isValidated(p);return `<div class="mp-point-row ${valid?'validated':'planned'}" data-pidx="${i}"><div class="mp-point-num">${String(i+1).padStart(2,'0')}</div><div><b>Ponto ${i+1} <span class="mp-state ${valid?'ok':'warn'}">${valid?'VALIDADO':'PENDENTE'}</span></b><small>${valid?rawCds(p):tpCds(p)+' • Z provisório para TP/NC'}</small></div><div class="mp-row-actions"><button type="button" data-copy="${i}" title="${valid?'Copiar CDS validada':'Copiar CDS provisória para TPCDS'}">⧉</button><button type="button" data-del="${i}" title="Remover">×</button></div></div>`;}).join('');
+    qs('#mpFocusProblems')?.addEventListener('click',focusSpawnProblems);qs('#mpRenumberSpawns')?.addEventListener('click',renumberSpawns);if(qs('#mpRenumberSpawns'))qs('#mpRenumberSpawns').disabled=!state.editing;
     qsa('.mp-point-row',box).forEach(r=>r.onclick=e=>{if(e.target.dataset.copy!==undefined||e.target.dataset.del!==undefined)return;const i=Number(r.dataset.pidx);selectPoint(i+1);state.map?.setView(ll(m.points[i].x,m.points[i].y),5);});
     qsa('[data-copy]',box).forEach(b=>b.onclick=async e=>{e.stopPropagation();const p=m.points[Number(b.dataset.copy)];await copyText(isValidated(p)?rawCds(p):tpCds(p));b.textContent='✓';setTimeout(()=>b.textContent='⧉',800);});
     qsa('[data-del]',box).forEach(b=>b.onclick=e=>{e.stopPropagation();if(!requireEdit())return;m.points.splice(Number(b.dataset.del),1);commit('Ponto removido');});
@@ -1575,7 +1588,7 @@ j+1];}if(d<(Number(m.spawnRadius)||100)*2)over++;}
     if(qs('#mpCount'))qs('#mpCount').textContent=m.points.length;
     if(qs('#mpValidCount'))qs('#mpValidCount').textContent=m.points.filter(isValidated).length;
     if(qs('#mpPendingCount'))qs('#mpPendingCount').textContent=m.points.filter(p=>!isValidated(p)).length;
-    if(qs('#mpOverlap'))qs('#mpOverlap').textContent=over;
+    if(qs('#mpOverlap'))qs('#mpOverlap').textContent=over+(spawnProblems(m).duplicates.length?' • '+spawnProblems(m).duplicates.length+' duplicado(s)':'');
     if(qs('#mpNearest'))qs('#mpNearest').textContent=pair?`${pair[0]} ↔ ${pair[1]} • ${min.toFixed(1)} m`:'—';
   }
   function rawCds(p){return `${f(p.x)},${f(p.y)},${f(p.z)},${f(p.h)}`;}
@@ -1587,6 +1600,7 @@ j+1];}if(d<(Number(m.spawnRadius)||100)*2)over++;}
     if(!validCoord(m.center?.x)||!validCoord(m.center?.y))issues.push('Centro da zona não definido.');
     const pending=(m.points||[]).filter(p=>!isValidated(p)); if(pending.length)issues.push(pending.length+' spawn(s) ainda pendente(s) de validação.');
     if((m.category||'dominacao')==='gas'){const c=zoneCoverageCounts(m);if(c.outside)issues.push(c.outside+' spawn(s) fora da safe inicial.');const r=ensureSafeRoute(m);const configured=r?.stages?.filter(safeStageValid).length||0;if(configured<3)warns.push('Rota progressiva da Safe está com '+configured+'/3 etapas configuradas.');safeRouteAudit(m).forEach(x=>issues.push(x));}
+    const allProblems=spawnProblems(m);if(allProblems.duplicates.length)issues.push(allProblems.duplicates.length+' par(es) de spawns praticamente duplicados (< 2 m).');
     const pts=(m.points||[]).filter(p=>isValidated(p));
     let nearest=Infinity,pair=null;for(let i=0;i<pts.length;i++)for(let j=i+1;j<pts.length;j++){const d=distXY(pts[i],pts[j]);if(d<nearest){nearest=d;pair=[pts[i].id,pts[j].id];}}
     const minRecommended=(Number(m.spawnRadius)||100)*2;if(pair&&nearest<minRecommended)warns.push('Spawns '+pair[0]+' e '+pair[1]+' estão muito próximos ('+nearest.toFixed(0)+' m).');
