@@ -1255,7 +1255,7 @@ iconAnchor:[12,
     const initial=effectiveEventRadius(m);
     if(!m.safeRoute||!Array.isArray(m.safeRoute.stages)){
       m.safeRoute={version:1,stages:[
-        {x:num(m.center?.x),y:num(m.center?.y),z:num(m.center?.z),radius:Math.max(50,Math.round(initial*.65)),damage:5,closeSeconds:180,moveSeconds:90},
+        {x:num(m.center?.x),y:num(m.center?.y),z:0,radius:Math.max(50,Math.round(initial*.65)),damage:5,closeSeconds:180,moveSeconds:90},
         {x:null,y:null,z:null,radius:Math.max(50,Math.round(initial*.35)),damage:10,closeSeconds:150,moveSeconds:75},
         {x:null,y:null,z:null,radius:Math.max(30,Math.round(initial*.12)),damage:20,closeSeconds:120,moveSeconds:0}
       ]};
@@ -1269,6 +1269,17 @@ iconAnchor:[12,
     return m.safeRoute;
   }
   function safeStageValid(s){return !!s&&validCoord(s.x)&&validCoord(s.y)&&Number(s.radius)>0;}
+  function safeTimeline(m){
+    const r=ensureSafeRoute(m);if(!r)return [];let at=0;const out=[{label:'INÍCIO',at:0,radius:effectiveEventRadius(m)}];
+    r.stages.forEach((st,i)=>{at+=Math.max(0,Number(st.closeSeconds)||0);out.push({label:'SAFE '+(i+1)+' FECHADA',at,radius:Number(st.radius)||0});if(i<2){at+=Math.max(0,Number(st.moveSeconds)||0);out.push({label:'MOVE → SAFE '+(i+2),at,radius:Number(st.radius)||0});}});
+    return out;
+  }
+  function safeRouteAudit(m){
+    const r=ensureSafeRoute(m),issues=[];if(!r)return issues;
+    const initial=effectiveEventRadius(m);let prev=initial;
+    r.stages.forEach((st,i)=>{if(!safeStageValid(st))issues.push('SAFE '+(i+1)+' sem centro/raio válido.');if(Number(st.z)!==0)issues.push('SAFE '+(i+1)+' deve usar Z = 0 na referência visual.');if(Number(st.radius)>=prev)issues.push('Raio da SAFE '+(i+1)+' precisa ser menor que a etapa anterior.');if(Number(st.closeSeconds)<=0)issues.push('Tempo de fechamento da SAFE '+(i+1)+' inválido.');if(i<2&&Number(st.moveSeconds)<=0)issues.push('Tempo de movimento após SAFE '+(i+1)+' inválido.');prev=Number(st.radius)||prev;});
+    return issues;
+  }
   function ensureSafeRouteUi(){
     const existing=qs('#mpSafeRouteBox');
     if(existing){
@@ -1281,7 +1292,7 @@ iconAnchor:[12,
     const box=document.createElement('div');box.id='mpSafeRouteBox';box.className='mp-card';box.dataset.forceTab='zona';box.style.marginTop='10px';
     box.innerHTML=`<h3>ROTA PROGRESSIVA DA SAFE</h3>
       <p class="mp-note">Fluxo: <b>FECHA 1 → MOVE → FECHA 2 → MOVE → FECHA FINAL</b>. Os respawns da missão não são alterados.</p>
-      <div id="mpSafeRouteStatus" class="mp-readout"></div>
+      <div id="mpSafeRouteStatus" class="mp-readout"></div><div id="mpSafeTimeline" class="mp-readout" style="margin-top:8px"></div>
       <div id="mpSafeStages"></div>
       <div class="mp-actions" style="display:flex;gap:6px;flex-wrap:wrap">
         <button type="button" id="mpSafeUseCenter">SAFE 1 = CENTRO ATUAL</button>
@@ -1291,7 +1302,7 @@ iconAnchor:[12,
         <button type="button" id="mpSafeStop">■ PARAR</button>
       </div>`;
     if(anchor)anchor.insertAdjacentElement('afterend',box);else zonePanel.appendChild(box);
-    qs('#mpSafeUseCenter')?.addEventListener('click',()=>{if(!requireEdit())return;const m=active(),r=ensureSafeRoute(m);if(!m||!r)return;r.stages[0].x=num(m.center.x);r.stages[0].y=num(m.center.y);r.stages[0].z=num(m.center.z);commit('Safe 1 vinculada ao centro da missão');});
+    qs('#mpSafeUseCenter')?.addEventListener('click',()=>{if(!requireEdit())return;const m=active(),r=ensureSafeRoute(m);if(!m||!r)return;r.stages[0].x=num(m.center.x);r.stages[0].y=num(m.center.y);r.stages[0].z=0;commit('Safe 1 vinculada ao centro da missão');});
     qs('#mpSafePlace2')?.addEventListener('click',()=>beginSafePlacement(1));
     qs('#mpSafePlace3')?.addEventListener('click',()=>beginSafePlacement(2));
     qs('#mpSafePreview')?.addEventListener('click',startSafePreview);
@@ -1307,7 +1318,7 @@ iconAnchor:[12,
   function placeSafeOnMap(latlng){
     const m=active(),idx=state.safePlacementStage;if(!m||idx===null||idx===undefined)return false;
     const r=ensureSafeRoute(m),s=r?.stages?.[idx];if(!s)return false;
-    s.x=latlng.lng;s.y=latlng.lat;s.z=num(m.center?.z)||0;
+    s.x=latlng.lng;s.y=latlng.lat;s.z=0;
     const key=idx===1?'stage2Options':'stage3Options';if(!Array.isArray(r[key]))r[key]=[];
     r[key].push({x:s.x,y:s.y,z:s.z});
     state.safePlacementStage=null;if(state.map?.getContainer())state.map.getContainer().style.cursor='';
@@ -1321,7 +1332,8 @@ iconAnchor:[12,
     const coverage=qs('#mpCoverageBox');
     if(coverage&&box.previousElementSibling!==coverage)coverage.insertAdjacentElement('afterend',box);
     const r=ensureSafeRoute(m),host=qs('#mpSafeStages'),status=qs('#mpSafeRouteStatus');if(!r||!host)return;
-    const initial=effectiveEventRadius(m);
+    const initial=effectiveEventRadius(m),timeline=safeTimeline(m),audit=safeRouteAudit(m),tl=qs('#mpSafeTimeline');
+    if(tl)tl.innerHTML='<b>TIMELINE DA SAFE</b><br>'+timeline.map(x=>{const mm=Math.floor(x.at/60),ss=String(x.at%60).padStart(2,'0');return mm+':'+ss+' • '+x.label+' • '+Math.round(x.radius)+' m';}).join('<br>')+(audit.length?'<br><span style="color:#ff7474"><b>ATENÇÃO:</b> '+esc(audit.join(' • '))+'</span>':'');
     host.innerHTML=r.stages.map((s,i)=>`<div class="mp-readout" style="margin-top:8px"><b>SAFE ${i+1}${i===2?' • FINAL':''}</b>
       <div class="mp-grid" style="margin-top:6px">
         <label>X<input data-safe="${i}" data-k="x" inputmode="decimal" value="${s.x??''}"></label>
@@ -1558,7 +1570,7 @@ j+1];}if(d<(Number(m.spawnRadius)||100)*2)over++;}
     const issues=[],warns=[]; if(!m)return {issues:['Nenhuma zona ativa.'],warns:[]};
     if(!validCoord(m.center?.x)||!validCoord(m.center?.y))issues.push('Centro da zona não definido.');
     const pending=(m.points||[]).filter(p=>!isValidated(p)); if(pending.length)issues.push(pending.length+' spawn(s) ainda pendente(s) de validação.');
-    if((m.category||'dominacao')==='gas'){const c=zoneCoverageCounts(m);if(c.outside)issues.push(c.outside+' spawn(s) fora da safe inicial.');const r=ensureSafeRoute(m);const configured=r?.stages?.filter(safeStageValid).length||0;if(configured<3)warns.push('Rota progressiva da Safe está com '+configured+'/3 etapas configuradas.');}
+    if((m.category||'dominacao')==='gas'){const c=zoneCoverageCounts(m);if(c.outside)issues.push(c.outside+' spawn(s) fora da safe inicial.');const r=ensureSafeRoute(m);const configured=r?.stages?.filter(safeStageValid).length||0;if(configured<3)warns.push('Rota progressiva da Safe está com '+configured+'/3 etapas configuradas.');safeRouteAudit(m).forEach(x=>issues.push(x));}
     const pts=(m.points||[]).filter(p=>isValidated(p));
     let nearest=Infinity,pair=null;for(let i=0;i<pts.length;i++)for(let j=i+1;j<pts.length;j++){const d=distXY(pts[i],pts[j]);if(d<nearest){nearest=d;pair=[pts[i].id,pts[j].id];}}
     const minRecommended=(Number(m.spawnRadius)||100)*2;if(pair&&nearest<minRecommended)warns.push('Spawns '+pair[0]+' e '+pair[1]+' estão muito próximos ('+nearest.toFixed(0)+' m).');
@@ -1610,7 +1622,7 @@ j+1];}if(d<(Number(m.spawnRadius)||100)*2)over++;}
     if(!box){box=document.createElement('div');box.id='mpProTools';box.className='mp-card';box.style.marginTop='10px';box.innerHTML=`<h3>FERRAMENTAS DE MISSÃO</h3>
       <div id="mpAuditStatus" class="mp-readout"></div>
       <div class="mp-actions" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
-        <button type="button" id="mpAuditBtn">VALIDAR ANTES DE PUBLICAR</button><button type="button" id="mpCompareBtn">ANTES × DEPOIS</button><button type="button" id="mpFullscreenBtn">MAPA TELA CHEIA</button>
+        <button type="button" id="mpAuditBtn">VALIDAR ANTES DE PUBLICAR</button><button type="button" id="mpCompareBtn">ANTES × DEPOIS</button><button type="button" id="mpFullscreenBtn">MAPA TELA CHEIA</button><button type="button" id="mpSurvivalBtn">CRIAR SOBREVIVÊNCIA DO FAC X FAC</button>
       </div>
       <div class="mp-grid" style="margin-top:8px"><label>Exportação<select id="mpExportFormat"><option value="lua">Lua / vector4</option><option value="vec4">vec4</option><option value="vec3">vec3</option><option value="json">JSON</option></select></label><label>Camadas<div style="display:flex;gap:10px;flex-wrap:wrap;padding-top:8px"><span><input type="checkbox" data-mplayer="zone" checked> Zona</span><span><input type="checkbox" data-mplayer="spawns" checked> Spawns</span><span><input type="checkbox" data-mplayer="center" checked> Centro</span></div></label></div>
       <div class="mp-grid" style="margin-top:8px"><label>Ir para CDS<input id="mpGoCoord" placeholder="vec3(X, Y, Z) ou X,Y,Z"></label><label>Rascunho<div id="mpDraftState" class="mp-note" style="padding-top:8px">Nenhum rascunho pendente.</div></label></div>
@@ -1619,7 +1631,7 @@ j+1];}if(d<(Number(m.spawnRadius)||100)*2)over++;}
       anchor.insertAdjacentElement('afterend',box);
       qs('#mpAuditBtn')?.addEventListener('click',()=>{renderProTools();const a=plannerAudit(active());alert(a.issues.length?'BLOQUEIOS:\n- '+a.issues.join('\n- ')+(a.warns.length?'\n\nAVISOS:\n- '+a.warns.join('\n- '):''):'Validação concluída sem bloqueios.'+(a.warns.length?'\n\nAvisos:\n- '+a.warns.join('\n- '):''));});
       qs('#mpCompareBtn')?.addEventListener('click',()=>{const m=active(),old=state.editBackup?.zones?.find(z=>z.id===m?.id);if(!old){alert('Entre em EDITAR ZONA para comparar a versão salva com a alteração atual.');return;}const changes=[];if(Number(old.eventRadius)!==Number(m.eventRadius))changes.push('Raio: '+effectiveEventRadius(old)+' → '+effectiveEventRadius(m)+' m');if(old.points?.length!==m.points?.length)changes.push('Spawns: '+(old.points?.length||0)+' → '+(m.points?.length||0));if(distXY(old.center,m.center)>1)changes.push('Centro movido '+distXY(old.center,m.center).toFixed(0)+' m');alert(changes.length?changes.join('\n'):'Nenhuma diferença estrutural detectada.');});
-      qs('#mpFullscreenBtn')?.addEventListener('click',togglePlannerFullscreen);
+      qs('#mpFullscreenBtn')?.addEventListener('click',togglePlannerFullscreen);qs('#mpSurvivalBtn')?.addEventListener('click',cloneFacXFacAsSurvival);
       qs('#mpGoCoordBtn')?.addEventListener('click',()=>{const r=parseCds(qs('#mpGoCoord')?.value);if(!r.ok||!validCoord(r.x)||!validCoord(r.y)){alert('CDS não reconhecida. Cole pelo menos X e Y.');return;}state.map?.setView(ll(r.x,r.y),5);});
       qs('#mpGoCoord')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();qs('#mpGoCoordBtn')?.click();}});
       qs('#mpSavePresetBtn')?.addEventListener('click',()=>saveLocalPreset());
@@ -1930,6 +1942,13 @@ targetEventName;if(targetEventId==='__new__'){targetEventName=prompt('Nome do no
     const m=active();if(!m)return;if(state.editing&&state.dirty){alert('Salve ou cancele as alterações antes de clonar.');return;}
     const c=JSON.parse(JSON.stringify(m));c.id=uid();c.name=`${m.name} — Cópia`;c.official=false;c.createdAt=nowIso();c.updatedAt=nowIso();c.requestText='';c.requestKind='create-zone';
     state.missions.unshift(c);state.activeId=c.id;state.activeEventId=c.eventId;saveStore();render();startEdit();setSaveState('Zona clonada • evento original preservado');
+  }
+  function cloneFacXFacAsSurvival(){
+    const m=active();if(!m)return;if(!/fac\s*x\s*fac/i.test(m.event||'')){alert('Selecione primeiro um evento Fac x Fac para criar o Sobrevivência.');return;}
+    if(state.editing&&state.dirty){alert('Salve ou cancele as alterações antes de criar o Sobrevivência.');return;}
+    const source=zonesOfEvent(m.eventId),eid=eventUid();
+    const clones=source.map((z,idx)=>{const c=JSON.parse(JSON.stringify(z));c.id=uid();c.eventId=eid;c.event='Sobrevivência';c.category='gas';c.official=false;c.createdAt=nowIso();c.updatedAt=nowIso();c.requestText='';c.requestKind=idx===0?'create-event':'create-zone';c.center.label='Centro da Safe / Marco Zero';ensureSafeRoute(c);c.safeRoute.stages.forEach(st=>st.z=0);return c;});
+    state.missions.unshift(...clones);state.activeId=clones[0].id;state.activeEventId=eid;state.libraryCategory='gas';saveStore();render();startEdit();setSaveState('Sobrevivência criado a partir do Fac x Fac • original preservado');
   }
   function cloneEventTo(targetCategory){
     const m=active();if(!m)return;if(state.editing&&state.dirty){alert('Salve ou cancele as alterações antes de clonar.');return;}
