@@ -580,6 +580,10 @@ panel:m.panel||'/ilegal'});
     m.requestKind=m.requestKind||(m.official?'alter-zone':'create-zone');
   }
 
+  function dominationPolygon(m){return (m?.category||'dominacao')==='dominacao'&&Array.isArray(m?.zonePolygon)?m.zonePolygon.filter(p=>validCoord(p?.x)&&validCoord(p?.y)):[];}
+  function polygonArea(points){if(!points||points.length<3)return 0;let a=0;for(let i=0,j=points.length-1;i<points.length;j=i++)a+=Number(points[j].x)*Number(points[i].y)-Number(points[i].x)*Number(points[j].y);return Math.abs(a)/2;}
+  function polygonPerimeter(points){if(!points||points.length<2)return 0;let d=0;for(let i=0;i<points.length;i++)d+=distXY(points[i],points[(i+1)%points.length]);return d;}
+  function dominationZoneGeometry(m){const p=dominationPolygon(m);if(p.length<3)return {mode:'radius',vertices:0,area:Math.PI*Math.pow(effectiveEventRadius(m),2),perimeter:2*Math.PI*effectiveEventRadius(m)};return {mode:'polygon',vertices:p.length,area:polygonArea(p),perimeter:polygonPerimeter(p)};}
   function coverageStats(m){
     if(!m||!validCoord(m.center?.x)||!validCoord(m.center?.y))return null;
     const pts=(m.points||[]).filter(p=>validCoord(p.x)&&validCoord(p.y));
@@ -1475,13 +1479,12 @@ iconAnchor:[16,
 draggable:state.editing}).addTo(state.map).bindPopup(`<b>${esc(m.center.label||'Centro')}</b><br>Status: <b>${isCenterValidated(m)?'VALIDADO':'PENDENTE'}</b><br>${f(m.center.x)},${f(m.center.y)}${isCenterValidated(m)?','+f(m.center.z)+','+f(m.center.h):',0.00,0.00'}<br><small>${state.editing?'Arraste para ajustar o centro':'Visualização • ponto travado'}</small>`);
       center.on('dragend',ev=>{const n=ev.target.getLatLng();m.center.x=n.lng;m.center.y=n.lat;m.center.z=0;m.center.h=0;m.center.status='planned';m.center.validatedAt=null;m.center.validationReason='coordinate-change';commit('Centro movido no mapa — validação removida');});
       center._mpKind='center';state.drawn.push(center);
-      const eventRadius=effectiveEventRadius(m);
-      if(eventRadius>0){
-        const zone=L.circle(ll(m.center.x,m.center.y),{radius:eventRadius,
-weight:2,
-fillOpacity:.035,
-dashArray:(m.category||'dominacao')==='gas'?'8 6':null,
-interactive:false}).addTo(state.map);
+      const eventRadius=effectiveEventRadius(m),poly=dominationPolygon(m);
+      if((m.category||'dominacao')==='dominacao'&&poly.length>=3){
+        const zone=L.polygon(poly.map(p=>ll(p.x,p.y)),{weight:2,fillOpacity:.055,interactive:false}).addTo(state.map);zone._mpKind='zone';state.drawn.push(zone);
+        poly.forEach((p,i)=>{const ic=L.divIcon({className:'',html:'<div style="min-width:22px;height:22px;border:2px solid #fff;border-radius:50%;background:#171923;color:#fff;font:10px/18px system-ui;text-align:center">'+(i+1)+'</div>',iconSize:[22,22],iconAnchor:[11,11]});const mk=L.marker(ll(p.x,p.y),{icon:ic,interactive:false}).addTo(state.map).bindPopup('<b>Vértice da Zona '+String(i+1).padStart(2,'0')+'</b><br>'+f(p.x)+', '+f(p.y)+', '+f(Number(p.z)||0));mk._mpKind='zone';state.drawn.push(mk);});
+      }else if(eventRadius>0){
+        const zone=L.circle(ll(m.center.x,m.center.y),{radius:eventRadius,weight:2,fillOpacity:.035,dashArray:(m.category||'dominacao')==='gas'?'8 6':null,interactive:false}).addTo(state.map);
         zone._mpKind='zone';state.drawn.push(zone);
       }
     }
@@ -1598,9 +1601,9 @@ counts=zoneCoverageCounts(m);
     if(inp&&document.activeElement!==inp)inp.value=used;
     const note=qs('#mpCoverageBox .mp-note');
     if(category==='dominacao'){
-      const ds=(m.points||[]).filter(isValidated).map(p=>pointDistanceFromCenter(m,p)),outsideAccess=ds.map(d=>Math.max(0,d-used)),minAccess=outsideAccess.length?Math.min(...outsideAccess):null,maxAccess=outsideAccess.length?Math.max(...outsideAccess):null,aa=dominationAccessAnalysis(m);
+      const geom=dominationZoneGeometry(m),ds=(m.points||[]).filter(isValidated).map(p=>pointDistanceFromCenter(m,p)),outsideAccess=ds.map(d=>Math.max(0,d-used)),minAccess=outsideAccess.length?Math.min(...outsideAccess):null,maxAccess=outsideAccess.length?Math.max(...outsideAccess):null,aa=dominationAccessAnalysis(m);
       const accessSummary=aa?`Cobertura de aproximação: <b>${aa.sectors}/4 lados</b> • maior trecho sem entrada: <b>${aa.largestGap.toFixed(0)}°</b><br>`:'';
-      el.innerHTML=`Raio da Zona de Pontuação: <b>${used} m</b><br>Spawns/entradas cadastrados: <b>${counts.total}</b><br>${minAccess!==null?`Distância até a borda da zona: <b>${minAccess.toFixed(0)}–${maxAccess.toFixed(0)} m</b><br>`:''}${accessSummary}<span style="color:#9ed7ff">A pontuação acontece dentro da zona. Os spawns podem e normalmente devem ficar externos, funcionando como pontos de entrada para a disputa.</span>`;
+      el.innerHTML=`${geom.mode==='polygon'?`Zona por polígono: <b>${geom.vertices} vértices</b> • área ~<b>${Math.round(geom.area).toLocaleString('pt-BR')} m²</b><br>`:`Zona por raio: <b>${used} m</b><br>`}Spawns/entradas cadastrados: <b>${counts.total}</b><br>${minAccess!==null?`Distância até a borda da zona: <b>${minAccess.toFixed(0)}–${maxAccess.toFixed(0)} m</b><br>`:''}${accessSummary}<span style="color:#9ed7ff">A pontuação acontece dentro da zona. Os spawns podem e normalmente devem ficar externos, funcionando como pontos de entrada para a disputa.</span>`;
       if(note)note.textContent='Projete uma área ampla de disputa, com espaço para movimentação, cobertura e flancos. Evite zonas pequenas que permitam marcar facilmente os jogadores ou controlar todas as entradas.';
       if(btn){btn.style.display='none';btn.disabled=true;}
       const gen=qs('#mpGenerateInsideZone');if(gen){gen.style.display='none';gen.disabled=true;}
