@@ -637,11 +637,7 @@ base=Number(m?.circleRadius),
 s=coverageStats(m);return Number.isFinite(saved)&&saved>0?saved:(Number.isFinite(base)&&base>0?base:(s?.recommended||1000));}
   function pointDistanceFromCenter(m,p){return Math.hypot(Number(p.x)-Number(m.center.x),Number(p.y)-Number(m.center.y));}
   function pointInsideZone(m,p){if(!m||!p||!validCoord(m.center?.x)||!validCoord(m.center?.y)||!validCoord(p.x)||!validCoord(p.y))return true;return pointDistanceFromCenter(m,p)<=effectiveEventRadius(m);}
-  function zoneCoverageCounts(m){const pts=(m?.points||[]).filter(p=>validCoord(p.x)&&validCoord(p.y));const radius=effectiveEventRadius(m);let inside=0,
-outside=0;pts.forEach(p=>{if(pointDistanceFromCenter(m,p)<=radius)inside++;else outside++;});return {inside,
-outside,
-total:pts.length,
-radius};}
+  function zoneCoverageCounts(m){const pts=(m?.points||[]).filter(p=>validCoord(p.x)&&validCoord(p.y)),radius=effectiveEventRadius(m),category=m?.category||'dominacao',geom=category==='dominacao'?dominationZoneGeometry(m):null;let inside=0,outside=0,unknown=0;pts.forEach(p=>{if(category==='dominacao'&&geom?.mode==='polygon'){if(pointInPolygon(p,activeDominationPolygon(m)))inside++;else outside++;}else if(category==='dominacao'&&['polygon-incomplete','polygon-invalid'].includes(geom?.mode))unknown++;else if(validCoord(m?.center?.x)&&validCoord(m?.center?.y)&&pointDistanceFromCenter(m,p)<=radius)inside++;else outside++;});return {inside,outside,unknown,total:pts.length,radius,mode:geom?.mode||'radius'};}
 
   function validCoord(v){return Number.isFinite(Number(v)) && Number(v)!==0;}
 
