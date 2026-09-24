@@ -1387,19 +1387,20 @@ iconAnchor:[12,
     const o2=(r.stage2Options||[]).filter(s=>validCoord(s.x)&&validCoord(s.y)),o3=(r.stage3Options||[]).filter(s=>validCoord(s.x)&&validCoord(s.y));
     if(!o2.length||!o3.length){alert('Adicione pelo menos uma opção de Safe 2 e uma de Safe 3 no mapa.');return;}
     const p2=o2[Math.floor(Math.random()*o2.length)],p3=o3[Math.floor(Math.random()*o3.length)];
-    r.stages[1].x=p2.x;r.stages[1].y=p2.y;r.stages[2].x=p3.x;r.stages[2].y=p3.y;
+    // Preview usa cópias: sortear uma rota nunca altera a configuração salva.
+    const s1={...r.stages[0]},s2={...r.stages[1],x:p2.x,y:p2.y,z:0},s3={...r.stages[2],x:p3.x,y:p3.y,z:0};
     stopSafePreview();
     const initial=effectiveEventRadius(m),phases=[
-      {type:'close',label:'FECHANDO SAFE 1',a:r.stages[0],from:initial,to:r.stages[0].radius,seconds:Number(r.stages[0].closeSeconds)||180},
-      {type:'move',label:'MOVENDO PARA SAFE 2',a:r.stages[0],b:r.stages[1],from:r.stages[0].radius,to:r.stages[0].radius,seconds:Number(r.stages[0].moveSeconds)||90},
-      {type:'close',label:'FECHANDO SAFE 2',a:r.stages[1],from:r.stages[0].radius,to:r.stages[1].radius,seconds:Number(r.stages[1].closeSeconds)||150},
-      {type:'move',label:'MOVENDO PARA SAFE 3',a:r.stages[1],b:r.stages[2],from:r.stages[1].radius,to:r.stages[1].radius,seconds:Number(r.stages[1].moveSeconds)||75},
-      {type:'close',label:'FECHANDO SAFE FINAL',a:r.stages[2],from:r.stages[1].radius,to:r.stages[2].radius,seconds:Number(r.stages[2].closeSeconds)||120}
+      {type:'close',label:'FECHANDO SAFE 1',a:s1,from:initial,to:s1.radius,seconds:Number(s1.closeSeconds)||180},
+      {type:'move',label:'MOVENDO PARA SAFE 2',a:s1,b:s2,from:s1.radius,to:s1.radius,seconds:Number(s1.moveSeconds)||90},
+      {type:'close',label:'FECHANDO SAFE 2',a:s2,from:s1.radius,to:s2.radius,seconds:Number(s2.closeSeconds)||150},
+      {type:'move',label:'MOVENDO PARA SAFE 3',a:s2,b:s3,from:s2.radius,to:s2.radius,seconds:Number(s2.moveSeconds)||75},
+      {type:'close',label:'FECHANDO SAFE FINAL',a:s3,from:s2.radius,to:s3.radius,seconds:Number(s3.closeSeconds)||120}
     ];
     let pi=0,t=0;const steps=90,hud=ensurePreviewHud();
     const gasStyle={radius:initial,weight:4,color:'#a855f7',opacity:.92,fillColor:'#7e22ce',fillOpacity:.16,dashArray:'10 7',interactive:false};
-    state.safePreviewLayer=L.circle(ll(r.stages[0].x,r.stages[0].y),gasStyle).addTo(state.map);
-    state.safePreviewRouteLayer=L.polyline([ll(r.stages[0].x,r.stages[0].y),ll(r.stages[1].x,r.stages[1].y),ll(r.stages[2].x,r.stages[2].y)],{color:'#c084fc',weight:3,opacity:.72,dashArray:'8 8',interactive:false}).addTo(state.map);
+    state.safePreviewLayer=L.circle(ll(s1.x,s1.y),gasStyle).addTo(state.map);
+    state.safePreviewRouteLayer=L.polyline([ll(s1.x,s1.y),ll(s2.x,s2.y),ll(s3.x,s3.y)],{color:'#c084fc',weight:3,opacity:.72,dashArray:'8 8',interactive:false}).addTo(state.map);
     const status=qs('#mpSafeRouteStatus');if(status)status.innerHTML=`<b>PREVIEW EM EXECUÇÃO</b> • rota sorteada: SAFE 1 → SAFE 2 → SAFE 3<br><small>O círculo roxo representa a área do gás durante fechamento e deslocamento.</small>`;
     state.safePreviewTimer=setInterval(()=>{const p=phases[pi];if(!p){stopSafePreview();renderMap();return;}t++;const u=Math.min(1,t/steps),smooth=u*u*(3-2*u);let x=p.a.x,y=p.a.y,rad=p.from+(p.to-p.from)*smooth;if(p.type==='move'){x=p.a.x+(p.b.x-p.a.x)*smooth;y=p.a.y+(p.b.y-p.a.y)*smooth;}state.safePreviewLayer.setLatLng(ll(x,y));state.safePreviewLayer.setRadius(rad);if(hud){const remain=Math.max(0,Math.ceil(p.seconds*(1-u)));hud.innerHTML='<div style="font-size:12px;opacity:.72">SOBREVIVÊNCIA • PREVIEW</div><div>'+p.label+'</div><div style="font-size:13px;font-weight:500">Raio '+Math.round(rad)+' m • '+remain+' s</div>';}if(u>=1){pi++;t=0;if(pi>=phases.length){if(hud)hud.innerHTML='<div>SAFE FINAL CONCLUÍDA</div>';setTimeout(()=>{stopSafePreview();renderMap();},900);clearInterval(state.safePreviewTimer);state.safePreviewTimer=null;}}},45);
   }
@@ -1452,8 +1453,8 @@ draggable:state.editing}).addTo(state.map);
       circle._mpKind='spawns';marker._mpKind='spawns';state.drawn.push(circle,marker);
       if(Number.isFinite(p.h)){const a=p.h*Math.PI/180,
 d=35;const hd=L.marker(ll(p.x+Math.sin(a)*d,p.y+Math.cos(a)*d),{icon:headingIcon(p.h),interactive:false}).addTo(state.map);hd._mpKind='spawns';state.drawn.push(hd);}
-    applyLayerVisibility();
     });
+    applyLayerVisibility();
   }
 
   function renderMissionList(){
