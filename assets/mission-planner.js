@@ -591,14 +591,20 @@ panel:m.panel||'/ilegal'});
   function segmentCross(a,b,c,d){const o1=orient2d(a,b,c),o2=orient2d(a,b,d),o3=orient2d(c,d,a),o4=orient2d(c,d,b);return ((o1>0&&o2<0)||(o1<0&&o2>0))&&((o3>0&&o4<0)||(o3<0&&o4>0));}
   function polygonSelfIntersections(points){const hits=[];if(!points||points.length<4)return hits;for(let i=0;i<points.length;i++){const a=points[i],b=points[(i+1)%points.length];for(let j=i+1;j<points.length;j++){if(j===i||j===(i+1)%points.length||(i===0&&j===points.length-1))continue;const c=points[j],d=points[(j+1)%points.length];if(segmentCross(a,b,c,d))hits.push([i+1,j+1]);}}return hits;}
   function dominationPolygonAudit(m){
-    const p=dominationPolygon(m),issues=[],warns=[];if(!p.length)return {issues,warns,metrics:null};if(p.length<3){issues.push('Polígono incompleto: são necessárias pelo menos 3 CDS para fechar a Zona de Pontuação.');return {issues,warns,metrics:null};}
+    const raw=Array.isArray(m?.zonePolygon)?m.zonePolygon:[],p=dominationPolygon(m),issues=[],warns=[];if(!raw.length)return {issues,warns,metrics:null};
+    const invalid=raw.map((v,i)=>({v,i})).filter(x=>!validCoord(x.v?.x)||!validCoord(x.v?.y)),pendingZ=raw.map((v,i)=>({v,i})).filter(x=>validCoord(x.v?.x)&&validCoord(x.v?.y)&&!validCoord(x.v?.z));
+    if(invalid.length)issues.push('CDS inválida(s) no polígono: '+invalid.map(x=>String(x.i+1).padStart(2,'0')).join(', ')+'. Corrija X/Y antes de fechar a zona.');
+    if(pendingZ.length)warns.push('Vértice(s) ainda sem Z real validado no FiveM: '+pendingZ.map(x=>String(x.i+1).padStart(2,'0')).join(', ')+'. A geometria 2D pode ser analisada, mas confirme as CDS antes da implementação.');
+    if(p.length<3){issues.push('Polígono incompleto: são necessárias pelo menos 3 CDS válidas para fechar a Zona de Pontuação.');return {issues,warns,metrics:null};}
+    const near=[];for(let i=0;i<p.length;i++)for(let j=i+1;j<p.length;j++){const d=distXY(p[i],p[j]);if(d<2)near.push([i+1,j+1,d]);}
+    if(near.length)issues.push('Vértices duplicados/quase iguais: '+near.map(x=>String(x[0]).padStart(2,'0')+'↔'+String(x[1]).padStart(2,'0')+' ('+x[2].toFixed(1)+'m)').join(', ')+'.');
     const sides=p.map((v,i)=>distXY(v,p[(i+1)%p.length])),area=polygonArea(p),perimeter=polygonPerimeter(p),minSide=Math.min(...sides),maxSide=Math.max(...sides),cross=polygonSelfIntersections(p),compactness=perimeter>0?(4*Math.PI*area)/(perimeter*perimeter):0;
     if(cross.length)issues.push('O contorno da zona cruza a si mesmo. Revise a ordem das CDS antes de implementar.');
     if(area<10000)warns.push('Área do polígono é pequena (~'+Math.round(area).toLocaleString('pt-BR')+' m²). Confira espaço de combate, cobertura e flancos.');
     if(minSide<25)warns.push('Há lado muito curto no contorno (~'+Math.round(minSide)+' m), possivelmente uma CDS redundante ou mal posicionada.');
     if(maxSide>0&&minSide>0&&maxSide/minSide>8)warns.push('Os lados do polígono estão muito desproporcionais ('+Math.round(minSide)+'–'+Math.round(maxSide)+' m). Confira gargalos e pontos fora de ordem.');
     if(compactness<.18)warns.push('Formato muito alongado/irregular. Confira se a zona cria corredor ou gargalo excessivo.');
-    return {issues,warns,metrics:{area,perimeter,minSide,maxSide,compactness,crossings:cross.length}};
+    return {issues,warns,metrics:{area,perimeter,minSide,maxSide,compactness,crossings:cross.length,invalidVertices:invalid.length,pendingZ:pendingZ.length,nearDuplicates:near.length}};
   }
 
   function coverageStats(m){
