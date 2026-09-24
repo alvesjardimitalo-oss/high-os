@@ -2445,23 +2445,23 @@ z=zones[0];if(!z)return false;
   }
   function renderCentralV954(){
     const host=ensureCentralV954();if(!host)return;
-    const filter=centralCategory(),
-allEvents=[];
-    ['dominacao',
-'gas'].forEach(cat=>eventsOfCategory(cat).forEach(e=>allEvents.push({...e,
-category:cat})));
-    const events=filter==='all'?allEvents:allEvents.filter(e=>e.category===filter);
+    const filter=centralCategory(),query=String(state.centralSearch||'').trim().toLowerCase(),allEvents=[];
+    ['dominacao','gas'].forEach(cat=>eventsOfCategory(cat).forEach(e=>allEvents.push({...e,category:cat})));
+    let events=filter==='all'?allEvents:allEvents.filter(e=>e.category===filter);
+    if(query)events=events.filter(e=>String(e.name||'').toLowerCase().includes(query)||zonesOfEvent(e.id).some(z=>String(z.name||'').toLowerCase().includes(query)));
     const readyTotal=state.missions.filter(z=>isCenterValidated(z)&&z.points?.length&&z.points.every(isValidated)).length;
-    host.innerHTML=`<div class="mpc-head"><div><span>MISSÕES</span><strong>${allEvents.length} eventos <i>•</i> ${state.missions.length} zonas <i>•</i> ${readyTotal} prontas</strong></div><span id="mpCloudStateCentral" class="mp-cloud-state ${state.cloudState||'local'}">${state.cloudState==='synced'?'☁ SINCRONIZADO':'↻ SINCRONIZANDO'}</span></div>
-      <div class="mpc-toolbar"><div class="mpc-filters"><button data-cfilter="all" class="${filter==='all'?'active':''}">TODOS</button><button data-cfilter="dominacao" class="${filter==='dominacao'?'active':''}">DOMINAÇÃO</button><button data-cfilter="gas" class="${filter==='gas'?'active':''}">ZONA DE GÁS</button></div><button id="mpCentralNewEvent" class="mpc-primary">+ NOVO EVENTO</button></div>
+    const pendingTotal=state.missions.length-readyTotal;
+    host.innerHTML=`<div class="mpc-head"><div><span>BIBLIOTECA DE MAPAS</span><strong>${allEvents.length} eventos <i>•</i> ${state.missions.length} zonas <i>•</i> ${readyTotal} prontas <i>•</i> ${pendingTotal} em revisão</strong></div><span id="mpCloudStateCentral" class="mp-cloud-state ${state.cloudState||'local'}">${state.cloudState==='synced'?'☁ SINCRONIZADO':'↻ SINCRONIZANDO'}</span></div>
+      <div class="mpc-toolbar" style="align-items:center;gap:10px;flex-wrap:wrap"><div class="mpc-filters"><button data-cfilter="all" class="${filter==='all'?'active':''}">TODOS</button><button data-cfilter="dominacao" class="${filter==='dominacao'?'active':''}">DOMINAÇÃO</button><button data-cfilter="gas" class="${filter==='gas'?'active':''}">GÁS / SAFE</button></div><div style="display:flex;gap:8px;flex:1;justify-content:flex-end;min-width:280px"><input id="mpCentralSearch" value="${esc(state.centralSearch||'')}" placeholder="Buscar evento ou zona…" style="max-width:300px"><button id="mpCentralNewEvent" class="mpc-primary">+ NOVO EVENTO</button></div></div>
       <div class="mpc-events">${events.length?events.map(e=>{
         const zones=zonesOfEvent(e.id),ready=zones.filter(z=>isCenterValidated(z)&&z.points?.length&&z.points.every(isValidated)).length;
-        return `<article class="mpc-event"><header><div><span>${e.category==='gas'?'ZONA DE GÁS':'DOMINAÇÃO'}</span><h3>${esc(e.name)}</h3><small>${zones.length} zona${zones.length===1?'':'s'} • ${ready}/${zones.length} pronta${zones.length===1?'':'s'}</small></div><div class="mpc-event-actions"><button data-newzone="${esc(e.id)}">+ NOVA ZONA</button><button class="danger" data-delevent="${esc(e.id)}">EXCLUIR EVENTO</button></div></header><div class="mpc-zones">${zones.map(z=>{const total=z.points?.length||0,val=(z.points||[]).filter(isValidated).length;return `<button class="mpc-zone" data-openzone="${esc(z.id)}"><span><b>${esc(z.name||'Zona sem nome')}</b><small>${total?`${val}/${total} validados`:'Sem pontos'}</small></span><em class="${total&&val===total?'ok':''}">${total&&val===total?'✓':'ABRIR'}</em></button>`}).join('')||'<div class="mpc-empty">Nenhuma zona cadastrada.</div>'}</div></article>`
-      }).join(''):'<div class="mpc-empty big">Nenhum evento neste filtro.</div>'}</div>`;
-    qsa('[data-cfilter]',host).forEach(b=>b.onclick=()=>{state.centralFilter=b.dataset.cfilter;renderCentralV954();});
-    qsa('[data-openzone]',host).forEach(b=>b.onclick=()=>switchMission(b.dataset.openzone));
-    qsa('[data-newzone]',host).forEach(b=>b.onclick=()=>{if(selectEventForAction(b.dataset.newzone))createZone();});
-    qsa('[data-delevent]',host).forEach(b=>b.onclick=()=>{if(selectEventForAction(b.dataset.delevent))deleteEvent();});
+        return `<article class="mpc-event"><header><div><span>${e.category==='gas'?'GÁS / SAFE DINÂMICA':'DOMINAÇÃO'}</span><h3>${esc(e.name)}</h3><small>${zones.length} zona${zones.length===1?'':'s'} • ${ready}/${zones.length} pronta${zones.length===1?'':'s'}</small></div><div class="mpc-event-actions"><button data-newzone="${esc(e.id)}">+ NOVA ZONA</button><button class="danger" data-delevent="${esc(e.id)}">EXCLUIR EVENTO</button></div></header><div class="mpc-zones">${zones.map(z=>{const total=z.points?.length||0,val=(z.points||[]).filter(isValidated).length,centerOk=isCenterValidated(z),readyZone=centerOk&&total>0&&val===total,geom=e.category==='gas'?'SAFE':(dominationZoneMode(z)==='polygon'?'POLÍGONO':'RAIO'),updated=z.updatedAt?new Date(z.updatedAt).toLocaleDateString('pt-BR'):'—';return `<button class="mpc-zone" data-openzone="${esc(z.id)}" title="Abrir ${esc(z.name||'zona')}"><span style="min-width:0"><b>${esc(z.name||'Zona sem nome')}</b><small>${geom} • ${total?val+'/'+total+' CDS validadas':'sem CDS'} • atualizado ${updated}</small></span><em class="${readyZone?'ok':''}">${readyZone?'✓ PRONTA':centerOk?'REVISAR':'PENDENTE'}</em></button>`}).join('')||'<div class="mpc-empty">Nenhuma zona cadastrada.</div>'}</div></article>`
+      }).join(''):'<div class="mpc-empty big">Nenhum mapa encontrado neste filtro.</div>'}</div>`;
+    qsa('[data-cfilter]',host).forEach(btn=>btn.onclick=()=>{state.centralFilter=btn.dataset.cfilter;renderCentralV954();});
+    const search=qs('#mpCentralSearch',host);if(search){search.oninput=()=>{state.centralSearch=search.value;clearTimeout(state.centralSearchTimer);state.centralSearchTimer=setTimeout(renderCentralV954,180);};setTimeout(()=>{if(document.activeElement?.id==='mpCentralSearch'){const el=qs('#mpCentralSearch');el?.focus();el?.setSelectionRange(el.value.length,el.value.length);}},0);}
+    qsa('[data-openzone]',host).forEach(btn=>btn.onclick=()=>switchMission(btn.dataset.openzone));
+    qsa('[data-newzone]',host).forEach(btn=>btn.onclick=()=>{if(selectEventForAction(btn.dataset.newzone))createZone();});
+    qsa('[data-delevent]',host).forEach(btn=>btn.onclick=()=>{if(selectEventForAction(btn.dataset.delevent))deleteEvent();});
     qs('#mpCentralNewEvent',host)?.addEventListener('click',()=>{if(filter!=='all')state.libraryCategory=filter;createEvent();});
   }
 
