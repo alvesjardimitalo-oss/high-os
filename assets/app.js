@@ -4931,6 +4931,13 @@ month:'2-digit',
 year:'numeric',
 hour:'2-digit',
 minute:'2-digit'}):'—'}
+/* V10.75 - normalizador temporal único para ordenações do histórico.
+   Evita ReferenceError nas rotinas econômicas que ordenam registros sem
+   rebaixar falhas de código para a tela de acesso negado. */
+function historyMillis(h){
+ const d=historyDateValue(h);
+ return d&&!isNaN(d)?d.getTime():0;
+}
 function historyFamily(tipo=''){
  const t=String(tipo).toUpperCase();
 
