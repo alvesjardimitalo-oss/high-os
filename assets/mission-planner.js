@@ -1494,8 +1494,10 @@ iconAnchor:[12,
   function renderMapLegend(m){
     const host=qs('.mission-planner-mapwrap')||qs('#missionPlannerMap')?.parentElement;if(!host)return;let el=qs('#mpMapLegend');
     if(!el){el=document.createElement('div');el.id='mpMapLegend';Object.assign(el.style,{position:'absolute',left:'12px',bottom:'12px',zIndex:'900',background:'rgba(8,10,18,.86)',border:'1px solid rgba(255,255,255,.16)',borderRadius:'10px',padding:'8px 10px',fontSize:'11px',lineHeight:'1.55',color:'#fff',pointerEvents:'none',boxShadow:'0 8px 24px rgba(0,0,0,.3)'});host.appendChild(el);}
-    const counts=zoneCoverageCounts(m),valid=(m.points||[]).filter(isValidated).length,total=m.points?.length||0;
-    el.innerHTML='<b>'+esc(m.event||'EVENTO')+' • '+esc(m.name||'ZONA')+'</b><br>◎ Centro • ◯ Zona '+Math.round(effectiveEventRadius(m))+'m<br>Spawns '+valid+'/'+total+' validados'+((m.category||'dominacao')==='gas'?'<br>Safe inicial: '+counts.inside+'/'+counts.total+' dentro'+(counts.outside?' • '+counts.outside+' fora ⚠':' ✓'):'');
+    const counts=zoneCoverageCounts(m),valid=(m.points||[]).filter(isValidated).length,total=m.points?.length||0,category=m.category||'dominacao',poly=category==='dominacao'?dominationPolygon(m):[],mode=category==='dominacao'?dominationZoneMode(m):'radius';
+    const zoneLabel=category==='dominacao'&&mode==='polygon'?(poly.length>=3?'⬡ Zona por CDS • '+poly.length+' vértices':'⬡ Polígono em construção • '+poly.length+'/3+ vértices'):'◯ Zona '+Math.round(effectiveEventRadius(m))+'m';
+    const centerLabel=category==='dominacao'&&mode==='polygon'?'':('◎ Centro • ');
+    el.innerHTML='<b>'+esc(m.event||'EVENTO')+' • '+esc(m.name||'ZONA')+'</b><br>'+centerLabel+zoneLabel+'<br>Spawns '+valid+'/'+total+' validados'+(category==='gas'?'<br>Safe inicial: '+counts.inside+'/'+counts.total+' dentro'+(counts.outside?' • '+counts.outside+' fora ⚠':' ✓'):'');
   }
   function renderMap(){
     if(!state.map)return;clearLayers();const m=active();if(!m)return;renderSafeRouteUi();renderMapLegend(m);
