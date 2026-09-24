@@ -577,7 +577,7 @@ panel:m.panel||'/ilegal'});
     m.event=eventName;
     m.name=zoneName;
     m.eventId=`legacy_${cat}_${slugify(eventName)}`;
-    m.requestKind=m.requestKind||(m.official?'alter-zone':'create-zone');
+    m.requestKind=m.requestKind||(m.official?'alter-zone':'create-zone');if(cat==='dominacao'){if(!Array.isArray(m.zonePolygon))m.zonePolygon=[];if(!m.zoneMode)m.zoneMode=m.zonePolygon.filter(p=>validCoord(p?.x)&&validCoord(p?.y)).length>=3?'polygon':'radius';}
   }
 
   function dominationPolygon(m){return (m?.category||'dominacao')==='dominacao'&&Array.isArray(m?.zonePolygon)?m.zonePolygon.filter(p=>validCoord(p?.x)&&validCoord(p?.y)):[];}
@@ -586,7 +586,7 @@ panel:m.panel||'/ilegal'});
   function polygonCentroid(points){if(!points?.length)return null;if(points.length<3){const x=points.reduce((a,p)=>a+Number(p.x),0)/points.length,y=points.reduce((a,p)=>a+Number(p.y),0)/points.length;return {x,y};}let a=0,cx=0,cy=0;for(let i=0;i<points.length;i++){const p=points[i],q=points[(i+1)%points.length],cross=Number(p.x)*Number(q.y)-Number(q.x)*Number(p.y);a+=cross;cx+=(Number(p.x)+Number(q.x))*cross;cy+=(Number(p.y)+Number(q.y))*cross;}a*=.5;if(Math.abs(a)<1e-7)return {x:points.reduce((v,p)=>v+Number(p.x),0)/points.length,y:points.reduce((v,p)=>v+Number(p.y),0)/points.length};return {x:cx/(6*a),y:cy/(6*a)};}
   function dominationAnalysisCenter(m){const p=dominationPolygon(m),c=p.length>=3?polygonCentroid(p):null;return c||(validCoord(m?.center?.x)&&validCoord(m?.center?.y)?{x:Number(m.center.x),y:Number(m.center.y)}:null);}
 
-  function dominationZoneGeometry(m){const p=dominationPolygon(m);if(p.length<3)return {mode:'radius',vertices:0,area:Math.PI*Math.pow(effectiveEventRadius(m),2),perimeter:2*Math.PI*effectiveEventRadius(m)};return {mode:'polygon',vertices:p.length,area:polygonArea(p),perimeter:polygonPerimeter(p)};}
+  function dominationZoneGeometry(m){const p=dominationPolygon(m),mode=m?.zoneMode||(p.length>=3?'polygon':'radius');if(mode!=='polygon'||p.length<3)return {mode:'radius',vertices:0,area:Math.PI*Math.pow(effectiveEventRadius(m),2),perimeter:2*Math.PI*effectiveEventRadius(m)};return {mode:'polygon',vertices:p.length,area:polygonArea(p),perimeter:polygonPerimeter(p)};}
   function orient2d(a,b,c){return (Number(b.y)-Number(a.y))*(Number(c.x)-Number(b.x))-(Number(b.x)-Number(a.x))*(Number(c.y)-Number(b.y));}
   function segmentCross(a,b,c,d){const o1=orient2d(a,b,c),o2=orient2d(a,b,d),o3=orient2d(c,d,a),o4=orient2d(c,d,b);return ((o1>0&&o2<0)||(o1<0&&o2>0))&&((o3>0&&o4<0)||(o3<0&&o4>0));}
   function polygonSelfIntersections(points){const hits=[];if(!points||points.length<4)return hits;for(let i=0;i<points.length;i++){const a=points[i],b=points[(i+1)%points.length];for(let j=i+1;j<points.length;j++){if(j===i||j===(i+1)%points.length||(i===0&&j===points.length-1))continue;const c=points[j],d=points[(j+1)%points.length];if(segmentCross(a,b,c,d))hits.push([i+1,j+1]);}}return hits;}
@@ -766,7 +766,7 @@ updatedAt:nowIso(),
 points:[],
 requestText:'',
 requestKind:eventId?'create-zone':'create-event',
-official:false};
+official:false,zoneMode:cat==='dominacao'?'radius':null,zonePolygon:[]};
   }
 
   function normalizeText(s){return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();}
@@ -1502,7 +1502,7 @@ iconAnchor:[12,
       const center=L.marker(ll(m.center.x,m.center.y),{icon:cicon,draggable:state.editing}).addTo(state.map).bindPopup(`<b>${esc(m.center.label||'Centro')}</b><br>Status: <b>${isCenterValidated(m)?'VALIDADO':'PENDENTE'}</b><br>${f(m.center.x)},${f(m.center.y)}${isCenterValidated(m)?','+f(m.center.z)+','+f(m.center.h):',0.00,0.00'}<br><small>${state.editing?'Arraste para ajustar o centro':'Visualização • ponto travado'}</small>`);
       center.on('dragend',ev=>{const n=ev.target.getLatLng();m.center.x=n.lng;m.center.y=n.lat;m.center.z=0;m.center.h=0;m.center.status='planned';m.center.validatedAt=null;m.center.validationReason='coordinate-change';commit('Centro movido no mapa — validação removida');});center._mpKind='center';state.drawn.push(center);
     }
-    if((m.category||'dominacao')==='dominacao'&&poly.length>=3){
+    if((m.category||'dominacao')==='dominacao'&&(m.zoneMode||(poly.length>=3?'polygon':'radius'))==='polygon'&&poly.length>=3){
       const zone=L.polygon(poly.map(p=>ll(p.x,p.y)),{weight:2,fillOpacity:.055,interactive:false}).addTo(state.map);zone._mpKind='zone';state.drawn.push(zone);
       poly.forEach((p,i)=>{const rawIndex=(m.zonePolygon||[]).indexOf(p),ic=L.divIcon({className:'',html:'<div style="min-width:22px;height:22px;border:2px solid #fff;border-radius:50%;background:#171923;color:#fff;font:10px/18px system-ui;text-align:center">'+(i+1)+'</div>',iconSize:[22,22],iconAnchor:[11,11]});const mk=L.marker(ll(p.x,p.y),{icon:ic,interactive:true,draggable:state.editing}).addTo(state.map).bindPopup('<b>Vértice da Zona '+String(i+1).padStart(2,'0')+'</b><br>'+f(p.x)+', '+f(p.y)+', '+f(Number(p.z)||0)+(state.editing?'<br><small>Arraste para ajustar • será necessário validar novamente</small>':''));mk.on('dragend',ev=>{if(rawIndex<0)return;const n=ev.target.getLatLng(),v=m.zonePolygon[rawIndex];v.x=n.lng;v.y=n.lat;v.z=0;v.status='planned';v.validatedAt=null;v.validationReason='coordinate-change';commit('Vértice '+String(rawIndex+1).padStart(2,'0')+' movido — validação removida');});mk._mpKind='zone';state.drawn.push(mk);});
     }else if(hasCenter){const eventRadius=effectiveEventRadius(m);if(eventRadius>0){const zone=L.circle(ll(m.center.x,m.center.y),{radius:eventRadius,weight:2,fillOpacity:.035,dashArray:(m.category||'dominacao')==='gas'?'8 6':null,interactive:false}).addTo(state.map);zone._mpKind='zone';state.drawn.push(zone);}}
@@ -1589,8 +1589,10 @@ h=r.h===null?0:r.h;
   function ensureCoverageUi(){
     const anchor=qs('#mpCenterValidation');if(!anchor||qs('#mpCoverageBox'))return;
     const box=document.createElement('div');box.id='mpCoverageBox';box.style.marginTop='10px';
-    box.innerHTML=`<div class="mp-readout"><b id="mpCoverageTitle">COBERTURA DA ZONA</b><div id="mpCoverageStatus" style="margin-top:6px">—</div></div><label style="margin-top:8px">Raio visual da zona (m)<input id="mpEventRadius" type="number" min="50" step="50" placeholder="1000"></label><div class="mp-actions" style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" id="mpRadiusMinus50">-50</button><button type="button" id="mpRadiusPlus50">+50</button><button type="button" id="mpRadiusMinus100">-100</button><button type="button" id="mpRadiusPlus100">+100</button></div><div class="mp-actions" style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" id="mpUseRecommendedRadius">COBRIR TODOS</button><button type="button" id="mpFitZone">ENQUADRAR ZONA</button><button type="button" id="mpGenerateInsideZone">GERAR SPAWNS DENTRO DA ZONA</button></div><div class="mp-note" style="margin-top:6px">Defina primeiro o tamanho ideal da área. Spawns fora dela serão destacados; não aumente a zona só para caber em pontos ruins.</div>`;
+    box.innerHTML=`<label id="mpZoneModeWrap" style="margin-bottom:8px">FORMA DA ZONA<select id="mpZoneMode"><option value="radius">CENTRO + RAIO</option><option value="polygon">POLÍGONO POR CDS</option></select></label><div class="mp-readout"><b id="mpCoverageTitle">COBERTURA DA ZONA</b><div id="mpCoverageStatus" style="margin-top:6px">—</div></div><label style="margin-top:8px">Raio visual da zona (m)<input id="mpEventRadius" type="number" min="50" step="50" placeholder="1000"></label><div class="mp-actions" style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" id="mpRadiusMinus50">-50</button><button type="button" id="mpRadiusPlus50">+50</button><button type="button" id="mpRadiusMinus100">-100</button><button type="button" id="mpRadiusPlus100">+100</button></div><div class="mp-actions" style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" id="mpUseRecommendedRadius">COBRIR TODOS</button><button type="button" id="mpFitZone">ENQUADRAR ZONA</button><button type="button" id="mpGenerateInsideZone">GERAR SPAWNS DENTRO DA ZONA</button></div><div class="mp-note" style="margin-top:6px">Defina primeiro o tamanho ideal da área. Spawns fora dela serão destacados; não aumente a zona só para caber em pontos ruins.</div>`;
     anchor.insertAdjacentElement('afterend',box);
+    qs('#mpZoneMode')?.addEventListener('change',e=>{if(!requireEdit())return;const m=active();if(!m||m.category!=='dominacao')return;m.zoneMode=e.target.value==='polygon'?'polygon':'radius';commit('Forma da Zona alterada para '+(m.zoneMode==='polygon'?'Polígono por CDS':'Centro + Raio'));});
+
     const applyRadius=(v,commitNow=true)=>{if(!requireEdit())return;const m=active();if(!m)return;v=Math.max(50,Math.round(Number(v)/50)*50);if(Number(m.eventRadius)===v)return;m.eventRadius=v;if(commitNow)commit('Raio da zona alterado');else{state.dirty=true;setSaveState('Raio da zona alterado • NÃO SALVO');renderMap();renderCoverage();}};
     let radiusInputStart=null;const radiusInput=qs('#mpEventRadius');
     radiusInput?.addEventListener('focus',()=>{radiusInputStart=state.editing?editSnapshot():null;});
@@ -1645,7 +1647,7 @@ btn=qs('#mpUseRecommendedRadius');if(!m||!el)return;
 used=effectiveEventRadius(m),
 s=coverageStats(m),
 counts=zoneCoverageCounts(m);
-    if(title)title.textContent=category==='gas'?'COBERTURA INICIAL DA SAFE / GÁS':'ZONA DE PONTUAÇÃO — DOMINAÇÃO';
+    if(title)title.textContent=category==='gas'?'COBERTURA INICIAL DA SAFE / GÁS':'ZONA DE PONTUAÇÃO — DOMINAÇÃO';const modeWrap=qs('#mpZoneModeWrap'),modeEl=qs('#mpZoneMode');if(modeWrap)modeWrap.style.display=category==='dominacao'?'block':'none';if(modeEl&&document.activeElement!==modeEl)modeEl.value=m.zoneMode||(dominationPolygon(m).length>=3?'polygon':'radius');
     if(inp&&document.activeElement!==inp)inp.value=used;
     const note=qs('#mpCoverageBox .mp-note');renderDominationPolygonUi();
     if(category==='dominacao'){
@@ -1735,7 +1737,7 @@ j+1];}if(d<(Number(m.spawnRadius)||100)*2)over++;}
 
   function plannerAudit(m){
     const issues=[],warns=[]; if(!m)return {issues:['Nenhuma zona ativa.'],warns:[]};
-    const category=m.category||'dominacao',poly=category==='dominacao'?dominationPolygon(m):[],usesPolygon=category==='dominacao'&&poly.length>=3;if(!usesPolygon&&(!validCoord(m.center?.x)||!validCoord(m.center?.y)))issues.push(category==='dominacao'?'Centro da Zona de Pontuação não definido para o modo Centro + Raio.':'Centro da zona não definido.');
+    const category=m.category||'dominacao',poly=category==='dominacao'?dominationPolygon(m):[],zoneMode=category==='dominacao'?(m.zoneMode||(poly.length>=3?'polygon':'radius')):null,usesPolygon=category==='dominacao'&&zoneMode==='polygon';if(usesPolygon&&poly.length<3)issues.push('Forma da zona definida como Polígono por CDS, mas ainda faltam vértices válidos para fechar o contorno.');if(!usesPolygon&&(!validCoord(m.center?.x)||!validCoord(m.center?.y)))issues.push(category==='dominacao'?'Centro da Zona de Pontuação não definido para o modo Centro + Raio.':'Centro da zona não definido.');
     const pending=(m.points||[]).filter(p=>!isValidated(p)); if(pending.length)issues.push(pending.length+' spawn(s) ainda pendente(s) de validação.');
     if(category==='gas'){const c=zoneCoverageCounts(m);if(c.outside)issues.push(c.outside+' spawn(s) fora da safe inicial.');const r=ensureSafeRoute(m);const configured=r?.stages?.filter(safeStageValid).length||0;if(configured<3)warns.push('Rota progressiva da Safe está com '+configured+'/3 etapas configuradas.');safeRouteAudit(m).forEach(x=>issues.push(x));}
     else{const radius=effectiveEventRadius(m);if(poly.length){const pa=dominationPolygonAudit(m);issues.push(...pa.issues);warns.push(...pa.warns);}else{if(!Number.isFinite(radius)||radius<=0)issues.push('Raio da Zona de Pontuação inválido.');if(radius<150)warns.push('Zona de Pontuação pequena ('+Math.round(radius)+' m de raio). Confira se há espaço suficiente para movimentação, cobertura e flancos.');}const ds=(m.points||[]).filter(isValidated).map(p=>dominationAccessDistance(m,p));if(ds.length>=4){const min=Math.min(...ds),max=Math.max(...ds);if(max-min>300)warns.push('Acessos com diferença relevante: há cerca de '+Math.round(max-min)+' m entre a entrada mais próxima e a mais distante da borda da zona.');dominationFairnessWarnings(m).forEach(x=>warns.push(x));const aa=dominationAccessAnalysis(m);if(aa&&aa.sectors<3)warns.push('Acessos concentrados em apenas '+aa.sectors+' setor(es) ao redor da zona; confira se existem rotas de aproximação por lados diferentes.');if(aa&&aa.largestGap>180)warns.push('Há mais de 180° da Zona de Pontuação sem entrada cadastrada; confira risco de concentração da disputa em um único lado.');}}
