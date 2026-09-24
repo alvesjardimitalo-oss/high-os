@@ -531,7 +531,7 @@ activeEventId:null,
 activeMapName:null,
 workspaceOpen:false,
 cloudState:'local',
-safePlacementStage:null,polygonPlacement:false,layerVisibility:{zone:true,spawns:true,center:true,access:false},proToolsReady:false,undoStack:[],redoStack:[],lastEditSnapshot:null,compareOverlay:false,safePresentation:false,safePresentationPrev:null,zoneProposal:null};
+safePlacementStage:null,polygonPlacement:false,layerVisibility:{zone:true,spawns:true,center:true,access:false},proToolsReady:false,undoStack:[],redoStack:[],lastEditSnapshot:null,compareOverlay:false,safePresentation:false,safePresentationPrev:null,zoneProposal:null,safeHoverMarker:null};
   const f=n=>Number(n).toFixed(2);
   const num=v=>{const n=Number(v);return Number.isFinite(n)?n:null};
   const nowIso=()=>new Date().toISOString();
@@ -1255,7 +1255,10 @@ cayoPostal});
     [atlas,sat,grid].forEach(x=>x.on('tileerror',()=>setTimeout(initialErr,0)));
     applyOceanColor(OCEAN_FALLBACK);
     state.map.on('baselayerchange',ev=>{state.oceanLocked=false;watchOcean(ev.layer);setTimeout(()=>{if(!state.oceanLocked)applyOceanColor(OCEAN_FALLBACK);},1200);});
-    state.map.on('mousemove',e=>{if(qs('#mpCursor'))qs('#mpCursor').textContent=`X ${f(e.latlng.lng)} | Y ${f(e.latlng.lat)}`;});
+    state.map.on('mousemove',e=>{
+      if(qs('#mpCursor'))qs('#mpCursor').textContent=`X ${f(e.latlng.lng)} | Y ${f(e.latlng.lat)}`;
+      if(state.safePlacementStage!==null)previewSafePlacement(e.latlng);
+    });
     state.map.on('click',e=>{
       const m=active();if(!m)return;
       if(!state.editing){if(qs('#mpClicked'))qs('#mpClicked').textContent='Modo visualização: clique em EDITAR EVENTO para alterar posições.';return;}
@@ -1370,20 +1373,59 @@ iconAnchor:[12,
     qs('#mpSafePresent')?.addEventListener('click',startSafePresentation);
     qs('#mpSafeStop')?.addEventListener('click',()=>{stopSafePreview();exitSafePresentation();});
   }
+  function safePlacementCheck(latlng){
+    const m=active(),idx=state.safePlacementStage;if(!m||idx===null||!latlng)return {ok:false,reason:'Marcação inativa.'};
+    const r=ensureSafeRoute(m),child=r?.stages?.[idx];if(!child||!Number(child.radius)>0)return {ok:false,reason:'Defina primeiro o raio desta SAFE.'};
+    const candidate={...child,x:latlng.lng,y:latlng.lat,z:0};
+    let parents=[];
+    if(idx===0)parents=[{x:m.center?.x,y:m.center?.y,z:0,radius:effectiveEventRadius(m)}];
+    else if(idx===1)parents=safeStageValid(r.stages[0])?[r.stages[0]]:[];
+    else{
+      const options=(r.stage2Options||[]).filter(p=>validCoord(p.x)&&validCoord(p.y)).map(p=>({...r.stages[1],x:p.x,y:p.y,z:0}));
+      parents=options.length?options:(safeStageValid(r.stages[1])?[r.stages[1]]:[]);
+    }
+    if(!parents.length)return {ok:false,reason:'Defina uma SAFE anterior válida primeiro.'};
+    const fitting=parents.filter(parent=>safeCircleFits(parent,candidate));
+    if(!fitting.length){
+      const maxMove=Math.max(0,...parents.map(parent=>Number(parent.radius)-Number(candidate.radius)));
+      return {ok:false,reason:`Fora da área possível. O centro desta SAFE precisa ficar a no máximo ~${Math.round(maxMove)} m do centro válido anterior.`};
+    }
+    if(idx<2){
+      const next=r.stages[idx+1];
+      if(next&&safeStageValid(next)&&!safeCircleFits(candidate,next))return {ok:false,reason:`Este ponto cabe na SAFE anterior, mas deixaria a SAFE ${idx+2} atual fora da progressão.`};
+    }
+    return {ok:true,reason:'POSIÇÃO VÁLIDA • clique para marcar'};
+  }
+  function clearSafeHover(){
+    if(state.safeHoverMarker&&state.map){try{state.map.removeLayer(state.safeHoverMarker)}catch(e){}}
+    state.safeHoverMarker=null;
+  }
+  function previewSafePlacement(latlng){
+    const chk=safePlacementCheck(latlng),m=active(),idx=state.safePlacementStage,r=ensureSafeRoute(m),stage=r?.stages?.[idx];
+    if(!stage)return;
+    const radius=Math.max(1,Number(stage.radius)||1);
+    if(!state.safeHoverMarker)state.safeHoverMarker=L.circle(latlng,{radius,weight:3,fillOpacity:.08,interactive:false}).addTo(state.map);
+    else{state.safeHoverMarker.setLatLng(latlng);state.safeHoverMarker.setRadius(radius);}
+    state.safeHoverMarker.setStyle(chk.ok?{color:'#52ff9a',fillColor:'#52ff9a'}:{color:'#ff5252',fillColor:'#ff5252'});
+    const mapEl=state.map?.getContainer();if(mapEl)mapEl.style.cursor=chk.ok?'crosshair':'not-allowed';
+    const status=qs('#mpSafeRouteStatus');if(status)status.innerHTML=`<b>MARCAÇÃO ATIVA: SAFE ${idx+1}</b><br><span style="color:${chk.ok?'#52ff9a':'#ff7474'}"><b>${esc(chk.reason)}</b></span>`;
+  }
   function beginSafePlacement(stageIndex){
     if(!requireEdit())return;
     const m=active();if(!m||((m.category||'dominacao')!=='gas'))return;
     ensureSafeRoute(m);resetMapPlacementModes();state.safePlacementStage=stageIndex;
-    const status=qs('#mpSafeRouteStatus');if(status)status.innerHTML=`<b>MARCAÇÃO ATIVA: SAFE ${stageIndex+1}</b><br>Clique no mapa no local onde o centro da Safe deverá chegar.`;
+    const status=qs('#mpSafeRouteStatus');if(status)status.innerHTML=`<b>MARCAÇÃO ATIVA: SAFE ${stageIndex+1}</b><br>Mova o mouse: verde permite marcar; vermelho bloqueia o clique.`;
     if(state.map?.getContainer())state.map.getContainer().style.cursor='crosshair';
   }
   function placeSafeOnMap(latlng){
     const m=active(),idx=state.safePlacementStage;if(!m||idx===null||idx===undefined)return false;
+    const check=safePlacementCheck(latlng);
+    if(!check.ok){previewSafePlacement(latlng);if(qs('#mpClicked'))qs('#mpClicked').textContent='SAFE BLOQUEADA • '+check.reason;return false;}
     const r=ensureSafeRoute(m),s=r?.stages?.[idx];if(!s)return false;
     s.x=latlng.lng;s.y=latlng.lat;s.z=0;
     const key=idx===1?'stage2Options':'stage3Options';if(!Array.isArray(r[key]))r[key]=[];
     r[key].push({x:s.x,y:s.y,z:s.z});
-    state.safePlacementStage=null;if(state.map?.getContainer())state.map.getContainer().style.cursor='';
+    state.safePlacementStage=null;clearSafeHover();if(state.map?.getContainer())state.map.getContainer().style.cursor='';
     commit(`Safe ${idx+1} marcada no mapa`);
     state.map?.panTo(latlng);renderSafeRouteUi();return true;
   }
@@ -1920,7 +1962,7 @@ v])=>{const el=qs('#'+id);if(el&&document.activeElement!==el)el.value=v;});
     if(state.editing){const changed=pushUndo();if(!changed){setSaveState('Nenhuma alteração detectada');return;}m.updatedAt=nowIso();state.lastEditSnapshot=editSnapshot();state.dirty=true;render();setSaveState(`${reason} • NÃO SALVO`);return;}
     m.updatedAt=nowIso();saveStore();render();setSaveState(`${reason} • salvo`);queueSnapshot();
   }
-  function resetMapPlacementModes(){state.placing=false;state.polygonPlacement=false;state.safePlacementStage=null;qs('#missionPlannerMap')?.classList.remove('mp-crosshair');if(state.map?.getContainer())state.map.getContainer().style.cursor='';const pb=qs('#mpPlaceBtn');if(pb)pb.textContent='MARCAR PONTO NO MAPA';const vb=qs('#mpDomPolygonPlace');if(vb)vb.textContent='MARCAR VÉRTICE NO MAPA';}
+  function resetMapPlacementModes(){state.placing=false;state.polygonPlacement=false;state.safePlacementStage=null;clearSafeHover();qs('#missionPlannerMap')?.classList.remove('mp-crosshair');if(state.map?.getContainer())state.map.getContainer().style.cursor='';const pb=qs('#mpPlaceBtn');if(pb)pb.textContent='MARCAR PONTO NO MAPA';const vb=qs('#mpDomPolygonPlace');if(vb)vb.textContent='MARCAR VÉRTICE NO MAPA';}
   function requireEdit(){if(state.editing)return true;alert('Zona travada em modo visualização. Clique em EDITAR ZONA para fazer alterações.');return false;}
   function startEdit(){const m=active();if(!m||state.editing)return;state.undoStack=[];state.redoStack=[];state.compareOverlay=false;state.editBackup={eventId:m.eventId,
 zones:JSON.parse(JSON.stringify(zonesOfEvent(m.eventId)))};state.editing=true;state.dirty=false;resetMapPlacementModes();state.lastEditSnapshot=editSnapshot();render();updateEditUi();setSaveState('MODO EDIÇÃO • alterações ainda não salvas');}
