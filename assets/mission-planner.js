@@ -629,8 +629,10 @@ motivo:'Cole a CDS copiada do jogo.'};
     t=t.replace(/[{}\[\]()]/g,' ');
     t=t.replace(/\b[xyzh]\s*[:=]\s*/gi,' ');
     t=t.replace(/heading|head|rot/gi,' ');
-    const nums=t.match(/-?\d+(?:[.,]\d+)?/g)||[];
-    const vals=nums.map(v=>Number(String(v).replace(',','.'))).filter(v=>Number.isFinite(v));
+    let nums=t.match(/-?\d+(?:[.,]\d+)?/g)||[];
+    let vals=nums.map(v=>Number(String(v).replace(',','.'))).filter(v=>Number.isFinite(v));
+    // CDS copiada com vírgula decimal e separador por espaço: "123,45 -456,78 30,10 90"
+    if(vals.length<2){nums=t.replace(/(\d),(\d)/g,'$1.$2').match(/-?\d+(?:\.\d+)?/g)||[];vals=nums.map(Number).filter(Number.isFinite);}
     if(vals.length<2)return {ok:false,
 motivo:'Nao encontrei X e Y na CDS colada.'};
     const [x,
@@ -1641,7 +1643,7 @@ j+1];}if(d<(Number(m.spawnRadius)||100)*2)over++;}
         <button type="button" id="mpAuditBtn">VALIDAR ANTES DE PUBLICAR</button><button type="button" id="mpChecklistBtn">CHECKLIST DO EVENTO</button><button type="button" id="mpCompareBtn">ANTES × DEPOIS</button><button type="button" id="mpFullscreenBtn">MAPA TELA CHEIA</button><button type="button" id="mpSurvivalBtn">CRIAR SOBREVIVÊNCIA DO FAC X FAC</button>
       </div>
       <div class="mp-grid" style="margin-top:8px"><label>Exportação<select id="mpExportFormat"><option value="lua">Lua / vector4</option><option value="vec4">vec4</option><option value="vec3">vec3</option><option value="json">JSON</option><option value="high">Solicitação HIGH</option><option value="summary">Resumo técnico</option></select></label><label>Camadas<div style="display:flex;gap:10px;flex-wrap:wrap;padding-top:8px"><span><input type="checkbox" data-mplayer="zone" checked> Zona</span><span><input type="checkbox" data-mplayer="spawns" checked> Spawns</span><span><input type="checkbox" data-mplayer="center" checked> Centro</span></div></label></div>
-      <div class="mp-grid" style="margin-top:8px"><label>Ir para CDS<input id="mpGoCoord" placeholder="vec3(X, Y, Z) ou X,Y,Z"></label><label>Rascunho<div id="mpDraftState" class="mp-note" style="padding-top:8px">Nenhum rascunho pendente.</div></label></div>
+      <div class="mp-grid" style="margin-top:8px"><label>Ir para CDS <small style="opacity:.65">formato livre • vec é opcional</small><input id="mpGoCoord" placeholder="Cole a CDS como tiver: X,Y,Z • vec3/vec4 • /tpcds • /tp..."></label><label>Rascunho<div id="mpDraftState" class="mp-note" style="padding-top:8px">Nenhum rascunho pendente.</div></label></div>
       <div class="mp-actions" style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" id="mpGoCoordBtn">CENTRALIZAR CDS</button><button type="button" id="mpSavePresetBtn">SALVAR COMO PRESET LOCAL</button><button type="button" id="mpCopyExportPro">COPIAR EXPORTAÇÃO</button></div>
       <div id="mpLocalPresets" class="mp-note" style="margin-top:8px"></div>`;
       anchor.insertAdjacentElement('afterend',box);
@@ -1650,7 +1652,7 @@ j+1];}if(d<(Number(m.spawnRadius)||100)*2)over++;}
       qs('#mpCompareBtn')?.addEventListener('click',()=>{const m=active(),old=state.editBackup?.zones?.find(z=>z.id===m?.id);if(!old){alert('Entre em EDITAR ZONA para comparar a versão salva com a alteração atual.');return;}const changes=[];if(Number(old.eventRadius)!==Number(m.eventRadius))changes.push('Raio: '+effectiveEventRadius(old)+' → '+effectiveEventRadius(m)+' m');if(old.points?.length!==m.points?.length)changes.push('Spawns: '+(old.points?.length||0)+' → '+(m.points?.length||0));if(distXY(old.center,m.center)>1)changes.push('Centro movido '+distXY(old.center,m.center).toFixed(0)+' m');alert(changes.length?changes.join('\n'):'Nenhuma diferença estrutural detectada.');});
       qs('#mpFullscreenBtn')?.addEventListener('click',togglePlannerFullscreen);qs('#mpSurvivalBtn')?.addEventListener('click',cloneFacXFacAsSurvival);
       qs('#mpGoCoordBtn')?.addEventListener('click',()=>{const r=parseCds(qs('#mpGoCoord')?.value);if(!r.ok||!validCoord(r.x)||!validCoord(r.y)){alert('CDS não reconhecida. Cole pelo menos X e Y.');return;}state.map?.setView(ll(r.x,r.y),5);});
-      qs('#mpGoCoord')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();qs('#mpGoCoordBtn')?.click();}});
+      qs('#mpGoCoord')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();qs('#mpGoCoordBtn')?.click();}});qs('#mpGoCoord')?.addEventListener('input',e=>{const lab=e.target.closest('label')?.querySelector('small');if(lab)lab.textContent=cdsFormatHint(e.target.value)+' • vec é opcional';});
       qs('#mpSavePresetBtn')?.addEventListener('click',()=>saveLocalPreset());
       qsa('[data-mplayer]',box).forEach(c=>c.addEventListener('change',()=>{state.layerVisibility[c.dataset.mplayer]=c.checked;renderMap();}));
       qs('#mpCopyExportPro')?.addEventListener('click',async()=>{const fmt=qs('#mpExportFormat')?.value||'lua';await copyText(exportMission(fmt));const b=qs('#mpCopyExportPro');if(b){b.textContent='COPIADO ✓';setTimeout(()=>b.textContent='COPIAR EXPORTAÇÃO',900);}});
@@ -1762,10 +1764,11 @@ h:(deg+180)%360,
 status:'planned'},i));}
     commit(`${qty} pontos gerados como PENDENTES`);fit();
   }
-  function parseBulk(text){const out=[];String(text||'').split(/\n+/).forEach(line=>{const c=line.replace(/^\s*\d+\s*[-–—:)]\s*/,'').trim();if(!c)return;const r=parseCds(c);if(!r.ok)return;out.push({x:r.x,
-y:r.y,
-z:r.z,
-h:r.h});});return out;}
+  function parseBulk(text){const out=[];String(text||'').split(/\n+/).forEach(line=>{const c=line.replace(/^\s*\d+\s*[-–—:)]\s*/,'').trim();if(!c)return;const r=parseCds(c);if(!r.ok)return;out.push({x:r.x,y:r.y,z:r.z,h:r.h});});return out;}
+  function cdsFormatHint(raw){
+    const t=String(raw||'').trim();if(!t)return 'Formato livre';
+    if(/vector4|vec4/i.test(t))return 'vec4 detectado';if(/vector3|vec3/i.test(t))return 'vec3 detectado';if(/^\s*\/?(tpcds|tp|nc|setcoords|coords?)/i.test(t))return 'Comando detectado';return 'CDS simples detectada';
+  }
   function importBulk(){if(!requireEdit())return;
     const m=active(),
 arr=parseBulk(qs('#mpBulk')?.value);if(!m||!arr.length){alert('Nenhuma coordenada válida encontrada.');return;}
