@@ -1263,7 +1263,7 @@ iconAnchor:[12,
     const s=m.safeRoute.stages;
     while(s.length<3)s.push({x:null,y:null,z:null,radius:100,damage:5,closeSeconds:120,moveSeconds:60});
     s.length=3;
-    if(!validCoord(s[0].x)&&validCoord(m.center?.x)){s[0].x=num(m.center.x);s[0].y=num(m.center.y);s[0].z=num(m.center.z);}
+    if(!validCoord(s[0].x)&&validCoord(m.center?.x)){s[0].x=num(m.center.x);s[0].y=num(m.center.y);s[0].z=0;}
     if(!Array.isArray(m.safeRoute.stage2Options))m.safeRoute.stage2Options=safeStageValid?.(s[1])?[{x:s[1].x,y:s[1].y,z:s[1].z}]:[];
     if(!Array.isArray(m.safeRoute.stage3Options))m.safeRoute.stage3Options=safeStageValid?.(s[2])?[{x:s[2].x,y:s[2].y,z:s[2].z}]:[];
     return m.safeRoute;
@@ -1371,6 +1371,13 @@ iconAnchor:[12,
   function stopSafePreview(){
     if(state.safePreviewTimer){clearInterval(state.safePreviewTimer);state.safePreviewTimer=null;}
     if(state.safePreviewLayer&&state.map){try{state.map.removeLayer(state.safePreviewLayer)}catch{}state.safePreviewLayer=null;}
+    if(state.safePreviewRouteLayer&&state.map){try{state.map.removeLayer(state.safePreviewRouteLayer)}catch{}state.safePreviewRouteLayer=null;}
+    const hud=qs('#mpSafePreviewHud');if(hud)hud.remove();
+  }
+  function ensurePreviewHud(){
+    let hud=qs('#mpSafePreviewHud');if(hud)return hud;const wrap=qs('#missionPlannerMap')?.parentElement;if(!wrap)return null;
+    if(getComputedStyle(wrap).position==='static')wrap.style.position='relative';
+    hud=document.createElement('div');hud.id='mpSafePreviewHud';Object.assign(hud.style,{position:'absolute',top:'16px',left:'50%',transform:'translateX(-50%)',zIndex:'10050',background:'rgba(8,10,18,.88)',border:'1px solid rgba(192,132,252,.7)',borderRadius:'12px',padding:'10px 16px',color:'#fff',fontWeight:'700',fontFamily:'system-ui',textAlign:'center',pointerEvents:'none',boxShadow:'0 10px 30px rgba(0,0,0,.35)'});wrap.appendChild(hud);return hud;
   }
   function startSafePreview(){
     const m=active(),r=ensureSafeRoute(m);if(!m||!r||!safeStageValid(r.stages[0])){alert('Configure a Safe 1 antes do preview.');return;}
@@ -1380,18 +1387,18 @@ iconAnchor:[12,
     r.stages[1].x=p2.x;r.stages[1].y=p2.y;r.stages[2].x=p3.x;r.stages[2].y=p3.y;
     stopSafePreview();
     const initial=effectiveEventRadius(m),phases=[
-      {type:'close',a:r.stages[0],from:initial,to:r.stages[0].radius},
-      {type:'move',a:r.stages[0],b:r.stages[1],from:r.stages[0].radius,to:r.stages[0].radius},
-      {type:'close',a:r.stages[1],from:r.stages[0].radius,to:r.stages[1].radius},
-      {type:'move',a:r.stages[1],b:r.stages[2],from:r.stages[1].radius,to:r.stages[1].radius},
-      {type:'close',a:r.stages[2],from:r.stages[1].radius,to:r.stages[2].radius}
+      {type:'close',label:'FECHANDO SAFE 1',a:r.stages[0],from:initial,to:r.stages[0].radius,seconds:Number(r.stages[0].closeSeconds)||180},
+      {type:'move',label:'MOVENDO PARA SAFE 2',a:r.stages[0],b:r.stages[1],from:r.stages[0].radius,to:r.stages[0].radius,seconds:Number(r.stages[0].moveSeconds)||90},
+      {type:'close',label:'FECHANDO SAFE 2',a:r.stages[1],from:r.stages[0].radius,to:r.stages[1].radius,seconds:Number(r.stages[1].closeSeconds)||150},
+      {type:'move',label:'MOVENDO PARA SAFE 3',a:r.stages[1],b:r.stages[2],from:r.stages[1].radius,to:r.stages[1].radius,seconds:Number(r.stages[1].moveSeconds)||75},
+      {type:'close',label:'FECHANDO SAFE FINAL',a:r.stages[2],from:r.stages[1].radius,to:r.stages[2].radius,seconds:Number(r.stages[2].closeSeconds)||120}
     ];
-    let pi=0,t=0;const steps=60;
+    let pi=0,t=0;const steps=90,hud=ensurePreviewHud();
     const gasStyle={radius:initial,weight:4,color:'#a855f7',opacity:.92,fillColor:'#7e22ce',fillOpacity:.16,dashArray:'10 7',interactive:false};
     state.safePreviewLayer=L.circle(ll(r.stages[0].x,r.stages[0].y),gasStyle).addTo(state.map);
-    const routeLine=L.polyline([ll(r.stages[0].x,r.stages[0].y),ll(r.stages[1].x,r.stages[1].y),ll(r.stages[2].x,r.stages[2].y)],{color:'#c084fc',weight:3,opacity:.72,dashArray:'8 8',interactive:false}).addTo(state.map);state.drawn.push(routeLine);
+    state.safePreviewRouteLayer=L.polyline([ll(r.stages[0].x,r.stages[0].y),ll(r.stages[1].x,r.stages[1].y),ll(r.stages[2].x,r.stages[2].y)],{color:'#c084fc',weight:3,opacity:.72,dashArray:'8 8',interactive:false}).addTo(state.map);
     const status=qs('#mpSafeRouteStatus');if(status)status.innerHTML=`<b>PREVIEW EM EXECUÇÃO</b> • rota sorteada: SAFE 1 → SAFE 2 → SAFE 3<br><small>O círculo roxo representa a área do gás durante fechamento e deslocamento.</small>`;
-    state.safePreviewTimer=setInterval(()=>{const p=phases[pi];t++;const u=Math.min(1,t/steps),smooth=u*u*(3-2*u);let x=p.a.x,y=p.a.y,rad=p.from+(p.to-p.from)*smooth;if(p.type==='move'){x=p.a.x+(p.b.x-p.a.x)*smooth;y=p.a.y+(p.b.y-p.a.y)*smooth;}state.safePreviewLayer.setLatLng(ll(x,y));state.safePreviewLayer.setRadius(rad);if(u>=1){pi++;t=0;if(pi>=phases.length){stopSafePreview();renderMap();}}},45);
+    state.safePreviewTimer=setInterval(()=>{const p=phases[pi];if(!p){stopSafePreview();renderMap();return;}t++;const u=Math.min(1,t/steps),smooth=u*u*(3-2*u);let x=p.a.x,y=p.a.y,rad=p.from+(p.to-p.from)*smooth;if(p.type==='move'){x=p.a.x+(p.b.x-p.a.x)*smooth;y=p.a.y+(p.b.y-p.a.y)*smooth;}state.safePreviewLayer.setLatLng(ll(x,y));state.safePreviewLayer.setRadius(rad);if(hud){const remain=Math.max(0,Math.ceil(p.seconds*(1-u)));hud.innerHTML='<div style="font-size:12px;opacity:.72">SOBREVIVÊNCIA • PREVIEW</div><div>'+p.label+'</div><div style="font-size:13px;font-weight:500">Raio '+Math.round(rad)+' m • '+remain+' s</div>';}if(u>=1){pi++;t=0;if(pi>=phases.length){if(hud)hud.innerHTML='<div>SAFE FINAL CONCLUÍDA</div>';setTimeout(()=>{stopSafePreview();renderMap();},900);clearInterval(state.safePreviewTimer);state.safePreviewTimer=null;}}},45);
   }
 
   function renderMap(){
@@ -1588,7 +1595,10 @@ j+1];}if(d<(Number(m.spawnRadius)||100)*2)over++;}
     const el=qs('#missionPlannerMap')?.closest('.mp-map-card')||qs('#missionPlannerMap');if(!el)return;
     el.classList.toggle('mp-pro-fullscreen');const on=el.classList.contains('mp-pro-fullscreen');
     Object.assign(el.style,on?{position:'fixed',inset:'0',zIndex:'99999',background:'#0b1018',padding:'12px'}:{position:'',inset:'',zIndex:'',background:'',padding:''});
-    const map=qs('#missionPlannerMap');if(map)map.style.height=on?'calc(100vh - 24px)':'';setTimeout(()=>state.map?.invalidateSize(),80);
+    const map=qs('#missionPlannerMap');if(map)map.style.height=on?'calc(100vh - 24px)':'';
+    qsa('.mp-map-toolbar,.mp-map-status',el).forEach(x=>x.style.display=on?'none':'');
+    if(on&&active()){const m=active(),pts=(m.points||[]).filter(p=>validCoord(p.x)&&validCoord(p.y)).map(p=>ll(p.x,p.y));if(validCoord(m.center?.x)&&validCoord(m.center?.y))pts.push(ll(m.center.x,m.center.y));if(pts.length>1)setTimeout(()=>state.map?.fitBounds(L.latLngBounds(pts).pad(.08),{maxZoom:5}),120);}
+    setTimeout(()=>state.map?.invalidateSize(),80);
   }
   function applyLayerVisibility(){
     (state.drawn||[]).forEach(l=>{const k=l._mpKind;if(!k)return;const visible=state.layerVisibility?.[k]!==false;try{if(visible&&!state.map.hasLayer(l))l.addTo(state.map);else if(!visible&&state.map.hasLayer(l))state.map.removeLayer(l);}catch(e){}});
