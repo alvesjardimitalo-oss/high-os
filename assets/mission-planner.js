@@ -1594,13 +1594,13 @@ btn=qs('#mpUseRecommendedRadius');if(!m||!el)return;
 used=effectiveEventRadius(m),
 s=coverageStats(m),
 counts=zoneCoverageCounts(m);
-    if(title)title.textContent=category==='gas'?'COBERTURA INICIAL DA SAFE / GÁS':'ÁREA DA DOMINAÇÃO';
+    if(title)title.textContent=category==='gas'?'COBERTURA INICIAL DA SAFE / GÁS':'ZONA DE PONTUAÇÃO — DOMINAÇÃO';
     if(inp&&document.activeElement!==inp)inp.value=used;
     const note=qs('#mpCoverageBox .mp-note');
     if(category==='dominacao'){
-      const ds=(m.points||[]).filter(isValidated).map(p=>pointDistanceFromCenter(m,p)),minD=ds.length?Math.min(...ds):null,maxD=ds.length?Math.max(...ds):null;
-      el.innerHTML=`Raio da área de Dominação: <b>${used} m</b><br>Spawns em relação à zona: <b>${counts.inside} dentro</b> • <b>${counts.outside} fora</b> • ${counts.total} total<br>${s?`Spawn mais distante do centro: <b>${s.farthestIndex>=0?String(s.farthestIndex+1).padStart(2,'0'):'—'}</b> • ${s.max.toFixed(0)} m<br>`:''}${minD!==null?`Faixa dos spawns validados ao centro: <b>${minD.toFixed(0)}–${maxD.toFixed(0)} m</b><br>`:''}<span style="color:#9ed7ff">Os spawns podem ficar dentro ou fora desta área. Isso não é erro.</span>`;
-      if(note)note.textContent='Ajuste somente o tamanho da área que será disputada. A posição dos spawns é independente da área de Dominação.';
+      const ds=(m.points||[]).filter(isValidated).map(p=>pointDistanceFromCenter(m,p)),outsideAccess=ds.map(d=>Math.max(0,d-used)),minAccess=outsideAccess.length?Math.min(...outsideAccess):null,maxAccess=outsideAccess.length?Math.max(...outsideAccess):null;
+      el.innerHTML=`Raio da Zona de Pontuação: <b>${used} m</b><br>Spawns/entradas cadastrados: <b>${counts.total}</b><br>${minAccess!==null?`Distância até a borda da zona: <b>${minAccess.toFixed(0)}–${maxAccess.toFixed(0)} m</b><br>`:''}<span style="color:#9ed7ff">A pontuação acontece dentro da zona. Os spawns podem e normalmente devem ficar externos, funcionando como pontos de entrada para a disputa.</span>`;
+      if(note)note.textContent='Projete uma área ampla de disputa, com espaço para movimentação, cobertura e flancos. Evite zonas pequenas que permitam marcar facilmente os jogadores ou controlar todas as entradas.';
       if(btn){btn.style.display='none';btn.disabled=true;}
       const gen=qs('#mpGenerateInsideZone');if(gen){gen.style.display='none';gen.disabled=true;}
     }else{
@@ -1656,7 +1656,7 @@ j+1];}if(d<(Number(m.spawnRadius)||100)*2)over++;}
     if(!validCoord(m.center?.x)||!validCoord(m.center?.y))issues.push('Centro da zona não definido.');
     const pending=(m.points||[]).filter(p=>!isValidated(p)); if(pending.length)issues.push(pending.length+' spawn(s) ainda pendente(s) de validação.');
     if((m.category||'dominacao')==='gas'){const c=zoneCoverageCounts(m);if(c.outside)issues.push(c.outside+' spawn(s) fora da safe inicial.');const r=ensureSafeRoute(m);const configured=r?.stages?.filter(safeStageValid).length||0;if(configured<3)warns.push('Rota progressiva da Safe está com '+configured+'/3 etapas configuradas.');safeRouteAudit(m).forEach(x=>issues.push(x));}
-    else{const c=zoneCoverageCounts(m),radius=effectiveEventRadius(m);if(!Number.isFinite(radius)||radius<=0)issues.push('Raio da zona de dominação inválido.');if(c.total&&c.inside===0)warns.push('Nenhum spawn está dentro da zona de dominação; confirme se os pontos são apenas entradas/respawns externos.');else if(c.total&&c.outside===c.total)warns.push('Todos os spawns estão fora da zona de dominação.');const ds=(m.points||[]).filter(isValidated).map(p=>pointDistanceFromCenter(m,p));if(ds.length>=4){const min=Math.min(...ds),max=Math.max(...ds);if(max>0&&min/max<.2)warns.push('Distribuição desigual em relação ao centro: há spawn muito mais próximo da zona que os demais.');}}
+    else{const radius=effectiveEventRadius(m);if(!Number.isFinite(radius)||radius<=0)issues.push('Raio da Zona de Pontuação inválido.');if(radius<150)warns.push('Zona de Pontuação pequena ('+Math.round(radius)+' m de raio). Confira se há espaço suficiente para movimentação, cobertura e flancos.');const ds=(m.points||[]).filter(isValidated).map(p=>Math.max(0,pointDistanceFromCenter(m,p)-radius));if(ds.length>=4){const min=Math.min(...ds),max=Math.max(...ds);if(max-min>300)warns.push('Acessos com diferença relevante: há cerca de '+Math.round(max-min)+' m entre a entrada mais próxima e a mais distante da borda da zona.');}}
     const allProblems=spawnProblems(m);if(allProblems.duplicates.length)issues.push(allProblems.duplicates.length+' par(es) de spawns praticamente duplicados (< 2 m).');
     const pts=(m.points||[]).filter(p=>isValidated(p));
     let nearest=Infinity,pair=null;for(let i=0;i<pts.length;i++)for(let j=i+1;j<pts.length;j++){const d=distXY(pts[i],pts[j]);if(d<nearest){nearest=d;pair=[pts[i].id,pts[j].id];}}
