@@ -583,6 +583,9 @@ panel:m.panel||'/ilegal'});
   function dominationPolygon(m){return (m?.category||'dominacao')==='dominacao'&&Array.isArray(m?.zonePolygon)?m.zonePolygon.filter(p=>validCoord(p?.x)&&validCoord(p?.y)):[];}
   function polygonArea(points){if(!points||points.length<3)return 0;let a=0;for(let i=0,j=points.length-1;i<points.length;j=i++)a+=Number(points[j].x)*Number(points[i].y)-Number(points[i].x)*Number(points[j].y);return Math.abs(a)/2;}
   function polygonPerimeter(points){if(!points||points.length<2)return 0;let d=0;for(let i=0;i<points.length;i++)d+=distXY(points[i],points[(i+1)%points.length]);return d;}
+  function polygonCentroid(points){if(!points?.length)return null;if(points.length<3){const x=points.reduce((a,p)=>a+Number(p.x),0)/points.length,y=points.reduce((a,p)=>a+Number(p.y),0)/points.length;return {x,y};}let a=0,cx=0,cy=0;for(let i=0;i<points.length;i++){const p=points[i],q=points[(i+1)%points.length],cross=Number(p.x)*Number(q.y)-Number(q.x)*Number(p.y);a+=cross;cx+=(Number(p.x)+Number(q.x))*cross;cy+=(Number(p.y)+Number(q.y))*cross;}a*=.5;if(Math.abs(a)<1e-7)return {x:points.reduce((v,p)=>v+Number(p.x),0)/points.length,y:points.reduce((v,p)=>v+Number(p.y),0)/points.length};return {x:cx/(6*a),y:cy/(6*a)};}
+  function dominationAnalysisCenter(m){const p=dominationPolygon(m),c=p.length>=3?polygonCentroid(p):null;return c||(validCoord(m?.center?.x)&&validCoord(m?.center?.y)?{x:Number(m.center.x),y:Number(m.center.y)}:null);}
+
   function dominationZoneGeometry(m){const p=dominationPolygon(m);if(p.length<3)return {mode:'radius',vertices:0,area:Math.PI*Math.pow(effectiveEventRadius(m),2),perimeter:2*Math.PI*effectiveEventRadius(m)};return {mode:'polygon',vertices:p.length,area:polygonArea(p),perimeter:polygonPerimeter(p)};}
   function orient2d(a,b,c){return (Number(b.y)-Number(a.y))*(Number(c.x)-Number(b.x))-(Number(b.x)-Number(a.x))*(Number(c.y)-Number(b.y));}
   function segmentCross(a,b,c,d){const o1=orient2d(a,b,c),o2=orient2d(a,b,d),o3=orient2d(c,d,a),o4=orient2d(c,d,b);return ((o1>0&&o2<0)||(o1<0&&o2>0))&&((o3>0&&o4<0)||(o3<0&&o4>0));}
@@ -1482,26 +1485,16 @@ iconAnchor:[12,
   }
   function renderMap(){
     if(!state.map)return;clearLayers();const m=active();if(!m)return;renderSafeRouteUi();renderMapLegend(m);
-    if(validCoord(m.center.x)&&validCoord(m.center.y)){
-      const cicon=L.divIcon({className:'',
-html:`<div class="mp-center-pin ${isCenterValidated(m)?'validated':'planned'}">◎</div>`,
-iconSize:[32,
-32],
-iconAnchor:[16,
-16]});
-      const center=L.marker(ll(m.center.x,m.center.y),{icon:cicon,
-draggable:state.editing}).addTo(state.map).bindPopup(`<b>${esc(m.center.label||'Centro')}</b><br>Status: <b>${isCenterValidated(m)?'VALIDADO':'PENDENTE'}</b><br>${f(m.center.x)},${f(m.center.y)}${isCenterValidated(m)?','+f(m.center.z)+','+f(m.center.h):',0.00,0.00'}<br><small>${state.editing?'Arraste para ajustar o centro':'Visualização • ponto travado'}</small>`);
-      center.on('dragend',ev=>{const n=ev.target.getLatLng();m.center.x=n.lng;m.center.y=n.lat;m.center.z=0;m.center.h=0;m.center.status='planned';m.center.validatedAt=null;m.center.validationReason='coordinate-change';commit('Centro movido no mapa — validação removida');});
-      center._mpKind='center';state.drawn.push(center);
-      const eventRadius=effectiveEventRadius(m),poly=dominationPolygon(m);
-      if((m.category||'dominacao')==='dominacao'&&poly.length>=3){
-        const zone=L.polygon(poly.map(p=>ll(p.x,p.y)),{weight:2,fillOpacity:.055,interactive:false}).addTo(state.map);zone._mpKind='zone';state.drawn.push(zone);
-        poly.forEach((p,i)=>{const rawIndex=(m.zonePolygon||[]).indexOf(p),ic=L.divIcon({className:'',html:'<div style="min-width:22px;height:22px;border:2px solid #fff;border-radius:50%;background:#171923;color:#fff;font:10px/18px system-ui;text-align:center">'+(i+1)+'</div>',iconSize:[22,22],iconAnchor:[11,11]});const mk=L.marker(ll(p.x,p.y),{icon:ic,interactive:true,draggable:state.editing}).addTo(state.map).bindPopup('<b>Vértice da Zona '+String(i+1).padStart(2,'0')+'</b><br>'+f(p.x)+', '+f(p.y)+', '+f(Number(p.z)||0)+(state.editing?'<br><small>Arraste para ajustar • será necessário validar novamente</small>':''));mk.on('dragend',ev=>{if(rawIndex<0)return;const n=ev.target.getLatLng(),v=m.zonePolygon[rawIndex];v.x=n.lng;v.y=n.lat;v.z=0;v.status='planned';v.validatedAt=null;v.validationReason='coordinate-change';commit('Vértice '+String(rawIndex+1).padStart(2,'0')+' movido — validação removida');});mk._mpKind='zone';state.drawn.push(mk);});
-      }else if(eventRadius>0){
-        const zone=L.circle(ll(m.center.x,m.center.y),{radius:eventRadius,weight:2,fillOpacity:.035,dashArray:(m.category||'dominacao')==='gas'?'8 6':null,interactive:false}).addTo(state.map);
-        zone._mpKind='zone';state.drawn.push(zone);
-      }
+    const poly=dominationPolygon(m),hasCenter=validCoord(m.center?.x)&&validCoord(m.center?.y);
+    if(hasCenter){
+      const cicon=L.divIcon({className:'',html:`<div class="mp-center-pin ${isCenterValidated(m)?'validated':'planned'}">◎</div>`,iconSize:[32,32],iconAnchor:[16,16]});
+      const center=L.marker(ll(m.center.x,m.center.y),{icon:cicon,draggable:state.editing}).addTo(state.map).bindPopup(`<b>${esc(m.center.label||'Centro')}</b><br>Status: <b>${isCenterValidated(m)?'VALIDADO':'PENDENTE'}</b><br>${f(m.center.x)},${f(m.center.y)}${isCenterValidated(m)?','+f(m.center.z)+','+f(m.center.h):',0.00,0.00'}<br><small>${state.editing?'Arraste para ajustar o centro':'Visualização • ponto travado'}</small>`);
+      center.on('dragend',ev=>{const n=ev.target.getLatLng();m.center.x=n.lng;m.center.y=n.lat;m.center.z=0;m.center.h=0;m.center.status='planned';m.center.validatedAt=null;m.center.validationReason='coordinate-change';commit('Centro movido no mapa — validação removida');});center._mpKind='center';state.drawn.push(center);
     }
+    if((m.category||'dominacao')==='dominacao'&&poly.length>=3){
+      const zone=L.polygon(poly.map(p=>ll(p.x,p.y)),{weight:2,fillOpacity:.055,interactive:false}).addTo(state.map);zone._mpKind='zone';state.drawn.push(zone);
+      poly.forEach((p,i)=>{const rawIndex=(m.zonePolygon||[]).indexOf(p),ic=L.divIcon({className:'',html:'<div style="min-width:22px;height:22px;border:2px solid #fff;border-radius:50%;background:#171923;color:#fff;font:10px/18px system-ui;text-align:center">'+(i+1)+'</div>',iconSize:[22,22],iconAnchor:[11,11]});const mk=L.marker(ll(p.x,p.y),{icon:ic,interactive:true,draggable:state.editing}).addTo(state.map).bindPopup('<b>Vértice da Zona '+String(i+1).padStart(2,'0')+'</b><br>'+f(p.x)+', '+f(p.y)+', '+f(Number(p.z)||0)+(state.editing?'<br><small>Arraste para ajustar • será necessário validar novamente</small>':''));mk.on('dragend',ev=>{if(rawIndex<0)return;const n=ev.target.getLatLng(),v=m.zonePolygon[rawIndex];v.x=n.lng;v.y=n.lat;v.z=0;v.status='planned';v.validatedAt=null;v.validationReason='coordinate-change';commit('Vértice '+String(rawIndex+1).padStart(2,'0')+' movido — validação removida');});mk._mpKind='zone';state.drawn.push(mk);});
+    }else if(hasCenter){const eventRadius=effectiveEventRadius(m);if(eventRadius>0){const zone=L.circle(ll(m.center.x,m.center.y),{radius:eventRadius,weight:2,fillOpacity:.035,dashArray:(m.category||'dominacao')==='gas'?'8 6':null,interactive:false}).addTo(state.map);zone._mpKind='zone';state.drawn.push(zone);}}
     drawSafeRoute(m);drawCompareOverlay();drawDominationAccess(m);drawZoneProposal();
     m.points.forEach((p,i)=>{
       p.id=i+1;const valid=isValidated(p),
@@ -1704,8 +1697,8 @@ j+1];}if(d<(Number(m.spawnRadius)||100)*2)over++;}
   function drawDominationAccess(m){if((m?.category||'dominacao')!=='dominacao'||state.layerVisibility?.access===false)return;(m.points||[]).filter(isValidated).forEach(p=>{const t=dominationAccessTarget(m,p);if(!t)return;const line=L.polyline([ll(p.x,p.y),ll(t.x,t.y)],{weight:2,opacity:.72,dashArray:'6 7',interactive:false}).addTo(state.map);line._mpKind='access';state.drawn.push(line);const label=L.marker(ll(t.x,t.y),{interactive:false,icon:L.divIcon({className:'',html:'<div style="white-space:nowrap;background:rgba(8,10,18,.82);border:1px solid rgba(255,255,255,.25);border-radius:8px;padding:2px 5px;color:#fff;font:10px system-ui">'+Math.round(t.distance)+'m'+(t.edge?' • L'+t.edge:'')+'</div>',iconAnchor:[18,-4]})}).addTo(state.map);label._mpKind='access';state.drawn.push(label);});}
 
   function dominationAccessAnalysis(m){
-    const pts=(m?.points||[]).filter(isValidated);if(!m||pts.length<2||!validCoord(m.center?.x)||!validCoord(m.center?.y))return null;
-    const poly=dominationPolygon(m),access=pts.map(p=>{let deg=Math.atan2(Number(p.y)-Number(m.center.y),Number(p.x)-Number(m.center.x))*180/Math.PI;if(deg<0)deg+=360;const edge=poly.length>=3?polygonEdgeAccess(m,p):null;return {id:p.id,deg,distanceToEdge:edge?edge.distance:Math.max(0,pointDistanceFromCenter(m,p)-effectiveEventRadius(m)),edge:edge?.edge||null};}).sort((a,b)=>a.deg-b.deg);
+    const pts=(m?.points||[]).filter(isValidated),center=dominationAnalysisCenter(m);if(!m||pts.length<2||!center)return null;
+    const poly=dominationPolygon(m),access=pts.map(p=>{let deg=Math.atan2(Number(p.y)-Number(center.y),Number(p.x)-Number(center.x))*180/Math.PI;if(deg<0)deg+=360;const edge=poly.length>=3?polygonEdgeAccess(m,p):null;return {id:p.id,deg,distanceToEdge:edge?edge.distance:Math.max(0,pointDistanceFromCenter(m,p)-effectiveEventRadius(m)),edge:edge?.edge||null};}).sort((a,b)=>a.deg-b.deg);
     let largestGap=0;for(let i=0;i<access.length;i++){const a=access[i].deg,b=i===access.length-1?access[0].deg+360:access[i+1].deg;largestGap=Math.max(largestGap,b-a);}
     const sectors=new Set(access.map(x=>Math.floor(x.deg/90)%4));
     return {access,largestGap,sectors:sectors.size};
