@@ -1598,7 +1598,8 @@ counts=zoneCoverageCounts(m);
     if(inp&&document.activeElement!==inp)inp.value=used;
     const note=qs('#mpCoverageBox .mp-note');
     if(category==='dominacao'){
-      el.innerHTML=`Raio da área de Dominação: <b>${used} m</b><br>${s?`Spawn mais distante do centro: <b>${s.farthestIndex>=0?String(s.farthestIndex+1).padStart(2,'0'):'—'}</b> • ${s.max.toFixed(0)} m<br>`:''}<span style="color:#9ed7ff">Os spawns podem ficar dentro ou fora desta área. Isso não é erro.</span>`;
+      const ds=(m.points||[]).filter(isValidated).map(p=>pointDistanceFromCenter(m,p)),minD=ds.length?Math.min(...ds):null,maxD=ds.length?Math.max(...ds):null;
+      el.innerHTML=`Raio da área de Dominação: <b>${used} m</b><br>Spawns em relação à zona: <b>${counts.inside} dentro</b> • <b>${counts.outside} fora</b> • ${counts.total} total<br>${s?`Spawn mais distante do centro: <b>${s.farthestIndex>=0?String(s.farthestIndex+1).padStart(2,'0'):'—'}</b> • ${s.max.toFixed(0)} m<br>`:''}${minD!==null?`Faixa dos spawns validados ao centro: <b>${minD.toFixed(0)}–${maxD.toFixed(0)} m</b><br>`:''}<span style="color:#9ed7ff">Os spawns podem ficar dentro ou fora desta área. Isso não é erro.</span>`;
       if(note)note.textContent='Ajuste somente o tamanho da área que será disputada. A posição dos spawns é independente da área de Dominação.';
       if(btn){btn.style.display='none';btn.disabled=true;}
       const gen=qs('#mpGenerateInsideZone');if(gen){gen.style.display='none';gen.disabled=true;}
