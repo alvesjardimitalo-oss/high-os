@@ -1581,6 +1581,30 @@ j+1];}if(d<(Number(m.spawnRadius)||100)*2)over++;}
   function applyLayerVisibility(){
     (state.drawn||[]).forEach(l=>{const k=l._mpKind;if(!k)return;const visible=state.layerVisibility?.[k]!==false;try{if(visible&&!state.map.hasLayer(l))l.addTo(state.map);else if(!visible&&state.map.hasLayer(l))state.map.removeLayer(l);}catch(e){}});
   }
+  const DRAFT_KEY='highos_mp_edit_draft_v1',LOCAL_PRESETS='highos_mp_local_presets_v1';
+  function saveEditDraft(){
+    if(!state.editing||!state.dirty)return;
+    try{localStorage.setItem(DRAFT_KEY,JSON.stringify({at:nowIso(),activeId:state.activeId,eventId:active()?.eventId,missions:state.missions}));const el=qs('#mpDraftState');if(el)el.textContent='Rascunho salvo às '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});}catch(e){}
+  }
+  function clearEditDraft(){try{localStorage.removeItem(DRAFT_KEY)}catch(e){}}
+  function recoverEditDraft(){
+    let d=null;try{d=JSON.parse(localStorage.getItem(DRAFT_KEY)||'null')}catch(e){}
+    if(!d?.missions?.length)return;
+    const current=state.missions.find(m=>m.id===d.activeId),draft=d.missions.find(m=>m.id===d.activeId);
+    if(!draft)return;
+    const newer=!current||new Date(draft.updatedAt||d.at||0)>new Date(current.updatedAt||0);
+    if(newer&&confirm('Existe um rascunho não salvo do Planejador. Deseja recuperar?')){state.missions=d.missions;state.activeId=d.activeId;state.activeEventId=d.eventId||draft.eventId;saveStore();setSaveState('Rascunho recuperado • revise antes de salvar');}
+    clearEditDraft();
+  }
+  function readLocalPresets(){try{return JSON.parse(localStorage.getItem(LOCAL_PRESETS)||'[]')}catch(e){return []}}
+  function saveLocalPreset(){
+    const m=active();if(!m)return;const list=readLocalPresets(),copy=JSON.parse(JSON.stringify(m));copy.id='localpreset_'+Date.now();copy.official=false;copy.createdAt=nowIso();copy.updatedAt=nowIso();list.unshift({name:(m.event||'Evento')+' — '+(m.name||'Zona'),mission:copy});try{localStorage.setItem(LOCAL_PRESETS,JSON.stringify(list.slice(0,12)));renderLocalPresets();}catch(e){alert('Não foi possível salvar o preset local.');}
+  }
+  function renderLocalPresets(){
+    const el=qs('#mpLocalPresets');if(!el)return;const list=readLocalPresets();if(!list.length){el.textContent='Presets locais: nenhum salvo.';return;}
+    el.innerHTML='<b>Presets locais:</b> '+list.map((p,i)=>'<button type="button" data-localpreset="'+i+'" style="margin:3px">'+esc(p.name)+'</button>').join('');
+    qsa('[data-localpreset]',el).forEach(b=>b.onclick=()=>{const p=readLocalPresets()[Number(b.dataset.localpreset)];if(!p?.mission)return;const m=JSON.parse(JSON.stringify(p.mission));m.id=uid();m.eventId=eventUid();m.event=(m.event||'Evento')+' (Preset)';m.createdAt=nowIso();m.updatedAt=nowIso();state.missions.push(m);state.activeId=m.id;state.activeEventId=m.eventId;saveStore();render();fit();});
+  }
   function renderProTools(){
     let box=qs('#mpProTools');const anchor=qs('#mpSafeRouteBox')||qs('#mpCoverageBox');if(!anchor)return;
     if(!box){box=document.createElement('div');box.id='mpProTools';box.className='mp-card';box.style.marginTop='10px';box.innerHTML=`<h3>FERRAMENTAS DE MISSÃO</h3>
@@ -1589,16 +1613,21 @@ j+1];}if(d<(Number(m.spawnRadius)||100)*2)over++;}
         <button type="button" id="mpAuditBtn">VALIDAR ANTES DE PUBLICAR</button><button type="button" id="mpCompareBtn">ANTES × DEPOIS</button><button type="button" id="mpFullscreenBtn">MAPA TELA CHEIA</button>
       </div>
       <div class="mp-grid" style="margin-top:8px"><label>Exportação<select id="mpExportFormat"><option value="lua">Lua / vector4</option><option value="vec4">vec4</option><option value="vec3">vec3</option><option value="json">JSON</option></select></label><label>Camadas<div style="display:flex;gap:10px;flex-wrap:wrap;padding-top:8px"><span><input type="checkbox" data-mplayer="zone" checked> Zona</span><span><input type="checkbox" data-mplayer="spawns" checked> Spawns</span><span><input type="checkbox" data-mplayer="center" checked> Centro</span></div></label></div>
-      <div class="mp-actions"><button type="button" id="mpCopyExportPro">COPIAR EXPORTAÇÃO</button></div>`;
+      <div class="mp-grid" style="margin-top:8px"><label>Ir para CDS<input id="mpGoCoord" placeholder="vec3(X, Y, Z) ou X,Y,Z"></label><label>Rascunho<div id="mpDraftState" class="mp-note" style="padding-top:8px">Nenhum rascunho pendente.</div></label></div>
+      <div class="mp-actions" style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" id="mpGoCoordBtn">CENTRALIZAR CDS</button><button type="button" id="mpSavePresetBtn">SALVAR COMO PRESET LOCAL</button><button type="button" id="mpCopyExportPro">COPIAR EXPORTAÇÃO</button></div>
+      <div id="mpLocalPresets" class="mp-note" style="margin-top:8px"></div>`;
       anchor.insertAdjacentElement('afterend',box);
       qs('#mpAuditBtn')?.addEventListener('click',()=>{renderProTools();const a=plannerAudit(active());alert(a.issues.length?'BLOQUEIOS:\n- '+a.issues.join('\n- ')+(a.warns.length?'\n\nAVISOS:\n- '+a.warns.join('\n- '):''):'Validação concluída sem bloqueios.'+(a.warns.length?'\n\nAvisos:\n- '+a.warns.join('\n- '):''));});
       qs('#mpCompareBtn')?.addEventListener('click',()=>{const m=active(),old=state.editBackup?.zones?.find(z=>z.id===m?.id);if(!old){alert('Entre em EDITAR ZONA para comparar a versão salva com a alteração atual.');return;}const changes=[];if(Number(old.eventRadius)!==Number(m.eventRadius))changes.push('Raio: '+effectiveEventRadius(old)+' → '+effectiveEventRadius(m)+' m');if(old.points?.length!==m.points?.length)changes.push('Spawns: '+(old.points?.length||0)+' → '+(m.points?.length||0));if(distXY(old.center,m.center)>1)changes.push('Centro movido '+distXY(old.center,m.center).toFixed(0)+' m');alert(changes.length?changes.join('\n'):'Nenhuma diferença estrutural detectada.');});
       qs('#mpFullscreenBtn')?.addEventListener('click',togglePlannerFullscreen);
+      qs('#mpGoCoordBtn')?.addEventListener('click',()=>{const r=parseCds(qs('#mpGoCoord')?.value);if(!r.ok||!validCoord(r.x)||!validCoord(r.y)){alert('CDS não reconhecida. Cole pelo menos X e Y.');return;}state.map?.setView(ll(r.x,r.y),5);});
+      qs('#mpGoCoord')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();qs('#mpGoCoordBtn')?.click();}});
+      qs('#mpSavePresetBtn')?.addEventListener('click',()=>saveLocalPreset());
       qsa('[data-mplayer]',box).forEach(c=>c.addEventListener('change',()=>{state.layerVisibility[c.dataset.mplayer]=c.checked;renderMap();}));
       qs('#mpCopyExportPro')?.addEventListener('click',async()=>{const fmt=qs('#mpExportFormat')?.value||'lua';await copyText(exportMission(fmt));const b=qs('#mpCopyExportPro');if(b){b.textContent='COPIADO ✓';setTimeout(()=>b.textContent='COPIAR EXPORTAÇÃO',900);}});
     }
     const a=plannerAudit(active()),el=qs('#mpAuditStatus');if(el)el.innerHTML=a.issues.length?'<b style="color:#ff7474">NÃO PRONTO PARA PUBLICAR</b><br>'+esc(a.issues.join(' • ')):(a.warns.length?'<b style="color:#ffd166">PRONTO COM AVISOS</b><br>'+esc(a.warns.join(' • ')):'<b class="mp-ok">PRONTO PARA PUBLICAR ✓</b><br>Centro, spawns e cobertura passaram nas validações automáticas.');
-    qsa('[data-mplayer]',box).forEach(c=>c.checked=state.layerVisibility?.[c.dataset.mplayer]!==false);
+    qsa('[data-mplayer]',box).forEach(c=>c.checked=state.layerVisibility?.[c.dataset.mplayer]!==false);renderLocalPresets();
   }
 
   function updateExport(){const m=active(),
@@ -1637,8 +1666,8 @@ v])=>{const el=qs('#'+id);if(el&&document.activeElement!==el)el.value=v;});
   function requireEdit(){if(state.editing)return true;alert('Zona travada em modo visualização. Clique em EDITAR ZONA para fazer alterações.');return false;}
   function startEdit(){const m=active();if(!m||state.editing)return;state.editBackup={eventId:m.eventId,
 zones:JSON.parse(JSON.stringify(zonesOfEvent(m.eventId)))};state.editing=true;state.dirty=false;state.placing=false;render();updateEditUi();setSaveState('MODO EDIÇÃO • alterações ainda não salvas');}
-  function saveMission(){const m=active();if(!m)return;if(!state.editing){setSaveState('Nenhuma alteração para salvar');return;}m.updatedAt=nowIso();saveStore();state.editBackup=null;state.editing=false;state.dirty=false;state.placing=false;render();updateEditUi();setSaveState('Zona salva ✓');queueSnapshot();}
-  function cancelEdit(){if(!state.editing)return;if(state.editBackup?.eventId&&Array.isArray(state.editBackup.zones)){const eid=state.editBackup.eventId;const keep=state.missions.filter(x=>x.eventId!==eid);state.missions=[...state.editBackup.zones,
+  function saveMission(){const m=active();if(!m)return;if(!state.editing){setSaveState('Nenhuma alteração para salvar');return;}const audit=plannerAudit(m);if(audit.issues.length&&!confirm('Existem bloqueios de validação:\n\n- '+audit.issues.join('\n- ')+'\n\nSalvar mesmo assim como rascunho?'))return;m.updatedAt=nowIso();saveStore();clearEditDraft();state.editBackup=null;state.editing=false;state.dirty=false;state.placing=false;render();updateEditUi();setSaveState(audit.issues.length?'Zona salva como rascunho ⚠':'Zona salva ✓');queueSnapshot();}
+  function cancelEdit(){if(!state.editing)return;clearEditDraft();if(state.editBackup?.eventId&&Array.isArray(state.editBackup.zones)){const eid=state.editBackup.eventId;const keep=state.missions.filter(x=>x.eventId!==eid);state.missions=[...state.editBackup.zones,
 ...keep];}state.editBackup=null;state.editing=false;state.dirty=false;state.placing=false;state.activeEventId=active()?.eventId||state.activeEventId;render();updateEditUi();setSaveState('Alterações descartadas • visualização');}
   function updateEditUi(){
     const edit=state.editing;const eb=qs('#mpEditMission'),
@@ -2100,7 +2129,7 @@ category:cat})));
   }
 
   function bind(){
-    if(state.initialized)return;state.initialized=true;loadStore();state.activeEventId=active()?.eventId||state.activeEventId;ensureCentralV954();ensureWorkspaceBar();ensureBackupCard();ensurePlannerTabs();ensureSafeRouteUi();adoptStrayCards();ensureMapKpis();initMap();render();renderWorkspaceBar();setWorkspace(false);bindFormAutosave();updateEditUi();
+    if(state.initialized)return;state.initialized=true;loadStore();recoverEditDraft();state.activeEventId=active()?.eventId||state.activeEventId;ensureCentralV954();ensureWorkspaceBar();ensureBackupCard();ensurePlannerTabs();ensureSafeRouteUi();adoptStrayCards();ensureMapKpis();initMap();render();renderWorkspaceBar();setWorkspace(false);bindFormAutosave();updateEditUi();
     qs('#mpEditMission')?.addEventListener('click',startEdit);qs('#mpSaveMission')?.addEventListener('click',saveMission);qs('#mpCancelEdit')?.addEventListener('click',cancelEdit);qs('#mpNewZone')?.addEventListener('click',createZone);qs('#mpCloneZone')?.addEventListener('click',cloneZone);qs('#mpReplicateZone')?.addEventListener('click',openReplicator);qs('#mpDeleteMission')?.addEventListener('click',deleteZone);
     qs('#mpPlaceBtn')?.addEventListener('click',()=>{if(!requireEdit())return;state.placing=!state.placing;qs('#missionPlannerMap')?.classList.toggle('mp-crosshair',state.placing);qs('#mpPlaceBtn').textContent=state.placing?'PARAR DE MARCAR':'MARCAR PONTO NO MAPA';});
     qs('#mpFit')?.addEventListener('click',fit);qs('#mpGoLS')?.addEventListener('click',()=>state.map?.setView(ll(900,-600),3));qs('#mpGoCayo')?.addEventListener('click',()=>{if(state.map&&state.cayoBounds)state.map.fitBounds(state.cayoBounds,{padding:[20,20]});});qs('#mpGenerateCircle')?.addEventListener('click',generateCircle);qs('#mpImport')?.addEventListener('click',importBulk);qs('#mpValidateBtn')?.addEventListener('click',()=>validateSelected());
@@ -2110,7 +2139,7 @@ category:cat})));
     qs('#mpJumpPending')?.addEventListener('click',()=>{const m=active();const id=nextPendingId(m,m?.selectedId||0);if(!id){setValidationFeedback('<b>Nenhum ponto pendente nesta zona.</b>','ok');return;}selectPoint(id);const p=m.points[id-1];if(p)state.map?.setView(ll(p.x,p.y),5);qs('#mpValidateCds')?.focus();});
     qs('#mpValidateCds')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();validateSelected();}});qs('#mpAddCoord')?.addEventListener('click',addManual);qs('#mpClear')?.addEventListener('click',clearPoints);qs('#mpExportBtn')?.addEventListener('click',exportValidated);qs('#mpExportXYBtn')?.addEventListener('click',exportXY);qs('#mpGenerateRequest')?.addEventListener('click',generateRequest);qs('#mpCopyRequest')?.addEventListener('click',copyCurrentRequest);qs('#mpCaptureBtn')?.addEventListener('click',()=>captureSnapshot(true));
     setTimeout(()=>{state.map?.invalidateSize();fit();queueSnapshot();},180);
-    setTimeout(()=>syncMissionsFromCloud(),1200);
+    setTimeout(()=>syncMissionsFromCloud(),1200);clearInterval(state.autosaveTimer);state.autosaveTimer=setInterval(saveEditDraft,5000);
   }
   /* ---------------------------------------------------------------
      V9.4.1 - A lateral tinha 11 cards empilhados e exigia rolagem
