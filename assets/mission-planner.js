@@ -1353,8 +1353,8 @@ iconAnchor:[12,
       </div></div>`).join('');
     qsa('[data-safe]',host).forEach(inp=>inp.addEventListener('change',e=>{if(!requireEdit())return;const mm=active(),rr=ensureSafeRoute(mm),i=Number(e.target.dataset.safe),k=e.target.dataset.k,v=Number(e.target.value);if(!Number.isFinite(v)){renderSafeRouteUi();return;}rr.stages[i][k]=v;if(k==='radius')rr.stages[i][k]=Math.max(30,v);commit('Rota da Safe alterada');}));
     const ok=r.stages.filter(safeStageValid).length;
-    const o2=r.stage2Options||[],o3=r.stage3Options||[];
-    const opts=document.createElement('div');opts.className='mp-note';opts.style.marginTop='8px';opts.innerHTML=`Modo do preview: <b>${o2.length||o3.length?'ALEATÓRIO/MISTO':'ROTA FIXA'}</b> • Opções aleatórias: <b>Safe 2: ${o2.length}</b> • <b>Safe 3: ${o3.length}</b> <button type="button" id="mpSafeClearOptions" style="margin-left:8px">LIMPAR OPÇÕES</button>`;host.appendChild(opts);
+    const o2=r.stage2Options||[],o3=r.stage3Options||[],validO2=o2.filter(p=>safeCircleFits(r.stages[0],{...r.stages[1],x:p.x,y:p.y,z:0})),parents2=validO2.length?validO2:[r.stages[1]],validO3=o3.filter(p=>parents2.some(parent=>safeCircleFits({...r.stages[1],x:parent.x,y:parent.y,z:0},{...r.stages[2],x:p.x,y:p.y,z:0})));
+    const opts=document.createElement('div');opts.className='mp-note';opts.style.marginTop='8px';opts.innerHTML=`Modo do preview: <b>${o2.length||o3.length?'ALEATÓRIO/MISTO':'ROTA FIXA'}</b> • Safe 2 válidas: <b>${validO2.length}/${o2.length}</b> • Safe 3 válidas: <b>${validO3.length}/${o3.length}</b> <button type="button" id="mpSafeClearOptions" style="margin-left:8px">LIMPAR OPÇÕES</button>`;host.appendChild(opts);
     qs('#mpSafeClearOptions')?.addEventListener('click',()=>{if(!requireEdit())return;r.stage2Options=[];r.stage3Options=[];r.stages[1].x=r.stages[1].y=null;r.stages[2].x=r.stages[2].y=null;commit('Opções aleatórias da Safe removidas');});
     status.innerHTML=`Raio inicial: <b>${Math.round(initial)} m</b> • Etapas configuradas: <b>${ok}/3</b><br><small>Adicione várias opções de Safe 2 e Safe 3 clicando no mapa. A execução poderá sortear uma rota.</small>`;
   }
@@ -1415,8 +1415,12 @@ iconAnchor:[12,
     const o2=(r.stage2Options||[]).filter(s=>validCoord(s.x)&&validCoord(s.y)),o3=(r.stage3Options||[]).filter(s=>validCoord(s.x)&&validCoord(s.y)),fixed2=safeStageValid(r.stages[1]),fixed3=safeStageValid(r.stages[2]);
     if(!o2.length&&!fixed2){alert('Configure a Safe 2 ou adicione pelo menos uma opção de Safe 2 no mapa.');return;}
     if(!o3.length&&!fixed3){alert('Configure a Safe 3 ou adicione pelo menos uma opção de Safe 3 no mapa.');return;}
-    const valid2=o2.filter(p=>safeCircleFits(r.stages[0],{...r.stages[1],x:p.x,y:p.y,z:0})),pool2=valid2.length?valid2:o2,random2=pool2.length>0,p2=random2?pool2[Math.floor(Math.random()*pool2.length)]:r.stages[1];
-    const parent2={...r.stages[1],x:p2.x,y:p2.y,z:0},valid3=o3.filter(p=>safeCircleFits(parent2,{...r.stages[2],x:p.x,y:p.y,z:0})),pool3=valid3.length?valid3:o3,random3=pool3.length>0,p3=random3?pool3[Math.floor(Math.random()*pool3.length)]:r.stages[2];
+    const valid2=o2.filter(p=>safeCircleFits(r.stages[0],{...r.stages[1],x:p.x,y:p.y,z:0}));
+    if(o2.length&&!valid2.length){alert('Nenhuma opção da Safe 2 cabe dentro da Safe 1. Corrija as opções antes do preview.');return;}
+    const random2=valid2.length>0,p2=random2?valid2[Math.floor(Math.random()*valid2.length)]:r.stages[1];
+    const parent2={...r.stages[1],x:p2.x,y:p2.y,z:0},valid3=o3.filter(p=>safeCircleFits(parent2,{...r.stages[2],x:p.x,y:p.y,z:0}));
+    if(o3.length&&!valid3.length){alert('Nenhuma opção da Safe 3 cabe dentro da Safe 2 selecionada. Corrija as opções antes do preview.');return;}
+    const random3=valid3.length>0,p3=random3?valid3[Math.floor(Math.random()*valid3.length)]:r.stages[2];
     // Preview usa cópias: rota sorteada ou fixa nunca altera a configuração salva.
     const s1={...r.stages[0]},s2={...r.stages[1],x:p2.x,y:p2.y,z:0},s3={...r.stages[2],x:p3.x,y:p3.y,z:0},routeMode=(random2||random3)?((random2&&random3)?'ALEATÓRIA':'MISTA'):'FIXA';
     stopSafePreview();
