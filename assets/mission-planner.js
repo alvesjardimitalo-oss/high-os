@@ -1301,7 +1301,7 @@ iconAnchor:[12,
         <button type="button" id="mpSafeUseCenter">SAFE 1 = CENTRO ATUAL</button>
         <button type="button" id="mpSafePlace2">ADICIONAR OPÇÃO SAFE 2</button>
         <button type="button" id="mpSafePlace3">ADICIONAR OPÇÃO SAFE 3</button>
-        <button type="button" id="mpSafePreview" class="primary">▶ PREVIEW DA ROTA</button>
+        <button type="button" id="mpSafePreview" class="primary">▶ PREVIEW DA ROTA</button><button type="button" id="mpSafePresent">⛶ APRESENTAR / GRAVAR</button>
         <button type="button" id="mpSafeStop">■ PARAR</button>
       </div>`;
     if(anchor)anchor.insertAdjacentElement('afterend',box);else zonePanel.appendChild(box);
@@ -1309,7 +1309,8 @@ iconAnchor:[12,
     qs('#mpSafePlace2')?.addEventListener('click',()=>beginSafePlacement(1));
     qs('#mpSafePlace3')?.addEventListener('click',()=>beginSafePlacement(2));
     qs('#mpSafePreview')?.addEventListener('click',startSafePreview);
-    qs('#mpSafeStop')?.addEventListener('click',stopSafePreview);
+    qs('#mpSafePresent')?.addEventListener('click',startSafePresentation);
+    qs('#mpSafeStop')?.addEventListener('click',()=>{stopSafePreview();exitSafePresentation();});
   }
   function beginSafePlacement(stageIndex){
     if(!requireEdit())return;
@@ -1381,6 +1382,26 @@ iconAnchor:[12,
     let hud=qs('#mpSafePreviewHud');if(hud)return hud;const wrap=qs('#missionPlannerMap')?.parentElement;if(!wrap)return null;
     if(getComputedStyle(wrap).position==='static')wrap.style.position='relative';
     hud=document.createElement('div');hud.id='mpSafePreviewHud';Object.assign(hud.style,{position:'absolute',top:'16px',left:'50%',transform:'translateX(-50%)',zIndex:'10050',background:'rgba(8,10,18,.88)',border:'1px solid rgba(192,132,252,.7)',borderRadius:'12px',padding:'10px 16px',color:'#fff',fontWeight:'700',fontFamily:'system-ui',textAlign:'center',pointerEvents:'none',boxShadow:'0 10px 30px rgba(0,0,0,.35)'});wrap.appendChild(hud);return hud;
+  }
+  function fitSafeRouteForPresentation(){
+    const m=active(),r=ensureSafeRoute(m);if(!m||!r||!state.map)return;const pts=[];
+    [r.stages?.[0],...(r.stage2Options||[]),...(r.stage3Options||[])].forEach(p=>{if(validCoord(p?.x)&&validCoord(p?.y))pts.push(ll(p.x,p.y));});
+    if(validCoord(m.center?.x)&&validCoord(m.center?.y))pts.push(ll(m.center.x,m.center.y));
+    if(pts.length>1)state.map.fitBounds(L.latLngBounds(pts).pad(.18),{maxZoom:5});else if(pts.length)state.map.setView(pts[0],4);
+  }
+  function startSafePresentation(){
+    const m=active(),r=ensureSafeRoute(m);if(!m||!r||!safeStageValid(r.stages[0])){alert('Configure a rota da Safe antes de apresentar.');return;}
+    const el=qs('#missionPlannerMap')?.closest('.mp-map-card')||qs('#missionPlannerMap');if(!el)return;
+    state.safePresentation=true;el.dataset.safePresentation='1';Object.assign(el.style,{position:'fixed',inset:'0',zIndex:'100000',background:'#05070d',padding:'0'});
+    const map=qs('#missionPlannerMap');if(map)map.style.height='100vh';
+    qsa('.mp-map-toolbar,.mp-map-status',el).forEach(x=>x.style.display='none');
+    const legend=qs('#mpMapLegend');if(legend)legend.style.display='none';
+    let title=qs('#mpPresentationTitle');if(!title){title=document.createElement('div');title.id='mpPresentationTitle';Object.assign(title.style,{position:'absolute',top:'16px',left:'16px',zIndex:'10040',background:'rgba(5,7,13,.82)',border:'1px solid rgba(255,255,255,.14)',borderRadius:'10px',padding:'9px 12px',color:'#fff',font:'700 13px system-ui',pointerEvents:'none'});el.appendChild(title);}title.innerHTML='SOBREVIVÊNCIA • '+esc(m.name||'ZONA')+'<br><small style="opacity:.65;font-weight:500">Preview visual • ESC para sair</small>';
+    setTimeout(()=>{state.map?.invalidateSize();fitSafeRouteForPresentation();setTimeout(startSafePreview,180);},100);
+  }
+  function exitSafePresentation(){
+    if(!state.safePresentation)return;state.safePresentation=false;const el=qs('[data-safe-presentation="1"]');if(el){delete el.dataset.safePresentation;Object.assign(el.style,{position:'',inset:'',zIndex:'',background:'',padding:''});const map=qs('#missionPlannerMap');if(map)map.style.height='';qsa('.mp-map-toolbar,.mp-map-status',el).forEach(x=>x.style.display='');}
+    qs('#mpPresentationTitle')?.remove();const legend=qs('#mpMapLegend');if(legend)legend.style.display=qs('#mpLegendToggle')?.checked===false?'none':'';setTimeout(()=>state.map?.invalidateSize(),80);
   }
   function startSafePreview(){
     const m=active(),r=ensureSafeRoute(m);if(!m||!r||!safeStageValid(r.stages[0])){alert('Configure a Safe 1 antes do preview.');return;}
@@ -2208,7 +2229,7 @@ category:cat})));
   }
 
   function bind(){
-    if(state.initialized)return;state.initialized=true;loadStore();recoverEditDraft();window.addEventListener('beforeunload',e=>{if(state.editing&&state.dirty){saveEditDraft();e.preventDefault();e.returnValue='';}});document.addEventListener('keydown',e=>{if(!state.editing)return;if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?redoEdit():undoEdit();}else if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='y'){e.preventDefault();redoEdit();}});state.activeEventId=active()?.eventId||state.activeEventId;ensureCentralV954();ensureWorkspaceBar();ensureBackupCard();ensurePlannerTabs();ensureSafeRouteUi();adoptStrayCards();ensureMapKpis();initMap();render();renderWorkspaceBar();setWorkspace(false);bindFormAutosave();updateEditUi();
+    if(state.initialized)return;state.initialized=true;loadStore();recoverEditDraft();window.addEventListener('beforeunload',e=>{if(state.editing&&state.dirty){saveEditDraft();e.preventDefault();e.returnValue='';}});document.addEventListener('keydown',e=>{if(e.key==='Escape'&&state.safePresentation){e.preventDefault();stopSafePreview();exitSafePresentation();return;}if(!state.editing)return;if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?redoEdit():undoEdit();}else if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='y'){e.preventDefault();redoEdit();}});state.activeEventId=active()?.eventId||state.activeEventId;ensureCentralV954();ensureWorkspaceBar();ensureBackupCard();ensurePlannerTabs();ensureSafeRouteUi();adoptStrayCards();ensureMapKpis();initMap();render();renderWorkspaceBar();setWorkspace(false);bindFormAutosave();updateEditUi();
     qs('#mpEditMission')?.addEventListener('click',startEdit);qs('#mpUndoEdit')?.addEventListener('click',undoEdit);qs('#mpRedoEdit')?.addEventListener('click',redoEdit);qs('#mpSaveMission')?.addEventListener('click',saveMission);qs('#mpCancelEdit')?.addEventListener('click',cancelEdit);qs('#mpNewZone')?.addEventListener('click',createZone);qs('#mpCloneZone')?.addEventListener('click',cloneZone);qs('#mpReplicateZone')?.addEventListener('click',openReplicator);qs('#mpDeleteMission')?.addEventListener('click',deleteZone);
     qs('#mpPlaceBtn')?.addEventListener('click',()=>{if(!requireEdit())return;state.placing=!state.placing;qs('#missionPlannerMap')?.classList.toggle('mp-crosshair',state.placing);qs('#mpPlaceBtn').textContent=state.placing?'PARAR DE MARCAR':'MARCAR PONTO NO MAPA';});
     qs('#mpFit')?.addEventListener('click',fit);qs('#mpGoLS')?.addEventListener('click',()=>state.map?.setView(ll(900,-600),3));qs('#mpGoCayo')?.addEventListener('click',()=>{if(state.map&&state.cayoBounds)state.map.fitBounds(state.cayoBounds,{padding:[20,20]});});qs('#mpGenerateCircle')?.addEventListener('click',generateCircle);qs('#mpImport')?.addEventListener('click',importBulk);qs('#mpValidateBtn')?.addEventListener('click',()=>validateSelected());
