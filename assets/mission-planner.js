@@ -1190,7 +1190,7 @@ stroke:false,
 fill:true,
 fillColor:OCEAN_FALLBACK,
 fillOpacity:1,
-interactive:false}).addTo(state.map);
+interactive:false});
     const cayo=L.imageOverlay(cayoUrl,cayoBounds,{pane:'cayoMapPane',
 opacity:1,
 interactive:false,
@@ -1425,7 +1425,7 @@ iconAnchor:[12,
     state.safePreviewLayer=L.circle(ll(s1.x,s1.y),gasStyle).addTo(state.map);
     state.safePreviewRouteLayer=state.safePresentation?null:L.polyline([ll(s1.x,s1.y),ll(s2.x,s2.y),ll(s3.x,s3.y)],{color:'#c084fc',weight:3,opacity:.72,dashArray:'8 8',interactive:false}).addTo(state.map);
     const status=qs('#mpSafeRouteStatus');if(status)status.innerHTML=`<b>PREVIEW EM EXECUÇÃO</b> • rota ${routeMode.toLowerCase()}: SAFE 1 → SAFE 2 → SAFE 3<br><small>O círculo roxo representa a área do gás durante fechamento e deslocamento.</small>`;
-    state.safePreviewTimer=setInterval(()=>{const p=phases[pi];if(!p){stopSafePreview();renderMap();return;}t++;const u=Math.min(1,t/steps),smooth=u*u*(3-2*u);let x=p.a.x,y=p.a.y,rad=p.from+(p.to-p.from)*smooth;if(p.type==='move'){x=p.a.x+(p.b.x-p.a.x)*smooth;y=p.a.y+(p.b.y-p.a.y)*smooth;}state.safePreviewLayer.setLatLng(ll(x,y));state.safePreviewLayer.setRadius(rad);if(hud){const remain=Math.max(0,Math.ceil(p.seconds*(1-u)));hud.innerHTML='<div style="font-size:12px;opacity:.72">SOBREVIVÊNCIA • '+routeMode+'</div><div>'+p.label+'</div><div style="font-size:13px;font-weight:500">Raio '+Math.round(rad)+' m • '+remain+' s</div>';}if(u>=1){pi++;t=0;if(pi>=phases.length){if(hud)hud.innerHTML='<div>SAFE FINAL CONCLUÍDA</div>';setTimeout(()=>{stopSafePreview();renderMap();},900);clearInterval(state.safePreviewTimer);state.safePreviewTimer=null;}}},45);
+    state.safePreviewTimer=setInterval(()=>{const p=phases[pi];if(!p){stopSafePreview();if(!state.safePresentation)renderMap();return;}t++;const u=Math.min(1,t/steps),smooth=u*u*(3-2*u);let x=p.a.x,y=p.a.y,rad=p.from+(p.to-p.from)*smooth;if(p.type==='move'){x=p.a.x+(p.b.x-p.a.x)*smooth;y=p.a.y+(p.b.y-p.a.y)*smooth;}state.safePreviewLayer.setLatLng(ll(x,y));state.safePreviewLayer.setRadius(rad);if(hud){const remain=Math.max(0,Math.ceil(p.seconds*(1-u)));hud.innerHTML='<div style="font-size:12px;opacity:.72">SOBREVIVÊNCIA • '+routeMode+'</div><div>'+p.label+'</div><div style="font-size:13px;font-weight:500">Raio '+Math.round(rad)+' m • '+remain+' s</div>';}if(u>=1){pi++;t=0;if(pi>=phases.length){if(hud)hud.innerHTML='<div>SAFE FINAL CONCLUÍDA</div>';setTimeout(()=>{stopSafePreview();if(!state.safePresentation)renderMap();},900);clearInterval(state.safePreviewTimer);state.safePreviewTimer=null;}}},45);
   }
 
   function renderMapLegend(m){
