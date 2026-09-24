@@ -1261,7 +1261,7 @@ y:e.latlng.lat,
 z:0,
 h:0,
 status:'planned'},m.points.length));commit('Ponto marcado no mapa');}
-      else {m.center.x=e.latlng.lng;m.center.y=e.latlng.lat;m.center.z=0;m.center.h=0;m.center.status='planned';m.center.validatedAt=null;m.center.validationReason='coordinate-change';syncForm();commit('Centro ajustado no mapa — validação removida');}
+      else {if((m.category||'dominacao')==='dominacao'&&dominationZoneMode(m)==='polygon'){if(qs('#mpClicked'))qs('#mpClicked').textContent=`${f(e.latlng.lng)},${f(e.latlng.lat)} • Polígono ativo: use MARCAR VÉRTICE NO MAPA`;return;}m.center.x=e.latlng.lng;m.center.y=e.latlng.lat;m.center.z=0;m.center.h=0;m.center.status='planned';m.center.validatedAt=null;m.center.validationReason='coordinate-change';syncForm();commit('Centro ajustado no mapa — validação removida');}
     });
   }
 
