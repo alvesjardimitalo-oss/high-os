@@ -531,7 +531,7 @@ activeEventId:null,
 activeMapName:null,
 workspaceOpen:false,
 cloudState:'local',
-safePlacementStage:null,layerVisibility:{zone:true,spawns:true,center:true},proToolsReady:false,undoStack:[],redoStack:[],compareOverlay:false};
+safePlacementStage:null,layerVisibility:{zone:true,spawns:true,center:true},proToolsReady:false,undoStack:[],redoStack:[],lastEditSnapshot:null,compareOverlay:false};
   const f=n=>Number(n).toFixed(2);
   const num=v=>{const n=Number(v);return Number.isFinite(n)?n:null};
   const nowIso=()=>new Date().toISOString();
@@ -1345,7 +1345,7 @@ iconAnchor:[12,
         <label>Fechamento (s)<input data-safe="${i}" data-k="closeSeconds" type="number" min="1" value="${s.closeSeconds??''}"></label>
         ${i<2?`<label>Movimento (s)<input data-safe="${i}" data-k="moveSeconds" type="number" min="1" value="${s.moveSeconds??''}"></label>`:''}
       </div></div>`).join('');
-    qsa('[data-safe]',host).forEach(inp=>inp.addEventListener('change',e=>{if(!requireEdit())return;const mm=active(),rr=ensureSafeRoute(mm),i=Number(e.target.dataset.safe),k=e.target.dataset.k,v=Number(e.target.value);if(!Number.isFinite(v)){renderSafeRouteUi();return;}rr.stages[i][k]=v;if(k==='radius')rr.stages[i][k]=Math.max(30,v);state.dirty=true;setSaveState('Rota da Safe alterada • NÃO SALVO');renderMap();renderSafeRouteUi();}));
+    qsa('[data-safe]',host).forEach(inp=>inp.addEventListener('change',e=>{if(!requireEdit())return;const mm=active(),rr=ensureSafeRoute(mm),i=Number(e.target.dataset.safe),k=e.target.dataset.k,v=Number(e.target.value);if(!Number.isFinite(v)){renderSafeRouteUi();return;}rr.stages[i][k]=v;if(k==='radius')rr.stages[i][k]=Math.max(30,v);commit('Rota da Safe alterada');}));
     const ok=r.stages.filter(safeStageValid).length;
     const o2=r.stage2Options||[],o3=r.stage3Options||[];
     const opts=document.createElement('div');opts.className='mp-note';opts.style.marginTop='8px';opts.innerHTML=`Opções aleatórias: <b>Safe 2: ${o2.length}</b> • <b>Safe 3: ${o3.length}</b> <button type="button" id="mpSafeClearOptions" style="margin-left:8px">LIMPAR OPÇÕES</button>`;host.appendChild(opts);
@@ -1739,24 +1739,24 @@ v])=>{const el=qs('#'+id);if(el&&document.activeElement!==el)el.value=v;});
 
   function editSnapshot(){return JSON.stringify({missions:state.missions,activeId:state.activeId,activeEventId:state.activeEventId});}
   function pushUndo(){
-    if(!state.editing)return;const snap=editSnapshot();if(state.undoStack.at(-1)===snap)return;state.undoStack.push(snap);if(state.undoStack.length>30)state.undoStack.shift();state.redoStack=[];
+    if(!state.editing)return;const before=state.lastEditSnapshot;if(before&&state.undoStack.at(-1)!==before){state.undoStack.push(before);if(state.undoStack.length>30)state.undoStack.shift();}state.redoStack=[];
   }
   function restoreEditSnapshot(raw,label){
-    if(!raw)return;try{const x=JSON.parse(raw);state.missions=x.missions;state.activeId=x.activeId;state.activeEventId=x.activeEventId;state.dirty=true;render();updateEditUi();setSaveState(label+' • NÃO SALVO');}catch(e){}
+    if(!raw)return;try{const x=JSON.parse(raw);state.missions=x.missions;state.activeId=x.activeId;state.activeEventId=x.activeEventId;state.lastEditSnapshot=editSnapshot();state.dirty=true;render();updateEditUi();setSaveState(label+' • NÃO SALVO');}catch(e){}
   }
-  function undoEdit(){if(!state.editing||!state.undoStack.length)return;state.redoStack.push(editSnapshot());restoreEditSnapshot(state.undoStack.pop(),'DESFEITO');}
-  function redoEdit(){if(!state.editing||!state.redoStack.length)return;state.undoStack.push(editSnapshot());restoreEditSnapshot(state.redoStack.pop(),'REFAZENDO');}
+  function undoEdit(){if(!state.editing||!state.undoStack.length)return;state.redoStack.push(editSnapshot());const target=state.undoStack.pop();restoreEditSnapshot(target,'DESFEITO');state.lastEditSnapshot=editSnapshot();}
+  function redoEdit(){if(!state.editing||!state.redoStack.length)return;state.undoStack.push(editSnapshot());const target=state.redoStack.pop();restoreEditSnapshot(target,'REFAZENDO');state.lastEditSnapshot=editSnapshot();}
   function commit(reason='Alteração'){
     const m=active();if(!m)return;m.updatedAt=nowIso();
-    if(state.editing){pushUndo();state.dirty=true;render();setSaveState(`${reason} • NÃO SALVO`);return;}
+    if(state.editing){pushUndo();state.lastEditSnapshot=editSnapshot();state.dirty=true;render();setSaveState(`${reason} • NÃO SALVO`);return;}
     saveStore();render();setSaveState(`${reason} • salvo`);queueSnapshot();
   }
   function requireEdit(){if(state.editing)return true;alert('Zona travada em modo visualização. Clique em EDITAR ZONA para fazer alterações.');return false;}
   function startEdit(){const m=active();if(!m||state.editing)return;state.undoStack=[];state.redoStack=[];state.compareOverlay=false;state.editBackup={eventId:m.eventId,
-zones:JSON.parse(JSON.stringify(zonesOfEvent(m.eventId)))};state.editing=true;state.dirty=false;state.placing=false;render();updateEditUi();setSaveState('MODO EDIÇÃO • alterações ainda não salvas');}
-  function saveMission(){const m=active();if(!m)return;if(!state.editing){setSaveState('Nenhuma alteração para salvar');return;}const audit=plannerAudit(m);if(audit.issues.length&&!confirm('Existem bloqueios de validação:\n\n- '+audit.issues.join('\n- ')+'\n\nSalvar mesmo assim como rascunho?'))return;m.updatedAt=nowIso();saveStore();clearEditDraft();state.editBackup=null;state.editing=false;state.dirty=false;state.placing=false;state.undoStack=[];state.redoStack=[];state.compareOverlay=false;render();updateEditUi();setSaveState(audit.issues.length?'Zona salva como rascunho ⚠':'Zona salva ✓');queueSnapshot();}
+zones:JSON.parse(JSON.stringify(zonesOfEvent(m.eventId)))};state.editing=true;state.dirty=false;state.placing=false;state.lastEditSnapshot=editSnapshot();render();updateEditUi();setSaveState('MODO EDIÇÃO • alterações ainda não salvas');}
+  function saveMission(){const m=active();if(!m)return;if(!state.editing){setSaveState('Nenhuma alteração para salvar');return;}const audit=plannerAudit(m);if(audit.issues.length&&!confirm('Existem bloqueios de validação:\n\n- '+audit.issues.join('\n- ')+'\n\nSalvar mesmo assim como rascunho?'))return;m.updatedAt=nowIso();saveStore();clearEditDraft();state.editBackup=null;state.editing=false;state.dirty=false;state.placing=false;state.undoStack=[];state.redoStack=[];state.lastEditSnapshot=null;state.compareOverlay=false;render();updateEditUi();setSaveState(audit.issues.length?'Zona salva como rascunho ⚠':'Zona salva ✓');queueSnapshot();}
   function cancelEdit(){if(!state.editing)return;clearEditDraft();if(state.editBackup?.eventId&&Array.isArray(state.editBackup.zones)){const eid=state.editBackup.eventId;const keep=state.missions.filter(x=>x.eventId!==eid);state.missions=[...state.editBackup.zones,
-...keep];}state.editBackup=null;state.editing=false;state.dirty=false;state.placing=false;state.undoStack=[];state.redoStack=[];state.activeEventId=active()?.eventId||state.activeEventId;render();updateEditUi();setSaveState('Alterações descartadas • visualização');}
+...keep];}state.editBackup=null;state.editing=false;state.dirty=false;state.placing=false;state.undoStack=[];state.redoStack=[];state.lastEditSnapshot=null;state.activeEventId=active()?.eventId||state.activeEventId;render();updateEditUi();setSaveState('Alterações descartadas • visualização');}
   function updateEditUi(){
     const edit=state.editing;const eb=qs('#mpEditMission'),
 sb=qs('#mpSaveMission'),
