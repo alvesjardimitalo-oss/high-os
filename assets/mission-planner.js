@@ -1672,6 +1672,7 @@ j+1];}if(d<(Number(m.spawnRadius)||100)*2)over++;}
     const zs=pts.map(p=>Number(p.z)).filter(Number.isFinite),med=median(zs);if(med!==null){const odd=pts.filter(p=>Math.abs(Number(p.z)-med)>80);if(odd.length)warns.push('Altitude atípica em '+odd.length+' spawn(s): '+odd.map(p=>p.id).join(', ')+'.');}
     return {issues,warns};
   }
+  function zoneOperation(m){if(!m)return 'alter-zone';if(m.requestKind==='create-event')return 'create-event';if(m.requestKind==='create-zone'||m.official===false)return 'create-zone';return 'alter-zone';}
   function requestComparable(m){if(!m)return null;const x=JSON.parse(JSON.stringify(m));delete x.updatedAt;delete x._lastSavedRequestBase;delete x.requestText;return x;}
   function requestChangeScope(m){
     const base=m?._lastSavedRequestBase;if(!base)return {safeOnly:false,hasBase:false};
@@ -1685,7 +1686,7 @@ j+1];}if(d<(Number(m.spawnRadius)||100)*2)over++;}
   }
   function highRequestExport(){
     const m=active();if(!m)return '';const a=plannerAudit(m),pts=(m.points||[]).filter(isValidated),r=(m.category||'dominacao')==='gas'?ensureSafeRoute(m):null,isSurvival=/sobreviv[eê]ncia/i.test(m.event||''),change=requestChangeScope(m);
-    const creating=m.requestKind==='create-event'||m.requestKind==='create-zone',zoneName=m.name||'Zona Principal',eventName=m.event||'Sem nome',facXFac=/fac\s*x\s*fac/i.test(eventName),subject=m.requestKind==='create-event'?'Solicitação de Criação do Evento '+eventName:(creating?'Solicitação de Criação de Zona do Evento '+eventName+' — Zona '+zoneName:'Solicitação de Alteração da Zona do Evento '+eventName+' — Zona '+zoneName);
+    const operation=zoneOperation(m),creating=operation==='create-event'||operation==='create-zone',zoneName=m.name||'Zona Principal',eventName=m.event||'Sem nome',facXFac=/fac\s*x\s*fac/i.test(eventName),subject=operation==='create-event'?'Solicitação de Criação do Evento '+eventName:(operation==='create-zone'?'Solicitação de Criação de Zona do Evento '+eventName+' — Zona '+zoneName:'Solicitação de Alteração da Zona do Evento '+eventName+' — Zona '+zoneName);
     const lines=['ASSUNTO:','- '+subject+'.','','SOLICITAÇÃO:','- '+(creating?'Solicitamos a criação':'Solicitamos a alteração')+' da zona "'+zoneName+'" do evento "'+eventName+'" no painel '+(m.panel||'/ilegal')+'.'];
     if(facXFac&&!creating)lines.push('- Evento base: Fac x Fac.');
     if(isSurvival)lines.push('','BASE DO EVENTO — CLONE DO FAC X FAC:','- Utilizar o Fac X Fac atual como base do Sobrevivência.','- Preservar as mecânicas, regras, sistemas, escalação, inventário entregue aos participantes, caixas de loot, drop de itens ao morrer, ping para aliados, ranking e premiações já existentes no Fac X Fac.','- Não recriar nem alterar essas mecânicas sem necessidade; a diferença funcional desta solicitação é a SAFE DINÂMICA progressiva descrita abaixo.');
