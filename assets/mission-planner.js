@@ -1587,8 +1587,22 @@ s=coverageStats(m);if(!m||!s)return;applyRadius(s.recommended);});
     qs('#mpFitZone')?.addEventListener('click',fitZone);
     qs('#mpGenerateInsideZone')?.addEventListener('click',generateInsideZone);
   }
+  function ensureDominationPolygonUi(){
+    const anchor=qs('#mpCoverageBox'),m=active();if(!anchor||qs('#mpDomPolygonBox'))return;
+    const box=document.createElement('div');box.id='mpDomPolygonBox';box.className='mp-card';box.dataset.forceTab='zona';box.style.marginTop='10px';
+    box.innerHTML=`<h3>CDS DA ZONA — POLÍGONO</h3><p class="mp-note">Opcional. Cole 3 ou mais CDS na ordem do contorno. O mapa une os pontos e fecha a Zona de Pontuação automaticamente. Estas CDS não são spawns.</p><div id="mpDomPolygonStatus" class="mp-readout">Nenhum vértice cadastrado.</div><label style="margin-top:8px">CDS do vértice<input id="mpDomPolygonCds" type="text" placeholder="x, y, z ou vec3(x, y, z)"></label><div class="mp-actions" style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" id="mpDomPolygonAdd">ADICIONAR VÉRTICE</button><button type="button" id="mpDomPolygonUndo">REMOVER ÚLTIMO</button><button type="button" id="mpDomPolygonClear">LIMPAR POLÍGONO</button></div>`;
+    anchor.insertAdjacentElement('afterend',box);
+    qs('#mpDomPolygonAdd')?.addEventListener('click',()=>{if(!requireEdit())return;const m=active();if(!m||m.category!=='dominacao')return;const r=parseCds(qs('#mpDomPolygonCds')?.value);if(!r.ok||!validCoord(r.x)||!validCoord(r.y)){alert('CDS do vértice não reconhecida.');return;}if(!Array.isArray(m.zonePolygon))m.zonePolygon=[];m.zonePolygon.push({x:r.x,y:r.y,z:Number.isFinite(r.z)?r.z:0,status:Number.isFinite(r.z)&&r.z!==0?'validated':'planned'});if(qs('#mpDomPolygonCds'))qs('#mpDomPolygonCds').value='';commit('Vértice da Zona de Dominação adicionado');});
+    qs('#mpDomPolygonUndo')?.addEventListener('click',()=>{if(!requireEdit())return;const m=active();if(!m?.zonePolygon?.length)return;m.zonePolygon.pop();commit('Último vértice da Zona de Dominação removido');});
+    qs('#mpDomPolygonClear')?.addEventListener('click',()=>{if(!requireEdit())return;const m=active();if(!m?.zonePolygon?.length)return;if(!confirm('Remover todas as CDS do polígono e voltar a visualizar a zona por raio?'))return;m.zonePolygon=[];commit('Polígono da Zona de Dominação removido');});
+  }
+  function renderDominationPolygonUi(){
+    ensureDominationPolygonUi();const m=active(),box=qs('#mpDomPolygonBox'),el=qs('#mpDomPolygonStatus');if(!box||!m)return;const show=(m.category||'dominacao')==='dominacao';box.style.display=show?'block':'none';if(!show||!el)return;const p=dominationPolygon(m),raw=Array.isArray(m.zonePolygon)?m.zonePolygon:[],validated=raw.filter(v=>validCoord(v.x)&&validCoord(v.y)&&validCoord(v.z)).length,geom=dominationZoneGeometry(m);el.innerHTML=raw.length?`Vértices: <b>${raw.length}</b> • com Z real: <b>${validated}/${raw.length}</b>${p.length>=3?`<br>Polígono fechado ✓ • área ~<b>${Math.round(geom.area).toLocaleString('pt-BR')} m²</b> • perímetro ~<b>${Math.round(geom.perimeter)} m</b>`:'<br>Adicione pelo menos 3 CDS para formar a zona.'}`:'Nenhum vértice cadastrado • usando Centro + Raio.';
+    ['mpDomPolygonAdd','mpDomPolygonUndo','mpDomPolygonClear'].forEach(id=>{const b=qs('#'+id);if(b)b.disabled=!state.editing;});
+  }
+
   function renderCoverage(){
-    ensureCoverageUi();ensureSafeRouteUi();const m=active(),
+    ensureCoverageUi();ensureSafeRouteUi();ensureDominationPolygonUi();const m=active(),
 el=qs('#mpCoverageStatus'),
 title=qs('#mpCoverageTitle'),
 inp=qs('#mpEventRadius'),
@@ -1599,7 +1613,7 @@ s=coverageStats(m),
 counts=zoneCoverageCounts(m);
     if(title)title.textContent=category==='gas'?'COBERTURA INICIAL DA SAFE / GÁS':'ZONA DE PONTUAÇÃO — DOMINAÇÃO';
     if(inp&&document.activeElement!==inp)inp.value=used;
-    const note=qs('#mpCoverageBox .mp-note');
+    const note=qs('#mpCoverageBox .mp-note');renderDominationPolygonUi();
     if(category==='dominacao'){
       const geom=dominationZoneGeometry(m),ds=(m.points||[]).filter(isValidated).map(p=>pointDistanceFromCenter(m,p)),outsideAccess=ds.map(d=>Math.max(0,d-used)),minAccess=outsideAccess.length?Math.min(...outsideAccess):null,maxAccess=outsideAccess.length?Math.max(...outsideAccess):null,aa=dominationAccessAnalysis(m);
       const accessSummary=aa?`Cobertura de aproximação: <b>${aa.sectors}/4 lados</b> • maior trecho sem entrada: <b>${aa.largestGap.toFixed(0)}°</b><br>`:'';
