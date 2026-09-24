@@ -1689,8 +1689,9 @@ counts=zoneCoverageCounts(m);
   }
 
   function fitZone(){
-    const m=active();if(!state.map||!m)return;const poly=dominationPolygon(m);
-    if((m.category||'dominacao')==='dominacao'&&dominationZoneMode(m)==='polygon'&&poly.length>=3){const arr=poly.map(p=>ll(p.x,p.y));state.map.fitBounds(L.latLngBounds(arr).pad(.08),{padding:[35,35],maxZoom:6});return;}
+    const m=active();if(!state.map||!m)return;const poly=dominationPolygon(m),polyMode=(m.category||'dominacao')==='dominacao'&&dominationZoneMode(m)==='polygon';
+    if(polyMode&&poly.length){const arr=poly.map(p=>ll(p.x,p.y));if(arr.length===1){state.map.setView(arr[0],Math.max(state.map.getZoom()||0,5));}else state.map.fitBounds(L.latLngBounds(arr).pad(.12),{padding:[35,35],maxZoom:6});return;}
+    if(polyMode)return;
     if(!validCoord(m.center?.x)||!validCoord(m.center?.y))return;const r=effectiveEventRadius(m);if(r<=0)return;const temp=L.circle(ll(m.center.x,m.center.y),{radius:r});state.map.fitBounds(temp.getBounds(),{padding:[35,35],maxZoom:6});
   }
   function generateInsideZone(){
