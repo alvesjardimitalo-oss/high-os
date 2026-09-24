@@ -531,7 +531,7 @@ activeEventId:null,
 activeMapName:null,
 workspaceOpen:false,
 cloudState:'local',
-safePlacementStage:null,layerVisibility:{zone:true,spawns:true,center:true,access:false},proToolsReady:false,undoStack:[],redoStack:[],lastEditSnapshot:null,compareOverlay:false,safePresentation:false,safePresentationPrev:null};
+safePlacementStage:null,layerVisibility:{zone:true,spawns:true,center:true,access:false},proToolsReady:false,undoStack:[],redoStack:[],lastEditSnapshot:null,compareOverlay:false,safePresentation:false,safePresentationPrev:null,zoneProposal:null};
   const f=n=>Number(n).toFixed(2);
   const num=v=>{const n=Number(v);return Number.isFinite(n)?n:null};
   const nowIso=()=>new Date().toISOString();
@@ -1502,7 +1502,7 @@ draggable:state.editing}).addTo(state.map).bindPopup(`<b>${esc(m.center.label||'
         zone._mpKind='zone';state.drawn.push(zone);
       }
     }
-    drawSafeRoute(m);drawCompareOverlay();drawDominationAccess(m);
+    drawSafeRoute(m);drawCompareOverlay();drawDominationAccess(m);drawZoneProposal();
     m.points.forEach((p,i)=>{
       p.id=i+1;const valid=isValidated(p),
 outside=((m.category||'dominacao')==='gas')&&!pointInsideZone(m,p),
@@ -1601,18 +1601,30 @@ s=coverageStats(m);if(!m||!s)return;applyRadius(s.recommended);});
     qs('#mpFitZone')?.addEventListener('click',fitZone);
     qs('#mpGenerateInsideZone')?.addEventListener('click',generateInsideZone);
   }
+  function zoneProposalPoints(m,shape){
+    if(!m||!validCoord(m.center?.x)||!validCoord(m.center?.y))return [];const cx=Number(m.center.x),cy=Number(m.center.y),r=Math.max(100,effectiveEventRadius(m)),z=Number(m.center.z)||0;
+    if(shape==='triangle')return [0,120,240].map(a=>{const q=a*Math.PI/180;return {x:cx+Math.sin(q)*r,y:cy+Math.cos(q)*r,z};});
+    if(shape==='rectangle'){const w=r,h=r*.62;return [{x:cx-w,y:cy-h,z},{x:cx+w,y:cy-h,z},{x:cx+w,y:cy+h,z},{x:cx-w,y:cy+h,z}];}
+    const d=r/Math.sqrt(2);return [{x:cx-d,y:cy-d,z},{x:cx+d,y:cy-d,z},{x:cx+d,y:cy+d,z},{x:cx-d,y:cy+d,z}];
+  }
+  function drawZoneProposal(){const p=state.zoneProposal;if(!p?.points?.length||!state.map)return;const line=L.polygon(p.points.map(v=>ll(v.x,v.y)),{weight:3,fillOpacity:.025,dashArray:'8 7',interactive:false}).addTo(state.map);line._mpKind='proposal';state.drawn.push(line);p.points.forEach((v,i)=>{const mk=L.marker(ll(v.x,v.y),{interactive:false,icon:L.divIcon({className:'',html:'<div style="width:24px;height:24px;border:2px dashed #fff;border-radius:50%;background:rgba(8,10,18,.75);color:#fff;font:10px/20px system-ui;text-align:center">P'+(i+1)+'</div>',iconSize:[24,24],iconAnchor:[12,12]})}).addTo(state.map);mk._mpKind='proposal';state.drawn.push(mk);});}
+  function setZoneProposal(shape){const m=active();if(!m||m.category!=='dominacao')return;if(!validCoord(m.center?.x)||!validCoord(m.center?.y)){alert('Defina o centro da zona antes de gerar uma proposta.');return;}state.zoneProposal={shape,points:zoneProposalPoints(m,shape)};renderMap();renderDominationPolygonUi();}
+  function applyZoneProposal(){if(!requireEdit())return;const m=active(),p=state.zoneProposal;if(!m||!p?.points?.length)return;m.zonePolygon=p.points.map(v=>({x:v.x,y:v.y,z:v.z,status:v.z!==0?'validated':'planned'}));state.zoneProposal=null;commit('Proposta assistida aplicada à Zona de Dominação');}
+
   function ensureDominationPolygonUi(){
     const anchor=qs('#mpCoverageBox'),m=active();if(!anchor||qs('#mpDomPolygonBox'))return;
     const box=document.createElement('div');box.id='mpDomPolygonBox';box.className='mp-card';box.dataset.forceTab='zona';box.style.marginTop='10px';
-    box.innerHTML=`<h3>CDS DA ZONA — POLÍGONO</h3><p class="mp-note">Opcional. Cole 3 ou mais CDS na ordem do contorno. O mapa une os pontos e fecha a Zona de Pontuação automaticamente. Estas CDS não são spawns.</p><div id="mpDomPolygonStatus" class="mp-readout">Nenhum vértice cadastrado.</div><label style="margin-top:8px">CDS do vértice<input id="mpDomPolygonCds" type="text" placeholder="x, y, z ou vec3(x, y, z)"></label><div class="mp-actions" style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" id="mpDomPolygonAdd">ADICIONAR VÉRTICE</button><button type="button" id="mpDomPolygonUndo">REMOVER ÚLTIMO</button><button type="button" id="mpDomPolygonClear">LIMPAR POLÍGONO</button></div>`;
+    box.innerHTML=`<h3>CDS DA ZONA — POLÍGONO</h3><p class="mp-note">Opcional. Cole 3 ou mais CDS na ordem do contorno. O mapa une os pontos e fecha a Zona de Pontuação automaticamente. Estas CDS não são spawns.</p><div id="mpDomPolygonStatus" class="mp-readout">Nenhum vértice cadastrado.</div><label style="margin-top:8px">CDS do vértice<input id="mpDomPolygonCds" type="text" placeholder="x, y, z ou vec3(x, y, z)"></label><div class="mp-actions" style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" id="mpDomPolygonAdd">ADICIONAR VÉRTICE</button><button type="button" id="mpDomPolygonUndo">REMOVER ÚLTIMO</button><button type="button" id="mpDomPolygonClear">LIMPAR POLÍGONO</button></div><div class="mp-note" style="margin-top:10px"><b>PLANEJADOR ASSISTIDO</b> • gera apenas uma proposta visual; nada é alterado até clicar APLICAR.</div><div class="mp-actions" style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" data-zoneproposal="square">QUADRADO</button><button type="button" data-zoneproposal="rectangle">RETÂNGULO</button><button type="button" data-zoneproposal="triangle">TRIÂNGULO</button><button type="button" id="mpDomProposalApply">APLICAR PROPOSTA</button><button type="button" id="mpDomProposalCancel">CANCELAR</button></div>`;
     anchor.insertAdjacentElement('afterend',box);
     qs('#mpDomPolygonAdd')?.addEventListener('click',()=>{if(!requireEdit())return;const m=active();if(!m||m.category!=='dominacao')return;const r=parseCds(qs('#mpDomPolygonCds')?.value);if(!r.ok||!validCoord(r.x)||!validCoord(r.y)){alert('CDS do vértice não reconhecida.');return;}if(!Array.isArray(m.zonePolygon))m.zonePolygon=[];m.zonePolygon.push({x:r.x,y:r.y,z:Number.isFinite(r.z)?r.z:0,status:Number.isFinite(r.z)&&r.z!==0?'validated':'planned'});if(qs('#mpDomPolygonCds'))qs('#mpDomPolygonCds').value='';commit('Vértice da Zona de Dominação adicionado');});
     qs('#mpDomPolygonUndo')?.addEventListener('click',()=>{if(!requireEdit())return;const m=active();if(!m?.zonePolygon?.length)return;m.zonePolygon.pop();commit('Último vértice da Zona de Dominação removido');});
     qs('#mpDomPolygonClear')?.addEventListener('click',()=>{if(!requireEdit())return;const m=active();if(!m?.zonePolygon?.length)return;if(!confirm('Remover todas as CDS do polígono e voltar a visualizar a zona por raio?'))return;m.zonePolygon=[];commit('Polígono da Zona de Dominação removido');});
+    qsa('[data-zoneproposal]',box).forEach(b=>b.addEventListener('click',()=>setZoneProposal(b.dataset.zoneproposal)));
+    qs('#mpDomProposalApply')?.addEventListener('click',applyZoneProposal);qs('#mpDomProposalCancel')?.addEventListener('click',()=>{state.zoneProposal=null;renderMap();renderDominationPolygonUi();});
   }
   function renderDominationPolygonUi(){
     ensureDominationPolygonUi();const m=active(),box=qs('#mpDomPolygonBox'),el=qs('#mpDomPolygonStatus');if(!box||!m)return;const show=(m.category||'dominacao')==='dominacao';box.style.display=show?'block':'none';if(!show||!el)return;const p=dominationPolygon(m),raw=Array.isArray(m.zonePolygon)?m.zonePolygon:[],validated=raw.filter(v=>validCoord(v.x)&&validCoord(v.y)&&validCoord(v.z)).length,geom=dominationZoneGeometry(m),pa=dominationPolygonAudit(m),crit=[...pa.issues,...pa.warns];el.innerHTML=raw.length?`Vértices: <b>${raw.length}</b> • com Z real: <b>${validated}/${raw.length}</b>${p.length>=3?`<br>Polígono fechado ✓ • área ~<b>${Math.round(geom.area).toLocaleString('pt-BR')} m²</b> • perímetro ~<b>${Math.round(geom.perimeter)} m</b>`:'<br>Adicione pelo menos 3 CDS para formar a zona.'}`:'Nenhum vértice cadastrado • usando Centro + Raio.';if(raw.length>=3&&crit.length)el.innerHTML+='<br><br><b>CRÍTICA DA ZONA</b><br>'+crit.map(x=>'• '+esc(x)).join('<br>');else if(raw.length>=3)el.innerHTML+='<br><br><b>Geometria:</b> sem problemas estruturais detectados ✓';
-    ['mpDomPolygonAdd','mpDomPolygonUndo','mpDomPolygonClear'].forEach(id=>{const b=qs('#'+id);if(b)b.disabled=!state.editing;});
+    ['mpDomPolygonAdd','mpDomPolygonUndo','mpDomPolygonClear','mpDomProposalApply'].forEach(id=>{const b=qs('#'+id);if(b)b.disabled=!state.editing;});const prop=state.zoneProposal;if(prop)el.innerHTML+='<br><br><b>Proposta visual:</b> '+esc(prop.shape)+' • '+prop.points.length+' vértices • ainda não aplicada.';
   }
 
   function renderCoverage(){
