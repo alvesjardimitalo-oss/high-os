@@ -595,7 +595,7 @@ panel:m.panel||'/ilegal'});
 
   function dominationZoneGeometry(m){const p=dominationPolygon(m),mode=m?.zoneMode||(p.length>=3?'polygon':'radius');if(mode!=='polygon'||p.length<3)return {mode:'radius',vertices:0,area:Math.PI*Math.pow(effectiveEventRadius(m),2),perimeter:2*Math.PI*effectiveEventRadius(m)};return {mode:'polygon',vertices:p.length,area:polygonArea(p),perimeter:polygonPerimeter(p)};}
   function orient2d(a,b,c){return (Number(b.y)-Number(a.y))*(Number(c.x)-Number(b.x))-(Number(b.x)-Number(a.x))*(Number(c.y)-Number(b.y));}
-  function segmentCross(a,b,c,d){const o1=orient2d(a,b,c),o2=orient2d(a,b,d),o3=orient2d(c,d,a),o4=orient2d(c,d,b);return ((o1>0&&o2<0)||(o1<0&&o2>0))&&((o3>0&&o4<0)||(o3<0&&o4>0));}
+  function segmentCross(a,b,c,d){const eps=1e-7,o1=orient2d(a,b,c),o2=orient2d(a,b,d),o3=orient2d(c,d,a),o4=orient2d(c,d,b),on=(p,q,r)=>Math.abs(orient2d(p,q,r))<=eps&&Number(r.x)>=Math.min(Number(p.x),Number(q.x))-eps&&Number(r.x)<=Math.max(Number(p.x),Number(q.x))+eps&&Number(r.y)>=Math.min(Number(p.y),Number(q.y))-eps&&Number(r.y)<=Math.max(Number(p.y),Number(q.y))+eps;if(((o1>eps&&o2<-eps)||(o1<-eps&&o2>eps))&&((o3>eps&&o4<-eps)||(o3<-eps&&o4>eps)))return true;return (Math.abs(o1)<=eps&&on(a,b,c))||(Math.abs(o2)<=eps&&on(a,b,d))||(Math.abs(o3)<=eps&&on(c,d,a))||(Math.abs(o4)<=eps&&on(c,d,b));}
   function polygonSelfIntersections(points){const hits=[];if(!points||points.length<4)return hits;for(let i=0;i<points.length;i++){const a=points[i],b=points[(i+1)%points.length];for(let j=i+1;j<points.length;j++){if(j===i||j===(i+1)%points.length||(i===0&&j===points.length-1))continue;const c=points[j],d=points[(j+1)%points.length];if(segmentCross(a,b,c,d))hits.push([i+1,j+1]);}}return hits;}
   function dominationPolygonAudit(m){
     const raw=Array.isArray(m?.zonePolygon)?m.zonePolygon:[],p=dominationPolygon(m),issues=[],warns=[];if(!raw.length)return {issues,warns,metrics:null};
@@ -606,7 +606,7 @@ panel:m.panel||'/ilegal'});
     const near=[];for(let i=0;i<p.length;i++)for(let j=i+1;j<p.length;j++){const d=distXY(p[i],p[j]);if(d<2)near.push([i+1,j+1,d]);}
     if(near.length)issues.push('Vértices duplicados/quase iguais: '+near.map(x=>String(x[0]).padStart(2,'0')+'↔'+String(x[1]).padStart(2,'0')+' ('+x[2].toFixed(1)+'m)').join(', ')+'.');
     const sides=p.map((v,i)=>distXY(v,p[(i+1)%p.length])),area=polygonArea(p),perimeter=polygonPerimeter(p),minSide=Math.min(...sides),maxSide=Math.max(...sides),cross=polygonSelfIntersections(p),compactness=perimeter>0?(4*Math.PI*area)/(perimeter*perimeter):0;
-    if(cross.length)issues.push('O contorno da zona cruza a si mesmo. Revise a ordem das CDS antes de implementar.');
+    if(cross.length)issues.push('O contorno da zona possui arestas que se cruzam, encostam ou se sobrepõem indevidamente. Revise a ordem/posição das CDS antes de implementar.');
     if(area<10000)warns.push('Área do polígono é pequena (~'+Math.round(area).toLocaleString('pt-BR')+' m²). Confira espaço de combate, cobertura e flancos.');
     if(minSide<25)warns.push('Há lado muito curto no contorno (~'+Math.round(minSide)+' m), possivelmente uma CDS redundante ou mal posicionada.');
     if(maxSide>0&&minSide>0&&maxSide/minSide>8)warns.push('Os lados do polígono estão muito desproporcionais ('+Math.round(minSide)+'–'+Math.round(maxSide)+' m). Confira gargalos e pontos fora de ordem.');
