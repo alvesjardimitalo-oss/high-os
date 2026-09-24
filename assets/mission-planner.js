@@ -1265,11 +1265,15 @@ iconAnchor:[12,
   function clearLayers(){state.drawn.forEach(o=>{try{state.map.removeLayer(o)}catch{}});state.drawn=[];}
   function drawCompareOverlay(){
     if(!state.compareOverlay||!state.editing||!state.map)return;const m=active(),old=state.editBackup?.zones?.find(z=>z.id===m?.id);if(!old)return;
-    if(validCoord(old.center?.x)&&validCoord(old.center?.y)){
+    const oldPoly=dominationPolygon(old);
+    if((old.category||'dominacao')==='dominacao'&&oldPoly.length>=3){
+      const z=L.polygon(oldPoly.map(p=>ll(p.x,p.y)),{weight:3,opacity:.78,fillOpacity:.012,dashArray:'4 8',color:'#9ca3af',interactive:false}).addTo(state.map);z._mpKind='compare';state.drawn.push(z);
+      oldPoly.forEach((p,i)=>{const ic=L.divIcon({className:'',html:'<div style="min-width:20px;height:20px;border:1px dashed #d1d5db;border-radius:50%;background:rgba(17,24,39,.7);color:#e5e7eb;font:9px/18px system-ui;text-align:center">A'+(i+1)+'</div>',iconSize:[20,20],iconAnchor:[10,10]});const mk=L.marker(ll(p.x,p.y),{icon:ic,interactive:false}).addTo(state.map);mk._mpKind='compare';state.drawn.push(mk);});
+    }else if(validCoord(old.center?.x)&&validCoord(old.center?.y)){
       const z=L.circle(ll(old.center.x,old.center.y),{radius:effectiveEventRadius(old),weight:2,opacity:.72,fillOpacity:.015,dashArray:'3 8',color:'#9ca3af',interactive:false}).addTo(state.map);z._mpKind='compare';state.drawn.push(z);
-      const ci=L.divIcon({className:'',html:'<div style="width:18px;height:18px;border:2px dashed #d1d5db;border-radius:50%;background:rgba(17,24,39,.55)"></div>',iconSize:[18,18],iconAnchor:[9,9]});const cm=L.marker(ll(old.center.x,old.center.y),{icon:ci,interactive:false}).addTo(state.map);cm._mpKind='compare';state.drawn.push(cm);
     }
-    (old.points||[]).forEach((p,i)=>{if(!validCoord(p.x)||!validCoord(p.y))return;const ic=L.divIcon({className:'',html:'<div style="min-width:20px;height:20px;padding:0 3px;border:1px dashed #d1d5db;border-radius:10px;background:rgba(17,24,39,.68);color:#e5e7eb;font:10px/18px system-ui;text-align:center">'+(i+1)+'</div>',iconSize:[22,20],iconAnchor:[11,10]});const mk=L.marker(ll(p.x,p.y),{icon:ic,interactive:false}).addTo(state.map);mk._mpKind='compare';state.drawn.push(mk);});
+    if(validCoord(old.center?.x)&&validCoord(old.center?.y)){const ci=L.divIcon({className:'',html:'<div style="width:18px;height:18px;border:2px dashed #d1d5db;border-radius:50%;background:rgba(17,24,39,.55)"></div>',iconSize:[18,18],iconAnchor:[9,9]});const cm=L.marker(ll(old.center.x,old.center.y),{icon:ci,interactive:false}).addTo(state.map);cm._mpKind='compare';state.drawn.push(cm);}
+    (old.points||[]).forEach((p,i)=>{if(!validCoord(p.x)||!validCoord(p.y))return;const ic=L.divIcon({className:'',html:'<div style="min-width:20px;height:20px;padding:0 3px;border:1px dashed #d1d5db;border-radius:10px;background:rgba(17,24,39,.68);color:#e5e7eb;font:10px/18px system-ui;text-align:center">A'+(i+1)+'</div>',iconSize:[22,20],iconAnchor:[11,10]});const mk=L.marker(ll(p.x,p.y),{icon:ic,interactive:false}).addTo(state.map);mk._mpKind='compare';state.drawn.push(mk);});
   }
   // V12.6 — rota progressiva da Safe: FECHA -> MOVE -> FECHA -> MOVE -> FECHA FINAL
   function ensureSafeRoute(m){
