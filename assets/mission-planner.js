@@ -1598,8 +1598,9 @@ counts=zoneCoverageCounts(m);
     if(inp&&document.activeElement!==inp)inp.value=used;
     const note=qs('#mpCoverageBox .mp-note');
     if(category==='dominacao'){
-      const ds=(m.points||[]).filter(isValidated).map(p=>pointDistanceFromCenter(m,p)),outsideAccess=ds.map(d=>Math.max(0,d-used)),minAccess=outsideAccess.length?Math.min(...outsideAccess):null,maxAccess=outsideAccess.length?Math.max(...outsideAccess):null;
-      el.innerHTML=`Raio da Zona de Pontuação: <b>${used} m</b><br>Spawns/entradas cadastrados: <b>${counts.total}</b><br>${minAccess!==null?`Distância até a borda da zona: <b>${minAccess.toFixed(0)}–${maxAccess.toFixed(0)} m</b><br>`:''}<span style="color:#9ed7ff">A pontuação acontece dentro da zona. Os spawns podem e normalmente devem ficar externos, funcionando como pontos de entrada para a disputa.</span>`;
+      const ds=(m.points||[]).filter(isValidated).map(p=>pointDistanceFromCenter(m,p)),outsideAccess=ds.map(d=>Math.max(0,d-used)),minAccess=outsideAccess.length?Math.min(...outsideAccess):null,maxAccess=outsideAccess.length?Math.max(...outsideAccess):null,aa=dominationAccessAnalysis(m);
+      const accessSummary=aa?`Cobertura de aproximação: <b>${aa.sectors}/4 lados</b> • maior trecho sem entrada: <b>${aa.largestGap.toFixed(0)}°</b><br>`:'';
+      el.innerHTML=`Raio da Zona de Pontuação: <b>${used} m</b><br>Spawns/entradas cadastrados: <b>${counts.total}</b><br>${minAccess!==null?`Distância até a borda da zona: <b>${minAccess.toFixed(0)}–${maxAccess.toFixed(0)} m</b><br>`:''}${accessSummary}<span style="color:#9ed7ff">A pontuação acontece dentro da zona. Os spawns podem e normalmente devem ficar externos, funcionando como pontos de entrada para a disputa.</span>`;
       if(note)note.textContent='Projete uma área ampla de disputa, com espaço para movimentação, cobertura e flancos. Evite zonas pequenas que permitam marcar facilmente os jogadores ou controlar todas as entradas.';
       if(btn){btn.style.display='none';btn.disabled=true;}
       const gen=qs('#mpGenerateInsideZone');if(gen){gen.style.display='none';gen.disabled=true;}
