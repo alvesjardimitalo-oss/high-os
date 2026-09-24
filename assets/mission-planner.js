@@ -1655,10 +1655,9 @@ counts=zoneCoverageCounts(m);
   }
 
   function fitZone(){
-    const m=active();if(!state.map||!m||!validCoord(m.center?.x)||!validCoord(m.center?.y))return;
-    const r=effectiveEventRadius(m);if(r<=0)return;
-    const temp=L.circle(ll(m.center.x,m.center.y),{radius:r});state.map.fitBounds(temp.getBounds(),{padding:[35,
-35]});
+    const m=active();if(!state.map||!m)return;const poly=dominationPolygon(m);
+    if((m.category||'dominacao')==='dominacao'&&poly.length>=3){const arr=poly.map(p=>ll(p.x,p.y));(m.points||[]).filter(isValidated).forEach(p=>arr.push(ll(p.x,p.y)));state.map.fitBounds(L.latLngBounds(arr).pad(.08),{padding:[35,35],maxZoom:6});return;}
+    if(!validCoord(m.center?.x)||!validCoord(m.center?.y))return;const r=effectiveEventRadius(m);if(r<=0)return;const temp=L.circle(ll(m.center.x,m.center.y),{radius:r});state.map.fitBounds(temp.getBounds(),{padding:[35,35],maxZoom:6});
   }
   function generateInsideZone(){
     if(!requireEdit())return;const m=active();if(!m||!validCoord(m.center?.x)||!validCoord(m.center?.y)){alert('Defina primeiro o centro da zona.');return;}
@@ -1928,7 +1927,7 @@ ratio=Math.min(1,max/canvas.width);let out=canvas;
 img=qs('#mpSnapshotPreview');if(!m||!img)return;const s=await getSnapshot(m.id);if(s?.dataUrl){img.src=s.dataUrl;img.classList.add('show');if(qs('#mpSnapshotEmpty'))qs('#mpSnapshotEmpty').style.display='none';}else{img.removeAttribute('src');img.classList.remove('show');if(qs('#mpSnapshotEmpty'))qs('#mpSnapshotEmpty').style.display='block';}}
   const safeName=s=>String(s||'missao').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/gi,'-').replace(/^-|-$/g,'').toLowerCase();
 
-  function fit(){const m=active();if(!state.map||!m)return;const arr=m.points.map(p=>ll(p.x,p.y));if(validCoord(m.center.x)&&validCoord(m.center.y))arr.push(ll(m.center.x,m.center.y));if(arr.length)state.map.fitBounds(L.latLngBounds(arr).pad(.12));}
+  function fit(){const m=active();if(!state.map||!m)return;const arr=(m.points||[]).filter(p=>validCoord(p.x)&&validCoord(p.y)).map(p=>ll(p.x,p.y)),poly=dominationPolygon(m);poly.forEach(p=>arr.push(ll(p.x,p.y)));if(validCoord(m.center?.x)&&validCoord(m.center?.y))arr.push(ll(m.center.x,m.center.y));if(arr.length===1)state.map.setView(arr[0],5);else if(arr.length)state.map.fitBounds(L.latLngBounds(arr).pad(.12),{padding:[30,30],maxZoom:6});}
   function generateCircle(){if(!requireEdit())return;
     const m=active();if(!m)return;const cx=num(qs('#mpCenterX')?.value),
 cy=num(qs('#mpCenterY')?.value),
