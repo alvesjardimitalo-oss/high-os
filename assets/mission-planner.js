@@ -555,8 +555,13 @@ panel:m.panel||'/ilegal'});
     return [...seen.values()];
   };
   function slugify(s){return String(s||'evento').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'evento';}
+  function normalizeZoneGeometry(m){
+    if(!m)return false;let changed=false;const cat=m.category||((String(m.event||'').toLowerCase().includes('domina'))?'dominacao':'gas');
+    if(cat==='dominacao'){if(!Array.isArray(m.zonePolygon)){m.zonePolygon=[];changed=true;}if(m.zoneMode!=='radius'&&m.zoneMode!=='polygon'){m.zoneMode=m.zonePolygon.filter(p=>validCoord(p?.x)&&validCoord(p?.y)).length>=3?'polygon':'radius';changed=true;}}
+    return changed;
+  }
   function inferLegacyStructure(m){
-    if(m.eventId) return;
+    normalizeZoneGeometry(m);if(m.eventId)return;
     const cat=m.category||((String(m.event||'').toLowerCase().includes('domina'))?'dominacao':'gas');
     const name=String(m.name||'').trim(),
  evt=String(m.event||'').trim();
@@ -577,7 +582,7 @@ panel:m.panel||'/ilegal'});
     m.event=eventName;
     m.name=zoneName;
     m.eventId=`legacy_${cat}_${slugify(eventName)}`;
-    m.requestKind=m.requestKind||(m.official?'alter-zone':'create-zone');if(cat==='dominacao'){if(!Array.isArray(m.zonePolygon))m.zonePolygon=[];if(!m.zoneMode)m.zoneMode=m.zonePolygon.filter(p=>validCoord(p?.x)&&validCoord(p?.y)).length>=3?'polygon':'radius';}
+    m.requestKind=m.requestKind||(m.official?'alter-zone':'create-zone');normalizeZoneGeometry(m);
   }
 
   function dominationPolygon(m){return (m?.category||'dominacao')==='dominacao'&&Array.isArray(m?.zonePolygon)?m.zonePolygon.filter(p=>validCoord(p?.x)&&validCoord(p?.y)):[];}
