@@ -531,7 +531,7 @@ activeEventId:null,
 activeMapName:null,
 workspaceOpen:false,
 cloudState:'local',
-safePlacementStage:null,layerVisibility:{zone:true,spawns:true,center:true},proToolsReady:false,undoStack:[],redoStack:[]};
+safePlacementStage:null,layerVisibility:{zone:true,spawns:true,center:true},proToolsReady:false,undoStack:[],redoStack:[],compareOverlay:false};
   const f=n=>Number(n).toFixed(2);
   const num=v=>{const n=Number(v);return Number.isFinite(n)?n:null};
   const nowIso=()=>new Date().toISOString();
@@ -1244,6 +1244,14 @@ iconSize:[24,
 iconAnchor:[12,
 12]});}
   function clearLayers(){state.drawn.forEach(o=>{try{state.map.removeLayer(o)}catch{}});state.drawn=[];}
+  function drawCompareOverlay(){
+    if(!state.compareOverlay||!state.editing||!state.map)return;const m=active(),old=state.editBackup?.zones?.find(z=>z.id===m?.id);if(!old)return;
+    if(validCoord(old.center?.x)&&validCoord(old.center?.y)){
+      const z=L.circle(ll(old.center.x,old.center.y),{radius:effectiveEventRadius(old),weight:2,opacity:.72,fillOpacity:.015,dashArray:'3 8',color:'#9ca3af',interactive:false}).addTo(state.map);z._mpKind='compare';state.drawn.push(z);
+      const ci=L.divIcon({className:'',html:'<div style="width:18px;height:18px;border:2px dashed #d1d5db;border-radius:50%;background:rgba(17,24,39,.55)"></div>',iconSize:[18,18],iconAnchor:[9,9]});const cm=L.marker(ll(old.center.x,old.center.y),{icon:ci,interactive:false}).addTo(state.map);cm._mpKind='compare';state.drawn.push(cm);
+    }
+    (old.points||[]).forEach((p,i)=>{if(!validCoord(p.x)||!validCoord(p.y))return;const ic=L.divIcon({className:'',html:'<div style="min-width:20px;height:20px;padding:0 3px;border:1px dashed #d1d5db;border-radius:10px;background:rgba(17,24,39,.68);color:#e5e7eb;font:10px/18px system-ui;text-align:center">'+(i+1)+'</div>',iconSize:[22,20],iconAnchor:[11,10]});const mk=L.marker(ll(p.x,p.y),{icon:ic,interactive:false}).addTo(state.map);mk._mpKind='compare';state.drawn.push(mk);});
+  }
   // V12.6 — rota progressiva da Safe: FECHA -> MOVE -> FECHA -> MOVE -> FECHA FINAL
   function ensureSafeRoute(m){
     if(!m||((m.category||'dominacao')!=='gas'))return null;
@@ -1425,7 +1433,7 @@ interactive:false}).addTo(state.map);
         zone._mpKind='zone';state.drawn.push(zone);
       }
     }
-    drawSafeRoute(m);
+    drawSafeRoute(m);drawCompareOverlay();
     m.points.forEach((p,i)=>{
       p.id=i+1;const valid=isValidated(p),
 outside=((m.category||'dominacao')==='gas')&&!pointInsideZone(m,p),
@@ -1648,23 +1656,23 @@ j+1];}if(d<(Number(m.spawnRadius)||100)*2)over++;}
       <div class="mp-actions" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
         <button type="button" id="mpAuditBtn">VALIDAR ANTES DE PUBLICAR</button><button type="button" id="mpChecklistBtn">CHECKLIST DO EVENTO</button><button type="button" id="mpCompareBtn">ANTES × DEPOIS</button><button type="button" id="mpFullscreenBtn">MAPA TELA CHEIA</button><button type="button" id="mpSurvivalBtn">CRIAR SOBREVIVÊNCIA DO FAC X FAC</button>
       </div>
-      <div class="mp-grid" style="margin-top:8px"><label>Exportação<select id="mpExportFormat"><option value="lua">Lua / vector4</option><option value="vec4">vec4</option><option value="vec3">vec3</option><option value="json">JSON</option><option value="high">Solicitação HIGH</option><option value="summary">Resumo técnico</option></select></label><label>Camadas<div style="display:flex;gap:10px;flex-wrap:wrap;padding-top:8px"><span><input type="checkbox" data-mplayer="zone" checked> Zona</span><span><input type="checkbox" data-mplayer="spawns" checked> Spawns</span><span><input type="checkbox" data-mplayer="center" checked> Centro</span><span><input type="checkbox" id="mpLegendToggle" checked> Legenda</span></div></label></div>
+      <div class="mp-grid" style="margin-top:8px"><label>Exportação<select id="mpExportFormat"><option value="lua">Lua / vector4</option><option value="vec4">vec4</option><option value="vec3">vec3</option><option value="json">JSON</option><option value="high">Solicitação HIGH</option><option value="summary">Resumo técnico</option></select></label><label>Camadas<div style="display:flex;gap:10px;flex-wrap:wrap;padding-top:8px"><span><input type="checkbox" data-mplayer="zone" checked> Zona</span><span><input type="checkbox" data-mplayer="spawns" checked> Spawns</span><span><input type="checkbox" data-mplayer="center" checked> Centro</span><span><input type="checkbox" id="mpLegendToggle" checked> Legenda</span><span><input type="checkbox" id="mpCompareLayerToggle"> Antes</span></div></label></div>
       <div class="mp-grid" style="margin-top:8px"><label>Ir para CDS <small style="opacity:.65">formato livre • vec é opcional</small><input id="mpGoCoord" placeholder="Cole a CDS como tiver: X,Y,Z • vec3/vec4 • /tpcds • /tp..."></label><label>Rascunho<div id="mpDraftState" class="mp-note" style="padding-top:8px">Nenhum rascunho pendente.</div></label></div>
       <div class="mp-actions" style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" id="mpGoCoordBtn">CENTRALIZAR CDS</button><button type="button" id="mpSavePresetBtn">SALVAR COMO PRESET LOCAL</button><button type="button" id="mpCopyExportPro">COPIAR EXPORTAÇÃO</button></div>
       <div id="mpLocalPresets" class="mp-note" style="margin-top:8px"></div>`;
       anchor.insertAdjacentElement('afterend',box);
       qs('#mpAuditBtn')?.addEventListener('click',()=>{renderProTools();const a=plannerAudit(active());alert(a.issues.length?'BLOQUEIOS:\n- '+a.issues.join('\n- ')+(a.warns.length?'\n\nAVISOS:\n- '+a.warns.join('\n- '):''):'Validação concluída sem bloqueios.'+(a.warns.length?'\n\nAvisos:\n- '+a.warns.join('\n- '):''));});
       qs('#mpChecklistBtn')?.addEventListener('click',()=>{const m=active(),a=plannerAudit(m),r=(m?.category||'dominacao')==='gas'?ensureSafeRoute(m):null,checks=[['Centro definido',validCoord(m?.center?.x)&&validCoord(m?.center?.y)],['Spawns cadastrados',(m?.points?.length||0)>0],['Todos os spawns validados',(m?.points||[]).length>0&&(m?.points||[]).every(isValidated)],['Raio da zona definido',effectiveEventRadius(m)>0],['Safe progressiva completa',!r||r.stages.every(safeStageValid)],['Sem bloqueios automáticos',a.issues.length===0]];alert('CHECKLIST — '+(m?.event||'EVENTO')+'\n\n'+checks.map(([n,ok])=>(ok?'✓ ':'✗ ')+n).join('\n')+(a.warns.length?'\n\nAVISOS:\n- '+a.warns.join('\n- '):''));});
-      qs('#mpCompareBtn')?.addEventListener('click',()=>{const m=active(),old=state.editBackup?.zones?.find(z=>z.id===m?.id);if(!old){alert('Entre em EDITAR ZONA para comparar a versão salva com a alteração atual.');return;}const changes=[];if(Number(old.eventRadius)!==Number(m.eventRadius))changes.push('Raio: '+effectiveEventRadius(old)+' → '+effectiveEventRadius(m)+' m');if(old.points?.length!==m.points?.length)changes.push('Spawns: '+(old.points?.length||0)+' → '+(m.points?.length||0));if(distXY(old.center,m.center)>1)changes.push('Centro movido '+distXY(old.center,m.center).toFixed(0)+' m');alert(changes.length?changes.join('\n'):'Nenhuma diferença estrutural detectada.');});
+      qs('#mpCompareBtn')?.addEventListener('click',()=>{const m=active(),old=state.editBackup?.zones?.find(z=>z.id===m?.id);if(!old){alert('Entre em EDITAR ZONA para comparar a versão salva com a alteração atual.');return;}state.compareOverlay=!state.compareOverlay;renderMap();const b=qs('#mpCompareBtn');if(b)b.textContent=state.compareOverlay?'OCULTAR ANTES':'ANTES × DEPOIS';const changes=[];if(Number(old.eventRadius)!==Number(m.eventRadius))changes.push('Raio: '+effectiveEventRadius(old)+' → '+effectiveEventRadius(m)+' m');if(old.points?.length!==m.points?.length)changes.push('Spawns: '+(old.points?.length||0)+' → '+(m.points?.length||0));if(distXY(old.center,m.center)>1)changes.push('Centro movido '+distXY(old.center,m.center).toFixed(0)+' m');setSaveState((state.compareOverlay?'Comparação visual ativa':'Comparação visual ocultada')+(changes.length?' • '+changes.join(' • '):''));});
       qs('#mpFullscreenBtn')?.addEventListener('click',togglePlannerFullscreen);qs('#mpSurvivalBtn')?.addEventListener('click',cloneFacXFacAsSurvival);
       qs('#mpGoCoordBtn')?.addEventListener('click',()=>{const r=parseCds(qs('#mpGoCoord')?.value);if(!r.ok||!validCoord(r.x)||!validCoord(r.y)){alert('CDS não reconhecida. Cole pelo menos X e Y.');return;}state.map?.setView(ll(r.x,r.y),5);});
       qs('#mpGoCoord')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();qs('#mpGoCoordBtn')?.click();}});qs('#mpGoCoord')?.addEventListener('input',e=>{const lab=e.target.closest('label')?.querySelector('small');if(lab)lab.textContent=cdsFormatHint(e.target.value)+' • vec é opcional';});
       qs('#mpSavePresetBtn')?.addEventListener('click',()=>saveLocalPreset());
-      qsa('[data-mplayer]',box).forEach(c=>c.addEventListener('change',()=>{state.layerVisibility[c.dataset.mplayer]=c.checked;renderMap();}));qs('#mpLegendToggle')?.addEventListener('change',e=>{const x=qs('#mpMapLegend');if(x)x.style.display=e.target.checked?'':'none';});
+      qsa('[data-mplayer]',box).forEach(c=>c.addEventListener('change',()=>{state.layerVisibility[c.dataset.mplayer]=c.checked;renderMap();}));qs('#mpLegendToggle')?.addEventListener('change',e=>{const x=qs('#mpMapLegend');if(x)x.style.display=e.target.checked?'':'none';});qs('#mpCompareLayerToggle')?.addEventListener('change',e=>{if(!state.editing&&e.target.checked){e.target.checked=false;alert('Entre em EDITAR ZONA para visualizar a versão anterior.');return;}state.compareOverlay=e.target.checked;renderMap();});
       qs('#mpCopyExportPro')?.addEventListener('click',async()=>{const fmt=qs('#mpExportFormat')?.value||'lua';await copyText(exportMission(fmt));const b=qs('#mpCopyExportPro');if(b){b.textContent='COPIADO ✓';setTimeout(()=>b.textContent='COPIAR EXPORTAÇÃO',900);}});
     }
     const a=plannerAudit(active()),el=qs('#mpAuditStatus');if(el)el.innerHTML=a.issues.length?'<b style="color:#ff7474">NÃO PRONTO PARA PUBLICAR</b><br>'+esc(a.issues.join(' • ')):(a.warns.length?'<b style="color:#ffd166">PRONTO COM AVISOS</b><br>'+esc(a.warns.join(' • ')):'<b class="mp-ok">PRONTO PARA PUBLICAR ✓</b><br>Centro, spawns e cobertura passaram nas validações automáticas.');
-    qsa('[data-mplayer]',box).forEach(c=>c.checked=state.layerVisibility?.[c.dataset.mplayer]!==false);const lg=qs('#mpMapLegend');if(lg)lg.style.display=qs('#mpLegendToggle')?.checked===false?'none':'';renderLocalPresets();
+    qsa('[data-mplayer]',box).forEach(c=>c.checked=state.layerVisibility?.[c.dataset.mplayer]!==false);const lg=qs('#mpMapLegend');if(lg)lg.style.display=qs('#mpLegendToggle')?.checked===false?'none':'';const ct=qs('#mpCompareLayerToggle');if(ct){ct.checked=!!state.compareOverlay;ct.disabled=!state.editing;}const cb=qs('#mpCompareBtn');if(cb)cb.textContent=state.compareOverlay?'OCULTAR ANTES':'ANTES × DEPOIS';renderLocalPresets();
   }
 
   function updateExport(){const m=active(),
@@ -1710,9 +1718,9 @@ v])=>{const el=qs('#'+id);if(el&&document.activeElement!==el)el.value=v;});
     saveStore();render();setSaveState(`${reason} • salvo`);queueSnapshot();
   }
   function requireEdit(){if(state.editing)return true;alert('Zona travada em modo visualização. Clique em EDITAR ZONA para fazer alterações.');return false;}
-  function startEdit(){const m=active();if(!m||state.editing)return;state.undoStack=[];state.redoStack=[];state.editBackup={eventId:m.eventId,
+  function startEdit(){const m=active();if(!m||state.editing)return;state.undoStack=[];state.redoStack=[];state.compareOverlay=false;state.editBackup={eventId:m.eventId,
 zones:JSON.parse(JSON.stringify(zonesOfEvent(m.eventId)))};state.editing=true;state.dirty=false;state.placing=false;render();updateEditUi();setSaveState('MODO EDIÇÃO • alterações ainda não salvas');}
-  function saveMission(){const m=active();if(!m)return;if(!state.editing){setSaveState('Nenhuma alteração para salvar');return;}const audit=plannerAudit(m);if(audit.issues.length&&!confirm('Existem bloqueios de validação:\n\n- '+audit.issues.join('\n- ')+'\n\nSalvar mesmo assim como rascunho?'))return;m.updatedAt=nowIso();saveStore();clearEditDraft();state.editBackup=null;state.editing=false;state.dirty=false;state.placing=false;state.undoStack=[];state.redoStack=[];render();updateEditUi();setSaveState(audit.issues.length?'Zona salva como rascunho ⚠':'Zona salva ✓');queueSnapshot();}
+  function saveMission(){const m=active();if(!m)return;if(!state.editing){setSaveState('Nenhuma alteração para salvar');return;}const audit=plannerAudit(m);if(audit.issues.length&&!confirm('Existem bloqueios de validação:\n\n- '+audit.issues.join('\n- ')+'\n\nSalvar mesmo assim como rascunho?'))return;m.updatedAt=nowIso();saveStore();clearEditDraft();state.editBackup=null;state.editing=false;state.dirty=false;state.placing=false;state.undoStack=[];state.redoStack=[];state.compareOverlay=false;render();updateEditUi();setSaveState(audit.issues.length?'Zona salva como rascunho ⚠':'Zona salva ✓');queueSnapshot();}
   function cancelEdit(){if(!state.editing)return;clearEditDraft();if(state.editBackup?.eventId&&Array.isArray(state.editBackup.zones)){const eid=state.editBackup.eventId;const keep=state.missions.filter(x=>x.eventId!==eid);state.missions=[...state.editBackup.zones,
 ...keep];}state.editBackup=null;state.editing=false;state.dirty=false;state.placing=false;state.undoStack=[];state.redoStack=[];state.activeEventId=active()?.eventId||state.activeEventId;render();updateEditUi();setSaveState('Alterações descartadas • visualização');}
   function updateEditUi(){
