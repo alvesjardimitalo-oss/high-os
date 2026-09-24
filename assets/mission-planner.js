@@ -1053,28 +1053,23 @@ b].map(v=>v.toString(16).padStart(2,'0')).join('');
       barra.appendChild(acao);
     }
   }
+  function attachMapLayerHealth(layers){
+    let ok=0,err=0;Object.values(layers).forEach(l=>{l.on('tileload',()=>{ok++;mapNotice('Mapa GTA V carregado','ok',false)});l.on('tileerror',()=>err++);watchOcean(l);});
+    startMapWatchdog(()=>ok,()=>err);return {get ok(){return ok},get err(){return err}};
+  }
+  function replaceMapBases(baseIndex=0){
+    if(!state.map)return;const current=qs('#mpLayerControl [data-base].active')?.dataset.base||'atlas';
+    Object.values(state.mapLayers||{}).forEach(l=>{try{state.map.removeLayer(l)}catch(e){}});
+    const layers={atlas:layer('styleAtlas','jpg',5,baseIndex),sat:layer('styleSatelite','jpg',5,baseIndex),grid:layer('styleGrid','png',5,baseIndex)};
+    state.mapLayers=layers;state.atlasLayer=layers.atlas;state.satLayer=layers.sat;state.gridLayer=layers.grid;state.tileCounters=attachMapLayerHealth(layers);
+    (layers[current]||layers.atlas).addTo(state.map);state.map.invalidateSize();
+    return layers;
+  }
   function reloadMapTiles(){
     if(!state.map)return;
     state.tileBase=((state.tileBase||0)+1)%remoteBases.length;
     mapNotice('Tentando outro servidor do mapa...','warn',false);
-    try{
-      Object.values(state.mapLayers||{}).forEach(l=>{try{state.map.removeLayer(l)}catch(e){}});
-    }catch(e){}
-    const atlas=layer('styleAtlas','jpg',5,state.tileBase);
-    const sat=layer('styleSatelite','jpg',5,state.tileBase);
-    const grid=layer('styleGrid','png',5,state.tileBase);
-    state.mapLayers={atlas,
-sat,
-grid};
-    let ok=0,
-err=0;
-    atlas.on('tileload',()=>{ok++;mapNotice('Mapa GTA V carregado','ok',false)});
-    [atlas,
-sat,
-grid].forEach(l=>{l.on('tileerror',()=>err++);watchOcean(l)});
-    atlas.addTo(state.map);
-    state.map.invalidateSize();
-    startMapWatchdog(()=>ok,()=>err);
+    replaceMapBases(state.tileBase);
   }
   function startMapWatchdog(getOk,getErr){
     clearTimeout(state.mapWatchdog);
@@ -1136,13 +1131,10 @@ grid].forEach(l=>{l.on('tileerror',()=>err++);watchOcean(l)});
     if(window.L?.DomEvent){L.DomEvent.disableClickPropagation(box);L.DomEvent.disableScrollPropagation(box);}
 
     const trocarBase=chave=>{
-      Object.entries(bases).forEach(([k,
-l])=>{
-        try{if(k===chave){if(!state.map.hasLayer(l))l.addTo(state.map);}else if(state.map.hasLayer(l))state.map.removeLayer(l);}catch(e){}
-      });
+      const live=state.mapLayers||bases;
+      Object.entries(live).forEach(([k,l])=>{try{if(k===chave){if(!state.map.hasLayer(l))l.addTo(state.map);}else if(state.map.hasLayer(l))state.map.removeLayer(l);}catch(e){}});
       qsa('[data-base]',box).forEach(b=>b.classList.toggle('active',b.dataset.base===chave));
-      state.oceanLocked=false;state.oceanTries=0;
-      watchOcean(bases[chave]);
+      state.oceanLocked=false;state.oceanTries=0;watchOcean(live[chave]);
     };
     qsa('[data-base]',box).forEach(b=>b.addEventListener('click',()=>trocarBase(b.dataset.base)));
 
@@ -1204,6 +1196,7 @@ sat,
 grid},{cayo,
 cayoPostal});
     state.cayoBounds=cayoBounds;state.cayoOceanBounds=cayoOceanBounds;state.cayoOceanLayer=cayoOcean;state.cayoLayer=cayo;state.cayoPostalLayer=cayoPostal;state.atlasLayer=atlas;state.satLayer=sat;state.gridLayer=grid;
+    let cayoOk=false;cayo.on('load',()=>{cayoOk=true;if(/cayo/i.test(active()?.name||'')||/cayo/i.test(active()?.event||''))mapNotice('Cayo Perico carregado','ok',false)});cayo.on('error',()=>{if(!cayoOk)mapNotice('Imagem de Cayo indisponível • coordenadas e ferramentas continuam funcionando','warn',true)});
     state.map.setView(ll(900,-600),3);
     let okCount=0,
 errCount=0,
@@ -1879,8 +1872,10 @@ eid=activeEventId();
     const overlays=[state.cayoLayer,
 state.cayoPostalLayer].filter(Boolean);
     if(isCayo){
+      if(state.cayoOceanLayer&&!state.map.hasLayer(state.cayoOceanLayer))state.cayoOceanLayer.addTo(state.map);
       if(state.cayoLayer&&!state.map.hasLayer(state.cayoLayer)&&!state.map.hasLayer(state.cayoPostalLayer))state.cayoLayer.addTo(state.map);
-    }else overlays.forEach(l=>{if(state.map.hasLayer(l))state.map.removeLayer(l);});
+      qsa('#mpLayerControl [data-over]').forEach(x=>x.disabled=false);
+    }else{overlays.forEach(l=>{if(state.map.hasLayer(l))state.map.removeLayer(l);});qsa('#mpLayerControl [data-over]').forEach(x=>{x.checked=false;});}
   }
   function focusActiveMission(scrollToMap=false){
     const m=active();if(!state.map||!m)return;syncMapRegion(m);
