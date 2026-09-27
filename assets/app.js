@@ -5683,6 +5683,7 @@ alvoTriagem.className='metric-triagem'}
 }
 
 function renderMetrics(err=null){
+ try{renderMetricTimeVisual()}catch(e){console.warn('Falha no painel temporal de métricas',e)}
  const box=$('#metricRanking');
 if(err instanceof Event)err=null;
 
@@ -5780,6 +5781,118 @@ if($('#metricViewRanking')?.classList.contains('active'))renderMetricAdvancedRan
 if($('#metricViewComparatives')?.classList.contains('active')){syncMetricCompareSelectors();
 renderMetricComparison()}
 }
+
+let metricTimeMode='day';
+
+function metricTimeIso(d){
+ return d instanceof Date&&!isNaN(d)?[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-'):'';
+}
+function metricTimeBounds(mode=metricTimeMode,reference=null){
+ const ref=reference instanceof Date&&!isNaN(reference)?new Date(reference):new Date();
+ ref.setHours(0,0,0,0);
+ let start=new Date(ref),end=new Date(ref);
+ if(mode==='week'){
+  const delta=(ref.getDay()+6)%7;
+  start.setDate(ref.getDate()-delta);
+  end=new Date(start);end.setDate(start.getDate()+6);
+ }else if(mode==='month'){
+  start=new Date(ref.getFullYear(),ref.getMonth(),1);
+  end=new Date(ref.getFullYear(),ref.getMonth()+1,0);
+ }
+ end.setHours(23,59,59,999);
+ return {start,end};
+}
+function metricTimeRows(){
+ const ref=parseIsoMetricDate($('#metricTimeReference')?.value)||new Date();
+ const {start,end}=metricTimeBounds(metricTimeMode,ref);
+ const seg=$('#metricTimeSegment')?.value||'',group=$('#metricTimeFaction')?.value||'';
+ return estado.metricas.filter(row=>{
+  const d=metricDateValue(row);if(!d||!d.getTime()||d<start||d>end)return false;
+  const g=String(row.group||row.organizacao||row.faccao||'').trim();if(!g||!metricGroupOccupied(g))return false;
+  const id=metricIdentity(g,row);
+  return (!seg||segmentKey(id.segmento)===segmentKey(seg))&&(!group||alvesNorm(g)===alvesNorm(group));
+ });
+}
+function syncMetricTimeSelectors(){
+ const segEl=$('#metricTimeSegment'),facEl=$('#metricTimeFaction'),ref=$('#metricTimeReference');
+ if(ref&&!ref.value)ref.value=metricTimeIso(new Date());
+ if(segEl){
+  const keep=segEl.value;
+  segEl.innerHTML='<option value="">TODOS OS SEGMENTOS</option>'+segmentNames().map(x=>'<option value="'+esc(x)+'">'+esc(x)+'</option>').join('');
+  if(keep&&segmentNames().some(x=>segmentKey(x)===segmentKey(keep)))segEl.value=segmentNames().find(x=>segmentKey(x)===segmentKey(keep));
+ }
+ if(facEl){
+  const keep=facEl.value,seg=segEl?.value||'',seen=new Set(),opts=[];
+  estado.metricas.forEach(r=>{
+   const g=String(r.group||r.organizacao||r.faccao||'').trim();if(!g||seen.has(alvesNorm(g))||!metricGroupOccupied(g))return;
+   const id=metricIdentity(g,r);if(seg&&segmentKey(id.segmento)!==segmentKey(seg))return;
+   seen.add(alvesNorm(g));opts.push({g,label:id.faccao||g,seg:id.segmento||''});
+  });
+  opts.sort((a,b)=>alvesNorm(a.label).localeCompare(alvesNorm(b.label),'pt-BR'));
+  facEl.innerHTML='<option value="">TODAS AS FACÇÕES</option>'+opts.map(x=>'<option value="'+esc(x.g)+'">'+esc(x.label)+' • '+esc(x.g)+(x.seg?' • '+esc(x.seg):'')+'</option>').join('');
+  if(keep&&opts.some(x=>x.g===keep))facEl.value=keep;
+ }
+}
+function metricTimePreviousRows(){
+ const ref=parseIsoMetricDate($('#metricTimeReference')?.value)||new Date(),cur=metricTimeBounds(metricTimeMode,ref);
+ const days=Math.round((cur.end-cur.start)/86400000)+1;
+ const prevEnd=new Date(cur.start);prevEnd.setDate(prevEnd.getDate()-1);prevEnd.setHours(23,59,59,999);
+ const prevStart=new Date(prevEnd);prevStart.setDate(prevEnd.getDate()-days+1);prevStart.setHours(0,0,0,0);
+ const seg=$('#metricTimeSegment')?.value||'',group=$('#metricTimeFaction')?.value||'';
+ return estado.metricas.filter(row=>{
+  const d=metricDateValue(row);if(!d||!d.getTime()||d<prevStart||d>prevEnd)return false;
+  const g=String(row.group||row.organizacao||row.faccao||'').trim();if(!g||!metricGroupOccupied(g))return false;
+  const id=metricIdentity(g,row);
+  return (!seg||segmentKey(id.segmento)===segmentKey(seg))&&(!group||alvesNorm(g)===alvesNorm(group));
+ });
+}
+function metricTimeAverage(rows=[]){const vals=rows.flatMap(r=>Object.values(metricSlots(r)).map(Number).filter(Number.isFinite));return vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:0}
+function metricTimePeak(rows=[]){
+ let out={value:0,label:'—'};
+ rows.forEach(r=>Object.entries(metricSlots(r)).forEach(([slot,v])=>{v=Number(v);if(Number.isFinite(v)&&v>out.value)out={value:v,label:metricDateLabel(r)+' • '+slot}}));
+ return out;
+}
+function metricTimeSeries(rows=[]){
+ const map=new Map();
+ rows.forEach(r=>{const d=metricDateValue(r);if(!d?.getTime())return;const key=metricTimeIso(d),a=map.get(key)||[];a.push(metricDayAverage(r));map.set(key,a)});
+ const ref=parseIsoMetricDate($('#metricTimeReference')?.value)||new Date(),{start,end}=metricTimeBounds(metricTimeMode,ref),out=[];
+ for(let d=new Date(start);d<=end;d.setDate(d.getDate()+1)){const key=metricTimeIso(d),a=map.get(key)||[];out.push({key,label:d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}),value:a.length?a.reduce((x,y)=>x+y,0)/a.length:null})}
+ return out;
+}
+function metricTimeShare(rows=[]){
+ const map=new Map();
+ rows.forEach(r=>{const g=String(r.group||r.organizacao||r.faccao||'').trim(),id=metricIdentity(g,r),key=$('#metricTimeFaction')?.value?(id.segmento||'OUTROS'):(id.faccao||g),v=metricDayAverage(r),x=map.get(key)||{sum:0,n:0};x.sum+=v;x.n++;map.set(key,x)});
+ return [...map.entries()].map(([name,x])=>({name,value:x.n?x.sum/x.n:0})).sort((a,b)=>b.value-a.value).slice(0,10);
+}
+function renderMetricTimeVisual(){
+ syncMetricTimeSelectors();
+ const box=$('#metricTimeVisual');if(!box)return;
+ const rows=metricTimeRows(),prev=metricTimePreviousRows(),avg=metricTimeAverage(rows),prevAvg=metricTimeAverage(prev),peak=metricTimePeak(rows),series=metricTimeSeries(rows),share=metricTimeShare(rows);
+ const delta=prevAvg?((avg-prevAvg)/prevAvg*100):null,groups=new Set(rows.map(r=>alvesNorm(r.group||r.organizacao||r.faccao))).size;
+ const expectedSlots=metricSlotKeys(rows).length||4,expectedDays=series.length,expected=Math.max(1,groups||1)*expectedDays*expectedSlots,actual=rows.reduce((n,r)=>n+Object.keys(metricSlots(r)).length,0),coverage=Math.min(100,actual/expected*100);
+ const max=Math.max(1,...series.map(x=>x.value||0)),shareMax=Math.max(1,...share.map(x=>x.value));
+ const periodName={day:'DIA',week:'SEMANA',month:'MÊS'}[metricTimeMode];
+ box.innerHTML='<div class="metric-time-kpis">'+
+  '<article class="metric-hero-kpi"><span>'+periodName+'</span><b>'+rows.length+'</b><small>registros no recorte</small></article>'+
+  '<article class="metric-hero-kpi"><span>MÉDIA</span><b>'+avg.toFixed(1)+'</b><small>'+(delta===null?'sem base anterior':(delta>=0?'+':'')+delta.toFixed(1)+'% vs período anterior')+'</small></article>'+
+  '<article class="metric-hero-kpi"><span>PICO</span><b>'+peak.value+'</b><small>'+esc(peak.label)+'</small></article>'+
+  '<article class="metric-hero-kpi"><span>FACÇÕES</span><b>'+groups+'</b><small>com dados no período</small></article>'+
+  '<article class="metric-hero-kpi"><span>COBERTURA</span><b>'+coverage.toFixed(0)+'%</b><small>'+(coverage<100?'PARCIAL • aguardando coletas':'período completo')+'</small></article>'+
+ '</div>'+
+ '<section class="metric-time-chart"><header><b>EVOLUÇÃO NO '+periodName+'</b><span>Média das coletas por dia</span></header><div class="metric-time-bars">'+series.map(x=>'<div class="metric-time-bar-col" title="'+esc(x.label+(x.value===null?' • sem coleta':' • '+x.value.toFixed(1)))+'"><div><i style="height:'+((x.value||0)/max*100).toFixed(1)+'%"></i></div><b>'+(x.value===null?'—':x.value.toFixed(0))+'</b><small>'+esc(x.label)+'</small></div>').join('')+'</div></section>'+
+ '<section class="metric-time-share"><header><b>REPRESENTATIVIDADE</b><span>'+($('#metricTimeFaction')?.value?'Segmento da facção':'Facções no recorte')+'</span></header><div class="metric-time-share-list">'+(share.length?share.map(x=>'<div class="metric-time-share-row"><span>'+esc(x.name)+'</span><div><i style="width:'+(x.value/shareMax*100).toFixed(1)+'%"></i></div><b>'+x.value.toFixed(1)+'</b></div>').join(''):'<div class="muted">Sem dados para este período.</div>')+'</div></section>';
+}
+function bindMetricTimeControls(){
+ document.querySelectorAll('[data-metric-period]').forEach(b=>b.onclick=()=>{metricTimeMode=b.dataset.metricPeriod||'day';document.querySelectorAll('[data-metric-period]').forEach(x=>x.classList.toggle('active',x===b));renderMetricTimeVisual()});
+ const ref=$('#metricTimeReference'),seg=$('#metricTimeSegment'),fac=$('#metricTimeFaction');
+ if(ref)ref.onchange=renderMetricTimeVisual;
+ if(seg)seg.onchange=()=>{if(fac)fac.value='';renderMetricTimeVisual()};
+ if(fac)fac.onchange=renderMetricTimeVisual;
+ renderMetricTimeVisual();
+}
+
+queueMicrotask(()=>{try{bindMetricTimeControls()}catch(e){console.warn('Falha ao iniciar métricas temporais',e)}});
+
 function metricAdvancedStats(group){
  const a=metricAnalysis(group);
 if(!a)return null;
