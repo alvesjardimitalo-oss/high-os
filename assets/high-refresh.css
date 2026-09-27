@@ -1181,3 +1181,26 @@ body.busca-aberta{overflow:hidden}
  .org-v92-summary{grid-template-columns:repeat(2,minmax(0,1fr))}
  #page-metricas .metric-visuals{grid-template-columns:1fr}
 }
+
+
+/* HIGH OS V13 — ranking visual sem perder os números */
+.metric-quick-ranking-list{display:flex;flex-direction:column;gap:7px}
+.metric-quick-row{
+ display:grid;grid-template-columns:44px minmax(180px,1.5fr) minmax(90px,.7fr) minmax(90px,.7fr) minmax(90px,.7fr);
+ align-items:center;gap:10px;padding:11px 12px;border-radius:12px;
+}
+.metric-quick-row>strong{
+ display:grid;place-items:center;width:34px;height:34px;border-radius:10px;
+ background:rgba(255,255,255,.05);font-size:12px;
+}
+.metric-quick-row .metric-main-value{font-size:18px;font-weight:900}
+.metric-quick-row>div small{display:block;margin-top:3px;opacity:.52}
+#metricAdvancedRanking .rh-ranking-row{
+ border-radius:11px;margin-bottom:5px;
+}
+#metricAdvancedRanking .rh-ranking-row:not(:first-child):hover,
+.metric-quick-row:hover{transform:translateY(-1px);background:rgba(255,255,255,.045)}
+@media(max-width:760px){
+ .metric-quick-row{grid-template-columns:40px minmax(0,1fr) auto}
+ .metric-quick-row .metric-hide-mobile{display:none}
+}
