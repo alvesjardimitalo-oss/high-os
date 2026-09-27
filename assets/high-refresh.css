@@ -1143,3 +1143,41 @@ body.busca-aberta{overflow:hidden}
 }
 @media(max-width:1180px){.command-dashboard .dash-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:720px){.command-dashboard .dash-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.command-dashboard .dash-kpis>button,.command-dashboard .dash-kpis>article{min-height:96px}}
+
+
+/* HIGH OS V13 — Organizações e Métricas: dados antes de controles */
+.org-v92-summary{
+ display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px;
+}
+.org-v92-summary article{
+ min-height:104px;padding:16px;border-radius:16px;position:relative;overflow:hidden;
+}
+.org-v92-summary article span{font-size:9px;font-weight:900;letter-spacing:.12em;opacity:.6}
+.org-v92-summary article b{display:block;margin:7px 0 5px;font-size:32px;line-height:1}
+.org-v92-summary article small{opacity:.58}
+.org-v92-summary article:after{
+ content:"";position:absolute;left:0;bottom:0;width:100%;height:3px;background:currentColor;opacity:.3;
+}
+#page-metricas .metric-center-tabs{
+ position:sticky;top:0;z-index:6;padding:8px;border:1px solid rgba(255,255,255,.06);
+ border-radius:14px;background:rgba(10,10,14,.88);backdrop-filter:blur(14px);
+}
+#page-metricas .metric-overview,
+#page-metricas .metric-faction-summary,
+#page-metricas .mgmt-executive{
+ display:grid;gap:10px;
+}
+#page-metricas .metric-visuals{
+ display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;
+}
+#page-metricas .metric-visuals>*{
+ min-width:0;border-radius:16px;
+}
+#page-metricas .metric-period-panel,
+#page-metricas .metric-toolbar{
+ border-radius:14px;
+}
+@media(max-width:900px){
+ .org-v92-summary{grid-template-columns:repeat(2,minmax(0,1fr))}
+ #page-metricas .metric-visuals{grid-template-columns:1fr}
+}
