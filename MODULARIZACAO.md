@@ -138,3 +138,11 @@ As respostas do bot devem priorizar leitura rápida:
 
 ### Controle
 Cada comando deverá declarar a permissão necessária, canais permitidos, se gera log e se pode alterar dados. Comandos de consulta devem permanecer separados de comandos destrutivos/administrativos.
+
+
+### Identidade visual Discord / High OS Bot
+- o servidor e o bot devem utilizar a identidade visual oficial do High OS;
+- não substituir a logo por ícones genéricos;
+- avatar/ícone deve ser preparado em formato quadrado, legível também em tamanho pequeno;
+- embeds, anúncios e respostas estruturadas devem seguir a mesma linguagem visual do painel;
+- qualquer troca do ícone do servidor deve usar o arquivo oficial fornecido e ser registrada administrativamente.
