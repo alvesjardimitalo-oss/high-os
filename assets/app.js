@@ -30,6 +30,7 @@ import { definirGroupsConhecidos, normalizeMetricDate, parseMetricNumber, normal
 import { SEED } from './modules/base-groups.js';
 import { DEFAULT_DASHBOARD_CONFIG, DEFAULT_SEGMENTS } from './modules/config-defaults.js';
 import { boletimDataBR, boletimParseData, boletimVariacao, boletimPct, boletimPartes } from './modules/boletim-utils.js';
+import { chatTime, chatConversationId, chatParticipants, chatDiaRotulo, chatMinutoDe } from './modules/chat-utils.js';
 
 const firebaseConfig={apiKey:'AIzaSyBKtl3rCA9Id1RDMwGch-yi4hxAs83DraU',
 authDomain:'high-os.firebaseapp.com',
@@ -10719,8 +10720,7 @@ $('#spotifyTabSearch')?.classList.toggle('active',name==='search');
 $('#spotifyTabPlaylists')?.classList.toggle('active',name==='playlists');
 if(name==='playlists')spotifyLoadPlaylists()}
 
-function chatTime(v){const d=v?.toDate?v.toDate():v?.seconds?new Date(v.seconds*1000):v?.createdAtText?new Date(v.createdAtText):null;
-return d&&!isNaN(d)?d.toLocaleString('pt-BR'):'agora'}
+
 function hmInitials(v=''){const parts=String(v||'H').trim().split(/\s+/).filter(Boolean);
 return (parts[0]?.[0]||'H')+(parts.length>1?(parts.at(-1)?.[0]||''):'')}
 function hmUser(email=''){return estado.usuarios.find(u=>String(u.email||'').toLowerCase()===String(email||'').toLowerCase())||null}
@@ -10734,14 +10734,12 @@ function chatStickerHtml(m){return m.sticker?`<div class="hm-sticker" title="Fig
 function chatMeetingHtml(m){if(!m.callId)return '';
 const mine=String(m.email||'').toLowerCase()===String(currentUser?.email||'').toLowerCase();
 return `<div class="chat-call-card"><div class="chat-call-icon">☎</div><div class="chat-call-info"><b>${mine?'Você iniciou uma chamada':`${esc(m.nome||'Usuário')} iniciou uma chamada`}</b><small>${m.callMode==='video'?'Vídeo':'Áudio'} • High Call WebRTC</small></div></div>`}
-function chatConversationId(a='',b=''){return [String(a).toLowerCase(),
-String(b).toLowerCase()].sort().join('::')}
+
 /* V9.4.1 - as regras do Firestore so conseguem autorizar uma CONSULTA de lista
    quando ela filtra pelo mesmo campo que a regra verifica. Por isso toda
    mensagem passa a carregar participants:[remetente,destinatario] e a consulta
    usa array-contains no proprio e-mail. */
-function chatParticipants(a='',b=''){return [String(a||'').toLowerCase(),
-String(b||'').toLowerCase()].filter(Boolean).sort()}
+
 function populateChatRecipients(){const sel=$('#chatRecipientSelect');
 if(!sel||!currentUser)return;
 const me=(currentUser.email||'').toLowerCase(),
@@ -10785,19 +10783,8 @@ setTimeout(()=>$('#floatingChatInput')?.focus(),30)}
    Agora: bloco por autor, separador de dia, hora discreta so na ultima
    do bloco e eco local imediato com marca de "enviando".
    ===================================================================== */
-function chatDiaRotulo(m){
- const d=m?.createdAt?.toDate?.()||(m?.createdAtText?new Date(m.createdAtText):null);
- if(!d||isNaN(d))return '';
- const hoje=new Date(),ontem=new Date();ontem.setDate(hoje.getDate()-1);
- const mesmo=(a,b)=>a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate();
- if(mesmo(d,hoje))return 'Hoje';
- if(mesmo(d,ontem))return 'Ontem';
- return d.toLocaleDateString('pt-BR',{day:'2-digit',month:'long'});
-}
-function chatMinutoDe(m){
- const d=m?.createdAt?.toDate?.()||(m?.createdAtText?new Date(m.createdAtText):null);
- return d&&!isNaN(d)?Math.floor(d.getTime()/60000):0;
-}
+
+
 
 /* Monta a conversa agrupando mensagens seguidas do mesmo autor. */
 function chatCorpoHtml(visible,me){
