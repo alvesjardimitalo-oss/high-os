@@ -33,6 +33,7 @@ import { boletimDataBR, boletimParseData, boletimVariacao, boletimPct, boletimPa
 import { chatTime, chatConversationId, chatParticipants, chatDiaRotulo, chatMinutoDe } from './modules/chat-utils.js';
 import { REQUEST_TYPES, TYPE_PLACEHOLDERS } from './modules/solicitacoes-config.js';
 import { PERIODOS_RAPIDOS, TRIAGEM_CARENCIA_DIAS, TRIAGEM_LIMITES } from './modules/metricas-config.js';
+import { CACHE_PREFIX, CACHE_TTL_PADRAO, CACHE_LIMITE_BYTES } from './modules/firestore-config.js';
 
 const firebaseConfig={apiKey:'AIzaSyBKtl3rCA9Id1RDMwGch-yi4hxAs83DraU',
 authDomain:'high-os.firebaseapp.com',
@@ -781,12 +782,6 @@ firestoreWriteCount+=n||1;
 return commit()};
 return b};
 
-const CACHE_PREFIX='highos_cache_';
-
-const CACHE_TTL_PADRAO=20000;
-          // janela curta: agrupa a rajada de leituras da navegacao
-const CACHE_LIMITE_BYTES=1200000;
-      // nao espelha colecao gigante
 const cacheMemoria=new Map();
           // nome -> {at, rows}
 const firestoreStats=new Map();
