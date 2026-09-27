@@ -1088,3 +1088,13 @@ body.busca-aberta{overflow:hidden}
 .infra-head b{display:block;font-size:10.5px;letter-spacing:.12em;color:#fff}
 .infra-head span{display:block;margin-top:4px;font-size:11px;color:var(--hm-text-3);line-height:1.5;max-width:70ch}
 .infra-metricas .metric-head-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+
+
+/* HIGH OS V13 — navegação organizada por categoria */
+.sidebar-nav{display:flex;flex-direction:column;gap:14px}
+.sidebar-nav .nav-category{display:flex;flex-direction:column;gap:4px}
+.sidebar-nav .nav-category-label{display:block;padding:0 12px 5px;font-size:10px;font-weight:800;letter-spacing:.14em;line-height:1.2;opacity:.48}
+.sidebar-nav .nav-category+.nav-category{padding-top:11px;border-top:1px solid rgba(255,255,255,.055)}
+.sidebar-nav .nav-category-admin{margin-top:4px}
+.sidebar-nav .nav-category.hidden,.sidebar-nav .nav-category[hidden]{display:none}
+@media (max-width:900px){.sidebar-nav{gap:10px}.sidebar-nav .nav-category+.nav-category{padding-top:8px}}

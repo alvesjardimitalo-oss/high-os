@@ -77,19 +77,32 @@
     <section id="appView" class="app hidden">
       <aside class="sidebar">
         <div class="user-card" title="Nome e cargo são administrados pelo ADMIN. A foto vem da conta Google."><img id="userPhoto" alt="Foto da conta Google"><div><strong id="userName">—</strong><span id="userRole">—</span><small id="userAccessLevel">—</small></div></div>
-        <nav>
-          <button class="nav-item active" data-page="dashboard">⌂ <span>Dashboard</span></button>
-          <button class="nav-item" data-page="faccoes">◆ <span>Organizações</span></button>
-          
-          <button class="nav-item" data-page="metricas">▥ <span>Métricas</span></button>
-          
-          
-          <button class="nav-item" data-page="planejador">◎ <span>Planejador de Missões</span></button>
-          
-          <button class="nav-item hidden" data-page="spotify">♫ <span>Spotify</span></button>
-          
-          <button class="nav-item admin-only" data-page="usuarios">♟ <span>Usuários</span></button>
-          <button class="nav-item admin-only" data-page="administracao">⚠ <span>Administração</span></button>
+        <nav class="sidebar-nav" aria-label="Navegação principal">
+          <div class="nav-category">
+            <span class="nav-category-label">VISÃO GERAL</span>
+            <button class="nav-item active" data-page="dashboard">⌂ <span>Dashboard</span></button>
+          </div>
+          <div class="nav-category">
+            <span class="nav-category-label">OPERAÇÃO ILEGAL</span>
+            <button class="nav-item" data-page="faccoes">◆ <span>Organizações</span></button>
+          </div>
+          <div class="nav-category">
+            <span class="nav-category-label">INTELIGÊNCIA</span>
+            <button class="nav-item" data-page="metricas">▥ <span>Métricas</span></button>
+          </div>
+          <div class="nav-category">
+            <span class="nav-category-label">EVENTOS E MISSÕES</span>
+            <button class="nav-item" data-page="planejador">◎ <span>Planejador de Missões</span></button>
+          </div>
+          <div class="nav-category nav-category-tools">
+            <span class="nav-category-label">FERRAMENTAS</span>
+            <button class="nav-item hidden" data-page="spotify">♫ <span>Spotify</span></button>
+          </div>
+          <div class="nav-category admin-only nav-category-admin">
+            <span class="nav-category-label">SISTEMA</span>
+            <button class="nav-item admin-only" data-page="usuarios">♟ <span>Usuários</span></button>
+            <button class="nav-item admin-only" data-page="administracao">⚠ <span>Administração</span></button>
+          </div>
         </nav>
       </aside>
       <div class="content">
