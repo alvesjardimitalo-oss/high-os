@@ -28,6 +28,7 @@ import { estado } from './modules/estado.js';
 import { esc, alvesNorm, fmtDuration, fmtDateMs, fmtMoneyMaybe } from './modules/formatadores.js';
 import { definirGroupsConhecidos, normalizeMetricDate, parseMetricNumber, normalizeMetricSlotKey, metricSlotLabel, metricGroupLabel, parseMetricSheet, parseCsvRows } from './modules/metricas-parser.js';
 import { SEED } from './modules/base-groups.js';
+import { DEFAULT_DASHBOARD_CONFIG, DEFAULT_SEGMENTS } from './modules/config-defaults.js';
 
 const firebaseConfig={apiKey:'AIzaSyBKtl3rCA9Id1RDMwGch-yi4hxAs83DraU',
 authDomain:'high-os.firebaseapp.com',
@@ -68,9 +69,7 @@ const chatCol=collection(db,'highos','data','chat_mensagens');
 
 const callCol=collection(db,'highos','data','call_signals');
 
-const DEFAULT_DASHBOARD_CONFIG={quedaAtencaoPct:15,
-quedaCriticaPct:30,
-minComparacoes:4};
+
 
 let dashboardConfig={...DEFAULT_DASHBOARD_CONFIG},dashboardAlertStates=[],spotifyConfig={url:'',
 clientId:''},chatUnsubscribe=null,chatItems=[],chatPendingAttachment=null,chatRecipientEmail='',spotifyPlayer=null,spotifyDeviceId='',spotifyAccessToken='',spotifyTokenExpiry=0,activeMeetingRoom='',activeMeetingUrl='',activeMeetingChannel='',teamCallPendingFile=null,callInboxUnsubscribe=null,activeCallUnsubscribe=null,activeCallId='',activePeer=null,activeLocalStream=null,activeRemoteStream=null,activeCallMode='audio',seenRemoteCandidates=new Set();
@@ -215,43 +214,7 @@ usuario:currentUser.email,
 data:serverTimestamp()});
 await loadDashboardAlertStates();
 renderCommandDashboard()}catch(e){alert('Erro ao limpar o alerta: '+e.message)}}
-const DEFAULT_SEGMENTS=[
- {nome:'ARMAS',
-icone:'🔫',
-descricao:'Arsenal'},
 
- {nome:'MUNIÇÃO',
-icone:'🎯',
-descricao:'Munições'},
-
- {nome:'DROGAS',
-icone:'🧪',
-descricao:'Drogas'},
-
- {nome:'LAVAGEM',
-icone:'💵',
-descricao:'Lavagem'},
-
- {nome:'DESMANCHE',
-icone:'🔧',
-descricao:'Desmanche'},
-
- {nome:'ESTELIONATÁRIOS',
-icone:'💳',
-descricao:'Estelionatários'},
-
- {nome:'CONTRABANDO',
-icone:'📦',
-descricao:'Contrabando'},
-
- {nome:'APOIO',
-icone:'🛠️',
-descricao:'Apoio Ilegal'},
-
- {nome:'OUTROS',
-icone:'◆',
-descricao:'Outros'}
-];
 
 let segmentos=[...DEFAULT_SEGMENTS];
 
