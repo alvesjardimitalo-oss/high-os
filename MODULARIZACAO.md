@@ -58,3 +58,28 @@ A limpeza só está concluída quando:
 - telas principais abrem no DEV;
 - Organizações, Métricas e Planejador preservam os dados existentes;
 - nenhum novo arquivo de versão duplicada é criado.
+
+
+## High OS Bot — limpeza e retenção do Discord
+
+O módulo Discord deverá prever administração de conversas sem misturar essa responsabilidade ao painel operacional.
+
+### Limpeza manual
+- comando administrativo para limpar mensagens de um canal;
+- quantidade/período explicitamente informado;
+- opção de limitar por usuário quando suportado;
+- confirmação antes de ações destrutivas de grande volume;
+- registrar executor, canal, quantidade, data e motivo no log do High OS.
+
+### Limpeza automática
+- política configurável por canal/categoria;
+- retenção em horas ou dias;
+- execução programada pelo bot;
+- nunca apagar mensagens fixadas;
+- proteger canais de auditoria/log;
+- não limpar tickets/conversas ainda abertos;
+- permitir lista de canais excluídos da automação;
+- registrar cada execução e falhas para auditoria.
+
+### Segurança
+A limpeza automática deve vir desativada por padrão. Somente administradores autorizados podem criar/alterar políticas de retenção ou executar limpeza manual.
