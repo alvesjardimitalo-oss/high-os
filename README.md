@@ -64,3 +64,21 @@ As rotinas em `tools/verificar-integridade.mjs` e `tools/verificar-regras.mjs` d
 Não alterar ou remover regras do Firestore apenas por parecerem sem uso. Coleções, permissões e rotinas de persistência devem ser validadas contra o código antes de qualquer limpeza.
 
 Para detalhes da V12.5, consulte `LEIA-ME-V12.5.md`.
+
+
+## V13 — padrão atual
+
+A V13 organiza o sistema por domínio e adota uma apresentação operacional baseada em cards, KPIs, tendências, barras e comparativos, deixando tabelas extensas para detalhamento.
+
+Módulos extraídos do controlador principal:
+- estado e formatadores;
+- parser/configuração de métricas e boletim;
+- configuração de solicitações;
+- utilitários de chat;
+- base de Groups;
+- defaults do Dashboard;
+- parâmetros da camada de cache/Firestore.
+
+O High OS Bot segue a mesma separação por domínio: administração, anúncios, facções, métricas, eventos e consultas. A especificação inclui `/anunciar`, limpeza manual de conversas, retenção automática configurável, permissões e auditoria.
+
+Regra de manutenção: configuração estática e funções puras não devem voltar para `assets/app.js`. Novos recursos devem entrar no módulo do domínio correspondente.
