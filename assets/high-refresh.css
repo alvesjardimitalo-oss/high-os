@@ -1302,3 +1302,19 @@ body.busca-aberta{overflow:hidden}
 .metric-time-visual .metric-time-share{grid-column:span 4;min-height:300px;border:1px solid rgba(255,255,255,.07);border-radius:15px;padding:14px}
 @media(max-width:900px){.metric-time-filters{grid-template-columns:1fr 1fr}.metric-time-visual .metric-time-chart,.metric-time-visual .metric-time-share{grid-column:1/-1}.metric-time-visual .metric-time-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:560px){.metric-time-filters{grid-template-columns:1fr}.metric-time-switch{max-width:none}}
+
+
+.metric-time-chart header,.metric-time-share header{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:14px}
+.metric-time-chart header b,.metric-time-share header b{font-size:11px;letter-spacing:.08em}
+.metric-time-chart header span,.metric-time-share header span{font-size:10px;opacity:.55}
+.metric-time-bars{height:230px;display:flex;align-items:stretch;gap:6px;overflow-x:auto;padding:4px 2px 0}
+.metric-time-bar-col{min-width:34px;flex:1;display:grid;grid-template-rows:1fr 20px 18px;gap:3px;text-align:center}
+.metric-time-bar-col>div{display:flex;align-items:flex-end;justify-content:center;border-bottom:1px solid rgba(255,255,255,.08)}
+.metric-time-bar-col i{display:block;width:min(22px,72%);min-height:2px;border-radius:7px 7px 2px 2px;background:linear-gradient(180deg,#b35cff,#6f2cff);box-shadow:0 0 16px rgba(145,65,255,.2)}
+.metric-time-bar-col b{font-size:10px}.metric-time-bar-col small{font-size:8px;opacity:.52;white-space:nowrap}
+.metric-time-share-list{display:flex;flex-direction:column;gap:9px}
+.metric-time-share-row{display:grid;grid-template-columns:minmax(90px,1fr) minmax(90px,2fr) 42px;gap:8px;align-items:center}
+.metric-time-share-row>span{font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.metric-time-share-row>div{height:8px;border-radius:999px;overflow:hidden;background:rgba(255,255,255,.055)}
+.metric-time-share-row i{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#6f2cff,#bd58ff)}
+.metric-time-share-row b{text-align:right;font-size:10px}
