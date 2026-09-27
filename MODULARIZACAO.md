@@ -83,3 +83,32 @@ O módulo Discord deverá prever administração de conversas sem misturar essa 
 
 ### Segurança
 A limpeza automática deve vir desativada por padrão. Somente administradores autorizados podem criar/alterar políticas de retenção ou executar limpeza manual.
+
+
+### Comando `/anunciar`
+
+O High OS Bot deverá possuir um comando administrativo `/anunciar` para publicação estruturada de anúncios no Discord.
+
+Fluxo:
+- executar `/anunciar`;
+- escolher o canal de destino entre os canais autorizados;
+- abrir formulário/modal de criação;
+- informar título obrigatório;
+- informar descrição obrigatória;
+- escolher a posição da imagem: acima do conteúdo, abaixo do conteúdo ou sem imagem;
+- aceitar imagem por URL;
+- aceitar upload/anexo de imagem quando a integração do Discord disponibilizar o arquivo ao bot;
+- exibir prévia do anúncio antes da publicação;
+- permitir confirmar ou cancelar;
+- publicar usando o padrão visual oficial do High OS.
+
+Segurança e auditoria:
+- restringir o comando aos cargos/permissões configurados;
+- nunca solicitar senha, token ou informação confidencial no formulário;
+- registrar autor, canal, data/hora, título e identificador da mensagem publicada;
+- permitir identificar no log edições ou exclusões posteriores do anúncio;
+- bloquear publicação em canais fora da lista autorizada.
+
+Evolução prevista:
+- modelos reutilizáveis para Aviso, Evento, Assumir Facção, Manutenção e Comunicado;
+- integração com dados do High OS para preencher anúncios sem redigitação quando a origem for uma facção, evento ou solicitação existente.
