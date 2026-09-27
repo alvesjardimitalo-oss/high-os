@@ -32,6 +32,7 @@ import { DEFAULT_DASHBOARD_CONFIG, DEFAULT_SEGMENTS } from './modules/config-def
 import { boletimDataBR, boletimParseData, boletimVariacao, boletimPct, boletimPartes } from './modules/boletim-utils.js';
 import { chatTime, chatConversationId, chatParticipants, chatDiaRotulo, chatMinutoDe } from './modules/chat-utils.js';
 import { REQUEST_TYPES, TYPE_PLACEHOLDERS } from './modules/solicitacoes-config.js';
+import { PERIODOS_RAPIDOS, TRIAGEM_CARENCIA_DIAS, TRIAGEM_LIMITES } from './modules/metricas-config.js';
 
 const firebaseConfig={apiKey:'AIzaSyBKtl3rCA9Id1RDMwGch-yi4hxAs83DraU',
 authDomain:'high-os.firebaseapp.com',
@@ -4467,14 +4468,7 @@ function renderResumoFonte(){
    Na prática, quase toda pergunta é uma destas cinco. Os campos manuais
    continuam para o caso específico.
 --------------------------------------------------------------------- */
-const PERIODOS_RAPIDOS=[
- {id:'hoje',rotulo:'HOJE',dias:0},
- {id:'7',rotulo:'7 DIAS',dias:6},
- {id:'14',rotulo:'14 DIAS',dias:13},
- {id:'30',rotulo:'30 DIAS',dias:29},
- {id:'mes',rotulo:'ESTE MÊS',mes:0},
- {id:'mesant',rotulo:'MÊS PASSADO',mes:-1}
-];
+
 function aplicarPeriodoRapido(def){
  const hoje=new Date();hoje.setHours(12,0,0,0);
  let inicio,fim;
@@ -5526,7 +5520,7 @@ function boletimTexto(){
    o topo passa de 50 por dia e o fundo fica abaixo de 1. A diferenca e
    de cem vezes, entao a separacao e nitida.
    ===================================================================== */
-const TRIAGEM_CARENCIA_DIAS=14;   // facção recém-entregue não é avaliada ainda
+   // facção recém-entregue não é avaliada ainda
 
 /* A data vem do cadastro do Group no formato dd/mm/aaaa. */
 function diasDesdeEntrega(nomeGroup){
@@ -5539,14 +5533,7 @@ function diasDesdeEntrega(nomeGroup){
  return Math.floor((Date.now()-d.getTime())/86400000);
 }
 
-const TRIAGEM_LIMITES={
- limparDias:2,        // presenca de ate 2 dias em 7
- limparMedia:1,       // ou media diaria abaixo de 1
- acompanharDias:5,    // presenca de 3 a 5 dias
- quedaGrave:40,       // ou queda acima de 40% contra a semana anterior
- bemDias:6,           // presenca de 6 ou 7 dias
- bemMedia:6           // e media acima de 6 por dia
-};
+
 
 function triagemSemanal(){
  const base=boletimCalcular();
