@@ -1098,3 +1098,48 @@ body.busca-aberta{overflow:hidden}
 .sidebar-nav .nav-category-admin{margin-top:4px}
 .sidebar-nav .nav-category.hidden,.sidebar-nav .nav-category[hidden]{display:none}
 @media (max-width:900px){.sidebar-nav{gap:10px}.sidebar-nav .nav-category+.nav-category{padding-top:8px}}
+
+
+/* HIGH OS V13 — leitura visual de dados */
+.v13-visual-principles{
+ display:flex;flex-wrap:wrap;gap:7px;margin:0 0 12px;
+}
+.v13-visual-principles span{
+ display:inline-flex;align-items:center;min-height:28px;padding:0 10px;
+ border:1px solid rgba(255,255,255,.08);border-radius:999px;
+ background:rgba(255,255,255,.025);font-size:9px;font-weight:800;
+ letter-spacing:.12em;opacity:.62;
+}
+.command-dashboard .dash-kpis{
+ display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;
+}
+.command-dashboard .dash-kpis>button,
+.command-dashboard .dash-kpis>article{
+ min-height:116px;position:relative;overflow:hidden;
+}
+.command-dashboard .dash-kpis>button b,
+.command-dashboard .dash-kpis>article b{
+ font-size:clamp(26px,2.5vw,38px);line-height:1;
+}
+.command-dashboard .dash-kpis>button:after,
+.command-dashboard .dash-kpis>article:after{
+ content:"";position:absolute;left:0;right:0;bottom:0;height:3px;
+ background:currentColor;opacity:.32;
+}
+.command-dashboard .dash-panel{
+ border-radius:16px;
+}
+.command-dashboard .dash-panel>header{
+ padding-bottom:10px;margin-bottom:10px;border-bottom:1px solid rgba(255,255,255,.06);
+}
+.command-dashboard .dash-seg-row{
+ display:grid;grid-template-columns:minmax(90px,1fr) minmax(100px,2fr) auto;gap:10px;align-items:center;
+}
+.command-dashboard .dash-seg-row>div{
+ height:7px;border-radius:999px;overflow:hidden;background:rgba(255,255,255,.06);
+}
+.command-dashboard .dash-seg-row>div i{
+ display:block;height:100%;border-radius:inherit;
+}
+@media(max-width:1180px){.command-dashboard .dash-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:720px){.command-dashboard .dash-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.command-dashboard .dash-kpis>button,.command-dashboard .dash-kpis>article{min-height:96px}}
