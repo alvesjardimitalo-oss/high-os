@@ -112,3 +112,29 @@ Segurança e auditoria:
 Evolução prevista:
 - modelos reutilizáveis para Aviso, Evento, Assumir Facção, Manutenção e Comunicado;
 - integração com dados do High OS para preencher anúncios sem redigitação quando a origem for uma facção, evento ou solicitação existente.
+
+
+## Arquitetura do High OS Bot
+
+O bot deve ser modular e consumir a mesma fonte operacional do High OS, evitando duplicação de regras.
+
+### Módulos de comandos
+- `admin`: limpeza manual, políticas de retenção, diagnóstico e auditoria;
+- `anuncios`: `/anunciar`, modelos, prévia e publicação;
+- `faccoes`: consulta de organização, Group, ocupação, QG, segmento e situação;
+- `metricas`: consultas resumidas de métricas e alertas;
+- `eventos`: agenda, eventos, zonas e informações operacionais autorizadas;
+- `consultas`: pesquisa rápida dos dados sincronizados do High OS.
+
+### Padrão de resposta
+As respostas do bot devem priorizar leitura rápida:
+- título objetivo;
+- estado/status destacado;
+- campos agrupados por assunto;
+- números importantes em evidência;
+- evitar blocos enormes de texto quando um resumo estruturado resolver;
+- paginação quando a consulta retornar muitos registros;
+- botão/atalho para abrir o High OS quando houver tela correspondente.
+
+### Controle
+Cada comando deverá declarar a permissão necessária, canais permitidos, se gera log e se pode alterar dados. Comandos de consulta devem permanecer separados de comandos destrutivos/administrativos.
