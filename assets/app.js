@@ -29,6 +29,7 @@ import { esc, alvesNorm, fmtDuration, fmtDateMs, fmtMoneyMaybe } from './modules
 import { definirGroupsConhecidos, normalizeMetricDate, parseMetricNumber, normalizeMetricSlotKey, metricSlotLabel, metricGroupLabel, parseMetricSheet, parseCsvRows } from './modules/metricas-parser.js';
 import { SEED } from './modules/base-groups.js';
 import { DEFAULT_DASHBOARD_CONFIG, DEFAULT_SEGMENTS } from './modules/config-defaults.js';
+import { boletimDataBR, boletimParseData, boletimVariacao, boletimPct, boletimPartes } from './modules/boletim-utils.js';
 
 const firebaseConfig={apiKey:'AIzaSyBKtl3rCA9Id1RDMwGch-yi4hxAs83DraU',
 authDomain:'high-os.firebaseapp.com',
@@ -5479,15 +5480,9 @@ return}const label=metricSortLabel(mode);
    caracteres por mensagem - quando passa disso, e dividido em partes
    numeradas que podem ser copiadas uma a uma.
    ===================================================================== */
-const BOLETIM_LIMITE_DISCORD=1900;   // folga sobre os 2.000 do Discord
 
-function boletimDataBR(d){
- return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;
-}
-function boletimParseData(txt){
- const m=String(txt||'').match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
- return m?new Date(Number(m[3]),Number(m[2])-1,Number(m[1]),12,0,0):null;
-}
+
+
 function boletimTotalLinha(row){
  const sl=metricSlots(row);
  return ['14H','16H','21H','23H'].reduce((a,k)=>a+(Number(sl[k])||0),0);
@@ -5522,15 +5517,8 @@ function boletimJanelas(){
  return {inicioAtual,fimAtual,inicioAnterior,fimAnterior};
 }
 
-function boletimVariacao(atual,anterior){
- if(!anterior)return atual?Infinity:0;
- return ((atual-anterior)/anterior)*100;
-}
-function boletimPct(v){
- if(v===Infinity)return 'novo';
- const sinal=v>=0?'+':'';
- return `${sinal}${v.toFixed(0)}%`;
-}
+
+
 
 function boletimCalcular(){
  const j=boletimJanelas();
@@ -5613,18 +5601,7 @@ function boletimTexto(){
 }
 
 /* Divide respeitando o limite do Discord, sem cortar linha no meio. */
-function boletimPartes(texto){
- const linhas=texto.split('\n'),partes=[];
- let atual='';
- for(const l of linhas){
-  if((atual+l+'\n').length>BOLETIM_LIMITE_DISCORD&&atual){partes.push(atual.trimEnd());atual=''}
-  atual+=l+'\n';
- }
- if(atual.trim())partes.push(atual.trimEnd());
- return partes.length>1
-  ? partes.map((p,i)=>`${p}\n\n_(parte ${i+1} de ${partes.length})_`)
-  : partes;
-}
+
 
 
 /* =====================================================================
