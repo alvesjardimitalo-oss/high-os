@@ -1,59 +1,66 @@
 # HIGH OS
 
-## V9.5.0 (atual)
-- Planejador abre em **Central de Missões compacta**; formulário e mapa só aparecem depois de escolher uma zona.
-- Editor ganhou breadcrumb `MISSÕES > EVENTO > ZONA`, mantendo as abas ZONA / PONTOS / VALIDAÇÃO / ENTREGA.
-- Firestore passa a receber na primeira sincronização a **união segura Local + Nuvem**, preservando zonas que existiam somente em um navegador e redistribuindo-as para os demais.
-- Estado de nuvem visível: `SINCRONIZANDO`, `SINCRONIZADO` e `MODO LOCAL`.
-- `localStorage` continua como cache/backup; a sincronização de equipe é consolidada no Firestore.
-- Interface reduz ações concorrentes: na Central fica em destaque apenas `+ NOVO EVENTO`; ações de zona/edição aparecem somente no contexto do editor.
+Central interna de gestão do Ilegal do High Roleplay.
 
+## Versão operacional
 
-## V9.4.1 (atual)
-- **Correcao critica das regras**: a V9.4 bloqueava o chat inteiro ("Missing or insufficient permissions"). Numa consulta de lista o Firestore valida a regra contra os FILTROS, nao documento a documento. Agora cada mensagem carrega `participants` e a consulta usa `array-contains`.
-- Rode `tools/migrar-chat.html` uma vez, como ADMIN, para preencher `participants` nas mensagens antigas.
-- Republique regras e indice: `firebase deploy --only firestore:rules,firestore:indexes` (o indice mudou: conversationId + participants + createdAt).
-- Camada de resiliencia: espelho local de cada colecao, janela de 20s e MODO LOCAL quando o Firebase cai ou bate a cota. `highOSRotinas()` no console mostra o consumo. Detalhes em `ROTINAS-FIREBASE.md`.
-- Planejador reorganizado em abas (ZONA / PONTOS / VALIDACAO / ENTREGA), KPIs sobre o mapa e mar de Cayo Perico na mesma cor de Los Santos.
-- Validador de CDS refeito: aceita tpcds, chaves, vector4, ponto e virgula ou espaco; avisa desvio em metros; Enter valida e pula para o proximo pendente; validacao em lote.
+**V12.5.0** — segurança, automação e Planejador de Missões.
 
-## V9.4.0
-- Chat passa a escutar somente a conversa aberta (`where conversationId` + `limit 80`): acabou o vazamento de DMs entre usuarios.
-- Novo `firestore.rules` + `firestore.indexes.json`. **Publique antes de usar a V9.4**, senao o chat nao carrega:
-  `firebase deploy --only firestore:rules,firestore:indexes`
-- Planejador de Missoes sincroniza com o Firestore (`highos/data/config/missoes_planejador`) mantendo o localStorage como cache.
-- Novos `assets/ui-kit.css` e `assets/ui-kit.js`: toasts no lugar dos alert(), menu lateral em drawer no celular, skeletons, foco visivel e rotulos de acessibilidade.
-- Imagens otimizadas: 892 KB -> 213 KB.
-- Correcoes: atributo `class` duplicado no item Spotify do menu, CSS inline do `<head>` movido para o `style.css`, listener do chat encerrado no logout.
-- Detalhes completos em `CHANGELOG-V9.4.0.md`.
+A documentação histórica permanece no Git. Este README descreve somente a estrutura atualmente útil do sistema.
 
-## High OS V8.33
+## Organização funcional
 
-Atualização do Planejador de Missões com missões salvas, validação assistida, snapshots do mapa e presets Dominação/Fac x Fac.
+### Visão Geral
+- Dashboard operacional.
 
-# High OS DEV
+### Operação Ilegal
+- Organizações / Groups.
+- Ocupação, QG/Favela, liderança e histórico.
+- Entregas, recolhimentos e solicitações relacionadas à operação.
 
-Ambiente de desenvolvimento separado do Mercado Negro público.
+### Inteligência
+- Métricas 14H / 16H / 21H / 23H.
+- Visão geral, facção, comparativos, relatórios, boletim e gestão.
 
-## Publicar no GitHub Pages
-1. Envie todos os arquivos desta pasta para a raiz do repositório `high-os`.
-2. GitHub > Settings > Pages.
-3. Source: Deploy from a branch.
-4. Branch: `main` / `(root)` > Save.
-5. Aguarde o endereço do GitHub Pages aparecer.
+### Eventos e Missões
+- Planejador de Missões.
+- Eventos, zonas, spawns, validação de coordenadas, safe/gás e entrega técnica.
 
-## Firebase
-Projeto configurado: `high-os`.
-O login usa Google Authentication e valida o documento `users/{email}` no Firestore.
+### Sistema
+- Usuários e níveis de acesso.
+- Administração, integrações e rotinas técnicas.
 
-## Importante: domínio autorizado
-Após o GitHub Pages gerar o endereço, adicione o domínio `SEU-USUARIO.github.io` em:
-Firebase Console > Authentication > Settings > Authorized domains.
+## Estrutura técnica
 
-O Mercado Negro atual não é alterado por este projeto.
+- `index.html` — estrutura das telas.
+- `assets/app.js` — aplicação legada em processo de modularização.
+- `assets/mission-planner.js` — Planejador de Missões.
+- `assets/modules/estado.js` — estado compartilhado.
+- `assets/modules/formatadores.js` — utilitários e formatação.
+- `assets/modules/metricas-parser.js` — parser isolado das métricas.
+- `assets/style.css` — estilos legados/base.
+- `assets/high-refresh.css` — camada visual atual.
+- `assets/mission-planner.css` — estilos do Planejador.
+- `assets/ui-kit.css` / `assets/ui-kit.js` — componentes comuns.
+- `firestore.rules` / `firestore.indexes.json` — segurança e índices.
+- `tools/` — diagnóstico, migração, backup e verificações de integridade.
 
+## Regra de manutenção
 
-## V9.0.11
-- Facções disponíveis cadastradas voltam a aparecer em Organizações mesmo antes do recadastro das CDS V9.
-- Groups apenas detectados por métricas continuam ocultos até terem ocupação, cadastro de disponível ou QG/estrutura configurada.
-- Mantém integralmente o salvamento estável da V9.0.10.
+Código novo deve entrar no módulo responsável pela função. Evitar adicionar novas regras diretamente ao `app.js` quando a função puder ser isolada.
+
+Antes de remover código legado:
+1. confirmar que não há referência ativa;
+2. executar as verificações de integridade e regras;
+3. testar no ambiente DEV;
+4. só depois integrar à branch principal.
+
+## Verificação
+
+As rotinas em `tools/verificar-integridade.mjs` e `tools/verificar-regras.mjs` devem continuar verdes antes de publicação.
+
+## Segurança
+
+Não alterar ou remover regras do Firestore apenas por parecerem sem uso. Coleções, permissões e rotinas de persistência devem ser validadas contra o código antes de qualquer limpeza.
+
+Para detalhes da V12.5, consulte `LEIA-ME-V12.5.md`.
