@@ -146,3 +146,34 @@ Cada comando deverá declarar a permissão necessária, canais permitidos, se ge
 - avatar/ícone deve ser preparado em formato quadrado, legível também em tamanho pequeno;
 - embeds, anúncios e respostas estruturadas devem seguir a mesma linguagem visual do painel;
 - qualquer troca do ícone do servidor deve usar o arquivo oficial fornecido e ser registrada administrativamente.
+
+
+## Métricas V13 — visualização temporal por facção
+
+A Central de Métricas deve ter como leitura principal gráficos e indicadores, não tabelas extensas.
+
+### Períodos obrigatórios
+- Dia: evolução/coletas do dia selecionado;
+- Semana: consolidação diária de segunda a domingo e comparação com a semana anterior;
+- Mês: consolidação diária/semanal do mês e comparação com o mês anterior.
+
+### Escopo
+O usuário deve poder alternar entre:
+- visão geral de todas as facções;
+- segmento;
+- uma facção específica.
+
+Ao selecionar uma facção, todos os KPIs, gráficos, tendências e comparativos devem respeitar a mesma seleção.
+
+### Representação gráfica
+- gráfico de linha para evolução temporal;
+- barras para comparação/ranking entre facções;
+- barras de participação para representatividade por segmento/facção;
+- cards de KPI para total, média, pico, variação e posição;
+- tooltip com valor, data/horário e contexto;
+- estado parcial claramente identificado quando ainda faltarem coletas.
+
+### Navegação
+Um seletor único `Dia | Semana | Mês` deve controlar a tela. A troca de período não deve exigir navegar para outra página. Deve haver seleção de data de referência e filtros de segmento/facção.
+
+Tabelas permanecem disponíveis como detalhamento/auditoria, abaixo da camada gráfica.
