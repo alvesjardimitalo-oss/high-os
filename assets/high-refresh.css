@@ -1286,3 +1286,19 @@ body.busca-aberta{overflow:hidden}
  .metric-segment-row{grid-template-columns:80px minmax(80px,1fr) 42px}
  .metric-segment-row small{display:none}
 }
+
+
+/* HIGH OS V13 — comando temporal das métricas */
+.metric-time-command{margin:0 0 14px;padding:12px;border:1px solid rgba(255,255,255,.07);border-radius:16px;background:rgba(255,255,255,.02)}
+.metric-time-switch{display:grid;grid-template-columns:repeat(3,minmax(90px,1fr));gap:6px;max-width:440px}
+.metric-time-switch button{min-height:38px;border:1px solid rgba(255,255,255,.07);border-radius:10px;background:rgba(255,255,255,.025);font-size:10px;font-weight:900;letter-spacing:.1em}
+.metric-time-switch button.active{border-color:rgba(139,92,246,.72);background:rgba(139,92,246,.16);box-shadow:inset 0 0 0 1px rgba(139,92,246,.16)}
+.metric-time-filters{display:grid;grid-template-columns:minmax(150px,.7fr) minmax(180px,1fr) minmax(220px,1.3fr);gap:9px;margin-top:10px}
+.metric-time-filters label{font-size:9px;font-weight:900;letter-spacing:.08em;opacity:.72}
+.metric-time-filters input,.metric-time-filters select{display:block;width:100%;margin-top:5px}
+.metric-time-visual{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:10px;margin-top:12px}
+.metric-time-visual .metric-time-kpis{grid-column:1/-1;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.metric-time-visual .metric-time-chart{grid-column:span 8;min-height:300px;border:1px solid rgba(255,255,255,.07);border-radius:15px;padding:14px}
+.metric-time-visual .metric-time-share{grid-column:span 4;min-height:300px;border:1px solid rgba(255,255,255,.07);border-radius:15px;padding:14px}
+@media(max-width:900px){.metric-time-filters{grid-template-columns:1fr 1fr}.metric-time-visual .metric-time-chart,.metric-time-visual .metric-time-share{grid-column:1/-1}.metric-time-visual .metric-time-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.metric-time-filters{grid-template-columns:1fr}.metric-time-switch{max-width:none}}
