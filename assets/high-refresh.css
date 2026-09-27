@@ -1224,3 +1224,23 @@ body.busca-aberta{overflow:hidden}
 @media(max-width:560px){
  #metricCompareResult .rh-grid,.rh-insights .rh-grid{grid-template-columns:1fr}
 }
+
+
+/* HIGH OS V13 — Facções: visão operacional em cards */
+#orgOverview .ops-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+#orgOverview .ops-kpi{
+ min-height:108px;padding:15px;border-radius:16px;position:relative;overflow:hidden;
+}
+#orgOverview .ops-kpi span{font-size:9px;font-weight:900;letter-spacing:.12em;opacity:.58}
+#orgOverview .ops-kpi b{display:block;margin:7px 0 4px;font-size:32px;line-height:1}
+#orgOverview .ops-kpi:after{
+ content:"";position:absolute;left:0;bottom:0;width:100%;height:3px;background:currentColor;opacity:.28;
+}
+#orgOverview .ops-distribution{margin-top:12px;padding:15px;border-radius:16px}
+#orgOverview .ops-bar-row{display:grid;grid-template-columns:minmax(90px,1fr) minmax(120px,3fr) 42px;gap:10px;align-items:center;margin-top:9px}
+#orgOverview .ops-track{height:8px;border-radius:999px;overflow:hidden;background:rgba(255,255,255,.055)}
+#orgOverview .ops-fill{height:100%;border-radius:inherit}
+#orgList.org-grid{grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:11px}
+#orgList .org-card{border-radius:16px;min-height:220px}
+@media(max-width:850px){#orgOverview .ops-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:520px){#orgOverview .ops-kpis{grid-template-columns:1fr}}
