@@ -1,106 +1,49 @@
-# High OS · Como navegar e mexer no código
+# High OS — guia rápido do código
 
-Guia para responder, antes de editar: **o que quebra se eu tirar isso?**
+Este arquivo descreve somente a estrutura ativa. O histórico de versões permanece no Git.
 
-## Duas formas de usar — escolha a que couber
+## Núcleo
 
-### No navegador (sem instalar nada)
+| Arquivo | Responsabilidade |
+|---|---|
+| `index.html` | estrutura das telas e navegação |
+| `assets/app.js` | controlador legado principal, em processo de modularização |
+| `assets/mission-planner.js` | lógica do Planejador de Missões |
+| `firestore.rules` | autorização e proteção das coleções |
+| `firestore.indexes.json` | índices necessários do Firestore |
 
-```
-seu-site/tools/mapa-do-codigo.html
-```
+## Módulos ativos
 
-Ela baixa os próprios arquivos publicados, monta o grafo de chamadas e
-oferece um campo de busca. Digite o nome da função e veja quem a chama,
-o que ela chama e o que ficaria órfão se ela saísse. Os nomes listados
-são clicáveis, então dá para navegar pela cadeia de dependências.
+| Módulo | Responsabilidade |
+|---|---|
+| `assets/modules/estado.js` | estado compartilhado |
+| `assets/modules/formatadores.js` | escape, normalização e formatação |
+| `assets/modules/metricas-parser.js` | leitura e normalização das métricas |
 
-É a via recomendada para quem trabalha pelo GitHub web.
+## Estilos
 
-### Verificação automática a cada push
+| Arquivo | Uso |
+|---|---|
+| `assets/style.css` | base/legado ainda utilizado |
+| `assets/high-refresh.css` | camada visual atual e ajustes V13 |
+| `assets/mission-planner.css` | Planejador |
+| `assets/ui-kit.css` | componentes comuns |
+| `assets/calma.css` | compatibilidade visual; remover somente após auditoria de seletores |
 
-`.github/workflows/verificar.yml` roda no GitHub a cada commit, em
-qualquer branch. Confere a sintaxe de todos os arquivos, procura funções
-perdidas, procura referências órfãs ao estado antigo em templates (o bug
-do `${faccoes.length}`) e imprime o mapa do código.
+## Ferramentas
 
-O resultado aparece na aba **Actions** e como check verde ou vermelho ao
-lado do commit. Se ficar vermelho, clique para ver qual passo falhou.
+- `tools/verificar-integridade.mjs`: detecta perda de funções/referências durante refatorações.
+- `tools/verificar-regras.mjs`: compara caminhos usados pelo app com regras do Firestore.
+- `tools/mapa-do-codigo.mjs`: gera mapa técnico quando necessário.
+- ferramentas HTML de backup, diagnóstico, migração e recuperação são utilitários administrativos; não fazem parte da navegação normal.
 
-### Na linha de comando (se algum dia instalar o Node)
+## Regra para refatorar
 
-```
-node tools/mapa-do-codigo.mjs                 panorama + o que dá para remover
-node tools/mapa-do-codigo.mjs --md            grava INDICE-DO-CODIGO.md
-node tools/mapa-do-codigo.mjs nomeDaFuncao    impacto de uma função
-node tools/verificar-integridade.mjs          funções perdidas
-node tools/verificar-regras.mjs               coleções sem regra no firestore.rules
-```
+1. mover um domínio por vez para `assets/modules/`;
+2. manter contrato e comportamento da função;
+3. verificar referências;
+4. rodar integridade e regras;
+5. testar no DEV;
+6. remover o legado somente quando não houver referência ativa.
 
-A consulta por nome é a que importa no dia a dia. Exemplo real:
-
-```
-$ node tools/mapa-do-codigo.mjs loadMarketCatalog
-
-loadMarketCatalog  ·  assets/app.js, linhas 7236–7247 (12 linhas)
-
-CHAMADA POR (1):  (código de topo)
-CHAMA (4):        marketFlatten, renderMarket, alvesNorm, y
-
-FICARIAM ÓRFÃS se esta sair (só ela chama):
-  marketFlatten
-```
-
-Ou seja: tirar a Economia significa remover `loadMarketCatalog`,
-`renderMarket`, `marketFlatten`, `marketPriceFields` e `marketFind` —
-e nada mais no sistema sente falta, porque nenhuma outra função as chama.
-
-## O que o panorama mostra
-
-820 funções, agrupadas por **seção declarada no próprio arquivo**. O
-projeto já tinha 49 banners de seção (`// ===== HIGH OS V5.4 · ALVESINHO
-OPERACIONAL =====`); a ferramenta usa esses títulos como categoria, em
-vez de inventar uma taxonomia por fora. Onde não há banner, cai numa
-regra por nome (`boletim*` → Boletim, `spotify*` → Spotify, e assim por
-diante).
-
-As maiores seções, por número de funções:
-
-| Funções | Linhas | Seção |
-|---|---|---|
-| 81 | 989 | Organizações unificadas + rota padrão |
-| 52 | 353 | Comunicação flutuante + Spotify |
-| 50 | 509 | Perfil técnico integrado ao Group |
-| 46 | 660 | Métricas sem custo de leitura |
-| 46 | 675 | Central de comando + perfil de facção |
-
-## Por que a detecção erra por excesso, de propósito
-
-A primeira versão só reconhecia chamada com parêntese, `minhaFn(...)`.
-Isso produziu **179 falsos "pode remover"** — incluindo
-`startOrResumeSession`, que é chamada de código de topo, e `renderBoletim`,
-passada como callback em `setTimeout(renderBoletim, 0)`.
-
-Agora qualquer menção ao nome conta como dependência. A lista caiu de 179
-para **16 candidatas**. Pode haver um ou outro falso positivo ao contrário
-(contar dependência que não existe), e isso é intencional: superestimar
-dependência faz você conferir à mão; subestimar faz você apagar algo que
-está em uso.
-
-## Regra de trabalho
-
-1. `node tools/mapa-do-codigo.mjs nomeDaFuncao` antes de remover.
-2. Se aparecer `CHAMADA POR: ninguém`, confira também o `index.html` —
-   pode haver um `onclick` inline que a ferramenta não vê.
-3. Remova, rode `node tools/verificar-integridade.mjs`.
-4. Teste no `high-os-dev`.
-5. Regrave o índice: `node tools/mapa-do-codigo.mjs --md`.
-
-## As 16 candidatas atuais
-
-Nenhuma é chamada por nada, nem aparece no HTML. São restos de versões
-anteriores — a maioria com 1 a 6 linhas, mas duas maiores:
-`techAutoRequests` (49 linhas) e `fetchMetricsFromSource` (3 linhas, mas
-era a antiga porta de entrada das métricas).
-
-A lista completa sai no comando sem argumentos.
+Não criar cópias V10/V11/V12 de uma mesma função. A versão válida deve substituir a anterior e o Git preserva o histórico.
