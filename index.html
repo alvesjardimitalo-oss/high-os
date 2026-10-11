@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="assets/mission-planner.css?v=12.5.0">
   <link rel="stylesheet" href="assets/ui-kit.css?v=12.5.0">
-  <link rel="stylesheet" href="assets/high-refresh.css?v=12.5.9">
+  <link rel="stylesheet" href="assets/high-refresh.css?v=12.6.0">
   <link rel="stylesheet" href="assets/calma.css?v=12.5.0">
   <link rel="icon" type="image/png" href="assets/high_logo.png?v=12.5.0">
 </head>
@@ -410,10 +410,11 @@
               <div id="groupProfilePageStatus" class="profile-page-status"></div>
             </div>
           </div>
-          <div class="group-profile-workspace-guide">
-            <div><span class="group-workspace-eyebrow">CENTRAL OPERACIONAL</span><strong>Patrimônio e gestão do Group</strong><p>Confira a ocupação e as estruturas abaixo. Abra o cadastro somente para editar; craft, farm e rota permanecem vinculados ao Group.</p></div>
-            <div class="group-workspace-steps"><span>01 · IDENTIFICAÇÃO</span><span>02 · CADASTRO</span><span>03 · ESTRUTURAS</span><span>04 · SALVAR</span></div>
-          </div>
+          <section class="compact-map-shell" aria-label="Mapa interativo do Group">
+            <div class="compact-map-head"><div><span class="compact-eyebrow">LOCALIZAÇÃO OPERACIONAL</span><h3>QG no mapa de Los Santos</h3><p>Visualização das coordenadas cadastradas, sem alterar a localização.</p></div><div class="compact-map-controls"><button type="button" id="compactMapFocus">CENTRALIZAR QG</button><button type="button" id="compactMapCopy">COPIAR CDS</button></div></div>
+            <div id="compactGroupMap" class="compact-map-canvas" role="application" aria-label="Mapa GTA V com localização do QG"></div>
+            <div id="compactMapStatus" class="compact-map-status" aria-live="polite">Abra um Group para visualizar a localização.</div>
+          </section>
           <div id="groupProfileMount" class="group-profile-page-mount"></div>
         </section>
         <section class="page" id="page-group-settings">
@@ -839,6 +840,7 @@
   <script src="assets/ui-kit.js?v=12.5.0"></script>
   <script src="assets/mission-planner.js?v=12.7.1"></script>
   <script type="module" src="assets/app.js?v=12.5.7"></script>
+  <script defer src="assets/compact-group-map.js?v=12.6.0"></script>
 
 <div id="newDeliveryModal" class="modal hidden"><div class="modal-card delivery-modal-v5"><button class="modal-x" id="newDeliveryClose">×</button>
   <div class="eyebrow">NOVA OCUPAÇÃO</div><h2>ENTREGA DE GROUP</h2><p class="delivery-help">O Group traz sua estrutura instalada. Personalize apenas o que será ativado para a nova facção.</p>
