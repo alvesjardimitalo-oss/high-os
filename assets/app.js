@@ -8839,6 +8839,7 @@ cds:$('#fCds')?.value.trim()||''});
 let movementMode = '';
 
 let movementSourceGroup = '';
+let movementSaving = false;
 
 const OCCUPANT_FIELDS = ['faccao',
 'lider',
@@ -8929,15 +8930,28 @@ $('#movementClose')?.addEventListener('click', () => $('#movementModal')?.classL
 $('#movementCancel')?.addEventListener('click', () => $('#movementModal')?.classList.add('hidden'));
 
 $('#movementConfirm')?.addEventListener('click', async () => {
-  if(!isAdmin()) return;
+  if(!isAdmin() || movementSaving) return;
   const src = estado.faccoes.find(x => x.group === movementSourceGroup);
   const dst = estado.faccoes.find(x => x.group === $('#movementDestination')?.value);
   const reason = $('#movementReason')?.value.trim() || '';
-  if(!src || !dst) return;
+  if(!src || !dst || src.group === dst.group) return alert('Selecione dois Groups diferentes.');
   if(!reason) return alert('Informe o motivo da operação.');
   if(!confirm(`Confirmar operação entre ${src.group} e ${dst.group}? Esta ação será registrada no histórico.`)) return;
 
+  movementSaving = true;
+  const confirmButton = $('#movementConfirm');
+  if(confirmButton){confirmButton.disabled = true; confirmButton.textContent = 'PROCESSANDO...';}
   try{
+    // Evita sobrescrever alterações feitas por outro administrador após abrir a janela.
+    const [srcFresh, dstFresh] = await Promise.all([
+      getDoc(doc(db,'highos','data','faccoes',src.group)),
+      getDoc(doc(db,'highos','data','faccoes',dst.group))
+    ]);
+    if(!srcFresh.exists() || !dstFresh.exists()) throw new Error('Group de origem ou destino não encontrado. Atualize a lista.');
+    const sameRecord = (cached, fresh) => JSON.stringify(cleanSnapshot(cached)) === JSON.stringify(cleanSnapshot(fresh));
+    if(!sameRecord(src, srcFresh.data()) || !sameRecord(dst, dstFresh.data())){
+      throw new Error('Um dos Groups foi alterado por outra operação. Atualize a página e revise a transferência.');
+    }
     const a = {...src};
     const b = {...dst};
 
@@ -8965,8 +8979,7 @@ $('#movementConfirm')?.addEventListener('click', async () => {
     batch.set(doc(db,'highos','data','faccoes',src.group), a);
     batch.set(doc(db,'highos','data','faccoes',dst.group), b);
     await batch.commit();
-    await syncGroupsToOfficialSheet([a,
-b],{quiet:true});
+    const sheetSynced = await syncGroupsToOfficialSheet([a,b],{quiet:true});
 
     await addDoc(histCol, {
       tipo: movementMode === 'TRANSFER_PANEL' ? 'TRANSFERENCIA_PAINEL' : 'TROCA_QG',
@@ -9018,9 +9031,14 @@ b]){
     $('#movementModal')?.classList.add('hidden');
     closeGroupProfilePage();
     await loadFaccoes();
-    alert('Operação concluída e registrada no histórico.');
+    alert(sheetSynced
+      ? 'Operação concluída, registrada no histórico e sincronizada com a planilha.'
+      : 'Operação salva no High OS e registrada no histórico, mas a planilha NÃO foi sincronizada. Conecte o Google Sheets e atualize os dois Groups.');
   }catch(e){
     alert('Falha na operação: ' + e.message);
+  }finally{
+    movementSaving = false;
+    if(confirmButton){confirmButton.disabled = false; confirmButton.textContent = 'CONFIRMAR OPERAÇÃO';}
   }
 });
 
