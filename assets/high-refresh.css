@@ -1545,3 +1545,19 @@ body.busca-aberta{overflow:hidden}
  #page-group-profile .group-profile-workspace-guide{flex-direction:column;align-items:stretch;padding:17px}
  #page-group-profile .group-workspace-steps{min-width:0}
 }
+
+/* Organizações: orientação visível na lista real de Groups. */
+#page-faccoes .org-v92-list-guide{
+ display:flex;gap:9px;flex-wrap:wrap;margin:15px 0 12px;
+}
+#page-faccoes .org-v92-list-guide span{
+ flex:1 1 160px;padding:12px 13px;border-radius:10px;
+ background:rgba(127,56,205,.11);border:1px solid rgba(179,105,242,.22);
+ color:#d6baf1;font-size:10px;font-weight:800;letter-spacing:.045em;
+}
+#page-faccoes .org-v92-table-wrap{width:100%;max-width:100%;overflow-x:auto}
+#page-faccoes .org-v92-table{min-width:1230px}
+#page-faccoes .org-v92-table tbody tr:focus-within{background:rgba(145,76,220,.12)}
+@media(max-width:680px){
+ #page-faccoes .org-v92-list-guide span{flex-basis:calc(50% - 9px);font-size:9px}
+}
