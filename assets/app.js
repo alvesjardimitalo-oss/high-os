@@ -9394,6 +9394,30 @@ $('#facSheetDiffCancel')?.addEventListener('click',()=>$('#facSheetDiffModal')?.
 $('#facSheetDiffConfirm')?.addEventListener('click',facSheetApplyConfirmed);
 
 // ===== HIGH OS V7.8 · CENTRAL DE COMANDO + PERFIL DE FACÇÃO EM PÁGINA =====
+function setOrganizationProfileTab(tab='geral'){
+ const root=$('#page-org-profile');
+ if(!root)return;
+ const allowed=['geral','lideranca','ocupacao','historico'];
+ if(!allowed.includes(tab))tab='geral';
+ root.dataset.activeOrgTab=tab;
+ root.querySelectorAll('[data-org-tab]').forEach(btn=>{
+  const active=btn.dataset.orgTab===tab;
+  btn.classList.toggle('is-active',active);
+  btn.setAttribute('aria-pressed',String(active));
+ });
+ const sections={
+  geral:['#orgProfileSummary','#orgForm'],
+  lideranca:['#orgForm'],
+  ocupacao:['#orgProfileSummary','#orgCurrentGroup'],
+  historico:['#orgHistoryPreview']
+ };
+ // A navegação destaca a seção existente sem desmontar o formulário.
+ const target=sections[tab].map(sel=>root.querySelector(sel)).find(Boolean);
+ if(target)target.scrollIntoView({behavior:'smooth',block:'start'});
+}
+$('#page-org-profile')?.querySelectorAll('[data-org-tab]').forEach(btn=>{
+ btn.addEventListener('click',()=>setOrganizationProfileTab(btn.dataset.orgTab));
+});
 function showOrganizationProfilePage(o={},current=null){
  const card=$('#orgModal .org-modal-card')||$('.org-modal-card');
 
@@ -9410,6 +9434,7 @@ current.lider?`Líder: ${current.lider}`:'Liderança não cadastrada'].join(' �
 if(st)st.innerHTML=`<span class="status-chip ${current?'ativa':'inativa'}">${current?'OCUPANDO GROUP':(o.status||'SEM GROUP').replace('_',' ')}</span>`;
 
  activateAppPage('org-profile');
+ setOrganizationProfileTab('geral');
 
 }
 function closeOrganizationProfilePage(){activateAppPage('organizacoes')}
