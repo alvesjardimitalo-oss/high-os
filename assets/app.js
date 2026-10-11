@@ -15,6 +15,7 @@ import { getFirestore,
  addDoc as _addDoc,
  serverTimestamp,
  writeBatch as _writeBatch,
+ runTransaction,
  deleteDoc as _deleteDoc,
  onSnapshot,
  query,
@@ -8944,71 +8945,56 @@ $('#movementConfirm')?.addEventListener('click', async () => {
   const confirmButton = $('#movementConfirm');
   if(confirmButton){confirmButton.disabled = true; confirmButton.textContent = 'PROCESSANDO...';}
   try{
-    // Evita sobrescrever alterações feitas por outro administrador após abrir a janela.
-    const [srcFresh, dstFresh] = await Promise.all([
-      getDoc(doc(db,'highos','data','faccoes',src.group)),
-      getDoc(doc(db,'highos','data','faccoes',dst.group))
-    ]);
-    if(!srcFresh.exists() || !dstFresh.exists()) throw new Error('Group de origem ou destino não encontrado. Atualize a lista.');
-    const sameRecord = (cached, fresh) => JSON.stringify(cleanSnapshot(cached)) === JSON.stringify(cleanSnapshot(fresh));
-    if(!sameRecord(src, srcFresh.data()) || !sameRecord(dst, dstFresh.data())){
-      throw new Error('Um dos Groups foi alterado por outra operação. Atualize a página e revise a transferência.');
-    }
-    const a = {...src};
-    const b = {...dst};
-
-    if(movementMode === 'TRANSFER_PANEL'){
-      for(const k of OCCUPANT_FIELDS){
-        a[k] = dst[k] ?? (k === 'status' ? 'INATIVA' : '');
-        b[k] = src[k] ?? (k === 'status' ? 'INATIVA' : '');
+    // A leitura e a gravação ocorrem na mesma transação, protegendo contra
+    // alterações concorrentes entre a conferência e o commit.
+    const {a,b} = await runTransaction(db, async transaction => {
+      const srcRef = doc(db,'highos','data','faccoes',src.group);
+      const dstRef = doc(db,'highos','data','faccoes',dst.group);
+      const srcFresh = await transaction.get(srcRef);
+      const dstFresh = await transaction.get(dstRef);
+      if(!srcFresh.exists() || !dstFresh.exists()) throw new Error('Group de origem ou destino não encontrado. Atualize a lista.');
+      const sameRecord = (cached, fresh) => JSON.stringify(cleanSnapshot(cached)) === JSON.stringify(cleanSnapshot(fresh));
+      if(!sameRecord(src, srcFresh.data()) || !sameRecord(dst, dstFresh.data())){
+        throw new Error('Um dos Groups foi alterado. Atualize a página e revise a transferência.');
       }
-      a.status = a.faccao ? 'ATIVA' : 'INATIVA';
-      b.status = b.faccao ? 'ATIVA' : 'INATIVA';
-    }else{
-      for(const k of PHYSICAL_FIELDS){
-        const v = a[k];
-        a[k] = b[k];
-        b[k] = v;
+      const a = {...srcFresh.data(), group:src.group};
+      const b = {...dstFresh.data(), group:dst.group};
+      if(movementMode === 'TRANSFER_PANEL'){
+        for(const k of OCCUPANT_FIELDS){
+          a[k] = dstFresh.data()[k] ?? (k === 'status' ? 'INATIVA' : '');
+          b[k] = srcFresh.data()[k] ?? (k === 'status' ? 'INATIVA' : '');
+        }
+        a.status = a.faccao ? 'ATIVA' : 'INATIVA';
+        b.status = b.faccao ? 'ATIVA' : 'INATIVA';
+      }else{
+        for(const k of PHYSICAL_FIELDS){const v = a[k]; a[k] = b[k]; b[k] = v;}
       }
-    }
-
-    a.updatedAt = serverTimestamp();
-    a.updatedBy = currentUser.email;
-    b.updatedAt = serverTimestamp();
-    b.updatedBy = currentUser.email;
-
-    // Firestore: Groups, vínculos das organizações e histórico no mesmo commit.
-    // Google Sheets é externo e continua com confirmação de sincronização separada.
-    const batch = writeBatch(db);
-    batch.set(doc(db,'highos','data','faccoes',src.group), a);
-    batch.set(doc(db,'highos','data','faccoes',dst.group), b);
-    batch.set(doc(histCol), {
-      tipo: movementMode === 'TRANSFER_PANEL' ? 'TRANSFERENCIA_PAINEL' : 'TROCA_QG',
-      group: src.group,
-      groupDestino: dst.group,
-      faccao: src.faccao || '',
-      qg: src.qg || '',
-      motivo: reason,
-      antes: {origem: cleanSnapshot(src), destino: cleanSnapshot(dst)},
-      depois: {origem: cleanSnapshot(a), destino: cleanSnapshot(b)},
-      usuario: currentUser.email,
-      data: serverTimestamp()
+      a.updatedAt = serverTimestamp();
+      a.updatedBy = currentUser.email;
+      b.updatedAt = serverTimestamp();
+      b.updatedBy = currentUser.email;
+      transaction.set(srcRef,a);
+      transaction.set(dstRef,b);
+      transaction.set(doc(histCol), {
+        tipo: movementMode === 'TRANSFER_PANEL' ? 'TRANSFERENCIA_PAINEL' : 'TROCA_QG',
+        group: src.group, groupDestino: dst.group,
+        faccao: src.faccao || '', qg: src.qg || '', motivo: reason,
+        antes: {origem:cleanSnapshot(src), destino:cleanSnapshot(dst)},
+        depois: {origem:cleanSnapshot(a), destino:cleanSnapshot(b)},
+        usuario:currentUser.email, data:serverTimestamp()
+      });
+      for(const rec of [a,b]){
+        if(rec.faccao){
+          transaction.set(doc(db,'highos','data','organizacoes',orgKey(rec.faccao)), {
+            nome:rec.faccao, status:'ATIVA', groupAtual:rec.group,
+            segmentoAtual:rec.segmento || '', qgAtual:rec.qg || '',
+            lider:rec.lider || '', updatedAt:serverTimestamp(),
+            updatedBy:currentUser.email
+          },{merge:true});
+        }
+      }
+      return {a,b};
     });
-    for(const rec of [a,b]){
-      if(rec.faccao){
-        batch.set(doc(db,'highos','data','organizacoes',orgKey(rec.faccao)), {
-          nome: rec.faccao,
-          status: 'ATIVA',
-          groupAtual: rec.group,
-          segmentoAtual: rec.segmento || '',
-          qgAtual: rec.qg || '',
-          lider: rec.lider || '',
-          updatedAt: serverTimestamp(),
-          updatedBy: currentUser.email
-        }, {merge:true});
-      }
-    }
-    await batch.commit();
     const sheetSynced = await syncGroupsToOfficialSheet([a,b],{quiet:true});
 
     $('#movementModal')?.classList.add('hidden');
