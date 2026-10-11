@@ -1424,3 +1424,34 @@ body.busca-aberta{overflow:hidden}
   #movementModal .movement-card { width: calc(100vw - 20px); }
   #page-faccoes .org-v92-table-wrap { overflow-x: auto; }
 }
+
+/* HIGH OS 2.0 · Navegação no perfil da organização. */
+#page-org-profile .org-profile-tabs{
+ display:flex;gap:8px;flex-wrap:wrap;align-items:center;
+ margin:18px 0 20px;padding:7px;
+ background:rgba(16,11,25,.78);border:1px solid rgba(169,119,232,.18);
+ border-radius:15px;
+}
+#page-org-profile .org-profile-tab{
+ appearance:none;border:1px solid transparent;border-radius:10px;
+ padding:11px 15px;background:transparent;color:#b7a8c9;
+ font-size:11px;font-weight:700;letter-spacing:.035em;cursor:pointer;
+ transition:background-color .15s ease,color .15s ease;
+}
+#page-org-profile .org-profile-tab:hover{
+ background:rgba(155,100,224,.12);color:#f1e6ff;
+}
+#page-org-profile .org-profile-tab.is-active{
+ background:rgba(141,70,225,.22);border-color:rgba(178,117,255,.4);
+ color:#fff;
+}
+#page-org-profile .org-profile-tab:focus-visible{
+ outline:2px solid #b989ff;outline-offset:2px;
+}
+#page-org-profile #orgProfileSummary,
+#page-org-profile #orgCurrentGroup,
+#page-org-profile #orgHistoryPreview,
+#page-org-profile #orgForm{scroll-margin-top:110px}
+@media(max-width:620px){
+ #page-org-profile .org-profile-tab{flex:1 1 44%;padding:10px 8px;text-align:center}
+}
