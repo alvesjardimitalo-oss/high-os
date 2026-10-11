@@ -11,8 +11,8 @@
   const text=mount.innerText||'';
   // Only read the explicitly labeled principal/QG coordinate, not arbitrary recipe quantities.
   const patterns=[
-   /(?:LOCALIZAÇÃO PRINCIPAL|COORDENADAS(?: DO QG)?|CDS(?: DO QG)?)[\\s\\S]{0,120}?(-?\\d{2,5}(?:\\.\\d+)?)[,;\\s]+(-?\\d{2,5}(?:\\.\\d+)?)[,;\\s]+(-?\\d{1,5}(?:\\.\\d+)?)/i,
-   /\\{\\s*(-?\\d{2,5}\\.\\d+)\\s*,\\s*(-?\\d{2,5}\\.\\d+)\\s*,\\s*(-?\\d{1,5}\\.\\d+)/i
+   /(?:LOCALIZAÇÃO PRINCIPAL|COORDENADAS(?: DO QG)?|CDS(?: DO QG)?)[\s\S]{0,120}?(-?\d{2,5}(?:\.\d+)?)[,;\s]+(-?\d{2,5}(?:\.\d+)?)[,;\s]+(-?\d{1,5}(?:\.\d+)?)/i,
+   /\{\s*(-?\d{2,5}\.\d+)\s*,\s*(-?\d{2,5}\.\d+)\s*,\s*(-?\d{1,5}\.\d+)/i
   ];
   for(const re of patterns){const m=text.match(re);if(m){const values=m.slice(1,4).map(Number);if(values.every(Number.isFinite)&&Math.abs(values[0])<10000&&Math.abs(values[1])<10000)return values;}}
   return null;
