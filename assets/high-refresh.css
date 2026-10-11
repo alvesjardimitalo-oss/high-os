@@ -1615,3 +1615,18 @@ body.busca-aberta{overflow:hidden}
 #page-dashboard .dash-panel header h3{font-size:13px!important}
 #page-dashboard .dash-rule-note{font-size:11px!important}
 @media(max-width:700px){#page-group-profile .compact-profile-actionbar{flex-direction:column;align-items:stretch}#page-dashboard .dash-v4-intro{flex-direction:column;align-items:flex-start}}
+
+/* V5 · Compact per-Group cover: image is from existing imagemAnuncio field. */
+#page-group-profile .group-cover-v5{position:relative;isolation:isolate;min-height:148px;max-height:178px;overflow:hidden;border:1px solid rgba(159,95,210,.3);border-radius:13px;margin:0 0 10px;background:#16101f;display:flex;align-items:flex-end;justify-content:space-between;gap:12px;padding:18px}
+#page-group-profile .group-cover-v5-art{position:absolute;inset:0;z-index:-2;background:radial-gradient(ellipse at 80% 35%,rgba(151,73,225,.46),transparent 45%),linear-gradient(115deg,#1a1025 12%,#42205a 60%,#18121f)}
+#page-group-profile .group-cover-v5-art[data-segment*="MEC"]{background:radial-gradient(circle at 75% 30%,rgba(180,119,238,.55),transparent 42%),repeating-linear-gradient(120deg,transparent 0 36px,rgba(255,255,255,.025) 36px 39px),linear-gradient(120deg,#16111f,#3c2252 70%,#100e16)}
+#page-group-profile .group-cover-v5-art[data-segment*="ARM"]{background:radial-gradient(circle at 78% 22%,rgba(160,71,218,.45),transparent 44%),linear-gradient(115deg,#140e1b,#352039)}
+#page-group-profile .group-cover-v5-art img{display:block;width:100%;height:100%;object-fit:cover;object-position:center}
+#page-group-profile .group-cover-v5-art img[hidden]{display:none}
+#page-group-profile .group-cover-v5-shade{position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,rgba(12,8,19,.9),rgba(12,8,19,.45) 65%,rgba(12,8,19,.1))}
+#page-group-profile .group-cover-v5-copy span{display:block;font-size:10px;letter-spacing:.1em;font-weight:800;color:#d4b3ff}
+#page-group-profile .group-cover-v5-copy h3{margin:6px 0 3px;font-size:clamp(20px,2.4vw,29px);line-height:1.1;color:#fff}
+#page-group-profile .group-cover-v5-copy p{font-size:11px;margin:0;color:#e2d7ed}
+#page-group-profile .group-cover-v5-actions button{background:rgba(24,13,35,.8);color:#fff;border:1px solid rgba(218,182,255,.55);border-radius:8px;padding:10px 12px;white-space:nowrap;font-size:10px;font-weight:800;cursor:pointer}
+#page-group-profile .group-cover-v5-actions button:hover{background:#6c2a9e}
+@media(max-width:700px){#page-group-profile .group-cover-v5{min-height:134px;padding:12px;align-items:flex-end}#page-group-profile .group-cover-v5-actions button{font-size:9px;padding:8px}}
