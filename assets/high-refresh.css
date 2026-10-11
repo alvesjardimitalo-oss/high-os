@@ -1527,3 +1527,21 @@ body.busca-aberta{overflow:hidden}
 #page-org-profile .org-infra-field b{font-size:12px;line-height:1.5;color:#f0e9f8;overflow-wrap:anywhere;white-space:pre-wrap}
 @media(max-width:850px){#page-org-profile .org-infra-sections{grid-template-columns:1fr}}
 @media(max-width:480px){#page-org-profile .org-infra-grid{grid-template-columns:1fr}}
+
+/* HIGH OS 2.0 · Perfil real do Group, com orientação operacional. */
+#page-group-profile .group-profile-workspace-guide{
+ display:flex;align-items:center;justify-content:space-between;gap:22px;
+ padding:20px 24px;margin:8px 0 20px;
+ border:1px solid rgba(165,104,240,.28);border-radius:17px;
+ background:linear-gradient(105deg,rgba(95,34,159,.2),rgba(17,11,27,.88) 65%);
+}
+#page-group-profile .group-profile-workspace-guide strong{display:block;font-size:18px;color:#f4ebff;margin:5px 0}
+#page-group-profile .group-profile-workspace-guide p{max-width:670px;margin:0;color:#ac9cbb;font-size:12px;line-height:1.65}
+#page-group-profile .group-workspace-eyebrow{font-size:10px;font-weight:800;color:#bf85ff;letter-spacing:.1em}
+#page-group-profile .group-workspace-steps{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;min-width:310px}
+#page-group-profile .group-workspace-steps span{padding:10px 12px;border:1px solid rgba(165,104,240,.2);border-radius:9px;background:rgba(0,0,0,.22);font-size:10px;font-weight:700;color:#d6c4eb}
+#page-group-profile .group-profile-page-mount{min-width:0}
+@media(max-width:900px){
+ #page-group-profile .group-profile-workspace-guide{flex-direction:column;align-items:stretch;padding:17px}
+ #page-group-profile .group-workspace-steps{min-width:0}
+}
