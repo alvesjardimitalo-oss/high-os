@@ -1490,3 +1490,29 @@ body.busca-aberta{overflow:hidden}
 #page-org-profile .group-history-box {
  border-radius:14px;
 }
+
+/* HIGH OS 2.0 · Dados da organização apresentados por domínio. */
+#page-org-profile .org-profile-insights[hidden]{display:none!important}
+#page-org-profile .org-profile-insights{margin:0 0 20px}
+#page-org-profile .org-insight-grid{
+ display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;
+}
+#page-org-profile .org-insight-tile{
+ min-width:0;padding:18px 19px;
+ border:1px solid rgba(164,117,217,.2);
+ border-radius:15px;background:linear-gradient(145deg,rgba(33,21,49,.82),rgba(14,11,23,.8));
+}
+#page-org-profile .org-insight-tile span{
+ display:block;color:#a996bc;font-size:10px;font-weight:700;
+ text-transform:uppercase;letter-spacing:.065em;margin-bottom:10px;
+}
+#page-org-profile .org-insight-tile strong{
+ display:block;color:#f3ecf8;font-size:14px;font-weight:600;
+ line-height:1.55;overflow-wrap:anywhere;white-space:pre-wrap;
+}
+@media(max-width:900px){
+ #page-org-profile .org-insight-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:540px){
+ #page-org-profile .org-insight-grid{grid-template-columns:1fr}
+}
