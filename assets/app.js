@@ -9394,12 +9394,61 @@ $('#facSheetDiffCancel')?.addEventListener('click',()=>$('#facSheetDiffModal')?.
 $('#facSheetDiffConfirm')?.addEventListener('click',facSheetApplyConfirmed);
 
 // ===== HIGH OS V7.8 · CENTRAL DE COMANDO + PERFIL DE FACÇÃO EM PÁGINA =====
+function renderOrganizationInsights(o={},current=null){
+ const mount=$('#orgProfileInsights');
+ if(!mount)return;
+ const showValue=value=>{
+  if(value===null||value===undefined||value==='')return 'Não informado';
+  if(typeof value==='boolean')return value?'Sim':'Não';
+  if(Array.isArray(value))return value.map(v=>typeof v==='object'?JSON.stringify(v):String(v)).join(' • ')||'Não informado';
+  if(typeof value==='object')return JSON.stringify(value);
+  return String(value);
+ };
+ const tile=(label,value)=>'<article class="org-insight-tile"><span>'+esc(label)+'</span><strong>'+esc(showValue(value))+'</strong></article>';
+ const group=current||{};
+ const items={
+  geral:[
+   ['Facção',o.nome],['Situação',current?'Ocupando Group':(o.status||'Sem Group')],
+   ['Group atual',group.group],['Segmento',group.segmento||o.segmentoAtual||o.segmentoVinculado],
+   ['Liderança',group.lider||o.lider],['QG / Favela',group.qg]
+  ],
+  lideranca:[
+   ['Líder / ID',group.lider||o.lider],['Contato',o.contato],
+   ['Discord',o.discord],['Entrada na cidade',o.desde],
+   ['Staff responsável',group.staff],['Observações',o.observacoes]
+  ],
+  ocupacao:[
+   ['Group',group.group],['QG / Favela',group.qg],
+   ['Coordenadas',group.cds],['Produtos / fabricação',group.produto],
+   ['Benefícios',group.beneficios],['Perfil técnico',group.perfilTecnico],
+   ['Data de entrega',group.dataEntrega],['Situação',group.status]
+  ]
+ };
+ mount.dataset.orgInsights=JSON.stringify(items);
+ mount.innerHTML='';
+}
+function showOrganizationInsightsTab(tab){
+ const mount=$('#orgProfileInsights');
+ if(!mount)return;
+ let items={};
+ try{items=JSON.parse(mount.dataset.orgInsights||'{}')}catch(e){}
+ const selected=items[tab]||[];
+ mount.hidden=!selected.length;
+ mount.innerHTML=selected.length
+  ? '<div class="org-insight-grid">'+selected.map(([label,value])=>{
+    const display=value===null||value===undefined||value===''?'Não informado':
+      typeof value==='object'?JSON.stringify(value):String(value);
+    return '<article class="org-insight-tile"><span>'+esc(label)+'</span><strong>'+esc(display)+'</strong></article>';
+   }).join('')+'</div>'
+  : '';
+}
 function setOrganizationProfileTab(tab='geral'){
  const root=$('#page-org-profile');
  if(!root)return;
  const allowed=['geral','lideranca','ocupacao','historico'];
  if(!allowed.includes(tab))tab='geral';
  root.dataset.activeOrgTab=tab;
+ showOrganizationInsightsTab(tab);
  root.querySelectorAll('[data-org-tab]').forEach(btn=>{
   const active=btn.dataset.orgTab===tab;
   btn.classList.toggle('is-active',active);
@@ -9428,6 +9477,7 @@ current.lider?`Líder: ${current.lider}`:'Liderança não cadastrada'].join(' �
  const st=$('#orgProfilePageStatus');
 if(st)st.innerHTML=`<span class="status-chip ${current?'ativa':'inativa'}">${current?'OCUPANDO GROUP':(o.status||'SEM GROUP').replace('_',' ')}</span>`;
 
+ renderOrganizationInsights(o,current);
  activateAppPage('org-profile');
  setOrganizationProfileTab('geral');
 
