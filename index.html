@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="assets/mission-planner.css?v=12.5.0">
   <link rel="stylesheet" href="assets/ui-kit.css?v=12.5.0">
-  <link rel="stylesheet" href="assets/high-refresh.css?v=12.6.1">
+  <link rel="stylesheet" href="assets/high-refresh.css?v=12.6.2">
   <link rel="stylesheet" href="assets/calma.css?v=12.5.0">
   <link rel="icon" type="image/png" href="assets/high_logo.png?v=12.5.0">
 </head>
@@ -410,6 +410,12 @@
               <div id="groupProfilePageStatus" class="profile-page-status"></div>
             </div>
           </div>
+          <section class="group-cover-v5" aria-label="Capa do Group">
+            <div class="group-cover-v5-art" id="groupCoverArt"><img id="groupCoverImage" alt="" hidden></div>
+            <div class="group-cover-v5-shade"></div>
+            <div class="group-cover-v5-copy"><span id="groupCoverSegment">ESTRUTURA OPERACIONAL</span><h3 id="groupCoverTitle">GROUP</h3><p id="groupCoverSubtitle">Perfil da organização</p></div>
+            <div class="group-cover-v5-actions"><button type="button" id="groupCoverChange">ALTERAR CAPA</button></div>
+          </section>
           <details class="compact-map-shell" aria-label="Mapa interativo do Group">
             <summary class="compact-map-head"><div><span class="compact-eyebrow">MAPA INTERATIVO · OPCIONAL</span><h3>Ver QG no mapa de Los Santos <span class="compact-map-chevron">⌄</span></h3><p>Clique para expandir. O mapa fica recolhido para priorizar o cadastro.</p></div></summary><div class="compact-map-controls"><button type="button" id="compactMapFocus">CENTRALIZAR QG</button><button type="button" id="compactMapCopy">COPIAR CDS</button></div>
             <div id="compactGroupMap" class="compact-map-canvas" role="application" aria-label="Mapa GTA V com localização do QG"></div>
@@ -841,7 +847,7 @@
   <script src="assets/ui-kit.js?v=12.5.0"></script>
   <script src="assets/mission-planner.js?v=12.7.1"></script>
   <script type="module" src="assets/app.js?v=12.5.7"></script>
-  <script defer src="assets/compact-group-map.js?v=12.6.1"></script>
+  <script defer src="assets/compact-group-map.js?v=12.6.2"></script>
 
 <div id="newDeliveryModal" class="modal hidden"><div class="modal-card delivery-modal-v5"><button class="modal-x" id="newDeliveryClose">×</button>
   <div class="eyebrow">NOVA OCUPAÇÃO</div><h2>ENTREGA DE GROUP</h2><p class="delivery-help">O Group traz sua estrutura instalada. Personalize apenas o que será ativado para a nova facção.</p>
