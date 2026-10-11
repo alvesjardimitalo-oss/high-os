@@ -1357,3 +1357,70 @@ body.busca-aberta{overflow:hidden}
 #page-faccoes .org-v92-list-head > div:first-child b {
   font-size: 13px;
 }
+
+
+/* HIGH OS 2.0 · Organização: fluxo de trabalho com foco na leitura. */
+#page-faccoes .org-v92-table-wrap {
+  border: 1px solid rgba(169,119,232,.18);
+  border-radius: 16px;
+  background: rgba(14,10,22,.65);
+}
+#page-faccoes .org-v92-table th {
+  font-size: 11px;
+  letter-spacing: .045em;
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+#page-faccoes .org-v92-table td {
+  font-size: 12px;
+  line-height: 1.5;
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+#page-faccoes .org-v92-table tbody tr {
+  transition: background-color .16s ease;
+}
+#page-faccoes .org-v92-table tbody tr:hover {
+  background: rgba(150,92,226,.085);
+}
+#page-faccoes .org-v92-search {
+  min-height: 48px;
+  border-radius: 13px;
+}
+#page-faccoes .org-v92-search:focus-within {
+  border-color: rgba(185,122,255,.65);
+  box-shadow: 0 0 0 3px rgba(159,90,230,.12);
+}
+#page-faccoes .org-v92-list-head {
+  margin-top: 18px;
+  margin-bottom: 12px;
+}
+#movementModal .movement-card {
+  width: min(700px, calc(100vw - 32px));
+  max-height: min(90vh, 900px);
+  overflow-y: auto;
+}
+#movementModal .movement-flow-note {
+  border: 1px solid rgba(173,119,234,.24);
+  background: rgba(133,72,195,.09);
+  border-radius: 12px;
+  padding: 12px 15px;
+  margin: 14px 0;
+  color: #d8cce8;
+  font-size: 12px;
+  line-height: 1.65;
+}
+#movementModal .movement-flow-note strong {
+  display: block;
+  color: #f1e5ff;
+  margin-bottom: 4px;
+  font-size: 12px;
+}
+#movementModal #movementConfirm:disabled {
+  opacity: .55;
+  cursor: wait;
+}
+@media(max-width: 700px) {
+  #movementModal .movement-card { width: calc(100vw - 20px); }
+  #page-faccoes .org-v92-table-wrap { overflow-x: auto; }
+}
