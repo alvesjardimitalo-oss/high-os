@@ -26,7 +26,7 @@
   setTimeout(()=>map&&map.invalidateSize(),100);
  }
  function refresh(){
-  const page=$('page-group-profile');if(!page||!page.classList.contains('active'))return;
+  const page=$('page-group-profile');if(!page||!page.classList.contains('active')||!document.querySelector('.compact-map-shell')?.open)return;
   const next=findCoords(),title=$('groupProfilePageTitle')?.textContent?.trim()||'Group';
   const key=title+'|'+(next?next.join(','):'none');
   ensureMap();if(!map)return;
@@ -43,6 +43,8 @@
   map.invalidateSize();
  }
  document.addEventListener('DOMContentLoaded',()=>{
+  $('compactEditGroup')?.addEventListener('click',()=>{const btn=$('editGroupIdentityBtn');if(btn)btn.click();else $('groupIdentityDetails')?.setAttribute('open','');$('groupIdentityDetails')?.scrollIntoView({behavior:'smooth',block:'start'});});
+  document.querySelector('.compact-map-shell')?.addEventListener('toggle',()=>{if(document.querySelector('.compact-map-shell')?.open)setTimeout(refresh,100);});
   $('compactMapFocus')?.addEventListener('click',()=>{refresh();if(map&&coords)map.setView([coords[1],coords[0]],5)});
   $('compactMapCopy')?.addEventListener('click',async()=>{refresh();if(!coords){status('Nenhuma CDS principal disponível para copiar.');return;}try{await navigator.clipboard.writeText(coords.join(', '));status('CDS copiada: '+coords.join(', '))}catch(e){status('CDS: '+coords.join(', '))}});
   observer=new MutationObserver(()=>{if($('page-group-profile')?.classList.contains('active'))requestAnimationFrame(refresh)});
