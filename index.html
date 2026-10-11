@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="assets/mission-planner.css?v=12.5.0">
   <link rel="stylesheet" href="assets/ui-kit.css?v=12.5.0">
-  <link rel="stylesheet" href="assets/high-refresh.css?v=12.5.3">
+  <link rel="stylesheet" href="assets/high-refresh.css?v=12.5.4">
   <link rel="stylesheet" href="assets/calma.css?v=12.5.0">
   <link rel="icon" type="image/png" href="assets/high_logo.png?v=12.5.0">
 </head>
@@ -166,6 +166,12 @@
             <div class="org-profile-identity"><div class="eyebrow">PERFIL COMPLETO DA ORGANIZAÇÃO</div><h2 id="orgProfilePageTitle">FACÇÃO</h2><p id="orgProfilePageSubtitle">Liderança, ocupação, dados administrativos e histórico em uma única tela.</p></div>
             <div id="orgProfilePageStatus"></div>
           </div>
+          <nav class="org-profile-tabs" aria-label="Seções da organização">
+            <button type="button" class="org-profile-tab is-active" data-org-tab="geral" aria-pressed="true">VISÃO GERAL</button>
+            <button type="button" class="org-profile-tab" data-org-tab="lideranca" aria-pressed="false">LIDERANÇA</button>
+            <button type="button" class="org-profile-tab" data-org-tab="ocupacao" aria-pressed="false">OCUPAÇÃO E QG</button>
+            <button type="button" class="org-profile-tab" data-org-tab="historico" aria-pressed="false">HISTÓRICO</button>
+          </nav>
           <div id="orgProfilePageMount" class="org-profile-page-mount"></div>
         </section>
         <section class="page" id="page-disponiveis">
@@ -826,7 +832,7 @@
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <script src="assets/ui-kit.js?v=12.5.0"></script>
   <script src="assets/mission-planner.js?v=12.7.1"></script>
-  <script type="module" src="assets/app.js?v=12.5.2"></script>
+  <script type="module" src="assets/app.js?v=12.5.4"></script>
 
 <div id="newDeliveryModal" class="modal hidden"><div class="modal-card delivery-modal-v5"><button class="modal-x" id="newDeliveryClose">×</button>
   <div class="eyebrow">NOVA OCUPAÇÃO</div><h2>ENTREGA DE GROUP</h2><p class="delivery-help">O Group traz sua estrutura instalada. Personalize apenas o que será ativado para a nova facção.</p>
