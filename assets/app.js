@@ -8813,6 +8813,18 @@ if(el)el.textContent=val||'—'};
  put('groupOverviewStaff',f.staff||'—');
 
  put('groupOverviewCds',f.cds||'—');
+ // V5: Group cover follows the existing imagemAnuncio field, without changing persistence.
+ const cover=$('#groupCoverImage'),art=$('#groupCoverArt');
+ const rawCover=String(f.imagemAnuncio||'').trim();
+ const safeCover=(()=>{try{const u=new URL(rawCover,location.href);return /^https?:$/.test(u.protocol)?u.href:''}catch{return ''}})();
+ const segment=String(f.segmento||'OUTROS').toUpperCase();
+ const coverSegment=$('#groupCoverSegment'),coverTitle=$('#groupCoverTitle'),coverSub=$('#groupCoverSubtitle');
+ if(coverSegment)coverSegment.textContent=segment;
+ if(coverTitle)coverTitle.textContent=f.group||'GROUP';
+ if(coverSub)coverSub.textContent=[f.qg||'QG sem nome',f.faccao||'DISPONÍVEL'].join(' · ');
+ if(art){art.dataset.segment=segment;art.classList.toggle('has-cover',!!safeCover);}
+ if(cover){cover.hidden=!safeCover;cover.removeAttribute('src');if(safeCover)cover.src=safeCover;cover.alt=safeCover?'Imagem cadastrada para '+(f.group||'Group'):'';}
+
 
  const s=$('#groupProfileSummary');
 
@@ -8822,6 +8834,10 @@ if(el)el.textContent=val||'—'};
 if(d)d.open=false;
 
 }
+$('#groupCoverChange')?.addEventListener('click',()=>{
+ const d=$('#groupIdentityDetails');if(d)d.open=true;
+ const input=$('#fImagemAnuncio');if(input){input.scrollIntoView({behavior:'smooth',block:'center'});setTimeout(()=>input.focus(),200)}
+});
 $('#editGroupIdentityBtn')?.addEventListener('click',()=>{const d=$('#groupIdentityDetails');if(!d)return;d.open=true;setTimeout(()=>d.scrollIntoView({behavior:'smooth',
 block:'start'}),30)});
 
