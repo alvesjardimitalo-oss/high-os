@@ -9405,15 +9405,10 @@ function setOrganizationProfileTab(tab='geral'){
   btn.classList.toggle('is-active',active);
   btn.setAttribute('aria-pressed',String(active));
  });
- const sections={
-  geral:['#orgProfileSummary','#orgForm'],
-  lideranca:['#orgForm'],
-  ocupacao:['#orgProfileSummary','#orgCurrentGroup'],
-  historico:['#orgHistoryPreview']
- };
- // A navegação destaca a seção existente sem desmontar o formulário.
- const target=sections[tab].map(sel=>root.querySelector(sel)).find(Boolean);
- if(target)target.scrollIntoView({behavior:'smooth',block:'start'});
+ // O conteúdo é separado por CSS sem destruir os campos nem perder edições.
+ // Cada aba mantém o mesmo formulário e as mesmas rotinas de persistência.
+ const mount=root.querySelector('#orgProfilePageMount');
+ if(mount)mount.scrollIntoView({behavior:'smooth',block:'start'});
 }
 $('#page-org-profile')?.querySelectorAll('[data-org-tab]').forEach(btn=>{
  btn.addEventListener('click',()=>setOrganizationProfileTab(btn.dataset.orgTab));
