@@ -1318,3 +1318,42 @@ body.busca-aberta{overflow:hidden}
 .metric-time-share-row>div{height:8px;border-radius:999px;overflow:hidden;background:rgba(255,255,255,.055)}
 .metric-time-share-row i{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#6f2cff,#bd58ff)}
 .metric-time-share-row b{text-align:right;font-size:10px}
+
+
+/* HIGH OS 2.0 · Organizações: legibilidade e largura útil.
+   Escopo visual somente: nenhuma alteração em dados, permissões ou integração Discord. */
+@media (min-width: 981px) {
+  #page-faccoes .org-v92-table-wrap {
+    overflow-x: auto;
+    overflow-y: visible;
+    scrollbar-width: thin;
+  }
+  #page-faccoes .org-v92-table {
+    min-width: 1180px;
+    width: 100%;
+    table-layout: auto;
+  }
+  #page-faccoes .org-v92-table th,
+  #page-faccoes .org-v92-table td {
+    overflow-wrap: normal;
+    word-break: normal;
+    vertical-align: middle;
+  }
+  #page-faccoes .org-v92-table th {
+    white-space: nowrap;
+  }
+  #page-faccoes .org-v92-row-actions {
+    min-width: 106px;
+  }
+}
+#page-faccoes .org-v92-search input {
+  min-width: 0;
+  font-size: 13px;
+}
+#page-faccoes .org-v92-list-head #facStats {
+  font-size: 11px;
+  line-height: 1.5;
+}
+#page-faccoes .org-v92-list-head > div:first-child b {
+  font-size: 13px;
+}
