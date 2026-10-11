@@ -250,9 +250,11 @@ updatedAt:serverTimestamp(),
 updatedBy:currentUser.email},{merge:true})}syncSegmentSelects();
 renderSegmentAdmin();
 }catch(e){console.warn('Falha ao carregar segmentos',e);
-segmentos=[nardo",
- "dataEntrega": "",
- "observacoes": ""}];
+segmentos=[...DEFAULT_SEGMENTS];
+syncSegmentSelects();
+renderSegmentAdmin();
+}
+}
 
 function show(el){[loginView,
 deniedView,
