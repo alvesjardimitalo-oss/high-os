@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="assets/mission-planner.css?v=12.5.0">
   <link rel="stylesheet" href="assets/ui-kit.css?v=12.5.0">
-  <link rel="stylesheet" href="assets/high-refresh.css?v=12.6.0">
+  <link rel="stylesheet" href="assets/high-refresh.css?v=12.6.1">
   <link rel="stylesheet" href="assets/calma.css?v=12.5.0">
   <link rel="icon" type="image/png" href="assets/high_logo.png?v=12.5.0">
 </head>
@@ -109,7 +109,7 @@
       <div class="content">
         <section class="page active" id="page-dashboard">
           <div class="page-head"><div><div class="eyebrow">CENTRAL DE COMANDO DO ILEGAL</div><h2>DASHBOARD</h2><p class="page-subtitle">Visão operacional para identificar rapidamente ocupação, contingente, pendências e movimentações da Staff.</p></div><span class="dev-badge">V12.5.0</span></div>
-          <div class="v13-visual-principles" aria-label="Resumo visual do Dashboard"><span>LEITURA RÁPIDA</span><span>PRIORIDADES</span><span>TENDÊNCIAS</span><span>AÇÕES</span></div>
+          <div class="dash-v4-intro"><strong>PAINEL DE CONTROLE</strong><span>O que precisa da sua atenção hoje, sem poluição visual.</span></div>
           <div id="commandDashboard" class="command-dashboard"><div class="placeholder"><b>◆</b><h3>CARREGANDO CENTRAL DE COMANDO</h3></div></div>
           <span id="dashEmail" class="hidden">—</span><span id="dashRole" class="hidden">—</span>
         </section>
@@ -410,11 +410,12 @@
               <div id="groupProfilePageStatus" class="profile-page-status"></div>
             </div>
           </div>
-          <section class="compact-map-shell" aria-label="Mapa interativo do Group">
-            <div class="compact-map-head"><div><span class="compact-eyebrow">LOCALIZAÇÃO OPERACIONAL</span><h3>QG no mapa de Los Santos</h3><p>Visualização das coordenadas cadastradas, sem alterar a localização.</p></div><div class="compact-map-controls"><button type="button" id="compactMapFocus">CENTRALIZAR QG</button><button type="button" id="compactMapCopy">COPIAR CDS</button></div></div>
+          <details class="compact-map-shell" aria-label="Mapa interativo do Group">
+            <summary class="compact-map-head"><div><span class="compact-eyebrow">MAPA INTERATIVO · OPCIONAL</span><h3>Ver QG no mapa de Los Santos <span class="compact-map-chevron">⌄</span></h3><p>Clique para expandir. O mapa fica recolhido para priorizar o cadastro.</p></div></summary><div class="compact-map-controls"><button type="button" id="compactMapFocus">CENTRALIZAR QG</button><button type="button" id="compactMapCopy">COPIAR CDS</button></div>
             <div id="compactGroupMap" class="compact-map-canvas" role="application" aria-label="Mapa GTA V com localização do QG"></div>
             <div id="compactMapStatus" class="compact-map-status" aria-live="polite">Abra um Group para visualizar a localização.</div>
-          </section>
+          </details>
+          <div class="compact-profile-actionbar"><div><b>CADASTRO E EDIÇÃO DIRETA</b><small>Visualize os dados abaixo ou abra a edição sem sair desta página.</small></div><button type="button" id="compactEditGroup">✎ EDITAR CADASTRO</button></div>
           <div id="groupProfileMount" class="group-profile-page-mount"></div>
         </section>
         <section class="page" id="page-group-settings">
@@ -840,7 +841,7 @@
   <script src="assets/ui-kit.js?v=12.5.0"></script>
   <script src="assets/mission-planner.js?v=12.7.1"></script>
   <script type="module" src="assets/app.js?v=12.5.7"></script>
-  <script defer src="assets/compact-group-map.js?v=12.6.0"></script>
+  <script defer src="assets/compact-group-map.js?v=12.6.1"></script>
 
 <div id="newDeliveryModal" class="modal hidden"><div class="modal-card delivery-modal-v5"><button class="modal-x" id="newDeliveryClose">×</button>
   <div class="eyebrow">NOVA OCUPAÇÃO</div><h2>ENTREGA DE GROUP</h2><p class="delivery-help">O Group traz sua estrutura instalada. Personalize apenas o que será ativado para a nova facção.</p>
