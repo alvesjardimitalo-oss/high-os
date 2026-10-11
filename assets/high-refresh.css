@@ -1561,3 +1561,24 @@ body.busca-aberta{overflow:hidden}
 @media(max-width:680px){
  #page-faccoes .org-v92-list-guide span{flex-basis:calc(50% - 9px);font-size:9px}
 }
+
+/* HIGH OS compact Group profile V4 · single page, no new tabs */
+#page-group-profile .group-profile-page-head{margin-bottom:12px}
+#page-group-profile .group-profile-page-copy h2{font-size:clamp(21px,2.2vw,31px)}
+#page-group-profile .group-profile-page-mount{display:grid;gap:12px}
+#page-group-profile .group-profile-page-mount>section,
+#page-group-profile .group-profile-page-mount>.card,
+#page-group-profile .group-profile-page-mount>div{margin-top:0;margin-bottom:0}
+#page-group-profile .compact-map-shell{margin:0 0 14px;border:1px solid rgba(159,95,210,.3);border-radius:16px;overflow:hidden;background:#100c17}
+#page-group-profile .compact-map-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 18px}
+#page-group-profile .compact-map-head h3{font-size:16px;margin:4px 0}
+#page-group-profile .compact-map-head p{font-size:11px;color:#a99ab7;margin:0}
+#page-group-profile .compact-eyebrow{font-size:10px;color:#ba7eff;font-weight:800;letter-spacing:.08em}
+#page-group-profile .compact-map-controls{display:flex;gap:8px;flex-wrap:wrap}
+#page-group-profile .compact-map-controls button{border:1px solid rgba(171,114,222,.4);border-radius:9px;padding:10px 12px;background:#22132e;color:#f3e9ff;font-weight:750;font-size:10px;cursor:pointer}
+#page-group-profile .compact-map-controls button:hover{background:#7424a5}
+#page-group-profile .compact-map-canvas{height:280px;background:#15121e;z-index:0}
+#page-group-profile .compact-map-status{padding:9px 17px;font-size:11px;color:#b9a8c9;border-top:1px solid rgba(159,95,210,.18)}
+#page-group-profile .leaflet-container{background:#13111c}
+@media(min-width:1300px){#page-group-profile .compact-map-canvas{height:320px}}
+@media(max-width:700px){#page-group-profile .compact-map-head{flex-direction:column;align-items:flex-start}#page-group-profile .compact-map-canvas{height:240px}}
