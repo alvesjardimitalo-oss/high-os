@@ -1455,3 +1455,38 @@ body.busca-aberta{overflow:hidden}
 @media(max-width:620px){
  #page-org-profile .org-profile-tab{flex:1 1 44%;padding:10px 8px;text-align:center}
 }
+
+/* HIGH OS 2.0 · Abas reais do perfil: reutilizam o cadastro existente. */
+#page-org-profile[data-active-org-tab] #orgForm > .org-profile-summary,
+#page-org-profile[data-active-org-tab] #orgForm > .form-grid,
+#page-org-profile[data-active-org-tab] #orgForm > .org-current-group,
+#page-org-profile[data-active-org-tab] #orgForm > .group-history-box,
+#page-org-profile[data-active-org-tab] #orgForm > .modal-actions {
+ display:none;
+}
+#page-org-profile[data-active-org-tab="geral"] #orgForm > .org-profile-summary,
+#page-org-profile[data-active-org-tab="geral"] #orgForm > .org-current-group,
+#page-org-profile[data-active-org-tab="lideranca"] #orgForm > .form-grid,
+#page-org-profile[data-active-org-tab="lideranca"] #orgForm > .modal-actions,
+#page-org-profile[data-active-org-tab="ocupacao"] #orgForm > .org-profile-summary,
+#page-org-profile[data-active-org-tab="ocupacao"] #orgForm > .org-current-group,
+#page-org-profile[data-active-org-tab="historico"] #orgForm > .group-history-box {
+ display:revert;
+}
+#page-org-profile[data-active-org-tab="lideranca"] #orgForm > .form-grid {
+ display:grid;
+}
+#page-org-profile[data-active-org-tab="geral"] #orgProfileSummary,
+#page-org-profile[data-active-org-tab="ocupacao"] #orgProfileSummary {
+ display:grid;
+}
+#page-org-profile .org-profile-page-card {
+ max-width:none;
+ width:100%;
+}
+#page-org-profile .org-profile-page-mount {
+ min-height:260px;
+}
+#page-org-profile .group-history-box {
+ border-radius:14px;
+}
