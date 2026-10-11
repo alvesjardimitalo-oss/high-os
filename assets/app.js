@@ -3629,6 +3629,17 @@ await loadDeliveries()};
 
 // ===== HIGH OS V5.1 · PERFIL TÉCNICO + MEMÓRIA OPERACIONAL DO GROUP =====
 
+function historyMillis(h){
+  const value = h?.data ?? h?.createdAt ?? h?.updatedAt ?? h?.createdAtText;
+  if(value == null) return 0;
+  try{
+    if(typeof value.toMillis === 'function') return value.toMillis();
+    if(typeof value.toDate === 'function') return value.toDate().getTime() || 0;
+    if(typeof value.seconds === 'number') return value.seconds * 1000 + Math.floor((value.nanoseconds || 0) / 1e6);
+    const n = value instanceof Date ? value.getTime() : new Date(value).getTime();
+    return Number.isFinite(n) ? n : 0;
+  }catch(e){return 0;}
+}
 function historyDateValue(h){
  const d=h?.data;
 
