@@ -9420,11 +9420,15 @@ function renderOrganizationInsights(o={},current=null){
   ocupacao:[
    ['Group',group.group],['QG / Favela',group.qg],
    ['Coordenadas',group.cds],['Produtos / fabricação',group.produto],
-   ['Benefícios',group.beneficios],['Perfil técnico',group.perfilTecnico],
    ['Data de entrega',group.dataEntrega],['Situação',group.status]
   ]
  };
  mount.dataset.orgInsights=JSON.stringify(items);
+ mount.dataset.orgInfrastructure=JSON.stringify(current?{
+  beneficios:current.beneficios||{},
+  tecnico:current.perfilTecnico||{},
+  entrega:current.perfilEntrega||{}
+ }:{});
  mount.innerHTML='';
 }
 function showOrganizationInsightsTab(tab){
@@ -9434,13 +9438,46 @@ function showOrganizationInsightsTab(tab){
  try{items=JSON.parse(mount.dataset.orgInsights||'{}')}catch(e){}
  const selected=items[tab]||[];
  mount.hidden=!selected.length;
- mount.innerHTML=selected.length
-  ? '<div class="org-insight-grid">'+selected.map(([label,value])=>{
-    const display=value===null||value===undefined||value===''?'Não informado':
-      typeof value==='object'?JSON.stringify(value):String(value);
-    return '<article class="org-insight-tile"><span>'+esc(label)+'</span><strong>'+esc(display)+'</strong></article>';
-   }).join('')+'</div>'
-  : '';
+ const tiles=selected.map(([label,value])=>{
+  const display=value===null||value===undefined||value===''?'Não informado':
+    typeof value==='object'?JSON.stringify(value):String(value);
+  return '<article class="org-insight-tile"><span>'+esc(label)+'</span><strong>'+esc(display)+'</strong></article>';
+ }).join('');
+ let infrastructure='';
+ if(tab==='ocupacao'){
+  let infra={};try{infra=JSON.parse(mount.dataset.orgInfrastructure||'{}')}catch(e){}
+  const b=infra.beneficios||{},t=infra.tecnico||{},e=infra.entrega||{};
+  const groups=[
+   ['GARAGENS E TRANSPORTE',[
+    ['Garagem VIP · Blip',b.garagemVipBlip],['Garagem VIP · Spawn',b.garagemVipSpawn],
+    ['Garagem pública',b.garagemPublica],['Heliponto',b.heliponto]]],
+   ['CRAFTING E FARM',[
+    ['Craft',t.craft?.nome||b.craft],['CDS do craft',t.craft?.cds],
+    ['Receitas cadastradas',Array.isArray(t.craft?.receitas)?t.craft.receitas.length:0],
+    ['Farm',t.farm?.cds||b.farm],
+    ['Itens de farm',Array.isArray(t.farm?.itens)?t.farm.itens.length:0]]],
+   ['ROTAS E ESTRUTURA',[
+    ['Rota exclusiva',t.rota?.nome||b.rotaExclusiva],
+    ['Início da rota',t.rota?.inicio],['Pontos da rota',t.rota?.pontos],
+    ['Baú',b.bau],['Capacidade do baú',b.bauCapacidade],
+    ['Rádio',b.radio]]],
+   ['BENEFÍCIOS E ENTREGA',[
+    ['VIP Org',b.vipOrg],['Salário',b.salario],['Intervalo do salário',b.salarioMinutos],
+    ['Chat da facção',b.chatFaccao],['Loja de roupas',b.lojaRoupas],
+    ['Barbearia',b.barbearia],['Tatuagem',b.tatuagem],
+    ['Plano de entrega',e.planoPadrao],['Observação de entrega',e.observacao]]]
+  ];
+  const format=v=>{
+   if(v===true)return 'Sim';if(v===false)return 'Não';
+   if(v===null||v===undefined||v==='')return 'Não informado';
+   return typeof v==='object'?JSON.stringify(v):String(v);
+  };
+  infrastructure='<div class="org-infra-sections">'+groups.map(([title,rows])=>
+   '<section class="org-infra-section"><h3>'+esc(title)+'</h3><div class="org-infra-grid">'+
+   rows.map(([label,value])=>'<div class="org-infra-field"><span>'+esc(label)+'</span><b>'+esc(format(value))+'</b></div>').join('')+
+   '</div></section>').join('')+'</div>';
+ }
+ mount.innerHTML=(tiles?'<div class="org-insight-grid">'+tiles+'</div>':'')+infrastructure;
 }
 function setOrganizationProfileTab(tab='geral'){
  const root=$('#page-org-profile');
