@@ -8975,58 +8975,39 @@ $('#movementConfirm')?.addEventListener('click', async () => {
     b.updatedAt = serverTimestamp();
     b.updatedBy = currentUser.email;
 
+    // Firestore: Groups, vínculos das organizações e histórico no mesmo commit.
+    // Google Sheets é externo e continua com confirmação de sincronização separada.
     const batch = writeBatch(db);
     batch.set(doc(db,'highos','data','faccoes',src.group), a);
     batch.set(doc(db,'highos','data','faccoes',dst.group), b);
-    await batch.commit();
-    const sheetSynced = await syncGroupsToOfficialSheet([a,b],{quiet:true});
-
-    await addDoc(histCol, {
+    batch.set(doc(histCol), {
       tipo: movementMode === 'TRANSFER_PANEL' ? 'TRANSFERENCIA_PAINEL' : 'TROCA_QG',
-
       group: src.group,
-
       groupDestino: dst.group,
-
       faccao: src.faccao || '',
-
       qg: src.qg || '',
-
       motivo: reason,
-
-      antes: {origem: cleanSnapshot(src),
- destino: cleanSnapshot(dst)},
-
-      depois: {origem: cleanSnapshot(a),
- destino: cleanSnapshot(b)},
-
+      antes: {origem: cleanSnapshot(src), destino: cleanSnapshot(dst)},
+      depois: {origem: cleanSnapshot(a), destino: cleanSnapshot(b)},
       usuario: currentUser.email,
-
       data: serverTimestamp()
     });
-
-    for(const rec of [a,
-b]){
+    for(const rec of [a,b]){
       if(rec.faccao){
-        await setDoc(doc(db,'highos','data','organizacoes',orgKey(rec.faccao)), {
+        batch.set(doc(db,'highos','data','organizacoes',orgKey(rec.faccao)), {
           nome: rec.faccao,
-
           status: 'ATIVA',
-
           groupAtual: rec.group,
-
           segmentoAtual: rec.segmento || '',
-
           qgAtual: rec.qg || '',
-
           lider: rec.lider || '',
-
           updatedAt: serverTimestamp(),
-
           updatedBy: currentUser.email
         }, {merge:true});
       }
     }
+    await batch.commit();
+    const sheetSynced = await syncGroupsToOfficialSheet([a,b],{quiet:true});
 
     $('#movementModal')?.classList.add('hidden');
     closeGroupProfilePage();
