@@ -18,7 +18,7 @@
   <title>High OS • Gestão do Ilegal</title>
   <link rel="stylesheet" href="assets/style.css?v=12.5.0">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="assets/mission-planner.css?v=12.5.0">
+  <link rel="stylesheet" href="assets/mission-planner.css?v=12.8.0">
   <link rel="stylesheet" href="assets/ui-kit.css?v=12.5.0">
   <link rel="stylesheet" href="assets/high-refresh.css?v=12.6.2">
   <link rel="stylesheet" href="assets/calma.css?v=12.5.0">
@@ -257,7 +257,7 @@
         </section>
         
         <section class="page" id="page-planejador">
-          <div class="page-head"><div><div class="eyebrow">MAPA GTA V • EVENTOS • MISSÕES</div><h2>PLANEJADOR DE MISSÕES</h2><p class="page-subtitle">Crie novos locais de evento, gere spawns em círculo, valide CDS uma a uma e mantenha cada missão salva com o último print do mapa.</p></div><span class="dev-badge">V12.5.0</span></div>
+          <div class="page-head"><div><div class="eyebrow">MAPA GTA V • EVENTOS • MISSÕES</div><h2>PLANEJADOR DE MISSÕES</h2><p class="page-subtitle">Eventos e zonas do painel /evento: monte a zona, valide as CDS, envie a solicitação à cidade e acompanhe até a zona estar no jogo.</p></div><span class="dev-badge">V12.8.0</span></div>
 
           <section id="mpCentralV954" class="mp-central-v952" aria-label="Central de Missões"></section>
 
@@ -268,8 +268,13 @@
                 <label>Nome da missão<input id="mpMissionName" placeholder="Ex.: Dominação — Sul"></label>
                 <div class="mp-grid">
                   <label>Evento<input id="mpEventType" placeholder="Dominação"></label>
-                  <label>Painel<input id="mpPanel" placeholder="/ilegal"></label>
+                  <label>Painel<input id="mpPanel" placeholder="/evento"></label>
                 </div>
+                <div class="mp-grid" style="margin-top:8px">
+                  <label>Tipo do evento<select id="mpEventKind"></select></label>
+                  <label>Solicitação<select id="mpRequestKind"><option value="create-event">CRIAR EVENTO</option><option value="create-zone">CRIAR ZONA</option><option value="alter-zone">ALTERAR ZONA</option></select></label>
+                </div>
+                <div id="mpEventKindHint" class="mpk-hint"></div>
                 <label style="margin-top:8px">Modo de trabalho
                   <select id="mpMode"><option value="assistant">ASSISTENTE DE VALIDAÇÃO</option><option value="manual">MODO MANUAL</option></select>
                 </label>
@@ -845,8 +850,9 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <script src="assets/ui-kit.js?v=12.5.0"></script>
-  <script src="assets/mission-planner.js?v=12.7.1"></script>
-  <script type="module" src="assets/app.js?v=12.5.7"></script>
+  <script src="assets/modules/eventos-painel.js?v=12.8.0"></script>
+  <script src="assets/mission-planner.js?v=12.8.0"></script>
+  <script type="module" src="assets/app.js?v=12.5.8"></script>
   <script defer src="assets/compact-group-map.js?v=12.6.2"></script>
 
 <div id="newDeliveryModal" class="modal hidden"><div class="modal-card delivery-modal-v5"><button class="modal-x" id="newDeliveryClose">×</button>

@@ -13337,6 +13337,8 @@ return false}
 window.HighOSMissionCloud={
  canEdit:()=>!!currentUser&&canEditModule('planejador'),
 
+ user:()=>currentUser?.email||'',
+
  pull:pullMissionsFromCloud,
 
  pushNow:pushMissionsToCloud,
