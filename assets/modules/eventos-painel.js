@@ -102,5 +102,8 @@
     return `há ${Math.round(h / 24)} dias`;
   }
 
-  window.HighEventCatalog = { PANEL_PADRAO, TIPOS, porId, tipoDe, ETAPAS, tempoDesde };
+  /* Horas sem retorno da cidade até a zona aparecer como ATRASADA */
+  const PRAZO_RETORNO_H = 48;
+
+  window.HighEventCatalog = { PANEL_PADRAO, TIPOS, porId, tipoDe, ETAPAS, tempoDesde, PRAZO_RETORNO_H };
 })();

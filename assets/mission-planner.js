@@ -1890,17 +1890,123 @@ v=m?.points.filter(isValidated)||[];if(!v.length){alert('Nenhum ponto validado p
   /* Impressão digital da geografia: o que a cidade precisa aplicar.
      A rota da safe só entra quando realmente configurada, para que a
      criação automática dos valores padrão não marque a zona como alterada. */
-  function geomHash(m){
-    const c=m?.center||{};
-    const parts=[f(c.x),f(c.y),f(c.z),f(c.h),Math.round(effectiveEventRadius(m)),...(m?.points||[]).map(p=>`${f(p.x)},${f(p.y)},${f(p.z)},${f(p.h)}`)];
-    const sr=m?.safeRoute;
+  function safeParts(m){
+    const parts=[],sr=m?.safeRoute;
     if((m?.category||'dominacao')==='gas'&&sr&&((sr.stage2Options||[]).length||(sr.stage3Options||[]).length)){
       (sr.stages||[]).forEach(s=>parts.push(`${f(s.x)},${f(s.y)},${Math.round(Number(s.radius)||0)},${Number(s.damage)||0},${Number(s.closeSeconds)||0},${Number(s.moveSeconds)||0}`));
       (sr.stage2Options||[]).forEach(p=>parts.push(`s2:${f(p.x)},${f(p.y)}`));
       (sr.stage3Options||[]).forEach(p=>parts.push(`s3:${f(p.x)},${f(p.y)}`));
     }
+    return parts;
+  }
+  function geomHash(m){
+    const c=m?.center||{};
+    const parts=[f(c.x),f(c.y),f(c.z),f(c.h),Math.round(effectiveEventRadius(m)),...(m?.points||[]).map(p=>`${f(p.x)},${f(p.y)},${f(p.z)},${f(p.h)}`),...safeParts(m)];
     return hashText(parts.join('|'));
   }
+
+  /* V12.9 — cópia compacta da geografia no momento do envio/aplicação.
+     Permite mostrar O QUE mudou (não só que mudou) e escrever isso na
+     solicitação de alteração para a cidade. */
+  const r2=v=>{const n=Number(v);return Number.isFinite(n)?Math.round(n*100)/100:0;};
+  function geomSnap(m){
+    const c=m?.center||{};
+    return {c:[c.x,c.y,c.z,c.h].map(r2),r:Math.round(effectiveEventRadius(m)),pts:(m?.points||[]).map(p=>[p.x,p.y,p.z,p.h].map(r2)),safe:hashText(safeParts(m).join('|'))};
+  }
+  function gameGeom(m){const r=m?.request;if(!r)return null;if(r.status==='applied')return r.geom||null;if(r.status==='sent')return r.prev?.geom||null;return null;}
+  function geomDiff(old,m){
+    if(!old||!Array.isArray(old.c))return null;
+    const now=geomSnap(m),out=[],d2=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1]),cds=a=>a.map(f).join(','),nn=i=>String(i+1).padStart(2,'0');
+    const dc=d2(old.c,now.c);
+    if(dc>=0.5)out.push(`Centro deslocado ${dc.toFixed(1)} m (antes: ${cds(old.c)} • agora: ${cds(now.c)}).`);
+    else if(Math.abs(old.c[2]-now.c[2])>=0.5||Math.abs(old.c[3]-now.c[3])>=1)out.push(`Centro com altura/heading ajustados (antes: ${cds(old.c)} • agora: ${cds(now.c)}).`);
+    if(old.r!==now.r)out.push(`Raio: ${old.r} m → ${now.r} m.`);
+    const moved=[],added=[],removed=[],op=old.pts||[];
+    for(let i=0;i<Math.max(op.length,now.pts.length);i++){
+      const a=op[i],b=now.pts[i];
+      if(a&&!b)removed.push(i);else if(!a&&b)added.push(i);
+      else if(d2(a,b)>=0.5||Math.abs(a[2]-b[2])>=0.5||Math.abs(a[3]-b[3])>=1)moved.push({i,d:d2(a,b),b});
+    }
+    if(moved.length&&moved.length<=8)moved.forEach(o=>out.push(`Spawn ${nn(o.i)} ${o.d>=0.5?`reposicionado ${o.d.toFixed(1)} m`:'com altura/heading ajustados'} → nova CDS: ${cds(o.b)}.`));
+    else if(moved.length)out.push(`${moved.length} spawns reposicionados (${moved.map(o=>nn(o.i)).join(', ')}) — utilizar a lista completa de spawns abaixo.`);
+    if(added.length)out.push(`Spawn${added.length>1?'s':''} novo${added.length>1?'s':''}: ${added.map(nn).join(', ')}.`);
+    if(removed.length)out.push(`Spawn${removed.length>1?'s':''} removido${removed.length>1?'s':''}: ${removed.map(nn).join(', ')} — a zona passa a ter ${now.pts.length} spawns.`);
+    if(old.safe&&old.safe!==now.safe)out.push('Movimentação da safe alterada (ver bloco MOVIMENTAÇÃO DA SAFE).');
+    return out;
+  }
+  function diffText(m){
+    const lines=geomDiff(gameGeom(m),m);
+    return lines&&lines.length?`ALTERAÇÕES EM RELAÇÃO À VERSÃO ATUAL NO JOGO:
+
+${lines.map(l=>`- ${l}`).join('\n')}
+
+`:'';
+  }
+
+  /* Capacidade: 1 spawn por organização. No /evento o jogador escolhe a
+     zona depois de escalar, então todas as zonas precisam comportar o
+     mesmo número de facções. */
+  function zoneCapacity(m){return (m?.points||[]).filter(isValidated).length;}
+  function eventCapacities(eventId){return zonesOfEvent(eventId).map(z=>({z,cap:zoneCapacity(z)})).filter(o=>o.cap>0);}
+  function capacityWarning(eventId){
+    const caps=eventCapacities(eventId);if(caps.length<2)return '';
+    const min=Math.min(...caps.map(o=>o.cap)),max=Math.max(...caps.map(o=>o.cap));
+    if(min===max)return '';
+    return `Capacidade desigual: ${caps.map(o=>`${o.z.name||'Zona'} ${o.cap}`).join(' · ')} — acima de ${min} facções inscritas não cabe em todas as zonas`;
+  }
+
+  /* Equilíbrio dos spawns (aviso, nunca bloqueia nem mexe em CDS):
+     ninguém muito mais perto do centro que os demais e nenhum par
+     colado em comparação com o espaçamento típico da zona. */
+  function zoneBalance(m){
+    const pts=(m?.points||[]).map((p,i)=>({p,n:i+1})).filter(o=>validCoord(o.p.x)&&validCoord(o.p.y));
+    if(pts.length<3)return null;
+    const res={tight:[],near:[],far:[],spacing:0,mean:0};
+    const nearest=pts.map(a=>{let d=Infinity,who=null;pts.forEach(b=>{if(b===a)return;const x=distXY(a.p,b.p);if(x<d){d=x;who=b.n;}});return {n:a.n,d,who};});
+    const sorted=nearest.map(o=>o.d).sort((a,b)=>a-b);res.spacing=sorted[Math.floor(sorted.length/2)];
+    const seen=new Set();
+    nearest.forEach(o=>{const k=[o.n,o.who].sort((a,b)=>a-b).join('-');if(o.d<res.spacing*.4&&!seen.has(k)){seen.add(k);res.tight.push({a:Math.min(o.n,o.who),b:Math.max(o.n,o.who),d:o.d});}});
+    if(validCoord(m.center?.x)&&validCoord(m.center?.y)){
+      const ds=pts.map(o=>({n:o.n,d:distXY(m.center,o.p)}));
+      res.mean=ds.reduce((s,o)=>s+o.d,0)/ds.length;
+      if(res.mean>0){ds.forEach(o=>{if(o.d<res.mean*.6)res.near.push(o);else if(o.d>res.mean*1.4)res.far.push(o);});}
+    }
+    return res;
+  }
+  const pad2=n=>String(n).padStart(2,'0');
+
+  /* Prazo de retorno da cidade */
+  function retornoHoras(){return Number(CATALOG()?.PRAZO_RETORNO_H)||48;}
+  function isStale(m){const r=m?.request;if(r?.status!=='sent'||zoneStage(m)!=='enviada')return false;const t=Date.parse(r.sentAt||'');return Number.isFinite(t)&&Date.now()-t>retornoHoras()*3600000;}
+
+  /* Discord: mensagens de até 2.000 caracteres. Quebra em blocos
+     inteiros (nunca no meio de uma CDS). */
+  const DISCORD_LIMIT=1900;
+  function splitDiscord(text,limit=DISCORD_LIMIT){
+    text=String(text||'');if(text.length<=limit)return [text];
+    const units=[];
+    text.split(/\n\n/).forEach(par=>{
+      if(par.length<=limit){units.push(par);return;}
+      let cur='';par.split('\n').forEach(l=>{if(cur&&(cur.length+1+l.length)>limit){units.push(cur);cur=l;}else cur=cur?`${cur}\n${l}`:l;});if(cur)units.push(cur);
+    });
+    const parts=[];let cur='';
+    units.forEach(u=>{if(cur&&(cur.length+2+u.length)>limit-20){parts.push(cur);cur=u;}else cur=cur?`${cur}\n\n${u}`:u;});
+    if(cur)parts.push(cur);
+    return parts.map((p,i)=>`(Parte ${i+1}/${parts.length})\n\n${p}`);
+  }
+  function openPartsModal(title,text){
+    const parts=splitDiscord(text);
+    let modal=qs('#mpPartsModal');if(modal)modal.remove();
+    modal=document.createElement('div');modal.id='mpPartsModal';modal.className='mp-replicate-backdrop';
+    modal.innerHTML=`<div class="mp-replicate-modal mpk-modal"><div class="mp-replicate-head"><div><b>${esc(title)}</b><small>${text.length.toLocaleString('pt-BR')} caracteres • ${parts.length} mensage${parts.length===1?'m':'ns'} no Discord (limite 2.000) — cole na ordem</small></div><button data-close>×</button></div>
+      <div class="mpk-parts">${parts.map((p,i)=>`<div class="mpk-part"><header><b>PARTE ${i+1}/${parts.length}</b><small>${p.length} caracteres</small><button type="button" data-part="${i}">COPIAR</button></header><pre>${esc(p.slice(0,260))}${p.length>260?'…':''}</pre></div>`).join('')}</div>
+      <div class="mp-replicate-actions"><button data-close>FECHAR</button></div></div>`;
+    document.body.appendChild(modal);
+    qsa('[data-close]',modal).forEach(b=>b.onclick=()=>modal.remove());
+    modal.addEventListener('click',e=>{if(e.target===modal)modal.remove();});
+    qsa('[data-part]',modal).forEach(b=>b.onclick=async()=>{await copyText(parts[Number(b.dataset.part)]);b.textContent='COPIADA ✓';b.closest('.mpk-part')?.classList.add('done');});
+  }
+  function fmtLogDate(iso){const d=new Date(iso||'');return Number.isFinite(d.getTime())?d.toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';}
   function centerReadyFor(m){return isCenterValidated(m)||(m.official&&validCoord(m.center?.x)&&validCoord(m.center?.y)&&Number.isFinite(Number(m.center?.z))&&Number.isFinite(Number(m.center?.h)));}
   function zoneChecks(m){
     const type=eventTypeOf(m),all=m?.points||[],val=all.filter(isValidated).length,out=[];
@@ -1911,6 +2017,27 @@ v=m?.points.filter(isValidated)||[];if(!v.length){alert('Nenhum ponto validado p
       out.push({label:cc.outside?`${cc.outside} spawn(s) fora da safe inicial`:`Spawns dentro da safe (${Math.round(cc.radius)} m)`,ok:cc.outside===0&&cc.total>0,block:true});
       const sr=m.safeRoute;const o2=(sr?.stage2Options||[]).length,o3=(sr?.stage3Options||[]).length;
       out.push({label:o2||o3?`Movimentação da safe (${o2} op. SAFE 2 · ${o3} op. SAFE 3)`:'Movimentação da safe não configurada (opcional)',ok:!!(o2||o3),block:false});
+    }
+    /* avisos (não bloqueiam): capacidade igual às demais zonas e equilíbrio */
+    const cap=zoneCapacity(m);
+    if(cap){
+      const others=eventCapacities(m.eventId).filter(o=>o.z.id!==m.id);
+      const diff=others.filter(o=>o.cap!==cap);
+      out.push(diff.length
+        ?{label:`Comporta ${cap} facções; ${diff.map(o=>`${o.z.name||'Zona'}: ${o.cap}`).join(' · ')}`,ok:false,block:false,warn:true}
+        :{label:`Comporta ${cap} facções${others.length?' (igual às demais zonas)':''}`,ok:true,block:false});
+    }
+    const bal=zoneBalance(m);
+    if(bal){
+      if(bal.mean){
+        const lst=[...bal.near.map(o=>`${pad2(o.n)} a ${Math.round(o.d)} m`),...bal.far.map(o=>`${pad2(o.n)} a ${Math.round(o.d)} m`)];
+        out.push(lst.length
+          ?{label:`Distância ao centro desigual (média ${Math.round(bal.mean)} m): ${lst.slice(0,5).join(', ')}${lst.length>5?'…':''}`,ok:false,block:false,warn:true}
+          :{label:`Distância ao centro equilibrada (média ${Math.round(bal.mean)} m)`,ok:true,block:false});
+      }
+      out.push(bal.tight.length
+        ?{label:`Spawns colados: ${bal.tight.slice(0,4).map(t=>`${pad2(t.a)}↔${pad2(t.b)} ${Math.round(t.d)} m`).join(', ')} (típico ${Math.round(bal.spacing)} m)`,ok:false,block:false,warn:true}
+        :{label:`Espaçamento entre spawns equilibrado (típico ${Math.round(bal.spacing)} m)`,ok:true,block:false});
     }
     return out;
   }
@@ -1930,23 +2057,43 @@ v=m?.points.filter(isValidated)||[];if(!v.length){alert('Nenhum ponto validado p
     /* V12.8: eventos ficam no painel in-game /evento; o antigo padrão /ilegal era só o canal do ticket */
     state.missions.forEach(m=>{if(!m.panelMigrated128){if(!m.panel||m.panel==='/ilegal')m.panel=defaultPanel();m.panelMigrated128=true;}});
     state.missions.forEach(m=>{if(m.official&&!m.request)m.request={status:'applied',hash:geomHash(m),baseline:true,appliedAt:null};});
+    /* V12.9: registros antigos guardavam só o hash; se a geografia ainda é a
+       mesma, a cópia detalhada pode ser criada agora sem perda. */
+    state.missions.forEach(m=>{const r=m.request;if(r&&!r.geom&&r.hash&&r.hash===geomHash(m))r.geom=geomSnap(m);});
   }
   function markZoneSent(m,silent=false){
     if(!m)return false;
     if(!canMarkRequests()){if(!silent)alert('Seu acesso ao Planejador é somente leitura.');return false;}
     if(!zoneReady(m)){if(!silent)alert('A zona ainda tem pendências. Resolva o checklist antes de marcar como enviada.');return false;}
     const prev=m.request||{};
-    m.request={status:'sent',hash:geomHash(m),kind:m.requestKind||'alter-zone',sentAt:nowIso(),sentBy:cloudUser(),appliedBefore:wasApplied(m)||!!prev.appliedBefore};
-    logRequest(m,'enviada');
+    /* guarda a versão que está no jogo para poder cancelar o envio e para
+       descrever as alterações em relação a ela */
+    const game=prev.status==='applied'?{hash:prev.hash,geom:prev.geom||null,appliedAt:prev.appliedAt||null,appliedBy:prev.appliedBy||'',baseline:!!prev.baseline}:(prev.status==='sent'?(prev.prev||null):null);
+    m.request={status:'sent',hash:geomHash(m),geom:geomSnap(m),kind:m.requestKind||'alter-zone',sentAt:nowIso(),sentBy:cloudUser(),appliedBefore:wasApplied(m)||!!prev.appliedBefore,prev:game};
+    logRequest(m,prev.status==='sent'?'reenviada':'enviada');
     return true;
   }
   function markZoneApplied(m){
     if(!m)return false;
     if(!canMarkRequests()){alert('Seu acesso ao Planejador é somente leitura.');return false;}
     const r=m.request||{};
-    m.request={...r,status:'applied',hash:r.hash||geomHash(m),appliedAt:nowIso(),appliedBy:cloudUser(),baseline:false};
+    m.request={...r,status:'applied',hash:r.hash||geomHash(m),geom:r.geom||geomSnap(m),appliedAt:nowIso(),appliedBy:cloudUser(),baseline:false};
+    delete m.request.prev;
     m.requestKind='alter-zone';
     logRequest(m,'aplicada no jogo');
+    return true;
+  }
+  /* Cidade recusou/pediu ajuste, ou o envio foi marcado por engano:
+     volta para a versão que está no jogo (ou para pronta, se a zona é nova). */
+  function cancelZoneSent(m){
+    if(!m||m.request?.status!=='sent')return false;
+    if(!canMarkRequests()){alert('Seu acesso ao Planejador é somente leitura.');return false;}
+    const r=m.request;
+    if(r.prev)m.request={status:'applied',...r.prev};
+    else if(r.appliedBefore)m.request={status:'applied',hash:'?',appliedBefore:true};
+    else m.request=null;
+    if(!m.request)delete m.request;
+    logRequest(m,'envio cancelado');
     return true;
   }
   function zonesInPanel(eventId,extraIds=[]){
@@ -1998,9 +2145,11 @@ SPAWNS DAS ORGANIZAÇÕES:
 
 ${pts.map((p,i)=>`${String(i+1).padStart(2,'0')} - ${rawCds(p)}`).join('\n')}${safe}`;
   }
-  function distributionText(){return `DISTRIBUIÇÃO:
+  function distributionText(cap){return `DISTRIBUIÇÃO:
 
-- Utilizar 1 spawn diferente por organização inscrita.
+- Utilizar 1 spawn diferente por organização inscrita.${cap?`
+
+- Capacidade: até ${cap} organizações por partida.`:''}
 
 - Caso haja menos organizações que pontos disponíveis, utilizar somente a quantidade necessária.
 
@@ -2062,9 +2211,9 @@ ${intro}
 
 ${panelText}
 
-${zoneGeoText(m)}
+${kind==='alter-zone'?diffText(m):''}${zoneGeoText(m)}
 
-${distributionText()}
+${distributionText(zoneCapacity(m))}
 
 ${mechanicText(m)}${heightText(m)}
 
@@ -2084,6 +2233,13 @@ ${mechanicText(m)}${heightText(m)}
     const live=zones.filter(z=>wasApplied(z));
     if(!include.length)return {eventName,type,include,blocked,live,text:''};
     const isNew=!live.length&&!zones.some(z=>z.request?.status==='sent');
+    /* capacidade considera as zonas que ficarão selecionáveis no painel */
+    const selZones=zones.filter(z=>include.includes(z)||wasApplied(z)||z.request?.status==='sent');
+    const caps=selZones.map(z=>({z,cap:zoneCapacity(z)})).filter(o=>o.cap>0);
+    const capMin=caps.length?Math.min(...caps.map(o=>o.cap)):0,capUneven=caps.some(o=>o.cap!==capMin);
+    const capLines=capUneven?`
+
+- Capacidade por zona: ${caps.map(o=>`${o.z.name||'Zona'} ${o.cap}`).join(' · ')}. O limite de inscrições do evento deverá respeitar a zona com menos spawns (${capMin}).`:'';
     const selection=[...new Set([...zonesInPanel(eventId),...include.map(z=>z.name||'Zona')])];
     const subject=isNew
       ?`Solicitação de Criação do Evento ${eventName} - ${panel}`
@@ -2099,7 +2255,7 @@ ${mechanicText(m)}${heightText(m)}
 
 ZONA ${String(i+1).padStart(2,'0')} — ${z.name||'Zona'} (${acao})
 
-${zoneGeoText(z)}`;
+${acao==='ALTERAÇÃO'?diffText(z):''}${zoneGeoText(z)}`;
     }).join('\n\n');
     const text=`Assunto:
 
@@ -2121,12 +2277,12 @@ ${blocks}
 
 ━━━━━━━━━━━━━━━━━━━━
 
-${distributionText()}
+${distributionText(capMin)}${capLines}
 
 ${(type.mechanic||[]).map(l=>`- ${l}`).join('\n\n')}${heightText(first)}
 
 - As demais configurações, regras, premiações, duração e funcionamento do evento deverão permanecer inalterados.`;
-    return {eventName,type,include,blocked,live,text};
+    return {eventName,type,include,blocked,live,text,capMin,capUneven};
   }
   function openEventPackage(eventId){
     const pkg=buildEventPackage(eventId);if(!pkg)return;
@@ -2139,16 +2295,18 @@ ${(type.mechanic||[]).map(l=>`- ${l}`).join('\n\n')}${heightText(first)}
         <div><span>JÁ NO JOGO</span><div>${list(pkg.live.filter(z=>!pkg.include.includes(z)),'live')||'<em>—</em>'}</div></div>
         <div><span>FORA (PENDÊNCIAS)</span><div>${list(pkg.blocked,'bad')||'<em>—</em>'}</div></div>
       </div>
-      ${pkg.text?`<textarea id="mpkText" rows="16" readonly>${esc(pkg.text)}</textarea>`:'<div class="mpc-empty">Nenhuma zona deste evento está pronta para envio. Abra as zonas em RASCUNHO e conclua o checklist.</div>'}
-      <div class="mp-replicate-actions"><button id="mpkCancel">FECHAR</button>${pkg.text?`<button id="mpkCopy">COPIAR TEXTO</button><button id="mpkSent" class="primary">COPIAR E MARCAR ${pkg.include.length} COMO ENVIADA${pkg.include.length===1?'':'S'}</button>`:''}</div></div>`;
+      ${pkg.capUneven?`<div class="mpk-warns inline"><span>⚠ ${esc(capacityWarning(eventId))}</span></div>`:''}
+      ${pkg.text?`<div class="mpk-count">${pkg.text.length.toLocaleString('pt-BR')} caracteres • ${splitDiscord(pkg.text).length>1?`${splitDiscord(pkg.text).length} mensagens no Discord — use COPIAR EM PARTES`:'cabe em 1 mensagem do Discord'}${pkg.capMin?` • até ${pkg.capMin} facções por partida`:''}</div><textarea id="mpkText" rows="16" readonly>${esc(pkg.text)}</textarea>`:'<div class="mpc-empty">Nenhuma zona deste evento está pronta para envio. Abra as zonas em RASCUNHO e conclua o checklist.</div>'}
+      <div class="mp-replicate-actions"><button id="mpkCancel">FECHAR</button>${pkg.text?`${splitDiscord(pkg.text).length>1?'<button id="mpkParts">COPIAR EM PARTES</button>':''}<button id="mpkCopy">COPIAR TEXTO</button><button id="mpkSent" class="primary">${splitDiscord(pkg.text).length>1?'':'COPIAR E '}MARCAR ${pkg.include.length} COMO ENVIADA${pkg.include.length===1?'':'S'}</button>`:''}</div></div>`;
     document.body.appendChild(modal);
     const close=()=>modal.remove();
     qs('#mpkClose',modal).onclick=close;qs('#mpkCancel',modal).onclick=close;
     modal.addEventListener('click',e=>{if(e.target===modal)close();});
     qs('#mpkCopy',modal)?.addEventListener('click',async e=>{await copyText(pkg.text);e.target.textContent='COPIADO ✓';});
+    qs('#mpkParts',modal)?.addEventListener('click',()=>openPartsModal(`SOLICITAÇÃO DO EVENTO · ${pkg.eventName}`,pkg.text));
     qs('#mpkSent',modal)?.addEventListener('click',async()=>{
       if(!canMarkRequests()){alert('Seu acesso ao Planejador é somente leitura.');return;}
-      await copyText(pkg.text);
+      if(splitDiscord(pkg.text).length===1)await copyText(pkg.text);
       const eventLive=pkg.live.length>0;pkg.include.forEach((z,i)=>{if(!wasApplied(z))z.requestKind=!eventLive&&i===0?'create-event':'create-zone';z.requestText=pkg.text;markZoneSent(z,true);});
       saveStore();close();render();renderCentralV954();
     });
@@ -2163,22 +2321,34 @@ ${(type.mechanic||[]).map(l=>`- ${l}`).join('\n\n')}${heightText(first)}
     ensureRequestStatusUi();
     const box=qs('#mpRequestStatus'),m=active();if(!box||!m)return;
     const st=zoneStage(m),info=stageInfo(st),checks=zoneChecks(m),r=m.request||{},since=CATALOG()?.tempoDesde||(()=>'');
-    const when=st==='enviada'?`Enviada ${since(r.sentAt)}${r.sentBy?` por ${esc(r.sentBy)}`:''}`
+    const stale=isStale(m);
+    const when=st==='enviada'?`Enviada ${since(r.sentAt)}${r.sentBy?` por ${esc(r.sentBy)}`:''}${stale?` — sem retorno há mais de ${retornoHoras()} h: cobre no ticket`:''}`
       :st==='nojogo'?(r.baseline?'Zona oficial já existente no jogo':`Confirmada no jogo ${since(r.appliedAt)}${r.appliedBy?` por ${esc(r.appliedBy)}`:''}`)
       :st==='alterada'?`A geografia mudou depois do ${r.status==='applied'?'último ajuste no jogo':'envio'} — gere e envie uma nova solicitação`
       :st==='pronta'?'Checklist completo: gere o texto, envie à cidade e marque como enviada'
       :'Conclua o checklist para liberar a solicitação';
     const actions=[];
     if(st==='pronta'||st==='alterada')actions.push(`<button type="button" data-req="sent" class="primary">COPIAR E MARCAR COMO ENVIADA</button>`);
-    if(st==='enviada')actions.push(`<button type="button" data-req="applied" class="primary">CONFIRMAR APLICADA NO JOGO</button>`);
+    if(st==='enviada')actions.push(`<button type="button" data-req="applied" class="primary">CONFIRMAR APLICADA NO JOGO</button><button type="button" data-req="cancel">CANCELAR ENVIO</button>`);
+    if(st==='pronta'||st==='alterada')actions.push(`<button type="button" data-req="parts">COPIAR EM PARTES (DISCORD)</button>`);
     actions.push(`<button type="button" data-req="package">SOLICITAÇÃO DO EVENTO INTEIRO</button>`);
-    box.innerHTML=`<div class="mpk-stage ${info.tom}"><b>${info.label}</b><small>${when}</small></div>
-      <ul class="mpk-checks">${checks.map(c=>`<li class="${c.ok?'ok':(c.block?'bad':'opt')}">${c.ok?'✓':(c.block?'✕':'○')} ${esc(c.label)}</li>`).join('')}</ul>
-      <div class="mp-actions">${actions.join('')}</div>`;
+    /* o que mudou: contra o que foi enviado (se aguardando) ou contra o jogo */
+    let diffHtml='';
+    if(st==='alterada'){
+      const ref=r.geom||null,lines=geomDiff(ref,m);
+      diffHtml=`<div class="mpk-diff"><b>O QUE MUDOU DESDE O ${r.status==='applied'?'AJUSTE NO JOGO':'ENVIO'}</b>${lines?(lines.length?`<ul>${lines.map(l=>`<li>${esc(l)}</li>`).join('')}</ul>`:'<small>Somente arredondamento/ajustes mínimos.</small>'):'<small>Versão anterior registrada sem detalhe (antes da V12.9). A próxima solicitação passa a registrar.</small>'}</div>`;
+    }
+    const log=m.requestLog||[];
+    const logHtml=log.length?`<details class="mpk-log"><summary>HISTÓRICO DA SOLICITAÇÃO (${log.length})</summary><ol>${log.map(l=>`<li><b>${esc(fmtLogDate(l.at))}</b> ${esc(l.action)}${l.by?` <i>· ${esc(l.by)}</i>`:''}</li>`).join('')}</ol></details>`:'';
+    box.innerHTML=`<div class="mpk-stage ${stale?'bad':info.tom}"><b>${info.label}${stale?' · ATRASADA':''}</b><small>${when}</small></div>${diffHtml}
+      <ul class="mpk-checks">${checks.map(c=>`<li class="${c.ok?'ok':(c.block?'bad':(c.warn?'warn':'opt'))}">${c.ok?'✓':(c.block?'✕':(c.warn?'⚠':'○'))} ${esc(c.label)}</li>`).join('')}</ul>
+      <div class="mp-actions">${actions.join('')}</div>${logHtml}`;
     qsa('[data-req]',box).forEach(b=>b.onclick=async()=>{
       const m=active();if(!m)return;
-      if(b.dataset.req==='sent'){if(!generateRequest())return;await copyText(m.requestText);if(markZoneSent(m)){saveStore();render();}}
+      if(b.dataset.req==='sent'){if(!generateRequest())return;const multi=splitDiscord(m.requestText).length>1;if(!multi)await copyText(m.requestText);if(markZoneSent(m)){saveStore();render();if(multi)openPartsModal(`SOLICITAÇÃO · ${m.event||'Evento'} › ${m.name||'Zona'}`,m.requestText);}}
+      else if(b.dataset.req==='parts'){if(!generateRequest())return;openPartsModal(`SOLICITAÇÃO · ${m.event||'Evento'} › ${m.name||'Zona'}`,m.requestText);}
       else if(b.dataset.req==='applied'){if(confirm(`Confirmar que a zona "${m.name}" já está disponível no ${panelLabel(m)}?`)&&markZoneApplied(m)){saveStore();render();}}
+      else if(b.dataset.req==='cancel'){if(confirm(`Cancelar o envio da zona "${m.name}"? Use quando a cidade recusar/pedir ajuste ou se marcou por engano. A zona volta para ${m.request?.prev||m.request?.appliedBefore?'a versão que está no jogo':'PRONTA P/ ENVIAR'}.`)&&cancelZoneSent(m)){saveStore();render();}}
       else openEventPackage(m.eventId);
     });
   }
@@ -2226,19 +2396,21 @@ z=zones[0];if(!z)return false;
     const pendFilter=e=>evStages(e).some(s=>s==='pronta'||s==='alterada'||s==='enviada');
     const events=filter==='all'?allEvents:filter==='pend'?allEvents.filter(pendFilter):allEvents.filter(e=>e.category===filter);
     const since=CATALOG()?.tempoDesde||(()=>'');
-    const kpi=(n,l,tom)=>`<div class="mpk-kpi ${tom||''}"><b>${n}</b><span>${l}</span></div>`;
+    const kpi=(n,l,tom,sub)=>`<div class="mpk-kpi ${tom||''}"><b>${n}</b><span>${l}</span>${sub?`<small>${sub}</small>`:''}</div>`;
+    const staleN=state.missions.filter(isStale).length;
     host.innerHTML=`<div class="mpc-head"><div><span>EVENTOS · PAINEL ${esc(defaultPanel().toUpperCase())}</span><strong>${allEvents.length} eventos <i>•</i> ${state.missions.length} zonas</strong></div><span id="mpCloudStateCentral" class="mp-cloud-state ${state.cloudState||'local'}">${state.cloudState==='synced'||state.cloudState==='ok'?'☁ SINCRONIZADO':'↻ SINCRONIZANDO'}</span></div>
-      <div class="mpk-kpis">${kpi(cnt('nojogo'),'no /evento','ok')}${kpi(cnt('enviada'),'aguardando cidade','warn')}${kpi(cnt('pronta'),'prontas p/ enviar','brand')}${kpi(cnt('alterada'),'alteradas após envio',cnt('alterada')?'bad':'')}${kpi(cnt('rascunho'),'em rascunho','')}</div>
+      <div class="mpk-kpis">${kpi(cnt('nojogo'),'no /evento','ok')}${kpi(cnt('enviada'),'aguardando cidade',staleN?'bad':'warn',staleN?`${staleN} há +${retornoHoras()} h`:'')}${kpi(cnt('pronta'),'prontas p/ enviar','brand')}${kpi(cnt('alterada'),'alteradas após envio',cnt('alterada')?'bad':'')}${kpi(cnt('rascunho'),'em rascunho','')}</div>
       <div class="mpc-toolbar"><div class="mpc-filters"><button data-cfilter="all" class="${filter==='all'?'active':''}">TODOS</button><button data-cfilter="pend" class="${filter==='pend'?'active':''}">SOLICITAÇÕES EM ABERTO</button><button data-cfilter="dominacao" class="${filter==='dominacao'?'active':''}">DOMINAÇÃO</button><button data-cfilter="gas" class="${filter==='gas'?'active':''}">ZONA DE GÁS</button></div><button id="mpCentralNewEvent" class="mpc-primary">+ NOVO EVENTO</button></div>
       <div class="mpc-events">${events.length?events.map(e=>{
         const zones=zonesOfEvent(e.id),type=eventTypeOf(zones[0]||{category:e.category,event:e.name});
-        const live=zones.filter(z=>zoneStage(z)==='nojogo'||(zoneStage(z)==='alterada'&&wasApplied(z)));
+        const live=zones.filter(z=>zoneStage(z)==='nojogo'||wasApplied(z));
         const toSend=zones.filter(z=>['pronta','alterada'].includes(zoneStage(z))).length;
         const warns=[];
         if(type.zonasPrevistas&&zones.length<type.zonasPrevistas)warns.push(`${type.label}: ${zones.length}/${type.zonasPrevistas} zonas cadastradas`);
+        const capW=capacityWarning(e.id);if(capW)warns.push(capW);
         if(type.zonasSeparadas)zoneOverlaps(e.id).forEach(o=>warns.push(`${o.a} × ${o.b}: áreas sobrepostas (${Math.round(o.d)} m entre centros, mínimo ${Math.round(o.lim)} m)`));
         const preview=`<div class="mpk-preview"><span>NO ${esc(panelLabel(zones[0]).toUpperCase())}</span><b>${esc(e.name)}</b><i>›</i>${live.length?live.map(z=>`<em>${esc(z.name||'Zona')}</em>`).join(''):'<small>nenhuma zona confirmada no jogo</small>'}</div>`;
-        return `<article class="mpc-event"><header><div><span>${esc(type.label)}</span><h3>${esc(e.name)}</h3><small>${zones.length} zona${zones.length===1?'':'s'} • ${live.length} no jogo${toSend?` • ${toSend} para enviar`:''}</small></div><div class="mpc-event-actions"><button data-package="${esc(e.id)}" class="${toSend?'hot':''}">SOLICITAÇÃO${toSend?` (${toSend})`:''}</button><button data-newzone="${esc(e.id)}">+ NOVA ZONA</button><button class="danger" data-delevent="${esc(e.id)}">EXCLUIR</button></div></header>${preview}${warns.length?`<div class="mpk-warns">${warns.map(w=>`<span>⚠ ${esc(w)}</span>`).join('')}</div>`:''}<div class="mpc-zones">${zones.map(z=>{const st=zoneStage(z),info=stageInfo(st),total=z.points?.length||0,val=(z.points||[]).filter(isValidated).length,extra=st==='enviada'?` • ${since(z.request?.sentAt)}`:'';return `<button class="mpc-zone" data-openzone="${esc(z.id)}"><span><b>${esc(z.name||'Zona sem nome')}</b><small>${total?`${val}/${total} validados`:'Sem pontos'}${extra}</small></span><em class="mpk-badge ${info.tom}">${info.label}</em></button>`}).join('')||'<div class="mpc-empty">Nenhuma zona cadastrada.</div>'}</div></article>`;
+        return `<article class="mpc-event"><header><div><span>${esc(type.label)}</span><h3>${esc(e.name)}</h3><small>${zones.length} zona${zones.length===1?'':'s'} • ${live.length} no jogo${toSend?` • ${toSend} para enviar`:''}${(()=>{const c=eventCapacities(e.id).map(o=>o.cap);if(!c.length)return '';const a=Math.min(...c),b=Math.max(...c);return ` • ${a===b?`até ${a}`:`${a}–${b}`} facções`;})()}</small></div><div class="mpc-event-actions"><button data-package="${esc(e.id)}" class="${toSend?'hot':''}">SOLICITAÇÃO${toSend?` (${toSend})`:''}</button><button data-newzone="${esc(e.id)}">+ NOVA ZONA</button><button class="danger" data-delevent="${esc(e.id)}">EXCLUIR</button></div></header>${preview}${warns.length?`<div class="mpk-warns">${warns.map(w=>`<span>⚠ ${esc(w)}</span>`).join('')}</div>`:''}<div class="mpc-zones">${zones.map(z=>{const st=zoneStage(z),info=stageInfo(st),total=z.points?.length||0,val=(z.points||[]).filter(isValidated).length,extra=st==='enviada'?` • ${isStale(z)?'⚠ sem retorno ':''}${since(z.request?.sentAt)}`:'';return `<button class="mpc-zone" data-openzone="${esc(z.id)}"><span><b>${esc(z.name||'Zona sem nome')}</b><small>${total?`${val}/${total} validados`:'Sem pontos'}${extra}</small></span><em class="mpk-badge ${isStale(z)?'bad':info.tom}">${info.label}</em></button>`}).join('')||'<div class="mpc-empty">Nenhuma zona cadastrada.</div>'}</div></article>`;
       }).join(''):'<div class="mpc-empty big">Nenhum evento neste filtro.</div>'}</div>`;
     qsa('[data-cfilter]',host).forEach(b=>b.onclick=()=>{state.centralFilter=b.dataset.cfilter;renderCentralV954();});
     qsa('[data-openzone]',host).forEach(b=>b.onclick=()=>switchMission(b.dataset.openzone));

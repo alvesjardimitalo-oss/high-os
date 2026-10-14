@@ -92,3 +92,14 @@ Regra de manutenção: configuração estática e funções puras não devem vol
 - Zonas oficiais já existentes entram como "No /evento" (linha de base).
 - Solicitação do evento inteiro: um único texto com todas as zonas prontas, no padrão Evento > Zona do /evento.
 - Modo Sobrevivência avisa quando faltam zonas (3 previstas) ou quando as áreas se sobrepõem.
+
+
+## V12.9 — Planejador: rastreio da solicitação e checagens do /evento
+
+- **O que mudou:** cada envio/aplicação guarda uma cópia da geografia. Zona "Alterada após envio" mostra exatamente o que mudou (centro, raio, spawns movidos/novos/removidos, safe) e a solicitação de alteração já sai com o bloco "ALTERAÇÕES EM RELAÇÃO À VERSÃO ATUAL NO JOGO".
+- **Cancelar envio:** quando a cidade recusa/pede ajuste ou o envio foi marcado por engano, a zona volta para a versão que está no jogo (ou para Pronta, se é nova).
+- **Capacidade:** 1 spawn por facção; cada zona mostra quantas facções comporta e o evento avisa quando as zonas do /evento comportam números diferentes. O pacote informa o limite de inscrições pela menor zona.
+- **Equilíbrio dos spawns (aviso, não bloqueia nem altera CDS):** spawns muito mais perto/longe do centro que a média e pares colados em relação ao espaçamento típico da zona.
+- **Discord:** textos acima de 2.000 caracteres são divididos em partes numeradas, sem cortar CDS.
+- **Prazo da cidade:** solicitação sem retorno há mais de 48 h (`PRAZO_RETORNO_H` em `eventos-painel.js`) aparece como ATRASADA na central.
+- **Histórico:** cada zona mostra o histórico do ciclo (enviada, reenviada, cancelada, aplicada) com data e usuário.

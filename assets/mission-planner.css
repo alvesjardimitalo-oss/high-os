@@ -394,3 +394,26 @@
 #mpkText{width:100%;box-sizing:border-box;padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,.1);background:#0b0a0f;color:#e9e3ef;resize:vertical;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;line-height:1.45}
 @media(max-width:850px){.mpk-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.mpk-groups{grid-template-columns:1fr}}
 @media(max-width:560px){.mpk-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}#page-planejador .mpc-event>header{flex-direction:column;align-items:flex-start;gap:8px}#page-planejador .mpc-event-actions{flex-wrap:wrap}}
+
+/* V12.9 — diff da geografia, histórico, avisos, partes do Discord */
+.mpk-kpi small{display:block;margin-top:3px;font-size:8.5px;font-weight:800;color:var(--mpk-bad)}
+.mpk-checks li.warn{color:var(--mpk-warn)}
+.mpk-diff{margin-top:8px;padding:9px 11px;border-radius:10px;border:1px solid rgba(255,125,147,.25);background:rgba(255,125,147,.05)}
+.mpk-diff b{display:block;font-size:8.5px;letter-spacing:.1em;color:var(--mpk-bad)}
+.mpk-diff ul{margin:6px 0 0;padding-left:16px;display:flex;flex-direction:column;gap:2px;font-size:9.5px;color:#e6dbe9;line-height:1.4;word-break:break-word}
+.mpk-diff small{display:block;margin-top:4px;font-size:9.5px;color:#a69daf}
+.mpk-log{margin-top:8px;font-size:9.5px;color:#a69daf}
+.mpk-log summary{cursor:pointer;font-size:8.5px;font-weight:900;letter-spacing:.1em;color:#9f67c8}
+.mpk-log ol{margin:6px 0 0;padding-left:16px;display:flex;flex-direction:column;gap:2px}
+.mpk-log li b{color:#ddd;font-weight:700;font-variant-numeric:tabular-nums}.mpk-log li i{font-style:normal;color:#6f6678}
+.mpk-warns.inline{border:0;border-radius:10px;margin:0 0 10px}
+.mpk-count{margin:0 0 6px;font-size:9.5px;color:#a69daf}
+.mpk-parts{display:flex;flex-direction:column;gap:8px;margin:12px 0;max-height:60vh;overflow:auto}
+.mpk-part{border:1px solid rgba(255,255,255,.08);border-radius:10px;background:rgba(255,255,255,.02);padding:9px 11px}
+.mpk-part.done{border-color:rgba(85,223,160,.35)}
+.mpk-part header{display:flex;align-items:center;gap:10px}
+.mpk-part header b{font-size:9px;letter-spacing:.1em;color:var(--mpk-brand)}
+.mpk-part header small{flex:1;font-size:9px;color:#8e8597}
+.mpk-part.done header b{color:var(--mpk-ok)}
+.mpk-part pre{margin:6px 0 0;white-space:pre-wrap;word-break:break-word;font-size:9px;color:#8e8597;max-height:90px;overflow:hidden}
+.mpk-part header button{height:28px;border-radius:7px;border:1px solid rgba(255,255,255,.12);background:#1a1b23;color:#eee;padding:0 10px;font-weight:900;font-size:9px;cursor:pointer}
