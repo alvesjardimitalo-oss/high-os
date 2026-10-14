@@ -1975,6 +1975,62 @@ ${lines.map(l=>`- ${l}`).join('\n')}
   }
   const pad2=n=>String(n).padStart(2,'0');
 
+  /* V12.11 — meta de spawns: quantas facções o evento precisa comportar.
+     Padrão = facções com Group ATIVO no High OS; a equipe pode fixar
+     uma meta própria por evento. */
+  function faccoesAtivas(){try{const l=window.HighOSMissionCloud?.faccoesAtivas?.();return Array.isArray(l)&&l.length?l:null;}catch(e){return null;}}
+  function eventTarget(eventId){
+    const manual=zonesOfEvent(eventId).map(z=>Number(z.spawnTarget)).find(n=>n>0);
+    if(manual)return {n:manual,fonte:'meta do evento'};
+    const a=faccoesAtivas();return a?{n:a.length,fonte:'facções ativas'}:null;
+  }
+  function spawnShortfall(m){const t=eventTarget(m?.eventId);return t?Math.max(0,t.n-(m.points||[]).length):0;}
+  function setEventTarget(eventId){
+    if(!canMarkRequests()){alert('Seu acesso ao Planejador é somente leitura.');return;}
+    const zs=zonesOfEvent(eventId);if(!zs.length)return;
+    const atual=zs.map(z=>Number(z.spawnTarget)).find(n=>n>0)||'',ativas=faccoesAtivas();
+    const v=prompt(`Meta de facções do evento "${zs[0].event||'Evento'}".\n\nDeixe vazio para usar as facções ativas no High OS${ativas?` (hoje: ${ativas.length})`:''}.`,atual);
+    if(v===null)return;
+    const n=Math.round(Number(String(v).trim()));
+    zs.forEach(z=>{if(String(v).trim()&&n>0)z.spawnTarget=n;else delete z.spawnTarget;});
+    saveStore();render();renderCentralV954();
+  }
+  /* Novos spawns sem mexer nos existentes: candidatos na mesma faixa de
+     distância do centro dos spawns atuais (equilíbrio) e, um a um, o
+     candidato mais afastado de todos os spawns (preenche os vazios).
+     Em evento com gás ficam sempre dentro da safe inicial. */
+  function suggestSpawns(m,n){
+    const c=m?.center;if(!validCoord(c?.x)||!validCoord(c?.y)||n<1)return [];
+    const cx=Number(c.x),cy=Number(c.y),R=effectiveEventRadius(m),gas=eventTypeOf(m).gas;
+    const pts=(m.points||[]).filter(p=>validCoord(p.x)&&validCoord(p.y)).map(p=>({x:Number(p.x),y:Number(p.y)}));
+    let mean=pts.length?pts.reduce((s,p)=>s+Math.hypot(p.x-cx,p.y-cy),0)/pts.length:R*.8;
+    if(gas)mean=Math.min(mean,R*.85);
+    const band=[1,.92,1.08].map(k=>gas?Math.min(mean*k,R*.92):mean*k);
+    const cand=[];for(let a=0;a<360;a+=2)band.forEach(d=>{const r=a*Math.PI/180;cand.push({x:cx+Math.sin(r)*d,y:cy+Math.cos(r)*d,deg:a});});
+    const out=[],all=[...pts];
+    const minTo=(q,arr)=>{let md=Infinity;for(const p of arr){const d=Math.hypot(q.x-p.x,q.y-p.y);if(d<md)md=d;}return md;};
+    for(let k=0;k<n;k++){
+      /* empate no vão (spawns atuais uniformes): espalha os novos pelo círculo */
+      let best=null,bd=-1,bn=-1;
+      cand.forEach(q=>{const md=Math.round(minTo(q,all)),mn=out.length?minTo(q,out):0;if(md>bd||(md===bd&&mn>bn)){bd=md;bn=mn;best=q;}});
+      if(!best)break;out.push(best);all.push(best);
+    }
+    return out;
+  }
+  function completeSpawns(){
+    const m=active();if(!m)return;
+    if(!canMarkRequests()){alert('Seu acesso ao Planejador é somente leitura.');return;}
+    const t=eventTarget(m.eventId),need=spawnShortfall(m);
+    if(!t){alert('Defina a meta de facções do evento (botão META na central de eventos).');return;}
+    if(!need){alert(`A zona já tem ${m.points.length} spawns para a meta de ${t.n} facções.`);return;}
+    if(!validCoord(m.center?.x)||!validCoord(m.center?.y)){alert('Defina primeiro o centro da zona.');return;}
+    if(!confirm(`Gerar ${need} spawn${need>1?'s':''} novo${need>1?'s':''} para a zona "${m.name}" chegar a ${t.n} facções (${t.fonte})?\n\nOs ${m.points.length} spawns atuais NÃO serão alterados. Os novos entram na mesma faixa de distância do centro, nos espaços vazios${eventTypeOf(m).gas?', dentro da safe inicial':''}, e ficam PENDENTES até a validação da CDS real no FiveM.`))return;
+    if(!state.editing)startEdit();
+    const add=suggestSpawns(m,need),base=m.points.length;
+    add.forEach((q,i)=>m.points.push(normalizePoint({x:q.x,y:q.y,z:0,h:(q.deg+180)%360,status:'planned'},base+i)));
+    commit(`${add.length} spawns gerados como PENDENTES — confira no mapa e SALVE`);fit();
+  }
+
   /* Prazo de retorno da cidade */
   function retornoHoras(){return Number(CATALOG()?.PRAZO_RETORNO_H)||48;}
   function isStale(m){const r=m?.request;if(r?.status!=='sent'||zoneStage(m)!=='enviada')return false;const t=Date.parse(r.sentAt||'');return Number.isFinite(t)&&Date.now()-t>retornoHoras()*3600000;}
@@ -2025,6 +2081,13 @@ ${lines.map(l=>`- ${l}`).join('\n')}
         :{label:'Fases da safe (tempos/dano) iguais às demais zonas',ok:true,block:false});
     }
     /* avisos (não bloqueiam): capacidade igual às demais zonas e equilíbrio */
+    const tg=eventTarget(m.eventId);
+    if(tg){
+      const tot=(m.points||[]).length;
+      out.push(tot<tg.n
+        ?{label:`Faltam ${tg.n-tot} spawn(s) para ${tg.n} facções (${tg.fonte}) — use GERAR SPAWNS QUE FALTAM`,ok:false,block:false,warn:true}
+        :{label:`Spawns suficientes para ${tg.n} facções (${tg.fonte})`,ok:true,block:false});
+    }
     const cap=zoneCapacity(m);
     if(cap){
       const others=eventCapacities(m.eventId).filter(o=>o.z.id!==m.id);
@@ -2401,6 +2464,7 @@ ${(type.mechanic||[]).map(l=>`- ${l}`).join('\n\n')}${padraoText(first)}${height
     if(st==='pronta'||st==='alterada')actions.push(`<button type="button" data-req="sent" class="primary">COPIAR E MARCAR COMO ENVIADA</button>`);
     if(st==='enviada')actions.push(`<button type="button" data-req="applied" class="primary">CONFIRMAR APLICADA NO JOGO</button><button type="button" data-req="cancel">CANCELAR ENVIO</button>`);
     if(st==='pronta'||st==='alterada')actions.push(`<button type="button" data-req="parts">COPIAR EM PARTES (DISCORD)</button>`);
+    if(spawnShortfall(m)>0)actions.unshift(`<button type="button" data-req="fill" class="primary">GERAR ${spawnShortfall(m)} SPAWN${spawnShortfall(m)>1?'S':''} QUE FALTA${spawnShortfall(m)>1?'M':''}</button>`);
     const ts=testStatus(m);
     if(ts&&st==='nojogo')actions.push(`<button type="button" data-req="tests">${ts.done?'REVISAR TESTES':'REGISTRAR TESTES'}</button>`);
     if(eventTypeOf(m).padrao)actions.push(`<button type="button" data-req="padrao">VER PADRÃO GÁS</button>`);
@@ -2425,6 +2489,7 @@ ${(type.mechanic||[]).map(l=>`- ${l}`).join('\n\n')}${padraoText(first)}${height
       else if(b.dataset.req==='parts'){if(!generateRequest())return;openPartsModal(`SOLICITAÇÃO · ${m.event||'Evento'} › ${m.name||'Zona'}`,m.requestText);}
       else if(b.dataset.req==='applied'&&eventTypeOf(m).padrao){openTestsModal(m,true);}
       else if(b.dataset.req==='tests'){openTestsModal(m,false);}
+      else if(b.dataset.req==='fill'){completeSpawns();}
       else if(b.dataset.req==='padrao'){openPadraoModal(m.eventId);}
       else if(b.dataset.req==='applied'){if(confirm(`Confirmar que a zona "${m.name}" já está disponível no ${panelLabel(m)}?`)&&markZoneApplied(m)){saveStore();render();}}
       else if(b.dataset.req==='cancel'){if(confirm(`Cancelar o envio da zona "${m.name}"? Use quando a cidade recusar/pedir ajuste ou se marcou por engano. A zona volta para ${m.request?.prev||m.request?.appliedBefore?'a versão que está no jogo':'PRONTA P/ ENVIAR'}.`)&&cancelZoneSent(m)){saveStore();render();}}
@@ -2477,7 +2542,7 @@ z=zones[0];if(!z)return false;
     const since=CATALOG()?.tempoDesde||(()=>'');
     const kpi=(n,l,tom,sub)=>`<div class="mpk-kpi ${tom||''}"><b>${n}</b><span>${l}</span>${sub?`<small>${sub}</small>`:''}</div>`;
     const staleN=state.missions.filter(isStale).length;
-    host.innerHTML=`<div class="mpc-head"><div><span>EVENTOS · PAINEL ${esc(defaultPanel().toUpperCase())}</span><strong>${allEvents.length} eventos <i>•</i> ${state.missions.length} zonas</strong></div><span id="mpCloudStateCentral" class="mp-cloud-state ${state.cloudState||'local'}">${state.cloudState==='synced'||state.cloudState==='ok'?'☁ SINCRONIZADO':'↻ SINCRONIZANDO'}</span></div>
+    host.innerHTML=`<div class="mpc-head"><div><span>EVENTOS · PAINEL ${esc(defaultPanel().toUpperCase())}</span><strong>${allEvents.length} eventos <i>•</i> ${state.missions.length} zonas${faccoesAtivas()?` <i>•</i> ${faccoesAtivas().length} facções ativas`:''}</strong></div><span id="mpCloudStateCentral" class="mp-cloud-state ${state.cloudState||'local'}">${state.cloudState==='synced'||state.cloudState==='ok'?'☁ SINCRONIZADO':'↻ SINCRONIZANDO'}</span></div>
       <div class="mpk-kpis">${kpi(cnt('nojogo'),'no /evento','ok')}${kpi(cnt('enviada'),'aguardando cidade',staleN?'bad':'warn',staleN?`${staleN} há +${retornoHoras()} h`:'')}${kpi(cnt('pronta'),'prontas p/ enviar','brand')}${kpi(cnt('alterada'),'alteradas após envio',cnt('alterada')?'bad':'')}${kpi(cnt('rascunho'),'em rascunho','')}</div>
       <div class="mpc-toolbar"><div class="mpc-filters"><button data-cfilter="all" class="${filter==='all'?'active':''}">TODOS</button><button data-cfilter="pend" class="${filter==='pend'?'active':''}">SOLICITAÇÕES EM ABERTO</button><button data-cfilter="dominacao" class="${filter==='dominacao'?'active':''}">DOMINAÇÃO</button><button data-cfilter="gas" class="${filter==='gas'?'active':''}">ZONA DE GÁS</button></div><button id="mpCentralNewEvent" class="mpc-primary">+ NOVO EVENTO</button></div>
       <div class="mpc-events">${events.length?events.map(e=>{
@@ -2487,15 +2552,17 @@ z=zones[0];if(!z)return false;
         const warns=[];
         if(type.zonasPrevistas&&zones.length<type.zonasPrevistas)warns.push(`${type.label}: ${zones.length}/${type.zonasPrevistas} zonas cadastradas`);
         const capW=capacityWarning(e.id);if(capW)warns.push(capW);
+        const tg=eventTarget(e.id);if(tg){const curtas=zones.filter(z=>(z.points||[]).length<tg.n);if(curtas.length)warns.push(`Meta de ${tg.n} facções (${tg.fonte}): ${curtas.map(z=>`${z.name||'Zona'} tem ${(z.points||[]).length}`).join(' · ')} — abra a zona e use GERAR SPAWNS QUE FALTAM`);}
         if(type.padrao){const semTeste=zones.filter(z=>{const ts=testStatus(z);return zoneStage(z)==='nojogo'&&ts&&(!ts.done||ts.ok<ts.total);});if(semTeste.length)warns.push(`Padrão gás: testes pendentes em ${semTeste.map(z=>z.name||'Zona').join(', ')}`);}
         if(type.zonasSeparadas)zoneOverlaps(e.id).forEach(o=>warns.push(`${o.a} × ${o.b}: áreas sobrepostas (${Math.round(o.d)} m entre centros, mínimo ${Math.round(o.lim)} m)`));
         const preview=`<div class="mpk-preview"><span>NO ${esc(panelLabel(zones[0]).toUpperCase())}</span><b>${esc(e.name)}</b><i>›</i>${live.length?live.map(z=>`<em>${esc(z.name||'Zona')}</em>`).join(''):'<small>nenhuma zona confirmada no jogo</small>'}</div>`;
-        return `<article class="mpc-event"><header><div><span>${esc(type.label)}</span><h3>${esc(e.name)}</h3><small>${zones.length} zona${zones.length===1?'':'s'} • ${live.length} no jogo${toSend?` • ${toSend} para enviar`:''}${(()=>{const c=eventCapacities(e.id).map(o=>o.cap);if(!c.length)return '';const a=Math.min(...c),b=Math.max(...c);return ` • ${a===b?`até ${a}`:`${a}–${b}`} facções`;})()}</small></div><div class="mpc-event-actions"><button data-package="${esc(e.id)}" class="${toSend?'hot':''}">SOLICITAÇÃO${toSend?` (${toSend})`:''}</button>${type.padrao?`<button data-padrao="${esc(e.id)}">PADRÃO GÁS</button>`:''}<button data-newzone="${esc(e.id)}">+ NOVA ZONA</button><button class="danger" data-delevent="${esc(e.id)}">EXCLUIR</button></div></header>${preview}${warns.length?`<div class="mpk-warns">${warns.map(w=>`<span>⚠ ${esc(w)}</span>`).join('')}</div>`:''}<div class="mpc-zones">${zones.map(z=>{const st=zoneStage(z),info=stageInfo(st),total=z.points?.length||0,val=(z.points||[]).filter(isValidated).length,extra=st==='enviada'?` • ${isStale(z)?'⚠ sem retorno ':''}${since(z.request?.sentAt)}`:'';return `<button class="mpc-zone" data-openzone="${esc(z.id)}"><span><b>${esc(z.name||'Zona sem nome')}</b><small>${total?`${val}/${total} validados`:'Sem pontos'}${extra}</small></span><em class="mpk-badge ${isStale(z)?'bad':info.tom}">${info.label}</em></button>`}).join('')||'<div class="mpc-empty">Nenhuma zona cadastrada.</div>'}</div></article>`;
+        return `<article class="mpc-event"><header><div><span>${esc(type.label)}</span><h3>${esc(e.name)}</h3><small>${zones.length} zona${zones.length===1?'':'s'} • ${live.length} no jogo${toSend?` • ${toSend} para enviar`:''}${(()=>{const c=eventCapacities(e.id).map(o=>o.cap);if(!c.length)return '';const a=Math.min(...c),b=Math.max(...c);return ` • ${a===b?`até ${a}`:`${a}–${b}`} facções`;})()}</small></div><div class="mpc-event-actions"><button data-package="${esc(e.id)}" class="${toSend?'hot':''}">SOLICITAÇÃO${toSend?` (${toSend})`:''}</button><button data-meta="${esc(e.id)}" title="Quantas facções o evento precisa comportar">META${eventTarget(e.id)?` ${eventTarget(e.id).n}`:''}</button>${type.padrao?`<button data-padrao="${esc(e.id)}">PADRÃO GÁS</button>`:''}<button data-newzone="${esc(e.id)}">+ NOVA ZONA</button><button class="danger" data-delevent="${esc(e.id)}">EXCLUIR</button></div></header>${preview}${warns.length?`<div class="mpk-warns">${warns.map(w=>`<span>⚠ ${esc(w)}</span>`).join('')}</div>`:''}<div class="mpc-zones">${zones.map(z=>{const st=zoneStage(z),info=stageInfo(st),total=z.points?.length||0,val=(z.points||[]).filter(isValidated).length,extra=st==='enviada'?` • ${isStale(z)?'⚠ sem retorno ':''}${since(z.request?.sentAt)}`:'';return `<button class="mpc-zone" data-openzone="${esc(z.id)}"><span><b>${esc(z.name||'Zona sem nome')}</b><small>${total?`${val}/${total} validados`:'Sem pontos'}${extra}</small></span><em class="mpk-badge ${isStale(z)?'bad':info.tom}">${info.label}</em></button>`}).join('')||'<div class="mpc-empty">Nenhuma zona cadastrada.</div>'}</div></article>`;
       }).join(''):'<div class="mpc-empty big">Nenhum evento neste filtro.</div>'}</div>`;
     qsa('[data-cfilter]',host).forEach(b=>b.onclick=()=>{state.centralFilter=b.dataset.cfilter;renderCentralV954();});
     qsa('[data-openzone]',host).forEach(b=>b.onclick=()=>switchMission(b.dataset.openzone));
     qsa('[data-package]',host).forEach(b=>b.onclick=()=>openEventPackage(b.dataset.package));
     qsa('[data-padrao]',host).forEach(b=>b.onclick=()=>openPadraoModal(b.dataset.padrao));
+    qsa('[data-meta]',host).forEach(b=>b.onclick=()=>setEventTarget(b.dataset.meta));
     qsa('[data-newzone]',host).forEach(b=>b.onclick=()=>{if(selectEventForAction(b.dataset.newzone))createZone();});
     qsa('[data-delevent]',host).forEach(b=>b.onclick=()=>{if(selectEventForAction(b.dataset.delevent))deleteEvent();});
     qs('#mpCentralNewEvent',host)?.addEventListener('click',()=>{if(filter==='dominacao'||filter==='gas')state.libraryCategory=filter;createEvent();});

@@ -112,3 +112,10 @@ Regra de manutenção: configuração estática e funções puras não devem vol
 - Modo Sobrevivência: aviso quando as fases da safe (tempos/dano) de uma zona diferem das demais; a solicitação exige comportamento idêntico entre as 3 zonas.
 - Botão **PADRÃO GÁS** (central e zona): resumo da HUD/regras e situação dos testes por zona.
 - **Testes no jogo:** confirmar uma zona como aplicada abre os 15 critérios de validação da solicitação; pendências ficam visíveis na zona e na central até serem testadas.
+
+
+## V12.11 — Meta de facções e geração dos spawns que faltam
+
+- **Meta do evento:** por padrão, o número de facções com Group ATIVO no High OS (`HighOSMissionCloud.faccoesAtivas`); o botão **META** na central fixa outro número por evento (vazio volta ao automático).
+- A central avisa quais zonas têm menos spawns que a meta; a zona mostra "Faltam X spawns".
+- **GERAR X SPAWNS QUE FALTAM:** cria só os spawns que faltam, sem alterar nenhum existente, na mesma faixa de distância do centro, nos vãos entre os spawns atuais, virados para o centro e (eventos com gás) dentro da safe inicial. Entram PENDENTES e seguem o fluxo normal de validação da CDS real no FiveM.

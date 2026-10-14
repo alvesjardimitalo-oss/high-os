@@ -13337,6 +13337,9 @@ return false}
 window.HighOSMissionCloud={
  canEdit:()=>!!currentUser&&canEditModule('planejador'),
 
+ /* Planejador: facções com Group ativo hoje (meta de spawns dos eventos) */
+ faccoesAtivas:()=>estado.faccoes.filter(f=>f.status==='ATIVA').map(f=>({group:f.group,faccao:f.faccao||'',segmento:f.segmento||''})),
+
  user:()=>currentUser?.email||'',
 
  pull:pullMissionsFromCloud,
