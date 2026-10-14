@@ -35,6 +35,7 @@ A documentação histórica permanece no Git. Este README descreve somente a est
 - `index.html` — estrutura das telas.
 - `assets/app.js` — aplicação legada em processo de modularização.
 - `assets/mission-planner.js` — Planejador de Missões.
+- `assets/modules/eventos-painel.js` — catálogo dos eventos do painel `/evento` (tipos, mecânica e etapas da solicitação); script clássico carregado antes do Planejador.
 - `assets/modules/estado.js` — estado compartilhado.
 - `assets/modules/formatadores.js` — utilitários e formatação.
 - `assets/modules/metricas-parser.js` — parser isolado das métricas.
@@ -82,3 +83,12 @@ Módulos extraídos do controlador principal:
 O High OS Bot segue a mesma separação por domínio: administração, anúncios, facções, métricas, eventos e consultas. A especificação inclui `/anunciar`, limpeza manual de conversas, retenção automática configurável, permissões e auditoria.
 
 Regra de manutenção: configuração estática e funções puras não devem voltar para `assets/app.js`. Novos recursos devem entrar no módulo do domínio correspondente.
+
+
+## V12.8 — Planejador alinhado ao painel /evento
+
+- Tipo do evento (Dominação, Fac x Fac, Modo Sobrevivência, Battle Royale, Hoje é Dia de Guerra, Zona de Conflito) define a mecânica escrita na solicitação.
+- Cada zona segue o ciclo: Rascunho → Pronta p/ enviar → Aguardando cidade → No /evento; qualquer mudança de geografia depois do envio vira "Alterada após envio".
+- Zonas oficiais já existentes entram como "No /evento" (linha de base).
+- Solicitação do evento inteiro: um único texto com todas as zonas prontas, no padrão Evento > Zona do /evento.
+- Modo Sobrevivência avisa quando faltam zonas (3 previstas) ou quando as áreas se sobrepõem.
