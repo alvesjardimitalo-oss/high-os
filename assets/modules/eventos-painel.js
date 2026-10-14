@@ -33,14 +33,57 @@
     'A área de Dominação deverá permanecer fixa, sem fechamento progressivo de gás/safe.'
   ];
 
+  /* Padrão dos eventos com zona de gás — solicitação de alteração de
+     sistema enviada à cidade em 13/10/2026 ([ILG] Alves). Vale para Modo
+     Sobrevivência, Fac x Fac e Battle Royale. As regras entram em toda
+     solicitação de zona desses eventos; os testes viram o checklist de
+     validação quando a zona é confirmada no jogo. */
+  const PADRAO_GAS = {
+    id: 'gas-2026-10-13',
+    titulo: 'PADRÃO DOS EVENTOS COM ZONA DE GÁS',
+    eventos: 'Modo Sobrevivência, Fac x Fac e Battle Royale',
+    solicitadoEm: '13/10/2026',
+    regras: [
+      'Após a última fase, a safe deverá fechar COMPLETAMENTE (raio zero), sem deixar nenhuma área segura.',
+      'Depois de fechada, o gás deverá continuar causando dano contínuo a todos os players vivos até restar apenas UMA equipe viva.',
+      'A última equipe viva é declarada campeã e o evento é encerrado automaticamente. Em morte simultânea, manter a regra de desempate já definida no sistema.',
+      'HUD do player, inventário inicial (Mochila Média equipada e slots 1 a 4 preenchidos), morte com espectador somente da própria equipe, /surrender e comemoração de vitória deverão seguir o padrão já solicitado para os eventos com zona de gás.'
+    ],
+    zonasIguais: 'Esta zona deverá seguir exatamente as mesmas fases da safe, tempos, dano, HUD, inventário, encerramento e comemoração das demais zonas do evento, sem configuração própria.',
+    resumo: [
+      { titulo: 'Safe final', itens: ['Fecha até raio zero', 'Dano contínuo até sobrar 1 equipe', 'Campeã declarada e encerramento automático'] },
+      { titulo: 'HUD', itens: ['Não cobre logo, ID, horário, voz, gemas, notificações e status', 'Topo: logo HIGH + logo/título do evento', 'Direita: vivos na partida + colegas vivos (sem nomes de outras equipes)', 'Esquerda: painel da equipe (até 15) com foto, nome, vida + e colete em %', 'Inferior esquerdo: Mochila Média + slots 1–4', 'Centro inferior: fase da safe + contagem', 'Atalhos: CAPS rádio · N pingar · M ocultar · H energético · Q scoreboard'] },
+      { titulo: 'Inventário', itens: ['Mochila Média equipada', 'Slots 1–4 com o kit do evento', 'Player pode reorganizar'] },
+      { titulo: 'Morte', itens: ['Espectador só da própria equipe', 'Sem colegas vivos: volta ao mundo 0', '/surrender após tempo mínimo, sem retorno'] },
+      { titulo: 'Vitória', itens: ['Gás para na hora', 'Equipe campeã: aplausos e assobio', 'Tela "VITÓRIA" + Group campeão + coroa animada', 'Depois todos voltam ao mundo 0'] }
+    ],
+    testes: [
+      'A última safe fecha até raio zero',
+      'O gás continua causando dano após o fechamento até sobrar uma equipe',
+      'O evento encerra e anuncia a equipe campeã automaticamente',
+      'A HUD do evento não cobre nenhum elemento fixo da cidade',
+      'HUD: logo da HIGH, logo e título do evento, total de vivos e colegas vivos, sem nomes de outras equipes',
+      'Painel da equipe: nome do Group, foto, nome, vida (+) e colete (escudo) em % para até 15 players',
+      'Slots 1 a 4 lado a lado no canto inferior esquerdo, com a Mochila Média no início',
+      'Aviso da safe no centro inferior com contagem regressiva',
+      'Legenda de atalhos (CAPS, N, M, H, Q) aparece e as teclas funcionam',
+      'Player entra com Mochila Média e slots 1 a 4 preenchidos, e consegue reorganizar',
+      'Espectador mostra apenas colegas da própria equipe',
+      'Volta ao mundo 0 quando a equipe é eliminada ou com /surrender após o tempo mínimo',
+      'Equipe vencedora executa a animação de aplauso e assobio',
+      'Tela mostra "VITÓRIA", o Group campeão e a coroa com efeito visual'
+    ],
+    testeZonasIguais: 'Esta zona se comporta de forma idêntica às demais zonas do evento'
+  };
+
   const TIPOS = [
     { id: 'dominacao', label: 'DOMINAÇÃO', category: 'dominacao', gas: false,
       match: /domina/i, mechanic: MEC_DOMINACAO,
       notes: ['Área de disputa fixa', 'Spawns podem ficar dentro ou fora do raio', 'Sem fechamento progressivo de gás'] },
-    { id: 'facxfac', label: 'FAC X FAC', category: 'gas', gas: true,
+    { id: 'facxfac', label: 'FAC X FAC', category: 'gas', gas: true, padrao: PADRAO_GAS,
       match: /fac\s*x\s*fac/i, mechanic: MEC_FACXFAC,
-      notes: ['Safe inicial obrigatória cobrindo todos os spawns', 'Fechamento progressivo do gás', 'Spawn individual por organização', 'Loot/caixas e drop ao morrer conforme padrão Fac x Fac', 'Ranking e regras próprias preservados'] },
-    { id: 'sobrevivencia', label: 'MODO SOBREVIVÊNCIA', category: 'gas', gas: true, zonasPrevistas: 3, zonasSeparadas: true,
+      notes: ['Safe inicial obrigatória cobrindo todos os spawns', 'Fechamento progressivo do gás', 'Spawn individual por organização', 'Loot/caixas e drop ao morrer conforme padrão Fac x Fac', 'Ranking e regras próprias preservados', 'Segue o padrão dos eventos com gás (13/10)'] },
+    { id: 'sobrevivencia', label: 'MODO SOBREVIVÊNCIA', category: 'gas', gas: true, zonasPrevistas: 3, zonasSeparadas: true, zonasIguais: true, padrao: PADRAO_GAS,
       match: /sobreviv/i,
       mechanic: [
         'O Modo Sobrevivência deverá seguir o mesmo funcionamento do Fac x Fac (spawn individual por facção, loot, fechamento progressivo do gás e drop ao morrer), mantendo as configurações próprias do Modo Sobrevivência.',
@@ -49,14 +92,14 @@
         'Quem permanecer fora da zona deverá receber dano do gás conforme o sistema atual.',
         'As zonas do Modo Sobrevivência ficam em localizações diferentes; a zona escolhida no /evento define onde a partida acontece.'
       ],
-      notes: ['Cópia do Fac x Fac com regras próprias', '3 zonas em localizações diferentes', 'Safe inicial obrigatória cobrindo todos os spawns'] },
-    { id: 'battle-royale', label: 'BATTLE ROYALE', category: 'gas', gas: true,
+      notes: ['Cópia do Fac x Fac', '3 zonas em localizações diferentes, com regras idênticas', 'Safe inicial obrigatória cobrindo todos os spawns', 'Segue o padrão dos eventos com gás (13/10)'] },
+    { id: 'battle-royale', label: 'BATTLE ROYALE', category: 'gas', gas: true, padrao: PADRAO_GAS,
       match: /battle\s*royale/i,
       mechanic: [
         'Todos os spawns deverão iniciar dentro da safe inicial.',
-        'O fechamento da safe/gás, o loot e a premiação deverão seguir o funcionamento atual do Battle Royale.'
+        'O loot e a premiação deverão seguir o funcionamento atual do Battle Royale.'
       ],
-      notes: ['Safe inicial obrigatória cobrindo todos os spawns', 'Fechamento progressivo do gás'] },
+      notes: ['Safe inicial obrigatória cobrindo todos os spawns', 'Fechamento progressivo do gás', 'Segue o padrão dos eventos com gás (13/10)'] },
     { id: 'dia-de-guerra', label: 'HOJE É DIA DE GUERRA', category: 'gas', gas: true,
       match: /dia\s*de\s*guerra/i, mechanic: MEC_GAS,
       notes: ['Safe inicial obrigatória cobrindo todos os spawns', 'Fechamento progressivo do gás'] },
@@ -105,5 +148,5 @@
   /* Horas sem retorno da cidade até a zona aparecer como ATRASADA */
   const PRAZO_RETORNO_H = 48;
 
-  window.HighEventCatalog = { PANEL_PADRAO, TIPOS, porId, tipoDe, ETAPAS, tempoDesde, PRAZO_RETORNO_H };
+  window.HighEventCatalog = { PANEL_PADRAO, TIPOS, porId, tipoDe, ETAPAS, tempoDesde, PRAZO_RETORNO_H, PADRAO_GAS };
 })();

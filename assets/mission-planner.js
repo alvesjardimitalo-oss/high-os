@@ -2018,6 +2018,12 @@ ${lines.map(l=>`- ${l}`).join('\n')}
       const sr=m.safeRoute;const o2=(sr?.stage2Options||[]).length,o3=(sr?.stage3Options||[]).length;
       out.push({label:o2||o3?`Movimentação da safe (${o2} op. SAFE 2 · ${o3} op. SAFE 3)`:'Movimentação da safe não configurada (opcional)',ok:!!(o2||o3),block:false});
     }
+    if(type.zonasIguais){
+      const sig=safeRulesSig(m),diff=zonesOfEvent(m.eventId).filter(z=>z.id!==m.id&&safeRulesSig(z)&&sig&&safeRulesSig(z)!==sig);
+      if(sig)out.push(diff.length
+        ?{label:`Fases da safe diferentes de ${diff.map(z=>z.name||'Zona').join(', ')} (tempos/dano precisam ser iguais em todas as zonas)`,ok:false,block:false,warn:true}
+        :{label:'Fases da safe (tempos/dano) iguais às demais zonas',ok:true,block:false});
+    }
     /* avisos (não bloqueiam): capacidade igual às demais zonas e equilíbrio */
     const cap=zoneCapacity(m);
     if(cap){
@@ -2128,7 +2134,7 @@ ${o2.map((p,i)=>fmtOpt(p,i,'SAFE 2')).join('\n')}
 ${o3.map((p,i)=>fmtOpt(p,i,'SAFE 3')).join('\n')}
 
 - A cada execução, sortear uma opção de SAFE 2 e uma opção de SAFE 3 dentre as CDS configuradas.
-- Fluxo: SAFE 1 fecha → círculo inteiro se desloca até SAFE 2 mantendo o raio alcançado → fecha novamente → desloca até SAFE 3 → fechamento final.
+- Fluxo: SAFE 1 fecha → círculo inteiro se desloca até SAFE 2 mantendo o raio alcançado → fecha novamente → desloca até SAFE 3 → fechamento final${eventTypeOf(m).padrao?' até raio zero, com dano contínuo até restar uma equipe':''}.
 - Movimento SAFE 1→2: ${Number(s[0]?.moveSeconds)||0}s. Movimento SAFE 2→3: ${Number(s[1]?.moveSeconds)||0}s.
 - Durante o deslocamento, centro e área do gás devem se mover continuamente, sem teleporte da zona.`;
       }
@@ -2163,6 +2169,70 @@ OBSERVAÇÃO — ALTURA DA SAFE:
 
 - A movimentação e a verificação da Safe devem considerar principalmente X/Y e o raio atual, evitando que o gás fique enterrado ou suspenso devido à diferença de altitude do mapa.`:'';}
   function panelLabel(m){return m?.panel||defaultPanel();}
+
+  /* V12.10 — padrão dos eventos com zona de gás (solicitação de 13/10).
+     Vai em toda solicitação de zona de Sobrevivência, Fac x Fac e BR. */
+  function padraoText(m){
+    const t=eventTypeOf(m),P=t.padrao;if(!P)return '';
+    return `
+
+${P.titulo} (${P.eventos}):
+
+${P.regras.map(l=>`- ${l}`).join('\n\n')}${t.zonasIguais?`
+
+- ${P.zonasIguais}`:''}`;
+  }
+  /* assinatura das fases da safe que precisam ser iguais entre zonas */
+  function safeRulesSig(m){
+    const sr=m?.safeRoute;if(!sr||!Array.isArray(sr.stages))return null;
+    return sr.stages.map((s,i)=>`F${i+1}: dano ${Number(s.damage)||0} · fecha ${Number(s.closeSeconds)||0}s${i<sr.stages.length-1?` · move ${Number(s.moveSeconds)||0}s`:''}`).join(' | ');
+  }
+  function testList(m){const t=eventTypeOf(m),P=t.padrao;if(!P)return [];return t.zonasIguais?[...P.testes,P.testeZonasIguais]:[...P.testes];}
+  function testStatus(m){
+    const list=testList(m);if(!list.length)return null;
+    const tt=m?.request?.tests;const ok=Array.isArray(tt?.ok)?tt.ok.filter(i=>i<list.length):[];
+    return {total:list.length,ok:ok.length,done:!!tt,falhas:list.filter((_,i)=>!ok.includes(i)),at:tt?.at,by:tt?.by};
+  }
+  /* Ao confirmar no jogo: checklist dos critérios de validação da solicitação */
+  function openTestsModal(m,confirmApply){
+    const list=testList(m);if(!list.length)return false;
+    const prev=m.request?.tests?.ok||[];
+    let modal=qs('#mpTestsModal');if(modal)modal.remove();
+    modal=document.createElement('div');modal.id='mpTestsModal';modal.className='mp-replicate-backdrop';
+    modal.innerHTML=`<div class="mp-replicate-modal mpk-modal"><div class="mp-replicate-head"><div><b>${confirmApply?'CONFIRMAR NO JOGO':'TESTES'} · ${esc(m.event||'Evento')} › ${esc(m.name||'Zona')}</b><small>Critérios de validação do ${esc(eventTypeOf(m).padrao.titulo.toLowerCase())} (${esc(eventTypeOf(m).padrao.solicitadoEm)}). Marque o que foi testado e funcionou.</small></div><button data-close>×</button></div>
+      <div class="mpk-tests">${list.map((t,i)=>`<label><input type="checkbox" data-test="${i}" ${prev.includes(i)?'checked':''}><span>${esc(t)}</span></label>`).join('')}</div>
+      <div class="mpk-count" id="mpkTestsCount"></div>
+      <div class="mp-replicate-actions"><button data-close>FECHAR</button><button data-all>MARCAR TODOS</button><button class="primary" data-save>${confirmApply?'CONFIRMAR APLICADA NO JOGO':'SALVAR TESTES'}</button></div></div>`;
+    document.body.appendChild(modal);
+    const boxes=qsa('[data-test]',modal),count=()=>{const n=boxes.filter(b=>b.checked).length;qs('#mpkTestsCount',modal).textContent=`${n}/${list.length} critérios OK${n<list.length?' — os que faltarem ficam como pendência na zona':''}`;};
+    boxes.forEach(b=>b.onchange=count);count();
+    qsa('[data-close]',modal).forEach(b=>b.onclick=()=>modal.remove());
+    modal.addEventListener('click',e=>{if(e.target===modal)modal.remove();});
+    qs('[data-all]',modal).onclick=()=>{boxes.forEach(b=>b.checked=true);count();};
+    qs('[data-save]',modal).onclick=()=>{
+      if(confirmApply&&!markZoneApplied(m))return;
+      if(!canMarkRequests()){alert('Seu acesso ao Planejador é somente leitura.');return;}
+      const ok=boxes.filter(b=>b.checked).map(b=>Number(b.dataset.test));
+      m.request=m.request||{status:'applied',hash:geomHash(m),geom:geomSnap(m)};
+      m.request.tests={ok,at:nowIso(),by:cloudUser()};
+      logRequest(m,`testes ${ok.length}/${list.length}`);
+      saveStore();modal.remove();render();renderCentralV954();
+    };
+    return true;
+  }
+  function openPadraoModal(eventId){
+    const zones=zonesOfEvent(eventId),t=eventTypeOf(zones[0]||{}),P=t.padrao;if(!P)return;
+    let modal=qs('#mpPadraoModal');if(modal)modal.remove();
+    modal=document.createElement('div');modal.id='mpPadraoModal';modal.className='mp-replicate-backdrop';
+    const zt=zones.map(z=>{const ts=testStatus(z),st=zoneStage(z);return `<div class="mpk-ztest"><b>${esc(z.name||'Zona')}</b><span class="${!ts?.done?'':(ts.ok===ts.total?'ok':'warn')}">${st!=='nojogo'&&!wasApplied(z)?'ainda não está no jogo':(!ts?.done?'testes não registrados':`${ts.ok}/${ts.total} OK${ts.at?` · ${esc(fmtLogDate(ts.at))}`:''}`)}</span>${ts?.done&&ts.falhas.length?`<small>Falta: ${ts.falhas.map(esc).join(' · ')}</small>`:''}</div>`;}).join('');
+    modal.innerHTML=`<div class="mp-replicate-modal mpk-modal"><div class="mp-replicate-head"><div><b>${esc(P.titulo)}</b><small>Solicitado à cidade em ${esc(P.solicitadoEm)} • ${esc(P.eventos)} • entra automaticamente nas solicitações de zona</small></div><button data-close>×</button></div>
+      <div class="mpk-padrao">${P.resumo.map(g=>`<div><span>${esc(g.titulo)}</span><ul>${g.itens.map(i=>`<li>${esc(i)}</li>`).join('')}</ul></div>`).join('')}</div>
+      <div class="mpk-ztests"><span>TESTES NO JOGO · ${esc(zones[0]?.event||'Evento')}</span>${zt}</div>
+      <div class="mp-replicate-actions"><button data-close>FECHAR</button></div></div>`;
+    document.body.appendChild(modal);
+    qsa('[data-close]',modal).forEach(b=>b.onclick=()=>modal.remove());
+    modal.addEventListener('click',e=>{if(e.target===modal)modal.remove();});
+  }
 
   function generateRequest(){
     const m=active();if(!m)return false;
@@ -2215,7 +2285,7 @@ ${kind==='alter-zone'?diffText(m):''}${zoneGeoText(m)}
 
 ${distributionText(zoneCapacity(m))}
 
-${mechanicText(m)}${heightText(m)}
+${mechanicText(m)}${padraoText(m)}${heightText(m)}
 
 - As demais configurações, regras, premiações, duração e funcionamento do evento deverão permanecer inalterados.`;
     m.requestText=text;if(qs('#mpRequestText'))qs('#mpRequestText').value=text;
@@ -2279,7 +2349,7 @@ ${blocks}
 
 ${distributionText(capMin)}${capLines}
 
-${(type.mechanic||[]).map(l=>`- ${l}`).join('\n\n')}${heightText(first)}
+${(type.mechanic||[]).map(l=>`- ${l}`).join('\n\n')}${padraoText(first)}${heightText(first)}
 
 - As demais configurações, regras, premiações, duração e funcionamento do evento deverão permanecer inalterados.`;
     return {eventName,type,include,blocked,live,text,capMin,capUneven};
@@ -2331,12 +2401,18 @@ ${(type.mechanic||[]).map(l=>`- ${l}`).join('\n\n')}${heightText(first)}
     if(st==='pronta'||st==='alterada')actions.push(`<button type="button" data-req="sent" class="primary">COPIAR E MARCAR COMO ENVIADA</button>`);
     if(st==='enviada')actions.push(`<button type="button" data-req="applied" class="primary">CONFIRMAR APLICADA NO JOGO</button><button type="button" data-req="cancel">CANCELAR ENVIO</button>`);
     if(st==='pronta'||st==='alterada')actions.push(`<button type="button" data-req="parts">COPIAR EM PARTES (DISCORD)</button>`);
+    const ts=testStatus(m);
+    if(ts&&st==='nojogo')actions.push(`<button type="button" data-req="tests">${ts.done?'REVISAR TESTES':'REGISTRAR TESTES'}</button>`);
+    if(eventTypeOf(m).padrao)actions.push(`<button type="button" data-req="padrao">VER PADRÃO GÁS</button>`);
     actions.push(`<button type="button" data-req="package">SOLICITAÇÃO DO EVENTO INTEIRO</button>`);
     /* o que mudou: contra o que foi enviado (se aguardando) ou contra o jogo */
     let diffHtml='';
     if(st==='alterada'){
       const ref=r.geom||null,lines=geomDiff(ref,m);
       diffHtml=`<div class="mpk-diff"><b>O QUE MUDOU DESDE O ${r.status==='applied'?'AJUSTE NO JOGO':'ENVIO'}</b>${lines?(lines.length?`<ul>${lines.map(l=>`<li>${esc(l)}</li>`).join('')}</ul>`:'<small>Somente arredondamento/ajustes mínimos.</small>'):'<small>Versão anterior registrada sem detalhe (antes da V12.9). A próxima solicitação passa a registrar.</small>'}</div>`;
+    }
+    if(ts&&st==='nojogo'){
+      diffHtml+=`<div class="mpk-testbar ${!ts.done?'warn':(ts.ok===ts.total?'ok':'warn')}"><b>TESTES DO PADRÃO GÁS</b><small>${!ts.done?'Ainda não registrados — teste no jogo e registre':(ts.ok===ts.total?`Todos os ${ts.total} critérios OK`:`${ts.ok}/${ts.total} OK · falta: ${ts.falhas.slice(0,3).map(esc).join(' · ')}${ts.falhas.length>3?'…':''}`)}</small></div>`;
     }
     const log=m.requestLog||[];
     const logHtml=log.length?`<details class="mpk-log"><summary>HISTÓRICO DA SOLICITAÇÃO (${log.length})</summary><ol>${log.map(l=>`<li><b>${esc(fmtLogDate(l.at))}</b> ${esc(l.action)}${l.by?` <i>· ${esc(l.by)}</i>`:''}</li>`).join('')}</ol></details>`:'';
@@ -2347,6 +2423,9 @@ ${(type.mechanic||[]).map(l=>`- ${l}`).join('\n\n')}${heightText(first)}
       const m=active();if(!m)return;
       if(b.dataset.req==='sent'){if(!generateRequest())return;const multi=splitDiscord(m.requestText).length>1;if(!multi)await copyText(m.requestText);if(markZoneSent(m)){saveStore();render();if(multi)openPartsModal(`SOLICITAÇÃO · ${m.event||'Evento'} › ${m.name||'Zona'}`,m.requestText);}}
       else if(b.dataset.req==='parts'){if(!generateRequest())return;openPartsModal(`SOLICITAÇÃO · ${m.event||'Evento'} › ${m.name||'Zona'}`,m.requestText);}
+      else if(b.dataset.req==='applied'&&eventTypeOf(m).padrao){openTestsModal(m,true);}
+      else if(b.dataset.req==='tests'){openTestsModal(m,false);}
+      else if(b.dataset.req==='padrao'){openPadraoModal(m.eventId);}
       else if(b.dataset.req==='applied'){if(confirm(`Confirmar que a zona "${m.name}" já está disponível no ${panelLabel(m)}?`)&&markZoneApplied(m)){saveStore();render();}}
       else if(b.dataset.req==='cancel'){if(confirm(`Cancelar o envio da zona "${m.name}"? Use quando a cidade recusar/pedir ajuste ou se marcou por engano. A zona volta para ${m.request?.prev||m.request?.appliedBefore?'a versão que está no jogo':'PRONTA P/ ENVIAR'}.`)&&cancelZoneSent(m)){saveStore();render();}}
       else openEventPackage(m.eventId);
@@ -2408,13 +2487,15 @@ z=zones[0];if(!z)return false;
         const warns=[];
         if(type.zonasPrevistas&&zones.length<type.zonasPrevistas)warns.push(`${type.label}: ${zones.length}/${type.zonasPrevistas} zonas cadastradas`);
         const capW=capacityWarning(e.id);if(capW)warns.push(capW);
+        if(type.padrao){const semTeste=zones.filter(z=>{const ts=testStatus(z);return zoneStage(z)==='nojogo'&&ts&&(!ts.done||ts.ok<ts.total);});if(semTeste.length)warns.push(`Padrão gás: testes pendentes em ${semTeste.map(z=>z.name||'Zona').join(', ')}`);}
         if(type.zonasSeparadas)zoneOverlaps(e.id).forEach(o=>warns.push(`${o.a} × ${o.b}: áreas sobrepostas (${Math.round(o.d)} m entre centros, mínimo ${Math.round(o.lim)} m)`));
         const preview=`<div class="mpk-preview"><span>NO ${esc(panelLabel(zones[0]).toUpperCase())}</span><b>${esc(e.name)}</b><i>›</i>${live.length?live.map(z=>`<em>${esc(z.name||'Zona')}</em>`).join(''):'<small>nenhuma zona confirmada no jogo</small>'}</div>`;
-        return `<article class="mpc-event"><header><div><span>${esc(type.label)}</span><h3>${esc(e.name)}</h3><small>${zones.length} zona${zones.length===1?'':'s'} • ${live.length} no jogo${toSend?` • ${toSend} para enviar`:''}${(()=>{const c=eventCapacities(e.id).map(o=>o.cap);if(!c.length)return '';const a=Math.min(...c),b=Math.max(...c);return ` • ${a===b?`até ${a}`:`${a}–${b}`} facções`;})()}</small></div><div class="mpc-event-actions"><button data-package="${esc(e.id)}" class="${toSend?'hot':''}">SOLICITAÇÃO${toSend?` (${toSend})`:''}</button><button data-newzone="${esc(e.id)}">+ NOVA ZONA</button><button class="danger" data-delevent="${esc(e.id)}">EXCLUIR</button></div></header>${preview}${warns.length?`<div class="mpk-warns">${warns.map(w=>`<span>⚠ ${esc(w)}</span>`).join('')}</div>`:''}<div class="mpc-zones">${zones.map(z=>{const st=zoneStage(z),info=stageInfo(st),total=z.points?.length||0,val=(z.points||[]).filter(isValidated).length,extra=st==='enviada'?` • ${isStale(z)?'⚠ sem retorno ':''}${since(z.request?.sentAt)}`:'';return `<button class="mpc-zone" data-openzone="${esc(z.id)}"><span><b>${esc(z.name||'Zona sem nome')}</b><small>${total?`${val}/${total} validados`:'Sem pontos'}${extra}</small></span><em class="mpk-badge ${isStale(z)?'bad':info.tom}">${info.label}</em></button>`}).join('')||'<div class="mpc-empty">Nenhuma zona cadastrada.</div>'}</div></article>`;
+        return `<article class="mpc-event"><header><div><span>${esc(type.label)}</span><h3>${esc(e.name)}</h3><small>${zones.length} zona${zones.length===1?'':'s'} • ${live.length} no jogo${toSend?` • ${toSend} para enviar`:''}${(()=>{const c=eventCapacities(e.id).map(o=>o.cap);if(!c.length)return '';const a=Math.min(...c),b=Math.max(...c);return ` • ${a===b?`até ${a}`:`${a}–${b}`} facções`;})()}</small></div><div class="mpc-event-actions"><button data-package="${esc(e.id)}" class="${toSend?'hot':''}">SOLICITAÇÃO${toSend?` (${toSend})`:''}</button>${type.padrao?`<button data-padrao="${esc(e.id)}">PADRÃO GÁS</button>`:''}<button data-newzone="${esc(e.id)}">+ NOVA ZONA</button><button class="danger" data-delevent="${esc(e.id)}">EXCLUIR</button></div></header>${preview}${warns.length?`<div class="mpk-warns">${warns.map(w=>`<span>⚠ ${esc(w)}</span>`).join('')}</div>`:''}<div class="mpc-zones">${zones.map(z=>{const st=zoneStage(z),info=stageInfo(st),total=z.points?.length||0,val=(z.points||[]).filter(isValidated).length,extra=st==='enviada'?` • ${isStale(z)?'⚠ sem retorno ':''}${since(z.request?.sentAt)}`:'';return `<button class="mpc-zone" data-openzone="${esc(z.id)}"><span><b>${esc(z.name||'Zona sem nome')}</b><small>${total?`${val}/${total} validados`:'Sem pontos'}${extra}</small></span><em class="mpk-badge ${isStale(z)?'bad':info.tom}">${info.label}</em></button>`}).join('')||'<div class="mpc-empty">Nenhuma zona cadastrada.</div>'}</div></article>`;
       }).join(''):'<div class="mpc-empty big">Nenhum evento neste filtro.</div>'}</div>`;
     qsa('[data-cfilter]',host).forEach(b=>b.onclick=()=>{state.centralFilter=b.dataset.cfilter;renderCentralV954();});
     qsa('[data-openzone]',host).forEach(b=>b.onclick=()=>switchMission(b.dataset.openzone));
     qsa('[data-package]',host).forEach(b=>b.onclick=()=>openEventPackage(b.dataset.package));
+    qsa('[data-padrao]',host).forEach(b=>b.onclick=()=>openPadraoModal(b.dataset.padrao));
     qsa('[data-newzone]',host).forEach(b=>b.onclick=()=>{if(selectEventForAction(b.dataset.newzone))createZone();});
     qsa('[data-delevent]',host).forEach(b=>b.onclick=()=>{if(selectEventForAction(b.dataset.delevent))deleteEvent();});
     qs('#mpCentralNewEvent',host)?.addEventListener('click',()=>{if(filter==='dominacao'||filter==='gas')state.libraryCategory=filter;createEvent();});

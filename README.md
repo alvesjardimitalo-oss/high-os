@@ -103,3 +103,12 @@ Regra de manutenção: configuração estática e funções puras não devem vol
 - **Discord:** textos acima de 2.000 caracteres são divididos em partes numeradas, sem cortar CDS.
 - **Prazo da cidade:** solicitação sem retorno há mais de 48 h (`PRAZO_RETORNO_H` em `eventos-painel.js`) aparece como ATRASADA na central.
 - **Histórico:** cada zona mostra o histórico do ciclo (enviada, reenviada, cancelada, aplicada) com data e usuário.
+
+
+## V12.10 — Padrão dos eventos com zona de gás (solicitação de 13/10)
+
+- `PADRAO_GAS` em `eventos-painel.js` registra a solicitação de sistema enviada à cidade para Modo Sobrevivência, Fac x Fac e Battle Royale: safe final até raio zero, dano contínuo até sobrar uma equipe, HUD do player, inventário inicial, espectador/`/surrender` e comemoração de vitória.
+- Toda solicitação de zona desses eventos sai com o bloco do padrão; a movimentação da safe termina em "fechamento final até raio zero".
+- Modo Sobrevivência: aviso quando as fases da safe (tempos/dano) de uma zona diferem das demais; a solicitação exige comportamento idêntico entre as 3 zonas.
+- Botão **PADRÃO GÁS** (central e zona): resumo da HUD/regras e situação dos testes por zona.
+- **Testes no jogo:** confirmar uma zona como aplicada abre os 15 critérios de validação da solicitação; pendências ficam visíveis na zona e na central até serem testadas.
