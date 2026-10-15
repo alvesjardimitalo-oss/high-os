@@ -488,3 +488,7 @@
   .mpp-lista>div{grid-template-columns:auto 1fr auto}
   .mpp-form button{grid-column:1/-1}
 }
+
+/* V12.17 — Z estimado no TP */
+.mpz{display:inline-block;margin-top:4px;font-size:9.5px;color:#9ed7ff;line-height:1.35}
+.mpz.low{color:var(--mpk-warn,#ffc35c)}

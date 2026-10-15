@@ -164,3 +164,12 @@ Regra de manutenção: configuração estática e funções puras não devem vol
 - Novo aviso: centro com altura suspeita (CDS do centro muito acima/abaixo dos spawns — ex.: Dominação Sul com z=481).
 - Checklist agrupado: pendências que bloqueiam, avisos, e verificações OK recolhidas.
 - Cards de zona com barra de validação e nº de partidas; excluir evento virou ícone; janelas rolam por dentro em telas baixas; painel de camadas começa recolhido no celular.
+
+
+## V12.17 — TP de teste com Z estimado (sem limbo)
+
+- Ponto pendente não vai mais com Z=0 no TP: o Z é estimado pelas CDS já validadas por perto (spawns e centros de todas as zonas + CDS de QG dos Groups), com média ponderada pela distância (até 600 m, 6 mais próximas).
+- Margem de segurança acima do chão conforme a confiança: alta (CDS a < 80 m) +1,5 m · média (< 250 m) +3 m · baixa +6 m. Em terreno irregular usa a maior altura próxima para nunca nascer enterrado.
+- CDS com altura suspeita (ex.: centro em z=481) ficam fora da base de alturas.
+- A validação continua obrigatória: o Z estimado serve só para o TP; o ponto fica pendente até colar a CDS real.
+- Vale para COPIAR TP do ponto, cópia por linha, COPIAR CDS PARA TESTE e COPIAR TP DO CENTRO; a tela de validação mostra o Z estimado e a confiança.

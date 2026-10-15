@@ -1455,7 +1455,7 @@ box=qs('#mpPointList');if(!box||!m)return;
     const m=active(),
 p=m?.points[id-1],
 box=qs('#mpValidationTarget');
-    if(box)box.innerHTML=p?`Ponto <b>${String(id).padStart(2,'0')}</b> • ${isValidated(p)?rawCds(p):tpCds(p)} • ${isValidated(p)?'<span class="mp-ok">VALIDADO</span>':'<span class="mp-warn">PENDENTE / Z PROVISÓRIO</span>'}`:'Selecione um ponto.';
+    if(box)box.innerHTML=p?`Ponto <b>${String(id).padStart(2,'0')}</b> • ${isValidated(p)?rawCds(p):tpCds(p)} • ${isValidated(p)?'<span class="mp-ok">VALIDADO</span>':'<span class="mp-warn">PENDENTE / Z ESTIMADO</span>'}${zHint(p)?`<br>${zHint(p)}`:''}`:'Selecione um ponto.';
     if(m)m.selectedId=id;
     qsa('.mp-point-row').forEach((r,i)=>r.classList.toggle('selected',i===id-1));
   }
@@ -1465,7 +1465,7 @@ box=qs('#mpValidationTarget');
     const wrap=document.createElement('div');wrap.id='mpCenterValidation';wrap.style.marginTop='8px';
     wrap.innerHTML=`<div id="mpCenterValidationStatus" class="mp-readout"></div><div class="mp-actions"><button type="button" id="mpCopyCenterTp">COPIAR TP DO CENTRO</button></div><label style="margin-top:8px">Cole a CDS real do centro<input id="mpCenterRealCds" placeholder="4869.25,-5060.22,292.63,306.15"></label><div class="mp-actions"><button type="button" id="mpValidateCenter" class="primary">VALIDAR CENTRO</button></div>`;
     clicked.insertAdjacentElement('afterend',wrap);
-    qs('#mpCopyCenterTp')?.addEventListener('click',async()=>{const m=active();if(!m||!validCoord(m.center.x)||!validCoord(m.center.y)){alert('Marque primeiro o centro no mapa.');return;}await copyText(`${f(m.center.x)},${f(m.center.y)},0.00,${Number.isFinite(Number(m.center.h))?f(m.center.h):'0.00'}`);const b=qs('#mpCopyCenterTp');if(b){const old=b.textContent;b.textContent='COPIADO ✓';setTimeout(()=>b.textContent=old,900);}});
+    qs('#mpCopyCenterTp')?.addEventListener('click',async()=>{const m=active();if(!m||!validCoord(m.center.x)||!validCoord(m.center.y)){alert('Marque primeiro o centro no mapa.');return;}const ez=isCenterValidated(m)?{z:Number(m.center.z)}:estimateZ(m.center.x,m.center.y);await copyText(`${f(m.center.x)},${f(m.center.y)},${f(ez?ez.z:0)},${Number.isFinite(Number(m.center.h))?f(m.center.h):'0.00'}`);const b=qs('#mpCopyCenterTp');if(b){const old=b.textContent;b.textContent='COPIADO ✓';setTimeout(()=>b.textContent=old,900);}});
     qs('#mpValidateCenter')?.addEventListener('click',validateCenter);
   }
   function renderCenterValidation(){ensureCenterValidationUi();const m=active(),
@@ -1568,7 +1568,47 @@ j+1];}if(d<(Number(m.spawnRadius)||100)*2)over++;}
     if(qs('#mpNearest'))qs('#mpNearest').textContent=pair?`${pair[0]} ↔ ${pair[1]} • ${min.toFixed(1)} m`:'—';
   }
   function rawCds(p){return `${f(p.x)},${f(p.y)},${f(p.z)},${f(p.h)}`;}
-  function tpCds(p){const z=Number.isFinite(Number(p?.z))?Number(p.z):0;const h=Number.isFinite(Number(p?.h))?Number(p.h):0;return `${f(p.x)},${f(p.y)},${f(z)},${f(h)}`;}
+  /* V12.17 — TP de teste com Z estimado: usa as CDS já validadas (spawns,
+     centros e QGs) perto do ponto para não cair embaixo do mapa (limbo)
+     e não precisar de NC. O Z salvo continua 0 até a validação real. */
+  function knownHeights(){
+    const key=state.missions.length+':'+state.missions.reduce((a,m)=>a+(m.points||[]).filter(isValidated).length+(isCenterValidated(m)?1:0),0)+':'+qgList().length;
+    if(state._zIdx?.key===key)return state._zIdx.list;
+    const list=[];
+    state.missions.forEach(m=>{
+      /* fora: spawns com altura suspeita e centro muito acima/abaixo dos spawns (ex.: z=481) */
+      const susp=new Set(heightIssues(m).map(o=>o.n));
+      const zs=(m.points||[]).filter(isValidated).map(p=>+p.z).filter(Number.isFinite).sort((a,b)=>a-b),med=zs.length?zs[Math.floor(zs.length/2)]:null;
+      (m.points||[]).forEach((p,i)=>{if(isValidated(p)&&!susp.has(i+1))list.push({x:+p.x,y:+p.y,z:+p.z});});
+      if(isCenterValidated(m)&&(med===null||Math.abs(+m.center.z-med)<=60))list.push({x:+m.center.x,y:+m.center.y,z:+m.center.z,centro:true});
+    });
+    qgList().forEach(q=>{if(Number.isFinite(q.z)&&q.z!==0)list.push({x:q.x,y:q.y,z:q.z});});
+    /* descarta alturas absurdas (CDS capturada voando/no alto de prédio) */
+    const ok=list.filter(o=>Number.isFinite(o.z)&&o.z>-5&&o.z<900);
+    state._zIdx={key,list:ok};return ok;
+  }
+  function estimateZ(x,y){
+    x=Number(x);y=Number(y);if(!Number.isFinite(x)||!Number.isFinite(y))return null;
+    const near=knownHeights().map(o=>({...o,d:Math.hypot(o.x-x,o.y-y)})).filter(o=>o.d<=600).sort((a,b)=>a.d-b.d).slice(0,6);
+    if(!near.length)return null;
+    let z;
+    if(near[0].d<20)z=near[0].z;
+    else{let sw=0,sz=0;near.forEach(o=>{const w=1/(o.d*o.d);sw+=w;sz+=w*o.z;});z=sz/sw;
+      /* terreno irregular perto: usa a maior altura próxima para nunca nascer enterrado */
+      const perto=near.filter(o=>o.d<150);if(perto.length>=2){const zs=perto.map(o=>o.z);if(Math.max(...zs)-Math.min(...zs)>15)z=Math.max(z,Math.max(...zs));}}
+    const conf=near[0].d<80?'alta':near[0].d<250?'média':'baixa';
+    const margem=conf==='alta'?1.5:conf==='média'?3:6;
+    return {z:z+margem,base:z,conf,n:near.length,d:near[0].d,margem};
+  }
+  function tpCds(p){
+    const h=Number.isFinite(Number(p?.h))?Number(p.h):0;let z=Number.isFinite(Number(p?.z))?Number(p.z):0;
+    if(!isValidated(p)&&!(z>0)){const e=estimateZ(p?.x,p?.y);if(e)z=e.z;}
+    return `${f(p.x)},${f(p.y)},${f(z)},${f(h)}`;
+  }
+  function zHint(p){
+    if(!p||isValidated(p))return '';const e=estimateZ(p.x,p.y);
+    return e?`<span class="mpz ${e.conf==='baixa'?'low':''}">Z estimado ${e.base.toFixed(1)} + ${e.margem} m • confiança ${e.conf} (${e.n} CDS, mais perto a ${Math.round(e.d)} m)</span>`:'<span class="mpz low">Sem CDS validada a menos de 600 m: TP vai com Z=0 — use NC ou valide um ponto próximo antes</span>';
+  }
   function updateExport(){const m=active(),
 out=qs('#mpExport');if(out&&m)out.value=m.points.filter(isValidated).map((p,i)=>`${p.id||i+1} - ${rawCds(p)}`).join('\n');}
   function render(){adoptStrayCards();ensureSafeRouteUi();adoptStrayCards();renderMissionList();renderPointList();renderMap();analyze();updateExport();syncForm();renderCenterValidation();renderCoverage();renderPlannerBadges();renderWorkspaceBar();renderBackupList();syncEventKind();renderRequestStatus();const rt=qs('#mpRequestText'),
@@ -1757,8 +1797,8 @@ p=id?m.points[id-1]:null;
 id=m?.selectedId,
 p=id?m.points[id-1]:null;
     if(!p){setValidationFeedback('Selecione um ponto na lista.','erro');return;}
-    await copyText(`${f(p.x)},${f(p.y)},0.00,${Number.isFinite(Number(p.h))?f(p.h):'0.00'}`);
-    setValidationFeedback(`<b>TP do ponto ${id} copiado</b><span>Va ate o local no jogo e cole a CDS real aqui.</span>`,'ok');
+    await copyText(tpCds(p));
+    setValidationFeedback(`<b>TP do ponto ${id} copiado</b><span>${isValidated(p)?'CDS validada.':zHint(p)}</span><span>Vá até o local no jogo, ajuste a posição e cole a CDS real aqui.</span>`,'ok');
   }
   function addManual(){if(!requireEdit())return;
     const m=active();if(!m)return;const x=num(qs('#mpX')?.value),
