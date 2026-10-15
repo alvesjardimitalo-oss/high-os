@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="assets/calma.css?v=12.5.0">
   <link rel="stylesheet" href="assets/ocupacao.css?v=14.1.0">
   <link rel="stylesheet" href="assets/organizacoes.css?v=14.2.0">
-  <link rel="stylesheet" href="assets/metricas-rh.css?v=14.3.0">
+  <link rel="stylesheet" href="assets/metricas-rh.css?v=14.3.4">
   <link rel="icon" type="image/png" href="assets/high_logo.png?v=12.5.0">
 </head>
 <body>
@@ -111,7 +111,7 @@
       </aside>
       <div class="content">
         <section class="page active" id="page-dashboard">
-          <div class="page-head"><div><div class="eyebrow">CENTRAL DE COMANDO DO ILEGAL</div><h2>DASHBOARD</h2><p class="page-subtitle">Visão operacional para identificar rapidamente ocupação, contingente, pendências e movimentações da Staff.</p></div><span class="dev-badge">V14.3.0</span></div>
+          <div class="page-head"><div><div class="eyebrow">CENTRAL DE COMANDO DO ILEGAL</div><h2>DASHBOARD</h2><p class="page-subtitle">Visão operacional para identificar rapidamente ocupação, contingente, pendências e movimentações da Staff.</p></div><span class="dev-badge">V14.3.4</span></div>
           <div class="dash-v4-intro"><strong>PAINEL DE CONTROLE</strong><span>O que precisa da sua atenção hoje, sem poluição visual.</span></div>
           <div id="commandDashboard" class="command-dashboard"><div class="placeholder"><b>◆</b><h3>CARREGANDO CENTRAL DE COMANDO</h3></div></div>
           <span id="dashEmail" class="hidden">—</span><span id="dashRole" class="hidden">—</span>
@@ -226,6 +226,7 @@
               <div id="rh15Intervalo" class="rh15-range hidden"><input type="date" id="rh15Ini" aria-label="Data inicial"><span>até</span><input type="date" id="rh15Fim" aria-label="Data final"></div>
               <label class="rh15-select"><span>SEGMENTO</span><select id="rh15Seg" aria-label="Segmento"></select></label>
               <div class="rh15-search"><span>⌕</span><input id="rh15Busca" placeholder="Filtrar facção ou Group..."></div>
+              <label class="rh15-select rh15-meta" title="Pico esperado de cada facção. O aproveitamento é a média dos picos dividida pelo topo da meta."><span>META DE PICO</span><input type="number" id="rh15MetaMin" min="1" value="15" aria-label="Meta mínima"><em>a</em><input type="number" id="rh15MetaMax" min="1" value="20" aria-label="Meta máxima"></label>
             </div>
             <div id="rh15Info" class="rh15-info"></div>
             <div id="rh15Main" class="rh15-main"><div class="placeholder"><b>▥</b><h3>CARREGANDO MÉTRICAS</h3></div></div>
@@ -886,7 +887,7 @@
   <script src="assets/ui-kit.js?v=12.5.0"></script>
   <script src="assets/modules/eventos-painel.js?v=12.17.0"></script>
   <script src="assets/mission-planner.js?v=12.17.0"></script>
-  <script type="module" src="assets/app.js?v=14.3.0"></script>
+  <script type="module" src="assets/app.js?v=14.3.4"></script>
   <script defer src="assets/compact-group-map.js?v=12.6.2"></script>
 
 <div id="newDeliveryModal" class="modal hidden"><div class="modal-card delivery-modal-v5"><button class="modal-x" id="newDeliveryClose">×</button>
