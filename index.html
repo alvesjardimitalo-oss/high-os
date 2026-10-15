@@ -23,6 +23,7 @@
   <link rel="stylesheet" href="assets/high-refresh.css?v=12.6.2">
   <link rel="stylesheet" href="assets/calma.css?v=12.5.0">
   <link rel="stylesheet" href="assets/ocupacao.css?v=14.1.0">
+  <link rel="stylesheet" href="assets/organizacoes.css?v=14.2.0">
   <link rel="icon" type="image/png" href="assets/high_logo.png?v=12.5.0">
 </head>
 <body>
@@ -109,53 +110,63 @@
       </aside>
       <div class="content">
         <section class="page active" id="page-dashboard">
-          <div class="page-head"><div><div class="eyebrow">CENTRAL DE COMANDO DO ILEGAL</div><h2>DASHBOARD</h2><p class="page-subtitle">Visão operacional para identificar rapidamente ocupação, contingente, pendências e movimentações da Staff.</p></div><span class="dev-badge">V14.0.0</span></div>
+          <div class="page-head"><div><div class="eyebrow">CENTRAL DE COMANDO DO ILEGAL</div><h2>DASHBOARD</h2><p class="page-subtitle">Visão operacional para identificar rapidamente ocupação, contingente, pendências e movimentações da Staff.</p></div><span class="dev-badge">V14.2.0</span></div>
           <div class="dash-v4-intro"><strong>PAINEL DE CONTROLE</strong><span>O que precisa da sua atenção hoje, sem poluição visual.</span></div>
           <div id="commandDashboard" class="command-dashboard"><div class="placeholder"><b>◆</b><h3>CARREGANDO CENTRAL DE COMANDO</h3></div></div>
           <span id="dashEmail" class="hidden">—</span><span id="dashRole" class="hidden">—</span>
         </section>
         <section class="page" id="page-faccoes">
-          <div class="page-head org-v92-head">
-            <div>
-              <div class="eyebrow">CENTRAL DE ORGANIZAÇÕES • GROUP + OCUPAÇÃO + QG/FAVELA</div>
+          <div class="page-head org15-head">
+            <div class="org15-title">
+              <div class="eyebrow">CENTRAL DE ORGANIZAÇÕES • OCUPAÇÃO + QG/FAVELA + FREQUÊNCIA</div>
               <h2>ORGANIZAÇÕES</h2>
-              <p class="page-subtitle">Visão administrativa em lista. O status é calculado automaticamente pela ocupação e existência de QG/Favela.</p>
+              <div id="orgV92Summary" class="org15-summary"></div>
             </div>
-            <div class="org-v92-report-actions">
-              <select id="orgV92ReportType" aria-label="Tipo de relatório">
+            <div class="org15-head-actions">
+              <details class="org15-export" id="org15Export">
+                <summary>EXPORTAR <span aria-hidden="true">▾</span></summary>
+                <div class="org15-export-menu">
+                  <button type="button" data-org15-export="orgs"><b>Organizações</b><small>Lista com os filtros atuais · CSV (Excel)</small></button>
+                  <button type="button" data-org15-export="freq"><b>Frequência diária</b><small>Pico de cada facção, dia a dia, no período · CSV</small></button>
+                  <button type="button" data-org15-export="resumo"><b>Resumo de frequência</b><small>Pico, média e dias presentes por facção · CSV</small></button>
+                  <button type="button" data-org15-export="pdf"><b>Relatório para imprimir</b><small>Situação atual dos Groups · PDF</small></button>
+                </div>
+              </details>
+              <select id="orgV92ReportType" class="hidden" aria-hidden="true" tabindex="-1">
                 <option value="GERAL">RELATÓRIO GERAL</option>
                 <option value="ASSUMIDA">ASSUMIDAS</option>
                 <option value="DISPONIVEL">DISPONÍVEIS</option>
                 <option value="INDISPONIVEL">INDISPONÍVEIS</option>
               </select>
-              <button type="button" id="orgV92ReportBtn" class="btn-secondary compact">GERAR RELATÓRIO</button>
+              <button type="button" id="orgV92ReportBtn" class="hidden">GERAR RELATÓRIO</button>
               <button id="updateProfilesBtn" class="hidden">ATUALIZAR PERFIS</button>
               <button id="seedBtn" class="hidden">IMPORTAR BASE INICIAL</button>
             </div>
           </div>
 
-          <div id="orgV92Summary" class="org-v92-summary">
-            <article><span>TOTAL</span><b>—</b><small>Groups administrativos</small></article>
-            <article class="assumed"><span>ASSUMIDAS</span><b>—</b><small>com facção ocupante</small></article>
-            <article class="available"><span>DISPONÍVEIS</span><b>—</b><small>livres com QG/Favela</small></article>
-            <article class="unavailable"><span>INDISPONÍVEIS</span><b>—</b><small>ausência de QG/Favela</small></article>
-          </div>
-
-          <div class="org-v92-toolbar">
-            <div class="org-v92-search"><span>⌕</span><input id="facSearch" placeholder="Buscar Group, facção, QG/Favela, líder, staff ou produto..."></div>
+          <div class="org15-filters">
+            <div class="org15-toolbar">
+              <div class="org-v92-search org15-search"><span>⌕</span><input id="facSearch" placeholder="Buscar Group, facção, QG/Favela ou líder..."></div>
+              <label class="org15-select"><span>ORDENAR</span><select id="org15Sort" aria-label="Ordenar organizações"></select></label>
+              <label class="org15-select"><span>FREQUÊNCIA</span><select id="org15Period" aria-label="Período da frequência"></select></label>
+              <div class="org15-view" role="tablist" aria-label="Modo de exibição">
+                <button type="button" role="tab" data-org15-view="lista">☰ LISTA</button>
+                <button type="button" role="tab" data-org15-view="mapa">▦ MAPA DE FREQUÊNCIA</button>
+              </div>
+            </div>
             <select id="facSegment" class="filter-native-hidden" aria-label="Segmento"><option value="">TODOS OS SEGMENTOS</option></select>
             <select id="facStatus" class="filter-native-hidden" aria-label="Situação"><option value="">TODAS</option><option value="ASSUMIDA">ASSUMIDAS</option><option value="DISPONIVEL">DISPONÍVEIS</option><option value="INDISPONIVEL">SEM QG</option><option value="REVISAR">REVISAR</option></select>
+            <div class="org15-chips-row">
+              <div id="facStatusButtons" class="org-v92-status-filter org15-status" aria-label="Filtrar organizações por situação"></div>
+            </div>
+            <div id="facSegmentChips" class="segment-visual-grid org-v92-segments org15-segments" aria-label="Filtrar organizações por segmento"></div>
           </div>
-          <div id="facStatusButtons" class="org-v92-status-filter" aria-label="Filtrar organizações por situação"></div>
-          <div id="facSegmentChips" class="segment-visual-grid org-v92-segments" aria-label="Filtrar organizações por segmento"></div>
 
-          <div class="org-v92-list-head">
-            <div><b id="orgV92ListTitle">TODAS AS ORGANIZAÇÕES</b><small id="facStats">Carregando...</small></div>
-            <div class="org-v92-legend"><span class="dot assumed"></span>Assumida <span class="dot available"></span>Disponível <span class="dot unavailable"></span>Indisponível</div>
+          <div class="org15-list-head">
+            <b id="orgV92ListTitle">ORGANIZAÇÕES</b><small id="facStats">Carregando...</small>
           </div>
           <div id="facOverview" class="hidden"></div>
-          <div class="org-v92-list-guide" role="note"><span>1 · ESCOLHA UM GROUP</span><span>2 · ABRA O PERFIL</span><span>3 · CONSULTE OU EDITE O CADASTRO</span><span>4 · SALVE AS ALTERAÇÕES</span></div>
-          <div id="facList" class="org-v92-table-wrap"><div class="placeholder"><b>◆</b><h3>CARREGANDO ORGANIZAÇÕES</h3></div></div>
+          <div id="facList" class="org15-wrap"><div class="placeholder"><b>◆</b><h3>CARREGANDO ORGANIZAÇÕES</h3></div></div>
         </section>
         <section class="page" id="page-organizacoes">
           <div class="page-head"><div><div class="eyebrow">ORGANIZAÇÕES • OCUPANTES DOS GROUPS</div><h2>FACÇÕES</h2><p class="page-subtitle">Cadastro próprio das organizações. A facção mantém liderança, status e histórico mesmo quando troca de Group.</p></div><button id="newOrgBtn" class="btn-primary compact">NOVA FACÇÃO</button></div>
@@ -853,7 +864,7 @@
   <script src="assets/ui-kit.js?v=12.5.0"></script>
   <script src="assets/modules/eventos-painel.js?v=12.17.0"></script>
   <script src="assets/mission-planner.js?v=12.17.0"></script>
-  <script type="module" src="assets/app.js?v=14.1.4"></script>
+  <script type="module" src="assets/app.js?v=14.2.0"></script>
   <script defer src="assets/compact-group-map.js?v=12.6.2"></script>
 
 <div id="newDeliveryModal" class="modal hidden"><div class="modal-card delivery-modal-v5"><button class="modal-x" id="newDeliveryClose">×</button>

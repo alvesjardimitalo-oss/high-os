@@ -13366,6 +13366,264 @@ $('#orgV92ReportBtn')?.addEventListener('click',orgV92OpenReport);
 
 setTimeout(()=>{if($('#page-faccoes'))renderFaccoes()},0);
 
+/* ===== HIGH OS V14.2 · ORGANIZAÇÕES REDESENHADAS =====
+   - Lista enxuta: Group, Facção (+ líder), QG/Favela, Frequência, Situação e Ações.
+     Staff e data de entrega saem da tabela (continuam no Perfil e na exportação).
+   - Frequência no próprio painel: pico diário de cada facção no período escolhido,
+     com minigráfico por linha, mapa de frequência e gráfico detalhado por facção.
+   - Ordenação (segmento, situação, pico, média, presença, facção, mais recentes).
+   - Exportação CSV (organizações, frequência diária, resumo) + relatório para imprimir.
+   A métrica usada é a já ATRIBUÍDA à facção (metricas-motor.js): segue a facção
+   quando ela troca de Group. */
+const ORG15_METRICAS=()=>estado.metricas;
+const ORG15_REVISAR=all=>all.filter(f=>f.__orgStatus==='REVISAR').length;
+const ORG15_KEY='highos.org15';
+const org15=(()=>{let s={};try{s=JSON.parse(localStorage.getItem(ORG15_KEY)||'{}')||{}}catch(_){s={}}
+ return {view:s.view==='mapa'?'mapa':'lista',sort:s.sort||'segmento',periodo:s.periodo||'14'}})();
+function org15Save(){try{localStorage.setItem(ORG15_KEY,JSON.stringify({view:org15.view,sort:org15.sort,periodo:org15.periodo}))}catch(_){}}
+
+const ORG15_PERIODOS=[['7','7 dias'],['14','14 dias'],['30','30 dias'],['mes','Este mês'],['mesant','Mês passado']];
+const ORG15_ORDENS=[['segmento','Segmento › Group'],['situacao','Situação'],['pico','Maior pico'],['media','Maior média'],['presenca','Mais presente'],['ausencia','Menos presente'],['faccao','Facção A–Z'],['recente','Assumidas por último']];
+
+function org15Range(p=org15.periodo){
+ const now=new Date(),d0=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+ if(p==='mes')return {ini:new Date(d0.getFullYear(),d0.getMonth(),1),fim:d0,rotulo:'este mês'};
+ if(p==='mesant')return {ini:new Date(d0.getFullYear(),d0.getMonth()-1,1),fim:new Date(d0.getFullYear(),d0.getMonth(),0),rotulo:'mês passado'};
+ const n=Math.max(1,parseInt(p,10)||14);
+ return {ini:new Date(d0.getFullYear(),d0.getMonth(),d0.getDate()-(n-1)),fim:d0,rotulo:`últimos ${n} dias`};
+}
+function org15Dias(r=org15Range()){const out=[];for(let d=new Date(r.ini);d<=r.fim;d=new Date(d.getFullYear(),d.getMonth(),d.getDate()+1))out.push(d);return out}
+const org15DiaKey=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const org15DiaBr=d=>d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+const org15Num=(v,c=1)=>v===null||v===undefined||!Number.isFinite(v)?'—':(Number.isInteger(v)?String(v):v.toFixed(c).replace('.',','));
+function org15SlotMin(k=''){const m=String(k).toUpperCase().match(/^(\d{1,2})(?::(\d{2}))?H?$/);return m?(+m[1])*60+(+(m[2]||0)):9999}
+function org15DataMs(v){
+ const s=String(v||'').trim();if(!s)return NaN;
+ const br=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);if(br){let y=+br[3];if(y<100)y+=2000;return new Date(y,+br[2]-1,+br[1]).getTime()}
+ return Date.parse(s);
+}
+
+/* Índice Group → dia → {slots, pico, media, coletas}, só dentro do período. */
+function org15Indice(r=org15Range()){
+ const ini=r.ini.getTime(),fim=r.fim.getTime()+86399999,idx=new Map();
+ (ORG15_METRICAS()||[]).forEach(m=>{
+  if(!m||m.__exFaccao)return;
+  const g=String(m.group||m.organizacao||'').trim();if(!g)return;
+  const d=metricDateValue(m),t=d&&d.getTime?d.getTime():NaN;
+  if(!Number.isFinite(t)||t<ini||t>fim)return;
+  const slots=metricSlots(m);if(!Object.keys(slots).length)return;
+  const gk=alvesNorm(g),dk=org15DiaKey(d);
+  if(!idx.has(gk))idx.set(gk,new Map());
+  const dias=idx.get(gk),prev=dias.get(dk),merged={...(prev?prev.slots:{}),...slots};
+  const v=Object.values(merged).map(Number).filter(Number.isFinite);if(!v.length)return;
+  dias.set(dk,{slots:merged,pico:Math.max(...v),media:v.reduce((a,b)=>a+b,0)/v.length,coletas:v.length});
+ });
+ return idx;
+}
+function org15Resumo(f,idx,dias){
+ const m=idx.get(alvesNorm(f.group))||new Map();
+ const serie=dias.map(d=>{const x=m.get(org15DiaKey(d));return x?x.pico:null});
+ const vals=serie.filter(v=>v!==null),pres=vals.filter(v=>v>0).length;
+ let ultima=null;for(let i=dias.length-1;i>=0;i--){if(serie[i]>0){ultima=dias[i];break}}
+ return {serie,mapa:m,pico:vals.length?Math.max(...vals):null,media:vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:null,
+  presentes:pres,comDados:vals.length,total:dias.length,presenca:dias.length?pres/dias.length:0,ultima};
+}
+
+/* ---------- filtros / ordenação ---------- */
+function org15Ordenar(rows,res){
+ const peso={ASSUMIDA:0,REVISAR:1,DISPONIVEL:2,INDISPONIVEL:3};
+ const base=(a,b)=>String(a.__orgSegment).localeCompare(String(b.__orgSegment),'pt-BR')||String(a.group||'').localeCompare(String(b.group||''),'pt-BR',{numeric:true});
+ const val=(f,k)=>{const r=res.get(f);return f.__orgStatus==='ASSUMIDA'&&r&&r[k]!==null&&r[k]!==undefined?r[k]:null};
+ const met=(k,dir=-1)=>(a,b)=>{const va=val(a,k),vb=val(b,k);
+  if(va===null&&vb===null)return base(a,b);if(va===null)return 1;if(vb===null)return -1;
+  return (dir<0?vb-va:va-vb)||base(a,b)};
+ const s=org15.sort;
+ const cmp=s==='situacao'?(a,b)=>(peso[a.__orgStatus]??9)-(peso[b.__orgStatus]??9)||base(a,b)
+  :s==='pico'?met('pico'):s==='media'?met('media'):s==='presenca'?met('presenca'):s==='ausencia'?met('presenca',1)
+  :s==='faccao'?(a,b)=>{const fa=a.__orgStatus==='ASSUMIDA'?String(a.faccao||''):'',fb=b.__orgStatus==='ASSUMIDA'?String(b.faccao||''):'';if(!fa&&fb)return 1;if(fa&&!fb)return -1;return fa.localeCompare(fb,'pt-BR')||base(a,b)}
+  :s==='recente'?(a,b)=>{const ta=a.__orgStatus==='ASSUMIDA'?org15DataMs(a.dataEntrega):NaN,tb=b.__orgStatus==='ASSUMIDA'?org15DataMs(b.dataEntrega):NaN;if(!Number.isFinite(ta)&&!Number.isFinite(tb))return base(a,b);if(!Number.isFinite(ta))return 1;if(!Number.isFinite(tb))return -1;return tb-ta||base(a,b)}
+  :base;
+ return rows.slice().sort(cmp);
+}
+
+/* ---------- desenho ---------- */
+function org15Spark(serie,max){
+ const n=serie.length||1,w=Math.max(60,Math.min(150,n*6)),h=26,bw=w/n,top=max>0?max:1;
+ const bars=serie.map((v,i)=>{const x=(i*bw).toFixed(1),bwp=Math.max(1,bw-1.4).toFixed(1);
+  if(v===null)return `<rect x="${x}" y="${h-2}" width="${bwp}" height="2" class="nd"/>`;
+  const bh=v>0?Math.max(3,v/top*(h-2)):2;return `<rect x="${x}" y="${(h-bh).toFixed(1)}" width="${bwp}" height="${bh.toFixed(1)}" class="${v>0?'ok':'zero'}"/>`}).join('');
+ return `<svg class="org15-spark" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" preserveAspectRatio="none" aria-hidden="true">${bars}</svg>`;
+}
+function org15FreqCell(f,r,max){
+ if(f.__orgStatus!=='ASSUMIDA')return '<span class="org15-muted">—</span>';
+ if(!r||!r.comDados)return `<button type="button" class="org15-freq empty" data-org15-freq="${esc(f.id||f.group)}"><span>Sem coleta no período</span></button>`;
+ const pct=Math.round(r.presenca*100),cls=pct>=70?'good':pct>=40?'mid':'low';
+ return `<button type="button" class="org15-freq" data-org15-freq="${esc(f.id||f.group)}" title="Ver gráfico diário">${org15Spark(r.serie,max)}<span class="org15-freq-nums"><b>${org15Num(r.pico)}</b><small>pico</small><b>${org15Num(r.media)}</b><small>média</small><b class="${cls}">${r.presentes}/${r.total}</b><small>dias</small></span></button>`;
+}
+function org15Acoes(f){
+ const s=f.__orgStatus,id=esc(f.id||f.group),group=esc(f.group||'');
+ const perfil=`<button type="button" class="org15-btn ghost org-v92-open" data-id="${id}">PERFIL</button>`;
+ if(s==='ASSUMIDA')return perfil+`<button type="button" class="org15-btn org-v92-request" data-group="${group}">SOLICITAÇÃO</button>`;
+ if(s==='DISPONIVEL')return perfil+`<button type="button" class="org15-btn primary org-v92-deliver" data-group="${group}">ASSUMIR</button>`;
+ return perfil+`<button type="button" class="org15-btn org-v92-open" data-id="${id}">${s==='REVISAR'?'REVISAR':'CADASTRAR QG'}</button>`;
+}
+function org15Lista(rows,res,max,r){
+ return `<table class="org15-table"><thead><tr><th class="c-group">GROUP</th><th class="c-fac">FACÇÃO</th><th class="c-qg">QG / FAVELA</th><th class="c-freq">FREQUÊNCIA <small>${esc(r.rotulo)}</small></th><th class="c-st">SITUAÇÃO</th><th class="c-act"></th></tr></thead><tbody>${rows.map(f=>{
+  const s=f.__orgStatus,hasCds=!!String(f.cds||'').trim();
+  return `<tr data-org-v92-id="${esc(f.id||f.group)}" class="st-${orgV92StatusClass(s)}">
+<td class="c-group"><b>${esc(f.group||'—')}</b><small>${esc(f.__orgSegment)}</small></td>
+<td class="c-fac">${s==='ASSUMIDA'?`<b>${esc(f.faccao)}</b>${f.lider?`<small>Líder: ${esc(f.lider)}</small>`:'<small class="warn">Líder não informado</small>'}`:`<span class="org15-muted">${s==='DISPONIVEL'?'Livre para assumir':'—'}</span>`}</td>
+<td class="c-qg">${orgV92HasQG(f)?`<b>${esc(f.qg)}</b><small class="${hasCds?'':'warn'}">${hasCds?'CDS cadastrada':'CDS pendente'}</small>`:'<span class="org15-muted">Sem QG/Favela</span>'}</td>
+<td class="c-freq">${org15FreqCell(f,res.get(f),max)}</td>
+<td class="c-st"><span class="org-v92-status ${orgV92StatusClass(s)}">${orgV92StatusLabel(s)}</span></td>
+<td class="c-act"><div class="org15-actions">${org15Acoes(f)}</div></td></tr>`}).join('')}</tbody></table>`;
+}
+function org15Mapa(rows,res,dias,max){
+ const ass=rows.filter(f=>f.__orgStatus==='ASSUMIDA');
+ if(!ass.length)return '<div class="placeholder"><b>▦</b><h3>NENHUMA FACÇÃO ASSUMIDA NESTE FILTRO</h3><p>O mapa de frequência mostra apenas Groups com facção ocupante.</p></div>';
+ const top=max>0?max:1,hoje=org15DiaKey(new Date());
+ const cab=dias.map(d=>`<th class="${org15DiaKey(d)===hoje?'today':''} ${[0,6].includes(d.getDay())?'wknd':''}" title="${d.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'2-digit'})}"><span>${String(d.getDate()).padStart(2,'0')}</span><small>${'DSTQQSS'[d.getDay()]}</small></th>`).join('');
+ const linhas=ass.map(f=>{const r=res.get(f)||{serie:dias.map(()=>null),mapa:new Map()};
+  const cells=dias.map((d,i)=>{const v=r.serie[i];if(v===null)return '<td class="nd" title="Sem coleta"></td>';
+   const x=r.mapa.get(org15DiaKey(d)),a=v>0?(.16+.84*Math.min(1,v/top)).toFixed(2):0;
+   const slots=x?Object.entries(x.slots).sort((p,q)=>org15SlotMin(p[0])-org15SlotMin(q[0])).map(([k,n])=>`${k}: ${n}`).join(' · '):'';
+   return `<td class="${v>0?'v':'z'}" style="--a:${a}" title="${esc(f.faccao)} — ${org15DiaBr(d)}\nPico ${v}${slots?`\n${slots}`:''}">${v}</td>`}).join('');
+  const pct=Math.round((r.presenca||0)*100);
+  return `<tr><th class="name"><button type="button" data-org15-freq="${esc(f.id||f.group)}"><b>${esc(f.faccao)}</b><small>${esc(f.group)} · ${esc(f.__orgSegment)}</small></button></th>${cells}<td class="sum">${org15Num(r.pico)}</td><td class="sum">${org15Num(r.media)}</td><td class="sum ${pct>=70?'good':pct>=40?'mid':'low'}">${r.presentes||0}/${dias.length}</td></tr>`}).join('');
+ return `<div class="org15-heat-wrap"><table class="org15-heat"><thead><tr><th class="name">FACÇÃO</th>${cab}<th class="sum">PICO</th><th class="sum">MÉDIA</th><th class="sum">DIAS</th></tr></thead><tbody>${linhas}</tbody></table></div>
+<div class="org15-heat-legend"><span>Cada célula = pico de players no dia (maior coleta).</span><span class="scale"><i style="--a:.16"></i><i style="--a:.45"></i><i style="--a:.75"></i><i style="--a:1"></i> mais players</span><span><i class="z"></i> zero</span><span><i class="nd"></i> sem coleta</span></div>`;
+}
+
+/* ---------- gráfico detalhado da facção ---------- */
+function org15Grafico(dias,r){
+ const W=780,H=250,L=36,R=12,T=14,B=34,iw=W-L-R,ih=H-T-B,n=dias.length||1,bw=iw/n;
+ const max=Math.max(1,...r.serie.filter(v=>v!==null));
+ const passo=max<=5?1:max<=10?2:max<=25?5:max<=50?10:max<=100?20:50,topo=Math.ceil(max/passo)*passo;
+ const y=v=>T+ih-(v/topo)*ih;
+ let g='';for(let v=0;v<=topo;v+=passo)g+=`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" class="grid"/><text x="${L-6}" y="${y(v)+3}" class="ax" text-anchor="end">${v}</text>`;
+ const salto=n>20?Math.ceil(n/15):1;
+ const bars=r.serie.map((v,i)=>{const x=L+i*bw+bw*.14,w=Math.max(2,bw*.72),d=dias[i];
+  const lab=((n-1-i)%salto===0)?`<text x="${L+i*bw+bw/2}" y="${H-B+14}" class="ax" text-anchor="middle">${org15DiaBr(d)}</text>`:'';
+  if(v===null)return `<rect x="${x}" y="${T+ih-2}" width="${w}" height="2" class="nd"><title>${org15DiaBr(d)} — sem coleta</title></rect>${lab}`;
+  const x2=r.mapa.get(org15DiaKey(d));const det=x2?Object.entries(x2.slots).sort((p,q)=>org15SlotMin(p[0])-org15SlotMin(q[0])).map(([k,q])=>`${k}: ${q}`).join(' · '):'';
+  const h=Math.max(v>0?3:2,(v/topo)*ih);
+  return `<rect x="${x}" y="${T+ih-h}" width="${w}" height="${h}" rx="2" class="${v>0?'ok':'zero'}"><title>${org15DiaBr(d)} — pico ${v}${det?`\n${det}`:''}</title></rect>${v>0&&n<=31?`<text x="${x+w/2}" y="${T+ih-h-4}" class="val" text-anchor="middle">${v}</text>`:''}${lab}`}).join('');
+ const media=r.media!==null?`<line x1="${L}" x2="${W-R}" y1="${y(r.media)}" y2="${y(r.media)}" class="avg"/><rect x="${L+4}" y="${T}" width="92" height="17" rx="8" class="avgbg"/><text x="${L+50}" y="${T+12}" class="avgt" text-anchor="middle">- - média ${org15Num(r.media)}</text>`:'';
+ return `<svg class="org15-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Pico diário de players">${g}${bars}${media}</svg>`;
+}
+function org15Detalhe(id){
+ const f=orgV92Rows().find(x=>String(x.id||x.group)===String(id));if(!f)return;
+ const r0=org15Range(),dias=org15Dias(r0),idx=org15Indice(r0),r=org15Resumo(f,idx,dias);
+ const slotKeys=[...new Set([...r.mapa.values()].flatMap(x=>Object.keys(x.slots)))].sort((a,b)=>org15SlotMin(a)-org15SlotMin(b));
+ let box=document.getElementById('org15Drawer');
+ if(!box){box=document.createElement('div');box.id='org15Drawer';box.className='modal hidden org15-drawer';document.body.appendChild(box);
+  box.addEventListener('click',e=>{if(e.target===box||e.target.closest('[data-org15-close]'))box.classList.add('hidden')});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')box.classList.add('hidden')});}
+ const pct=Math.round(r.presenca*100);
+ const tabela=[...dias].reverse().map(d=>{const x=r.mapa.get(org15DiaKey(d));
+  return `<tr class="${x?'':'nd'}"><td>${d.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'})}</td>${slotKeys.map(k=>`<td>${x&&x.slots[k]!==undefined?x.slots[k]:'—'}</td>`).join('')}<td><b>${x?x.pico:'—'}</b></td><td>${x?org15Num(x.media):'—'}</td></tr>`}).join('');
+ box.innerHTML=`<div class="modal-card org15-drawer-card" role="dialog" aria-label="Frequência da facção">
+<button type="button" class="modal-x" data-org15-close>×</button>
+<div class="eyebrow">FREQUÊNCIA • ${esc(r0.rotulo.toUpperCase())}</div>
+<h2>${esc(f.faccao||f.group)}</h2><p class="org15-sub">${esc(f.group)} · ${esc(f.__orgSegment)}${f.qg?` · ${esc(f.qg)}`:''}</p>
+<div class="org15-drawer-periodo">${ORG15_PERIODOS.map(([v,l])=>`<button type="button" class="${org15.periodo===v?'active':''}" data-org15-dperiodo="${v}">${l}</button>`).join('')}</div>
+<div class="org15-kpis"><div><span>PICO MÁXIMO</span><b>${org15Num(r.pico)}</b></div><div><span>MÉDIA DOS PICOS</span><b>${org15Num(r.media)}</b></div><div><span>DIAS PRESENTES</span><b>${r.presentes}/${r.total}</b><small>${pct}% do período</small></div><div><span>ÚLTIMA PRESENÇA</span><b>${r.ultima?org15DiaBr(r.ultima):'—'}</b></div></div>
+${r.comDados?org15Grafico(dias,r):'<div class="placeholder"><b>◌</b><h3>SEM COLETAS NO PERÍODO</h3><p>Não há métrica registrada para esta facção no intervalo escolhido.</p></div>'}
+${r.comDados?`<details class="org15-days"><summary>Coletas por dia (${r.comDados})</summary><div class="org15-days-wrap"><table><thead><tr><th>DIA</th>${slotKeys.map(k=>`<th>${esc(k)}</th>`).join('')}<th>PICO</th><th>MÉDIA</th></tr></thead><tbody>${tabela}</tbody></table></div></details>`:''}
+<div class="org15-drawer-actions"><button type="button" class="btn-secondary" data-org15-csvone="${esc(f.id||f.group)}">EXPORTAR CSV</button><button type="button" class="btn-primary org-v92-open" data-id="${esc(f.id||f.group)}">ABRIR PERFIL</button></div></div>`;
+ box.querySelectorAll('[data-org15-dperiodo]').forEach(b=>b.onclick=()=>{org15.periodo=b.dataset.org15Dperiodo;org15Save();renderFaccoes();org15Detalhe(id)});
+ box.querySelector('[data-org15-csvone]')?.addEventListener('click',()=>org15ExportFreq([f]));
+ box.querySelector('.org-v92-open')?.addEventListener('click',()=>{box.classList.add('hidden');openFac(f.id||f.group)});
+ box.classList.remove('hidden');
+}
+
+/* ---------- exportação ---------- */
+function org15Csv(nome,cab,linhas){
+ const cel=v=>{const s=v===null||v===undefined?'':String(v);return /[;"\r\n]/.test(s)?`"${s.replace(/"/g,'""')}"`:s};
+ const txt='﻿'+[cab,...linhas].map(l=>l.map(cel).join(';')).join('\r\n');
+ const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:'text/csv;charset=utf-8'}));a.download=nome;
+ document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},800);
+}
+const org15Stamp=()=>{const d=new Date();return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`};
+function org15ExportOrgs(){
+ const rows=org15Ordenar(orgV92Filtered(),new Map());
+ org15Csv(`organizacoes_${org15Stamp()}.csv`,['Group','Segmento','Situação','Facção','Líder','QG/Favela','CDS','Data que assumiu','Staff','Produto'],
+  rows.map(f=>[f.group,f.__orgSegment,orgV92StatusLabel(f.__orgStatus),f.__orgStatus==='ASSUMIDA'?f.faccao:'',f.lider||'',f.qg||'',f.cds||'',f.dataEntrega||'',f.staff||'',f.produto||'']));
+}
+function org15ExportFreq(lista){
+ const r0=org15Range(),dias=org15Dias(r0),idx=org15Indice(r0);
+ const fs=(lista||orgV92Filtered()).filter(f=>f.__orgStatus==='ASSUMIDA');
+ const slotKeys=[...new Set([...idx.values()].flatMap(m=>[...m.values()].flatMap(x=>Object.keys(x.slots))))].sort((a,b)=>org15SlotMin(a)-org15SlotMin(b));
+ const linhas=[];
+ fs.forEach(f=>{const m=idx.get(alvesNorm(f.group))||new Map();dias.forEach(d=>{const x=m.get(org15DiaKey(d));
+  linhas.push([d.toLocaleDateString('pt-BR'),f.faccao,f.group,f.__orgSegment,...slotKeys.map(k=>x&&x.slots[k]!==undefined?x.slots[k]:''),x?x.pico:'',x?org15Num(x.media):'',x?x.coletas:0,x?(x.pico>0?'SIM':'NÃO'):'SEM COLETA'])})});
+ const nome=lista&&lista.length===1?`frequencia_${alvesNorm(lista[0].faccao||lista[0].group)}_${org15Stamp()}.csv`:`frequencia_diaria_${org15Stamp()}.csv`;
+ org15Csv(nome,['Data','Facção','Group','Segmento',...slotKeys,'Pico do dia','Média do dia','Coletas','Presente'],linhas);
+}
+function org15ExportResumo(){
+ const r0=org15Range(),dias=org15Dias(r0),idx=org15Indice(r0);
+ const fs=orgV92Filtered().filter(f=>f.__orgStatus==='ASSUMIDA'),res=new Map(fs.map(f=>[f,org15Resumo(f,idx,dias)]));
+ org15Csv(`frequencia_resumo_${org15Stamp()}.csv`,['Facção','Group','Segmento','Líder','Período início','Período fim','Dias no período','Dias com coleta','Dias presentes','Presença %','Pico máximo','Média dos picos','Última presença','Data que assumiu'],
+  org15Ordenar(fs,res).map(f=>{const r=res.get(f);return [f.faccao,f.group,f.__orgSegment,f.lider||'',r0.ini.toLocaleDateString('pt-BR'),r0.fim.toLocaleDateString('pt-BR'),r.total,r.comDados,r.presentes,Math.round(r.presenca*100),r.pico??'',r.media===null?'':org15Num(r.media),r.ultima?r.ultima.toLocaleDateString('pt-BR'):'',f.dataEntrega||'']}));
+}
+function org15ExportPdf(){
+ const st=$('#facStatus')?.value||'',sel=$('#orgV92ReportType');
+ if(sel)sel.value=['ASSUMIDA','DISPONIVEL','INDISPONIVEL'].includes(st)?st:'GERAL';
+ orgV92OpenReport();
+}
+
+/* ---------- controles do topo (montados uma vez) ---------- */
+function org15Controles(){
+ const sort=$('#org15Sort'),per=$('#org15Period');
+ if(sort&&!sort.dataset.ok){sort.innerHTML=ORG15_ORDENS.map(([v,l])=>`<option value="${v}">${l}</option>`).join('');sort.dataset.ok='1';sort.onchange=()=>{org15.sort=sort.value;org15Save();renderFaccoes()}}
+ if(per&&!per.dataset.ok){per.innerHTML=ORG15_PERIODOS.map(([v,l])=>`<option value="${v}">${l}</option>`).join('');per.dataset.ok='1';per.onchange=()=>{org15.periodo=per.value;org15Save();renderFaccoes()}}
+ if(sort)sort.value=org15.sort;if(per)per.value=org15.periodo;
+ document.querySelectorAll('[data-org15-view]').forEach(b=>{b.classList.toggle('active',b.dataset.org15View===org15.view);b.setAttribute('aria-selected',b.dataset.org15View===org15.view?'true':'false');
+  b.onclick=()=>{org15.view=b.dataset.org15View;org15Save();renderFaccoes()}});
+ const ex=$('#org15Export');
+ if(ex&&!ex.dataset.ok){ex.dataset.ok='1';
+  ex.querySelectorAll('[data-org15-export]').forEach(b=>b.onclick=()=>{ex.open=false;const t=b.dataset.org15Export;
+   try{t==='orgs'?org15ExportOrgs():t==='freq'?org15ExportFreq():t==='resumo'?org15ExportResumo():org15ExportPdf()}catch(e){alert('Não foi possível exportar: '+(e?.message||e))}});
+  document.addEventListener('click',e=>{if(ex.open&&!e.target.closest('#org15Export'))ex.open=false});
+ }
+}
+
+renderFaccoes=function(){
+ const all=orgV92Rows(),rows=orgV92Filtered();
+ org15Controles();renderFacActivityButtons();renderFacSegmentChips();
+ const c=s=>all.filter(f=>f.__orgStatus===s).length,revisar=ORG15_REVISAR(all);
+ const summary=$('#orgV92Summary');
+ if(summary){summary.innerHTML=`<span><b>${all.length}</b> Groups</span><span class="assumida"><b>${c('ASSUMIDA')}</b> assumidas</span><span class="disponivel"><b>${c('DISPONIVEL')}</b> disponíveis</span><span class="indisponivel"><b>${c('INDISPONIVEL')}</b> sem QG</span>${revisar?`<button type="button" class="revisar" data-revisar-ocupacao><b>${revisar}</b> a revisar →</button>`:''}`;
+  summary.querySelector('[data-revisar-ocupacao]')?.addEventListener('click',()=>abrirRevisao(painelDepsV14()));}
+ document.querySelectorAll('#facStatusButtons [data-value]').forEach(b=>{const v=b.dataset.value||'';const n=v?c(v):all.length;let i=b.querySelector('.chip-contagem');if(!i){i=document.createElement('i');i.className='chip-contagem';b.appendChild(i)}i.textContent=String(n)});
+
+ const r0=org15Range(),dias=org15Dias(r0),idx=org15Indice(r0);
+ const res=new Map(rows.map(f=>[f,f.__orgStatus==='ASSUMIDA'?org15Resumo(f,idx,dias):null]));
+ const max=Math.max(0,...[...res.values()].filter(Boolean).map(r=>r.pico||0));
+ const st=$('#facStatus')?.value||'',seg=$('#facSegment')?.value||'',filtro=[st?orgV92StatusLabel(st):'',seg].filter(Boolean).join(' • ');
+ if($('#orgV92ListTitle'))$('#orgV92ListTitle').textContent=filtro?`${filtro} — ${rows.length} de ${all.length}`:`${rows.length} organizações`;
+ if($('#facStats'))$('#facStats').textContent=`Frequência: ${r0.rotulo} (${r0.ini.toLocaleDateString('pt-BR')} a ${r0.fim.toLocaleDateString('pt-BR')})${(ORG15_METRICAS()||[]).length?'':' · métricas ainda não carregadas'}`;
+
+ const box=$('#facList');if(!box)return;
+ document.querySelectorAll('#orgV92Audit').forEach(el=>el.remove());
+ if(!rows.length){box.innerHTML='<div class="placeholder"><b>⌕</b><h3>NENHUMA ORGANIZAÇÃO NESTE FILTRO</h3><p>Ajuste segmento, situação ou busca.</p></div>';return}
+ const ordered=org15Ordenar(rows,res);
+ box.innerHTML=org15.view==='mapa'?org15Mapa(ordered,res,dias,max):org15Lista(ordered,res,max,r0);
+
+ const audit=orgV92Audit(all),alertas=[[audit.duplicate,'Group(s) duplicado(s)','danger'],[audit.assumedNoDate,'assumida(s) sem data','warn'],[audit.assumedNoLeader,'assumida(s) sem líder','warn'],[audit.assumedNoCds,'assumida(s) sem CDS','warn'],[audit.availableNoCds,'disponível(is) sem CDS','warn']].filter(a=>a[0]);
+ if(alertas.length)box.insertAdjacentHTML('afterend',`<div id="orgV92Audit" class="org15-audit"><b>QUALIDADE CADASTRAL</b>${alertas.map(([n,t,k])=>`<span class="${k}">${n} ${t}</span>`).join('')}</div>`);
+
+ box.querySelectorAll('tbody tr[data-org-v92-id]').forEach(r=>r.onclick=e=>{if(e.target.closest('button'))return;openFac(r.dataset.orgV92Id)});
+ box.querySelectorAll('.org-v92-open').forEach(b=>b.onclick=e=>{e.stopPropagation();openFac(b.dataset.id)});
+ box.querySelectorAll('.org-v92-request').forEach(b=>b.onclick=e=>{e.stopPropagation();openRequestModal('',b.dataset.group)});
+ box.querySelectorAll('.org-v92-deliver').forEach(b=>b.onclick=e=>{e.stopPropagation();openNewDelivery(b.dataset.group)});
+ box.querySelectorAll('[data-org15-freq]').forEach(b=>b.onclick=e=>{e.stopPropagation();org15Detalhe(b.dataset.org15Freq)});
+};
+/* métricas chegam depois dos Groups: redesenha a página aberta quando elas carregam */
+{const _rmOrg15=renderMetrics;renderMetrics=function(...a){const out=_rmOrg15.apply(this,a);try{if($('#page-faccoes')?.classList.contains('active'))renderFaccoes()}catch(_){}return out}}
+document.querySelectorAll('.nav-item[data-page="faccoes"]').forEach(b=>b.addEventListener('click',()=>setTimeout(()=>{try{renderFaccoes()}catch(_){}},0)));
+setTimeout(()=>{if($('#page-faccoes'))renderFaccoes()},0);
+
 /* ===== HIGH OS V9.4 - PONTE DE MISSOES NA NUVEM =====
    O Planejador salva localmente (localStorage) e, quando o usuario tem permissao,
    tambem sincroniza com Firestore para que a equipe veja as mesmas missoes. */
