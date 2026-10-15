@@ -134,3 +134,13 @@ Regra de manutenção: configuração estática e funções puras não devem vol
 - O gerador nunca deixa faltar spawn: se não houver espaço seguro suficiente, cria os restantes mesmo em área de risco.
 - Pinos na água ou perto de QG ficam com contorno LARANJA no mapa (popup diz o motivo).
 - Em modo edição, arrastar um pino remove a validação e abre direto a aba VALIDAÇÃO com o campo de CDS em foco (validador nativo).
+
+
+## V12.14 — Partidas e Planejador inteligente
+
+- **PARTIDAS** (central e zona): registra zona, data/hora, nº de facções, campeã (lista das facções ativas) e spawn da campeã. O spawn é guardado com a CDS, então a análise resiste a renumeração.
+- **Zona sugerida:** entre as zonas no jogo, a que está há mais tempo sem partida (rodízio automático).
+- **Vantagem de spawn:** spawn que vence ≥3 vezes e ≥2,5× o esperado (partidas ÷ spawns) vira aviso na zona, na central e no pino (🏆).
+- **Vantagem de lado:** com 6+ partidas, um lado (norte/leste/sul/oeste) com metade ou mais das vitórias vira aviso.
+- **Facção dominante:** facção com 40%+ das vitórias nas últimas 10 partidas aparece na central.
+- **Participação real:** média e pico de facções; aviso quando o pico já passou do número de spawns da zona; a META sugere o pico registrado.
