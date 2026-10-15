@@ -13660,12 +13660,15 @@ const rh15MesRot=k=>{const m=String(k).match(/^(\d{4})-(\d{2})$/);if(!m)return k
 const rh15Hoje=()=>{const n=new Date();return new Date(n.getFullYear(),n.getMonth(),n.getDate())};
 const rh15Iso=s=>{const m=String(s||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?new Date(+m[1],+m[2]-1,+m[3]):null};
 /* variação percentual atual × anterior, já formatada com seta */
-function rh15Var(atual,ant){
- if(atual===null||ant===null||atual===undefined||ant===undefined||!Number.isFinite(atual)||!Number.isFinite(ant)||ant===0)return '<span class="rh15-var na">—</span>';
- const p=(atual-ant)/ant*100,cls=p>=5?'up':p<=-5?'down':'flat';
- return `<span class="rh15-var ${cls}" title="Período anterior: ${rh15N(ant)}">${Math.abs(p)<0.5?'■':p>0?'▲':'▼'} ${Math.abs(p).toFixed(0)}%</span>`;
+function rh15Var(atual,ant,{base=5}={}){
+ if(atual===null||ant===null||atual===undefined||ant===undefined||!Number.isFinite(atual)||!Number.isFinite(ant))return '<span class="rh15-var na">—</span>';
+ const d=atual-ant,cls=Math.abs(d)<0.05?'flat':d>0?'up':'down',seta=cls==='flat'?'■':d>0?'▲':'▼';
+ /* base pequena (ex.: 0,4 → 6,7) gera porcentagem absurda: aí mostra a diferença absoluta */
+ if(ant<base||ant===0)return `<span class="rh15-var ${cls}" title="Período anterior: ${rh15N(ant)} · base pequena, mostrando a diferença">${seta} ${d>0?'+':d<0?'−':''}${rh15N(Math.abs(d))}</span>`;
+ const pc=d/ant*100;
+ return `<span class="rh15-var ${Math.abs(pc)<5?'flat':cls}" title="Período anterior: ${rh15N(ant)} · diferença ${d>0?'+':''}${rh15N(d)}">${Math.abs(pc)<0.5?'■':seta} ${Math.abs(pc).toFixed(0)}%</span>`;
 }
-const rh15VarTxt=(a,b)=>a===null||b===null||!Number.isFinite(a)||!Number.isFinite(b)||b===0?'':`${a>=b?'+':''}${((a-b)/b*100).toFixed(0)}%`;
+const rh15VarTxt=(a,b)=>{if(a===null||b===null||a===undefined||b===undefined||!Number.isFinite(a)||!Number.isFinite(b))return '';const d=a-b;return b<5?`${d>=0?'+':''}${rh15N(d)}`:`${d>=0?'+':''}${(d/b*100).toFixed(0)}%`};
 
 function rh15Meses(){
  const set=new Set();(RH15_METRICAS()||[]).forEach(m=>{const d=metricDateValue(m);if(d&&d.getTime&&d.getTime()>0)set.add(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`)});
@@ -13784,14 +13787,14 @@ function rh15Painel(B){
  const ativas=L.filter(e=>e.st.comDados),presMed=ativas.length?ativas.reduce((a,e)=>a+(e.st.aprov||0),0)/ativas.length:0;
  const ativasAnt=PA.filter(e=>e.st.comDados),presAnt=ativasAnt.length?ativasAnt.reduce((a,e)=>a+(e.st.aprov||0),0)/ativasAnt.length:null;
  const top=[...ativas].sort((a,b)=>b.st.media-a.st.media).slice(0,8);
- const varia=ativas.filter(e=>e.ant?.media).map(e=>({e,v:(e.st.media-e.ant.media)/e.ant.media})).sort((a,b)=>b.v-a.v);
- const linhaVar=x=>`<button type="button" class="rh15-row" data-rh15-fac="${esc(x.e.k)}"><b>${esc(x.e.faccao)}</b><span>${rh15N(x.e.ant.media)} → ${rh15N(x.e.st.media)}</span>${rh15Var(x.e.st.media,x.e.ant.media)}</button>`;
+ const varia=ativas.filter(e=>e.ant&&e.ant.media!==null&&e.st.comDados>=3&&e.ant.comDados>=3).map(e=>({e,v:e.st.media-e.ant.media})).sort((a,b)=>b.v-a.v);
+ const linhaVar=x=>`<button type="button" class="rh15-row" data-rh15-fac="${esc(x.e.k)}"><b>${esc(x.e.faccao)}</b><span>${rh15N(x.e.ant.media)} → ${rh15N(x.e.st.media)}</span><span class="rh15-var ${x.v>0?'up':'down'}">${x.v>0?'▲ +':'▼ −'}${rh15N(Math.abs(x.v))}</span></button>`;
  const atencao=L.filter(e=>!e.ex&&(e.st.comDados===0||(e.st.media!==null&&e.st.media<rh15Meta().min)||e.st.semPlayers>=3)).sort((a,b)=>a.st.presentes-b.st.presentes).slice(0,10);
  return `<div class="rh15-kpis">
 <div><span>FACÇÕES MEDIDAS</span><b>${ativas.length}</b><small>${L.length} no filtro · ${ativasAnt.length} no período anterior</small></div>
 <div><span>MÉDIA DIÁRIA DO ILEGAL</span><b>${rh15N(mediaGeral)}</b><small>${rh15Var(mediaGeral,mediaAnt)} soma dos picos das facções</small></div>
 <div><span>PICO DO ILEGAL</span><b>${rh15N(picoGeral)}</b><small>${rh15Var(picoGeral,picoAnt)} ${iPico>=0?`em ${rh15Dm(dias[iPico])}`:''}</small></div>
-<div><span>APROVEITAMENTO MÉDIO</span><b>${rh15Pct(presMed)}</b><small>${rh15Var(presMed,presAnt)} média dos picos ÷ ${rh15Meta().max} (meta ${rh15MetaTxt()})</small></div>
+<div><span>APROVEITAMENTO MÉDIO</span><b>${rh15Pct(presMed)}</b><small>${rh15Var(presMed,presAnt,{base:0.05})} média dos picos ÷ ${rh15Meta().max} (meta ${rh15MetaTxt()})</small></div>
 <div><span>COLETAS NO PERÍODO</span><b>${ativas.reduce((a,e)=>a+e.st.coletas,0)}</b><small>${B.slotKeys.length} horário(s): ${esc(B.slotKeys.join(', ')||'—')}</small></div></div>
 <section class="rh15-card"><header><b>Pico diário por facção</b><small>${esc(rh15.seg||'Todos os segmentos')} · faixa verde = meta de ${rh15MetaTxt()} · clique nos nomes para mostrar ou esconder</small></header>${series.length?rh15Linhas(dias,series,{altura:280,faixa:M,legendaInterativa:true}):rh15Vazio('Sem coletas no período','')}</section>
 <div class="rh15-grid2">
@@ -13800,15 +13803,15 @@ function rh15Painel(B){
 <section class="rh15-card"><header><b>Maiores médias de pico</b><small>Clique para abrir a facção</small></header>${rh15Barras(top.map(e=>({nome:e.faccao,v:e.st.media,k:e.k})))}</section>
 </div>
 <div class="rh15-grid2">
-<section class="rh15-card"><header><b>Maiores altas</b><small>Média de pico × ${esc(B.ra.rotulo)}</small></header>${varia.filter(x=>x.v>=0.05).slice(0,6).map(linhaVar).join('')||'<p class="rh15-empty">Nenhuma alta de 5% ou mais.</p>'}</section>
-<section class="rh15-card"><header><b>Maiores quedas</b><small>Média de pico × ${esc(B.ra.rotulo)}</small></header>${varia.filter(x=>x.v<=-0.05).reverse().slice(0,6).map(linhaVar).join('')||'<p class="rh15-empty">Nenhuma queda de 5% ou mais.</p>'}</section>
+<section class="rh15-card"><header><b>Maiores altas</b><small>Diferença na média de pico (players) × ${esc(B.ra.rotulo)}</small></header>${varia.filter(x=>x.v>=1).slice(0,6).map(linhaVar).join('')||'<p class="rh15-empty">Nenhuma alta de 1 player ou mais.</p>'}</section>
+<section class="rh15-card"><header><b>Maiores quedas</b><small>Diferença na média de pico (players) × ${esc(B.ra.rotulo)}</small></header>${varia.filter(x=>x.v<=-1).reverse().slice(0,6).map(linhaVar).join('')||'<p class="rh15-empty">Nenhuma queda de 1 player ou mais.</p>'}</section>
 </div>
 ${atencao.length?`<section class="rh15-card warn"><header><b>Atenção</b><small>Sem coleta, média de pico abaixo de ${rh15Meta().min} ou 3+ dias seguidos sem players</small></header><div class="rh15-chips">${atencao.map(e=>`<button type="button" data-rh15-fac="${esc(e.k)}"><b>${esc(e.faccao)}</b><small>${esc(e.group)} · média ${rh15N(e.st.media)} · ${e.st.diasMeta}/${e.st.total} dias na meta${e.st.semPlayers>=3?` · ${e.st.semPlayers} dias sem players`:''}</small></button>`).join('')}</div></section>`:''}`;
 }
 const RH15_ORDENS=[['media','Média dos picos'],['pico','Pico máximo'],['aprov','Aproveitamento'],['meta','Dias na meta'],['presenca','Dias com players'],['regularidade','Regularidade'],['variacao','Variação'],['coleta','Média por coleta'],['faccao','Facção A–Z'],['segmento','Segmento']];
 function rh15Ordenar(L){
  const k=rh15.ord,num=(e,f)=>{const v=f(e);return v===null||v===undefined||!Number.isFinite(v)?-Infinity:v};
- const vari=e=>e.ant?.media&&e.st.media!==null?(e.st.media-e.ant.media)/e.ant.media:null;
+ const vari=e=>e.ant&&e.ant.media!==null&&e.st.media!==null?e.st.media-e.ant.media:null;
  const f={media:e=>e.st.media,pico:e=>e.st.pico,presenca:e=>e.st.presenca,aprov:e=>e.st.aprov,meta:e=>e.st.diasMeta,regularidade:e=>e.st.regularidade,variacao:vari,coleta:e=>e.st.mediaColetas}[k];
  if(f)return [...L].sort((a,b)=>(num(b,f)-num(a,f))||a.faccao.localeCompare(b.faccao,'pt-BR'));
  if(k==='segmento')return [...L].sort((a,b)=>a.segmento.localeCompare(b.segmento,'pt-BR')||(num(b,e=>e.st.media)-num(a,e=>e.st.media)));
@@ -13854,10 +13857,10 @@ function rh15Faccao(B){
  const serieSlots=B.slotKeys.map((s,i)=>({nome:s,cor:RH15_CORES[(i+1)%RH15_CORES.length],vals:dias.map(d=>{const x=mapa.get(rh15DK(d));return x&&Number.isFinite(+x.slots[s])?+x.slots[s]:null})}));
  const tabela=[...dias].reverse().map(d=>{const x=mapa.get(rh15DK(d));return `<tr class="${x?'':'nd'}"><td>${d.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'})}</td>${B.slotKeys.map(k=>`<td>${x&&x.slots[k]!==undefined?x.slots[k]:'—'}</td>`).join('')}<td><b>${x?x.pico:'—'}</b></td><td>${x?rh15N(x.media):'—'}</td><td>${x?rh15Pct(x.pico/rh15Meta().max):'—'}</td><td>${x?({top:'<span class="rh15-pill ok">TOPO DA META</span>',ok:'<span class="rh15-pill ok">NA META</span>',low:'<span class="rh15-pill warn">ABAIXO DA META</span>',zero:'<span class="rh15-pill warn">ZERADO</span>'}[rh15Faixa(x.pico)]):'<span class="rh15-pill off">SEM COLETA</span>'}</td></tr>`}).join('');
  const comp=an?`<section class="rh15-card"><header><b>Comparação com ${esc(B.ra.rotulo)}</b></header><table class="rh15-table compact"><thead><tr><th></th><th>ATUAL</th><th>ANTERIOR</th><th>VARIAÇÃO</th></tr></thead><tbody>
-${[['Aproveitamento',st.aprov,an.aprov,rh15Pct],['Dias na meta',st.diasMeta,an.diasMeta,rh15N],['Dias com players',st.presentes,an.presentes,rh15N],['Média dos picos',st.media,an.media,rh15N],['Mediana',st.mediana,an.mediana,rh15N],['Pico máximo',st.pico,an.pico,rh15N],['Média por coleta',st.mediaColetas,an.mediaColetas,rh15N],...B.slotKeys.map(s=>['Média '+s,st.porSlot[s],an.porSlot?.[s]??null,rh15N])].map(([l,a,b,f])=>`<tr><td><b>${esc(l)}</b></td><td>${f(a)}</td><td>${f(b??null)}</td><td>${rh15Var(a,b??null)}</td></tr>`).join('')}</tbody></table></section>`:'';
+${[['Aproveitamento',st.aprov,an.aprov,rh15Pct],['Dias na meta',st.diasMeta,an.diasMeta,rh15N],['Dias com players',st.presentes,an.presentes,rh15N],['Média dos picos',st.media,an.media,rh15N],['Mediana',st.mediana,an.mediana,rh15N],['Pico máximo',st.pico,an.pico,rh15N],['Média por coleta',st.mediaColetas,an.mediaColetas,rh15N],...B.slotKeys.map(s=>['Média '+s,st.porSlot[s],an.porSlot?.[s]??null,rh15N])].map(([l,a,b,f])=>`<tr><td><b>${esc(l)}</b></td><td>${f(a)}</td><td>${f(b??null)}</td><td>${rh15Var(a,b??null,{base:f===rh15Pct?0.05:5})}</td></tr>`).join('')}</tbody></table></section>`:'';
  return `<div class="rh15-subbar"><label class="rh15-select wide"><span>FACÇÃO</span><select id="rh15FacSel">${L.map(x=>`<option value="${esc(x.k)}" ${x.k===e.k?'selected':''}>${esc(x.faccao)} — ${esc(x.group)}${x.ex?' (saiu)':''}</option>`).join('')}</select></label><button type="button" class="rh15-btn" data-rh15-exp="fac-csv">CSV DA FACÇÃO</button><button type="button" class="rh15-btn primary" data-rh15-exp="fac-pdf">RELATÓRIO DA FACÇÃO</button></div>
 <div class="rh15-kpis">
-<div><span>APROVEITAMENTO</span><b>${rh15Pct(st.aprov)}</b><small>${rh15Var(st.aprov,an?.aprov??null)} média ${rh15N(st.media)} ÷ ${rh15Meta().max} · ${st.diasMeta}/${st.total} dias na meta</small></div>
+<div><span>APROVEITAMENTO</span><b>${rh15Pct(st.aprov)}</b><small>${rh15Var(st.aprov,an?.aprov??null,{base:0.05})} média ${rh15N(st.media)} ÷ ${rh15Meta().max} · ${st.diasMeta}/${st.total} dias na meta</small></div>
 <div><span>MÉDIA DOS PICOS</span><b>${rh15N(st.media)}</b><small>${rh15Var(st.media,an?.media??null)} mediana ${rh15N(st.mediana)}</small></div>
 <div><span>PICO MÁXIMO</span><b>${rh15N(st.pico)}</b><small>mínimo ${rh15N(st.minimo)} · última presença ${st.ultima?rh15Dm(st.ultima):'—'}</small></div>
 <div><span>MÉDIA POR COLETA</span><b>${rh15N(st.mediaColetas)}</b><small>${st.coletas} coleta(s)${st.forte?` · mais forte às ${esc(st.forte)}`:''}</small></div>
