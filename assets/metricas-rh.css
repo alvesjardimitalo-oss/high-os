@@ -1,0 +1,191 @@
+/* =========================================================
+   HIGH OS V14.3 · CENTRAL RH DE MÉTRICAS
+   Painel, pagamentos, picos diários, facção e relatórios.
+   Carregado por último; vale só para #page-metricas e para
+   o editor da regra de pagamento (#rh15RegraModal).
+   ========================================================= */
+#page-metricas, #rh15RegraModal{
+  --r-bg:#100c15;
+  --r-surface:#151019;
+  --r-surface-2:#1c1523;
+  --r-line:rgba(255,255,255,.07);
+  --r-line-2:rgba(255,255,255,.13);
+  --r-text:#f4f0f8;
+  --r-text-2:#b9aec6;
+  --r-text-3:#8a7f99;
+  --r-brand:#9a4dff;
+  --r-brand-2:#c08bff;
+  --r-ok:#4fdc8f;
+  --r-warn:#ffc35c;
+  --r-bad:#ff6b81;
+  --r-heat:154,77,255;
+}
+
+/* ---------- abas e filtros ---------- */
+#page-metricas .rh15-shell{margin-top:10px}
+#page-metricas .rh15-tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--r-line-2);margin-bottom:12px}
+#page-metricas .rh15-tabs button{background:transparent;border:0;border-bottom:2px solid transparent;color:var(--r-text-2);padding:11px 16px;font-size:12px;font-weight:800;letter-spacing:.08em;cursor:pointer;margin-bottom:-1px}
+#page-metricas .rh15-tabs button:hover{color:var(--r-text)}
+#page-metricas .rh15-tabs button.active{color:var(--r-text);border-bottom-color:var(--r-brand)}
+#page-metricas .rh15-tabs button.muted{margin-left:auto;color:var(--r-text-3)}
+#page-metricas .rh15-filters{display:flex;gap:8px;flex-wrap:wrap;align-items:stretch;background:var(--r-surface);border:1px solid var(--r-line);border-radius:14px;padding:10px}
+#page-metricas .rh15-select{display:flex;align-items:center;gap:8px;background:var(--r-bg);border:1px solid var(--r-line-2);border-radius:10px;padding:0 4px 0 12px;min-height:42px;margin:0}
+#page-metricas .rh15-select.wide{flex:1 1 320px}
+#page-metricas .rh15-select.wide select{flex:1;width:100%!important}
+#page-metricas .rh15-select span{font-size:10px;font-weight:800;letter-spacing:.1em;color:var(--r-text-3);white-space:nowrap}
+#page-metricas .rh15-select select{background:transparent!important;border:0!important;color:var(--r-text);font-size:13px;font-weight:600;padding:8px 6px!important;cursor:pointer;width:auto!important;min-width:0}
+#page-metricas .rh15-select select option,#page-metricas .rh15-select select optgroup{background:#17111f;color:var(--r-text)}
+#page-metricas .rh15-range{display:flex;align-items:center;gap:6px;background:var(--r-bg);border:1px solid var(--r-line-2);border-radius:10px;padding:0 10px;min-height:42px}
+#page-metricas .rh15-range input{background:transparent!important;border:0!important;color:var(--r-text);font-size:13px;padding:6px 2px!important;color-scheme:dark}
+#page-metricas .rh15-range span{color:var(--r-text-3);font-size:12px}
+#page-metricas .rh15-search{flex:1 1 220px;display:flex;align-items:center;gap:8px;background:var(--r-bg);border:1px solid var(--r-line-2);border-radius:10px;padding:0 12px;min-height:42px}
+#page-metricas .rh15-search span{color:var(--r-text-3)}
+#page-metricas .rh15-search input{flex:1;background:transparent!important;border:0!important;outline:0;color:var(--r-text);font-size:14px;padding:0!important;min-width:0;box-shadow:none!important}
+#page-metricas .rh15-info{font-size:12px;color:var(--r-text-3);margin:10px 2px}
+#page-metricas .rh15-legado-note{font-size:12px;color:var(--r-text-3);border:1px dashed var(--r-line-2);border-radius:10px;padding:8px 12px;margin:12px 0}
+
+/* ---------- botões ---------- */
+.rh15-btn{height:38px;border-radius:10px;border:1px solid var(--r-line-2);background:var(--r-surface-2);color:var(--r-text);font-size:11.5px;font-weight:800;letter-spacing:.06em;cursor:pointer;white-space:nowrap;padding:0 14px}
+.rh15-btn:hover{border-color:var(--r-brand);background:#25183a}
+.rh15-btn.primary{background:var(--r-brand);border-color:var(--r-brand);color:#fff}
+.rh15-btn.primary:hover{background:#ad6bff}
+#page-metricas .rh15-actions{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
+#page-metricas .rh15-check{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;color:var(--r-text-2);cursor:pointer}
+#page-metricas .rh15-check input{width:16px;height:16px;accent-color:var(--r-brand)}
+
+/* ---------- blocos ---------- */
+#page-metricas .rh15-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;margin-bottom:12px}
+#page-metricas .rh15-kpis>div{background:var(--r-surface);border:1px solid var(--r-line);border-radius:14px;padding:12px 14px}
+#page-metricas .rh15-kpis span{display:block;font-size:10px;font-weight:800;letter-spacing:.1em;color:var(--r-text-3)}
+#page-metricas .rh15-kpis b{display:block;font-size:26px;margin:6px 0 2px;color:var(--r-text);font-variant-numeric:tabular-nums;line-height:1.1}
+#page-metricas .rh15-kpis small{font-size:11.5px;color:var(--r-text-3)}
+#page-metricas .rh15-kpis .money{border-color:rgba(79,220,143,.3);background:linear-gradient(140deg,rgba(79,220,143,.09),var(--r-surface) 70%)}
+#page-metricas .rh15-kpis .money b{color:var(--r-ok)}
+#page-metricas .rh15-card{background:var(--r-surface);border:1px solid var(--r-line);border-radius:14px;padding:14px;margin-bottom:12px}
+#page-metricas .rh15-card>header{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+#page-metricas .rh15-card>header b{font-size:14px;color:var(--r-text)}
+#page-metricas .rh15-card>header small{font-size:12px;color:var(--r-text-3)}
+#page-metricas .rh15-card.warn{border-color:rgba(255,195,92,.3)}
+#page-metricas .rh15-grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+#page-metricas .rh15-grid2>.rh15-card{margin-bottom:12px}
+#page-metricas .rh15-subbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+#page-metricas .rh15-alert{background:rgba(255,195,92,.08);border:1px solid rgba(255,195,92,.35);color:var(--r-warn);border-radius:12px;padding:10px 14px;font-size:13px;margin-bottom:12px}
+#page-metricas .rh15-alert button{background:none;border:0;color:var(--r-warn);text-decoration:underline;font-weight:700;cursor:pointer;font-size:13px;padding:0}
+#page-metricas .rh15-rule p{margin:0;font-size:13px;line-height:1.6;color:var(--r-text-2)}
+#page-metricas .rh15-rule p b{color:var(--r-text)}
+#page-metricas .rh15-paybar{display:flex;align-items:center;gap:16px;flex-wrap:wrap;background:var(--r-surface);border:1px solid rgba(79,220,143,.3);border-radius:14px;padding:12px 14px;margin-bottom:12px}
+#page-metricas .rh15-paybar>div:first-child span{display:block;font-size:10px;font-weight:800;letter-spacing:.1em;color:var(--r-text-3)}
+#page-metricas .rh15-paybar>div:first-child b{display:block;font-size:28px;color:var(--r-ok);font-variant-numeric:tabular-nums}
+#page-metricas .rh15-paybar>div:first-child small{font-size:12px;color:var(--r-text-3)}
+#page-metricas .rh15-presets{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:12px}
+#page-metricas .rh15-presets span{font-size:10px;font-weight:800;letter-spacing:.1em;color:var(--r-text-3);margin-right:4px}
+#page-metricas .rh15-presets button,#page-metricas .rh15-seg button{border:1px solid var(--r-line-2);background:var(--r-surface);color:var(--r-text-2);border-radius:999px;padding:7px 13px;font-size:12px;font-weight:700;cursor:pointer}
+#page-metricas .rh15-presets button:hover,#page-metricas .rh15-seg button:hover{border-color:var(--r-brand);color:var(--r-text)}
+#page-metricas .rh15-seg{display:flex;flex-wrap:wrap;gap:6px}
+#page-metricas .rh15-seg button.active{background:var(--r-brand);border-color:var(--r-brand);color:#fff}
+#page-metricas .rh15-chips{display:flex;flex-wrap:wrap;gap:8px}
+#page-metricas .rh15-chips button{text-align:left;background:var(--r-bg);border:1px solid var(--r-line-2);border-radius:10px;padding:8px 12px;cursor:pointer;color:var(--r-text)}
+#page-metricas .rh15-chips button:hover{border-color:var(--r-warn)}
+#page-metricas .rh15-chips b{display:block;font-size:13px}
+#page-metricas .rh15-chips small{font-size:11.5px;color:var(--r-text-3)}
+
+/* ---------- tabelas ---------- */
+#page-metricas .rh15-table-wrap{overflow:auto;border:1px solid var(--r-line);border-radius:14px;background:var(--r-surface)}
+#page-metricas .rh15-card .rh15-table-wrap{border-radius:10px}
+#page-metricas .rh15-table-wrap.tall{max-height:520px}
+#page-metricas .rh15-table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+#page-metricas .rh15-table th{position:sticky;top:0;z-index:1;background:#191220;text-align:left;padding:11px 12px;font-size:10.5px;font-weight:800;letter-spacing:.08em;color:var(--r-text-3);border-bottom:1px solid var(--r-line-2);white-space:nowrap}
+#page-metricas .rh15-table td{padding:11px 12px;border-bottom:1px solid var(--r-line);font-size:13.5px;color:var(--r-text);vertical-align:middle}
+#page-metricas .rh15-table.compact td{padding:8px 12px;font-size:13px}
+#page-metricas .rh15-table td small{display:block;font-size:11.5px;color:var(--r-text-3);margin-top:2px}
+#page-metricas .rh15-table td b{font-weight:700}
+#page-metricas .rh15-table tbody tr:hover{background:rgba(154,77,255,.06)}
+#page-metricas .rh15-table tr[data-rh15-seg]{cursor:pointer}
+#page-metricas .rh15-table tr.off td{opacity:.5}
+#page-metricas .rh15-table tr.nd td{color:var(--r-text-3)}
+#page-metricas .rh15-table .money,#page-metricas .rh15-table .money b{color:var(--r-ok)}
+#page-metricas .rh15-table tfoot td{position:sticky;bottom:0;background:#191220;font-weight:800;font-size:13px;border-top:1px solid var(--r-line-2)}
+#page-metricas .rh15-link{background:none;border:0;padding:0;text-align:left;color:var(--r-text);cursor:pointer}
+#page-metricas .rh15-link b{font-size:15px}
+#page-metricas .rh15-link:hover b{color:var(--r-brand-2)}
+#page-metricas .rh15-pill{display:inline-block;padding:3px 9px;border-radius:999px;font-size:10.5px;font-weight:800;letter-spacing:.04em;white-space:nowrap}
+#page-metricas .rh15-pill.ok{background:rgba(79,220,143,.12);color:var(--r-ok)}
+#page-metricas .rh15-pill.warn{background:rgba(255,195,92,.12);color:var(--r-warn)}
+#page-metricas .rh15-pill.off{background:rgba(255,255,255,.06);color:var(--r-text-3)}
+#page-metricas .rh15-switch{position:relative;display:inline-block;width:38px;height:22px;cursor:pointer}
+#page-metricas .rh15-switch input{opacity:0;width:0;height:0;position:absolute}
+#page-metricas .rh15-switch i{position:absolute;inset:0;background:rgba(255,255,255,.12);border-radius:20px;transition:.15s}
+#page-metricas .rh15-switch i:after{content:'';position:absolute;left:3px;top:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.15s}
+#page-metricas .rh15-switch input:checked+i{background:var(--r-ok)}
+#page-metricas .rh15-switch input:checked+i:after{transform:translateX(16px)}
+
+/* ---------- gráficos ---------- */
+#page-metricas .rh15-chart{width:100%;height:auto;display:block}
+#page-metricas .rh15-chart .grid{stroke:rgba(255,255,255,.06)}
+#page-metricas .rh15-chart .ax{fill:var(--r-text-3);font-size:10px}
+#page-metricas .rh15-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:6px;font-size:12px;color:var(--r-text-2)}
+#page-metricas .rh15-legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+#page-metricas .rh15-bars{display:flex;flex-direction:column;gap:7px}
+#page-metricas .rh15-bar{display:grid;grid-template-columns:minmax(90px,170px) 1fr 56px;gap:10px;align-items:center}
+#page-metricas .rh15-bar .lbl{font-size:13px;color:var(--r-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#page-metricas .rh15-bar .trk{height:10px;background:rgba(255,255,255,.05);border-radius:6px;overflow:hidden}
+#page-metricas .rh15-bar .trk i{display:block;height:100%;background:var(--r-brand);border-radius:6px}
+#page-metricas .rh15-bar b{font-size:13px;text-align:right;font-variant-numeric:tabular-nums;color:var(--r-text)}
+/* gráfico diário da facção (mesmo desenho do painel de Organizações) */
+#page-metricas .org15-chart{width:100%;height:auto;display:block}
+#page-metricas .org15-chart .grid{stroke:rgba(255,255,255,.06)}
+#page-metricas .org15-chart .ax{fill:var(--r-text-3);font-size:10px}
+#page-metricas .org15-chart .val{fill:var(--r-text-2);font-size:9.5px;font-weight:700}
+#page-metricas .org15-chart rect.ok{fill:var(--r-brand)}
+#page-metricas .org15-chart rect.ok:hover{fill:var(--r-brand-2)}
+#page-metricas .org15-chart rect.zero{fill:var(--r-bad)}
+#page-metricas .org15-chart rect.nd{fill:rgba(255,255,255,.12)}
+#page-metricas .org15-chart .avg{stroke:var(--r-warn);stroke-dasharray:5 4;stroke-width:1.5}
+#page-metricas .org15-chart .avgt{fill:var(--r-warn);font-size:10.5px;font-weight:700}
+#page-metricas .org15-chart .avgbg{fill:rgba(18,13,24,.85);stroke:rgba(255,195,92,.4)}
+
+/* ---------- mapa de picos ---------- */
+#page-metricas .rh15-heat-wrap{overflow:auto;max-height:70vh;border:1px solid var(--r-line);border-radius:14px;background:var(--r-surface)}
+#page-metricas .rh15-heat{border-collapse:separate;border-spacing:3px;width:100%;font-variant-numeric:tabular-nums}
+#page-metricas .rh15-heat thead th{position:sticky;top:0;z-index:2;background:#191220;font-size:11px;color:var(--r-text-3);font-weight:700;padding:6px 2px;text-align:center}
+#page-metricas .rh15-heat thead th small{display:block;font-size:9px;opacity:.7}
+#page-metricas .rh15-heat thead th.today{color:var(--r-brand-2)}
+#page-metricas .rh15-heat th.name{position:sticky;left:0;z-index:3;background:#191220;text-align:left;min-width:190px;padding:0}
+#page-metricas .rh15-heat tbody th.name{z-index:1;background:var(--r-surface)}
+#page-metricas .rh15-heat thead th.name{padding:6px 10px;font-size:10.5px;letter-spacing:.1em}
+#page-metricas .rh15-heat th.name button{width:100%;text-align:left;background:transparent;border:0;color:var(--r-text);padding:6px 10px;cursor:pointer;border-radius:8px}
+#page-metricas .rh15-heat th.name button:hover{background:rgba(154,77,255,.12)}
+#page-metricas .rh15-heat th.name b{display:block;font-size:13.5px}
+#page-metricas .rh15-heat th.name small{display:block;font-size:11px;color:var(--r-text-3);font-weight:500}
+#page-metricas .rh15-heat tr.total th.name{padding:8px 10px;font-size:11px;letter-spacing:.08em;color:var(--r-text-2)}
+#page-metricas .rh15-heat td{min-width:30px;height:34px;text-align:center;border-radius:6px;font-size:12px;font-weight:700}
+#page-metricas .rh15-heat td.v{background:rgba(var(--r-heat),var(--a));color:#fff}
+#page-metricas .rh15-heat td.v.low{box-shadow:inset 0 0 0 2px rgba(255,195,92,.75)}
+#page-metricas .rh15-heat td.z{background:rgba(255,107,129,.12);color:var(--r-bad)}
+#page-metricas .rh15-heat td.nd{background:rgba(255,255,255,.03)}
+#page-metricas .rh15-heat td.tot{color:var(--r-text);background:rgba(255,255,255,.05);font-size:11.5px}
+#page-metricas .rh15-heat .sum{min-width:52px;color:var(--r-text);font-size:13px;background:transparent}
+#page-metricas .rh15-heat thead .sum{font-size:10px;letter-spacing:.08em}
+#page-metricas .rh15-heat-legend{padding:10px 4px;font-size:12px;color:var(--r-text-3)}
+
+/* ---------- editor da regra ---------- */
+#rh15RegraModal .rh15-modal-card{width:min(760px,96vw);background:#120d18;border-color:var(--r-line-2)}
+#rh15RegraModal h2{margin:4px 0 2px;font-size:24px;color:var(--r-text)}
+#rh15RegraModal .rh15-sub{margin:0 0 14px;color:var(--r-text-3);font-size:13px}
+#rh15RegraModal .rh15-h3{font-size:13px;margin:18px 0 8px;color:var(--r-text)}
+#rh15RegraModal .rh15-h3 small{font-weight:500;color:var(--r-text-3)}
+#rh15RegraModal .rh15-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+#rh15RegraModal .rh15-form.segs{grid-template-columns:repeat(3,minmax(0,1fr))}
+#rh15RegraModal label{display:flex;flex-direction:column;gap:5px;font-size:11.5px;font-weight:700;color:var(--r-text-2)}
+#rh15RegraModal input,#rh15RegraModal select{background:var(--r-bg)!important;border:1px solid var(--r-line-2)!important;border-radius:9px;color:var(--r-text);font-size:14px;padding:9px 11px!important;width:100%}
+#rh15RegraModal .rh15-faixa{display:grid;grid-template-columns:1fr 1fr 38px;gap:10px;align-items:end;margin-bottom:8px}
+#rh15RegraModal .rh15-x{height:38px;border-radius:9px;border:1px solid var(--r-line-2);background:transparent;color:var(--r-bad);font-size:18px;cursor:pointer}
+#rh15RegraModal .rh15-modal-actions{display:flex;justify-content:space-between;gap:8px;margin-top:18px}
+
+@media (max-width:900px){
+  #page-metricas .rh15-grid2{grid-template-columns:1fr}
+  #page-metricas .rh15-tabs button.muted{margin-left:0}
+  #rh15RegraModal .rh15-form,#rh15RegraModal .rh15-form.segs{grid-template-columns:1fr}
+}
+#page-metricas .rh15-bar.click{cursor:pointer;border-radius:6px}
+#page-metricas .rh15-bar.click:hover .lbl{color:var(--r-brand-2)}

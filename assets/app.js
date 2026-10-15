@@ -13627,6 +13627,374 @@ renderFaccoes=function(){
 document.querySelectorAll('.nav-item[data-page="faccoes"]').forEach(b=>b.addEventListener('click',()=>setTimeout(()=>{try{renderFaccoes()}catch(_){}},0)));
 setTimeout(()=>{if($('#page-faccoes'))renderFaccoes()},0);
 
+/* ===== HIGH OS V14.3 · CENTRAL RH DE MÉTRICAS =====
+   A página de Métricas passa a ser o instrumento do RH:
+   PAINEL · PAGAMENTOS · PICOS DIÁRIOS · FACÇÃO · RELATÓRIOS · AVANÇADO (telas antigas).
+   - Usa as métricas já ATRIBUÍDAS à facção (metricas-motor.js): a coleta segue a
+     facção que ocupava o Group no horário, inclusive quem saiu no meio do mês.
+   - Pico diário = maior coleta do dia (14H/16H/21H/23H ou outros horários lançados).
+   - Pagamento por regra configurável: mínimo de players para o dia valer, valor por
+     dia (geral ou por segmento), bônus por faixa de média, mínimo de dias e teto.
+   - Contrato remunerado marcado por facção. Regra e contratos ficam salvos neste
+     navegador e saem impressos em toda exportação, para o fechamento ser auditável. */
+const RH15_METRICAS=()=>estado.metricas;
+const RH15_FACCOES=()=>estado.faccoes;
+const ocupadoRH15=f=>ocupadoV14(f);
+const RH15_KEY='highos.rh15',RH15_REGRA_KEY='highos.rh15.regra',RH15_CONTRATO_KEY='highos.rh15.contratos';
+const rh15LS={get(k,d){try{const v=JSON.parse(localStorage.getItem(k)||'null');return v===null||v===undefined?d:v}catch(_){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(_){}}};
+const RH15_REGRA_PADRAO={moeda:'$',minPico:5,valorDia:10000,diasMin:0,abaixoMin:'zero',teto:0,porSegmento:{},faixas:[{media:10,bonus:2000},{media:20,bonus:5000}],revisada:false};
+const rh15={...{tab:'painel',per:'mes:atual',ini:'',fim:'',seg:'',q:'',soContrato:false,heatSlot:'pico',fac:'',rep:{agrupar:'faccao',ex:true,soContrato:false}},...rh15LS.get(RH15_KEY,{})};
+rh15.rep={agrupar:'faccao',ex:true,soContrato:false,...(rh15.rep||{})};
+let rh15Regra={...RH15_REGRA_PADRAO,...rh15LS.get(RH15_REGRA_KEY,{})};
+let rh15Contratos=rh15LS.get(RH15_CONTRATO_KEY,{});
+const rh15Salvar=()=>rh15LS.set(RH15_KEY,{tab:rh15.tab,per:rh15.per,ini:rh15.ini,fim:rh15.fim,seg:rh15.seg,soContrato:rh15.soContrato,heatSlot:rh15.heatSlot,fac:rh15.fac,rep:rh15.rep});
+
+/* ---------- utilidades ---------- */
+const rh15K=s=>alvesNorm(s).replace(/[^a-z0-9]/g,'');
+const rh15DK=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const rh15Br=d=>d.toLocaleDateString('pt-BR');
+const rh15Dm=d=>d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+const rh15N=(v,c=1)=>v===null||v===undefined||!Number.isFinite(+v)?'—':(Number.isInteger(+v)?String(+v):(+v).toFixed(c).replace('.',','));
+const rh15Din=v=>`${rh15Regra.moeda||''}${Math.round(+v||0).toLocaleString('pt-BR')}`;
+const rh15SlotMin=k=>{const m=String(k).toUpperCase().match(/^(\d{1,2})(?::(\d{2}))?H?$/);return m?(+m[1])*60+(+(m[2]||0)):9999};
+const rh15MesRot=k=>{const m=String(k).match(/^(\d{4})-(\d{2})$/);if(!m)return k;return new Date(+m[1],+m[2]-1,1).toLocaleDateString('pt-BR',{month:'long',year:'numeric'}).replace(/^./,c=>c.toUpperCase())};
+const rh15Hoje=()=>{const n=new Date();return new Date(n.getFullYear(),n.getMonth(),n.getDate())};
+const rh15Iso=s=>{const m=String(s||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?new Date(+m[1],+m[2]-1,+m[3]):null};
+
+function rh15Meses(){
+ const set=new Set();(RH15_METRICAS()||[]).forEach(m=>{const d=metricDateValue(m);if(d&&d.getTime&&d.getTime()>0)set.add(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`)});
+ const h=rh15Hoje();set.add(`${h.getFullYear()}-${String(h.getMonth()+1).padStart(2,'0')}`);
+ return [...set].sort().reverse();
+}
+function rh15Range(){
+ const h=rh15Hoje(),p=String(rh15.per||'mes:atual');
+ if(p.startsWith('dias:')){const n=Math.max(1,+p.slice(5)||7);return {ini:new Date(h.getFullYear(),h.getMonth(),h.getDate()-(n-1)),fim:h,rotulo:`Últimos ${n} dias`,mes:false}}
+ if(p==='intervalo'){const a=rh15Iso(rh15.ini)||new Date(h.getFullYear(),h.getMonth(),1),b=rh15Iso(rh15.fim)||h;const ini=a<=b?a:b,fim=a<=b?b:a;return {ini,fim:fim>h?h:fim,fimReal:fim,rotulo:`${rh15Br(ini)} a ${rh15Br(fim)}`,mes:false}}
+ let key=p.slice(4);if(!/^\d{4}-\d{2}$/.test(key))key=`${h.getFullYear()}-${String(h.getMonth()+1).padStart(2,'0')}`;
+ const [y,mo]=key.split('-').map(Number),ini=new Date(y,mo-1,1),fimMes=new Date(y,mo,0);
+ return {ini,fim:fimMes>h?h:fimMes,fimReal:fimMes,rotulo:rh15MesRot(key)+(fimMes>h?' (parcial)':''),mes:key};
+}
+function rh15Dias(r){const out=[];if(r.fim<r.ini)return out;for(let d=new Date(r.ini);d<=r.fim;d=new Date(d.getFullYear(),d.getMonth(),d.getDate()+1))out.push(d);return out}
+
+/* ---------- base de dados do período ---------- */
+function rh15Base(){
+ const r=rh15Range(),dias=rh15Dias(r),ini=r.ini.getTime(),fim=r.fim.getTime()+86399999;
+ const atuais=new Map();(RH15_FACCOES()||[]).filter(f=>f&&!f.removido).forEach(f=>atuais.set(org15GK(f.group),f));
+ const ent=new Map(),slotSet=new Set();
+ const pegar=(faccao,group,seg,ex)=>{const k=rh15K(faccao)+'|'+org15GK(group);
+  if(!ent.has(k))ent.set(k,{k,faccao,group,segmento:seg||'OUTROS',ex:!!ex,dias:new Map()});
+  const e=ent.get(k);if(!ex)e.ex=false;return e};
+ (RH15_METRICAS()||[]).forEach(m=>{
+  if(!m)return;const d=metricDateValue(m),t=d&&d.getTime?d.getTime():NaN;if(!Number.isFinite(t)||t<ini||t>fim)return;
+  const slots=metricSlots(m),vals=Object.values(slots).map(Number).filter(Number.isFinite);if(!vals.length)return;
+  const gRaw=String(m.group||m.organizacao||'').trim();if(!gRaw)return;
+  const ex=!!m.__exFaccao,group=ex?String(m.groupOrigem||gRaw.split(' • ')[0]).trim():gRaw;
+  const cur=atuais.get(org15GK(group));
+  const faccao=String(m.faccaoSnapshot||m.faccaoHistorica||(!ex&&cur&&ocupadoRH15(cur)?cur.faccao:'')||'').trim();if(!faccao)return;
+  const seg=String(m.segmentoSnapshot||cur?.segmento||orgV92Segment({group})||'OUTROS').trim().toUpperCase();
+  const e=pegar(faccao,cur&&!ex?cur.group:group,seg,ex),dk=rh15DK(d),prev=e.dias.get(dk),merged={...(prev?prev.slots:{}),...slots};
+  Object.keys(slots).forEach(s=>slotSet.add(s));
+  const v=Object.values(merged).map(Number).filter(Number.isFinite);
+  e.dias.set(dk,{slots:merged,pico:Math.max(...v),media:v.reduce((a,b)=>a+b,0)/v.length,coletas:v.length});
+ });
+ /* facções assumidas hoje entram mesmo sem coleta (aparecem com zero no pagamento) */
+ const hojeNoPeriodo=r.fimReal?r.fimReal>=rh15Hoje():true;
+ if(hojeNoPeriodo)(RH15_FACCOES()||[]).filter(f=>f&&!f.removido&&ocupadoRH15(f)&&String(f.faccao||'').trim()).forEach(f=>pegar(String(f.faccao).trim(),f.group,String(f.segmento||orgV92Segment(f)||'OUTROS').toUpperCase(),false));
+ const slotKeys=[...slotSet].sort((a,b)=>rh15SlotMin(a)-rh15SlotMin(b));
+ const lista=[...ent.values()].map(e=>({...e,st:rh15Stats(e,dias,slotKeys)}));
+ lista.forEach(e=>e.pg=rh15Pagamento(e));
+ return {r,dias,slotKeys,lista};
+}
+function rh15Stats(e,dias,slotKeys){
+ const serie=dias.map(d=>{const x=e.dias.get(rh15DK(d));return x?x.pico:null});
+ const vals=serie.filter(v=>v!==null),min=+rh15Regra.minPico||0;
+ const porSlot={};slotKeys.forEach(s=>{const a=[];e.dias.forEach(x=>{if(Number.isFinite(+x.slots[s]))a.push(+x.slots[s])});porSlot[s]=a.length?a.reduce((p,q)=>p+q,0)/a.length:null});
+ const todas=[];e.dias.forEach(x=>Object.values(x.slots).forEach(v=>{if(Number.isFinite(+v))todas.push(+v)}));
+ let ultima=null;for(let i=dias.length-1;i>=0;i--){if(serie[i]>0){ultima=dias[i];break}}
+ return {serie,total:dias.length,comDados:vals.length,presentes:vals.filter(v=>v>0).length,validos:vals.filter(v=>v>0&&v>=min).length,
+  pico:vals.length?Math.max(...vals):null,media:vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:null,soma:vals.reduce((a,b)=>a+b,0),
+  mediaColetas:todas.length?todas.reduce((a,b)=>a+b,0)/todas.length:null,coletas:todas.length,porSlot,ultima};
+}
+function rh15Contrato(e){const v=rh15Contratos[rh15K(e.faccao)];return v===undefined?!e.ex:!!v}
+function rh15Pagamento(e){
+ const R=rh15Regra,st=e.st,seg=String(e.segmento||'').toUpperCase();
+ const vSeg=Number(R.porSegmento?.[seg]),valorDia=Number.isFinite(vSeg)&&vSeg>0?vSeg:(+R.valorDia||0);
+ const faixa=(R.faixas||[]).filter(f=>Number.isFinite(+f.media)&&st.media!==null&&st.media>=+f.media).sort((a,b)=>b.media-a.media)[0];
+ const bonus=faixa?(+faixa.bonus||0):0,bruto=st.validos*(valorDia+bonus);
+ let total=bruto,status='OK',motivo='';
+ if(!st.comDados){total=0;status='SEM_COLETA';motivo='Sem coleta no período'}
+ else if(+R.diasMin>0&&st.validos<+R.diasMin){status='ABAIXO';motivo=`${st.validos} de ${R.diasMin} dias mínimos`;if(R.abaixoMin!=='paga')total=0}
+ if(+R.teto>0&&total>+R.teto){total=+R.teto;motivo=(motivo?motivo+' · ':'')+'limitado ao teto'}
+ return {valorDia,bonus,faixa:faixa?+faixa.media:null,bruto,total,status,motivo};
+}
+function rh15Filtrar(lista,{soContrato=rh15.soContrato,ex=true}={}){
+ const q=rh15K(rh15.q||'');
+ return lista.filter(e=>(!rh15.seg||e.segmento===rh15.seg)&&(ex||!e.ex)&&(!soContrato||rh15Contrato(e))&&(!q||rh15K(e.faccao+' '+e.group+' '+e.segmento).includes(q)));
+}
+
+/* ---------- gráficos SVG ---------- */
+const RH15_CORES=['#9a4dff','#4fdc8f','#ffc35c','#5cc8ff','#ff6b81','#c08bff','#7be0d6','#f39b5c'];
+function rh15Linhas(dias,series,{altura=240,rotulo='players'}={}){
+ const W=860,H=altura,L=40,R=14,T=16,B=34,iw=W-L-R,ih=H-T-B,n=Math.max(1,dias.length);
+ const max=Math.max(1,...series.flatMap(s=>s.vals.filter(v=>v!==null)));
+ const passo=max<=5?1:max<=10?2:max<=25?5:max<=50?10:max<=100?20:max<=250?50:100,topo=Math.ceil(max/passo)*passo;
+ const x=i=>L+(n===1?iw/2:i*iw/(n-1)),y=v=>T+ih-(v/topo)*ih;
+ let g='';for(let v=0;v<=topo;v+=passo)g+=`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" class="grid"/><text x="${L-6}" y="${y(v)+3}" class="ax" text-anchor="end">${v}</text>`;
+ const salto=n>16?Math.ceil(n/14):1;
+ dias.forEach((d,i)=>{if((n-1-i)%salto===0)g+=`<text x="${x(i)}" y="${H-B+16}" class="ax" text-anchor="middle">${rh15Dm(d)}</text>`});
+ const ls=series.map((s,si)=>{let path='',pts='';s.vals.forEach((v,i)=>{if(v===null)return;path+=(path&&s.vals[i-1]!==null&&i>0?'L':'M')+x(i).toFixed(1)+' '+y(v).toFixed(1);
+  pts+=`<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="${n>40?1.6:2.6}" fill="${s.cor}"><title>${esc(s.nome)} — ${rh15Dm(dias[i])}: ${rh15N(v)} ${rotulo}</title></circle>`});
+  return `<path d="${path}" fill="none" stroke="${s.cor}" stroke-width="${si===0&&s.destaque?2.6:2}" stroke-linejoin="round" stroke-linecap="round"/>${pts}`}).join('');
+ const leg=series.length>1?`<div class="rh15-legend">${series.map(s=>`<span><i style="background:${s.cor}"></i>${esc(s.nome)}</span>`).join('')}</div>`:'';
+ return `<svg class="rh15-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Gráfico diário">${g}${ls}</svg>${leg}`;
+}
+function rh15Barras(itens,{fmt=rh15N}={}){
+ const max=Math.max(1,...itens.map(i=>+i.v||0));
+ return `<div class="rh15-bars">${itens.map(i=>`<div class="rh15-bar${i.k?' click':''}"${i.k?` data-rh15-fac="${esc(i.k)}" role="button" tabindex="0"`:''}><span class="lbl" title="${esc(i.nome)}">${esc(i.nome)}</span><span class="trk"><i style="width:${Math.max(1.5,(+i.v||0)/max*100).toFixed(1)}%;${i.cor?`background:${i.cor}`:''}"></i></span><b>${fmt(i.v)}</b></div>`).join('')}</div>`;
+}
+
+/* ---------- abas ---------- */
+function rh15Painel(B){
+ const L=rh15Filtrar(B.lista),dias=B.dias;
+ if(!L.length)return rh15Vazio('Sem dados no período','Escolha outro período ou verifique a fonte das métricas.');
+ const somaDia=dias.map((d,i)=>{let s=0,tem=false;L.forEach(e=>{const v=e.st.serie[i];if(v!==null){s+=v;tem=true}});return tem?s:null});
+ const comDado=somaDia.filter(v=>v!==null),picoGeral=comDado.length?Math.max(...comDado):null,iPico=somaDia.indexOf(picoGeral);
+ const segs=[...new Set(L.map(e=>e.segmento))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+ const series=[{nome:'Total do Ilegal',cor:'#f4f0f8',vals:somaDia,destaque:true},...segs.map((s,i)=>({nome:s,cor:RH15_CORES[i%RH15_CORES.length],vals:dias.map((d,di)=>{let t=0,tem=false;L.filter(e=>e.segmento===s).forEach(e=>{const v=e.st.serie[di];if(v!==null){t+=v;tem=true}});return tem?t:null})}))];
+ const pagos=L.filter(rh15Contrato),totalPg=pagos.reduce((a,e)=>a+e.pg.total,0);
+ const ativas=L.filter(e=>e.st.comDados),presMed=ativas.length?ativas.reduce((a,e)=>a+e.st.presentes/Math.max(1,e.st.total),0)/ativas.length:0;
+ const porSeg=segs.map(s=>{const g=L.filter(e=>e.segmento===s),c=g.filter(e=>e.st.comDados);return {s,n:g.length,media:c.length?c.reduce((a,e)=>a+e.st.media,0)/c.length:null,pico:c.length?Math.max(...c.map(e=>e.st.pico)):null,soma:c.reduce((a,e)=>a+(e.st.media||0),0),pg:g.filter(rh15Contrato).reduce((a,e)=>a+e.pg.total,0)}});
+ const top=[...ativas].sort((a,b)=>b.st.media-a.st.media).slice(0,8);
+ const atencao=L.filter(e=>!e.ex&&(e.st.comDados===0||(+rh15Regra.diasMin>0&&e.st.validos<+rh15Regra.diasMin)||e.st.presentes/Math.max(1,e.st.total)<.4)).sort((a,b)=>a.st.presentes-b.st.presentes).slice(0,8);
+ return `<div class="rh15-kpis">
+<div><span>FACÇÕES MEDIDAS</span><b>${ativas.length}</b><small>${L.length} no filtro</small></div>
+<div><span>PICO DO ILEGAL</span><b>${rh15N(picoGeral)}</b><small>${iPico>=0?`soma dos picos em ${rh15Dm(dias[iPico])}`:'—'}</small></div>
+<div><span>MÉDIA DIÁRIA</span><b>${rh15N(comDado.length?comDado.reduce((a,b)=>a+b,0)/comDado.length:null)}</b><small>players somando as facções</small></div>
+<div><span>PRESENÇA MÉDIA</span><b>${Math.round(presMed*100)}%</b><small>dias com players / dias do período</small></div>
+<div class="money"><span>A PAGAR (CONTRATOS)</span><b>${rh15Din(totalPg)}</b><small>${pagos.length} facção(ões) com contrato</small></div></div>
+<section class="rh15-card"><header><b>Players por dia</b><small>Soma do pico diário de cada facção · ${esc(B.r.rotulo)}</small></header>${rh15Linhas(dias,series)}</section>
+<div class="rh15-grid2">
+<section class="rh15-card"><header><b>Por segmento</b><small>Média dos picos somada · total a pagar</small></header>
+<table class="rh15-table compact"><thead><tr><th>SEGMENTO</th><th>FACÇÕES</th><th>MÉDIA</th><th>PICO</th><th>A PAGAR</th></tr></thead><tbody>${porSeg.map(x=>`<tr data-rh15-seg="${esc(x.s)}"><td><b>${esc(x.s)}</b></td><td>${x.n}</td><td>${rh15N(x.soma)}</td><td>${rh15N(x.pico)}</td><td class="money">${rh15Din(x.pg)}</td></tr>`).join('')}</tbody></table></section>
+<section class="rh15-card"><header><b>Maiores médias de pico</b><small>Clique para abrir a facção</small></header>${rh15Barras(top.map(e=>({nome:e.faccao,v:e.st.media,k:e.k})))}</section>
+</div>
+${atencao.length?`<section class="rh15-card warn"><header><b>Atenção</b><small>Sem coleta, abaixo do mínimo de dias ou presença abaixo de 40%</small></header><div class="rh15-chips">${atencao.map(e=>`<button type="button" data-rh15-fac="${esc(e.k)}"><b>${esc(e.faccao)}</b><small>${esc(e.group)} · ${e.st.presentes}/${e.st.total} dias</small></button>`).join('')}</div></section>`:''}`;
+}
+function rh15Pagamentos(B){
+ const L=rh15Filtrar(B.lista),R=rh15Regra;
+ const ord=[...L].sort((a,b)=>(rh15Contrato(b)-rh15Contrato(a))||b.pg.total-a.pg.total||a.faccao.localeCompare(b.faccao,'pt-BR'));
+ const pagos=ord.filter(rh15Contrato),total=pagos.reduce((a,e)=>a+e.pg.total,0);
+ const regraTxt=rh15RegraTexto();
+ return `${R.revisada?'':`<div class="rh15-alert">A regra de pagamento ainda está com os valores de exemplo. Ajuste em <button type="button" data-rh15-regra>Regra de pagamento</button> antes de fechar a folha.</div>`}
+<section class="rh15-card rh15-rule"><header><b>Regra de pagamento</b><button type="button" class="rh15-btn" data-rh15-regra>EDITAR REGRA</button></header><p>${regraTxt}</p></section>
+<div class="rh15-paybar"><div><span>TOTAL DA FOLHA</span><b>${rh15Din(total)}</b><small>${pagos.length} facção(ões) com contrato · ${esc(B.r.rotulo)}</small></div>
+<label class="rh15-check"><input type="checkbox" id="rh15SoContrato" ${rh15.soContrato?'checked':''}> Mostrar só quem tem contrato</label>
+<div class="rh15-actions"><button type="button" class="rh15-btn" data-rh15-exp="pag-csv">CSV</button><button type="button" class="rh15-btn" data-rh15-exp="pag-pdf">FOLHA PARA IMPRIMIR</button><button type="button" class="rh15-btn primary" data-rh15-exp="pag-dc">COPIAR PARA O DISCORD</button></div></div>
+<div class="rh15-table-wrap"><table class="rh15-table"><thead><tr><th title="Contrato remunerado">CONTRATO</th><th>FACÇÃO</th><th>SEGMENTO</th><th>DIAS VÁLIDOS</th><th>MÉDIA</th><th>PICO</th><th>VALOR/DIA</th><th>BÔNUS/DIA</th><th>TOTAL</th><th>SITUAÇÃO</th></tr></thead><tbody>
+${ord.map(e=>{const c=rh15Contrato(e),p=e.pg,st=e.st;return `<tr class="${c?'':'off'}">
+<td><label class="rh15-switch"><input type="checkbox" data-rh15-contrato="${esc(e.k)}" ${c?'checked':''}><i></i></label></td>
+<td><button type="button" class="rh15-link" data-rh15-fac="${esc(e.k)}"><b>${esc(e.faccao)}</b><small>${esc(e.group)}${e.ex?' · saiu do Group':''}</small></button></td>
+<td>${esc(e.segmento)}</td><td><b>${st.validos}</b><small>de ${st.total} · ${st.presentes} com players</small></td>
+<td>${rh15N(st.media)}</td><td>${rh15N(st.pico)}</td><td>${rh15Din(p.valorDia)}</td><td>${p.bonus?rh15Din(p.bonus):'—'}${p.faixa!==null?`<small>média ≥ ${rh15N(p.faixa)}</small>`:''}</td>
+<td class="money"><b>${c?rh15Din(p.total):'—'}</b>${c&&p.total!==p.bruto?`<small>bruto ${rh15Din(p.bruto)}</small>`:''}</td>
+<td>${p.status==='OK'?'<span class="rh15-pill ok">OK</span>':p.status==='ABAIXO'?`<span class="rh15-pill warn">ABAIXO DO MÍNIMO</span><small>${esc(p.motivo)}</small>`:'<span class="rh15-pill off">SEM COLETA</span>'}</td></tr>`}).join('')}
+</tbody><tfoot><tr><td colspan="8">TOTAL (somente contratos)</td><td class="money"><b>${rh15Din(total)}</b></td><td></td></tr></tfoot></table></div>`;
+}
+function rh15Picos(B){
+ const L=rh15Filtrar(B.lista).filter(e=>e.st.comDados),dias=B.dias,slot=rh15.heatSlot;
+ const valor=(e,d)=>{const x=e.dias.get(rh15DK(d));if(!x)return null;return slot==='pico'?x.pico:(Number.isFinite(+x.slots[slot])?+x.slots[slot]:null)};
+ const opts=[['pico','Pico do dia'],...B.slotKeys.map(s=>[s,'Coleta '+s])];
+ const top=Math.max(1,...L.flatMap(e=>dias.map(d=>valor(e,d)||0)));
+ const ord=[...L].sort((a,b)=>b.st.media-a.st.media);
+ const hoje=rh15DK(rh15Hoje());
+ const tot=dias.map(d=>{let s=0,t=false;ord.forEach(e=>{const v=valor(e,d);if(v!==null){s+=v;t=true}});return t?s:null});
+ return `<div class="rh15-subbar"><div class="rh15-seg">${opts.map(([v,l])=>`<button type="button" class="${slot===v?'active':''}" data-rh15-slot="${esc(v)}">${esc(l)}</button>`).join('')}</div><button type="button" class="rh15-btn" data-rh15-exp="picos-csv">EXPORTAR CSV</button></div>
+${ord.length?`<div class="rh15-heat-wrap"><table class="rh15-heat"><thead><tr><th class="name">FACÇÃO</th>${dias.map(d=>`<th class="${rh15DK(d)===hoje?'today':''}" title="${d.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'2-digit'})}"><span>${String(d.getDate()).padStart(2,'0')}</span><small>${'DSTQQSS'[d.getDay()]}</small></th>`).join('')}<th class="sum">MÉDIA</th><th class="sum">PICO</th><th class="sum">DIAS</th></tr></thead><tbody>
+${ord.map(e=>{const vs=dias.map(d=>valor(e,d)),vv=vs.filter(v=>v!==null);return `<tr><th class="name"><button type="button" data-rh15-fac="${esc(e.k)}"><b>${esc(e.faccao)}</b><small>${esc(e.group)} · ${esc(e.segmento)}</small></button></th>${vs.map((v,i)=>{if(v===null)return '<td class="nd" title="Sem coleta"></td>';const x=e.dias.get(rh15DK(dias[i]));const det=x?Object.entries(x.slots).sort((p,q)=>rh15SlotMin(p[0])-rh15SlotMin(q[0])).map(([k,n])=>`${k}: ${n}`).join(' · '):'';return `<td class="${v>0?'v':'z'} ${v>0&&v<+rh15Regra.minPico?'low':''}" style="--a:${v>0?(.16+.84*Math.min(1,v/top)).toFixed(2):0}" title="${esc(e.faccao)} — ${rh15Dm(dias[i])}\n${det}">${v}</td>`}).join('')}<td class="sum">${rh15N(vv.length?vv.reduce((a,b)=>a+b,0)/vv.length:null)}</td><td class="sum">${rh15N(vv.length?Math.max(...vv):null)}</td><td class="sum">${vv.filter(v=>v>0).length}/${dias.length}</td></tr>`}).join('')}
+<tr class="total"><th class="name"><b>TOTAL DO ILEGAL</b></th>${tot.map(v=>`<td class="tot">${v===null?'':v}</td>`).join('')}<td class="sum" colspan="3"></td></tr>
+</tbody></table></div>
+<div class="rh15-heat-legend"><span>Célula = ${slot==='pico'?'maior coleta do dia':'players na coleta das '+esc(slot)}. Contorno amarelo: abaixo de ${rh15Regra.minPico} players (o dia não conta para pagamento).</span></div>`:rh15Vazio('Sem coletas no período','')}`;
+}
+function rh15Faccao(B){
+ const L=rh15Filtrar(B.lista,{soContrato:false}).sort((a,b)=>a.faccao.localeCompare(b.faccao,'pt-BR'));
+ if(!L.length)return rh15Vazio('Nenhuma facção no filtro','');
+ let e=L.find(x=>x.k===rh15.fac)||L[0];rh15.fac=e.k;
+ const st=e.st,p=e.pg,dias=B.dias,mapa=new Map([...e.dias].map(([k,v])=>[k,v]));
+ const serieSlots=B.slotKeys.map((s,i)=>({nome:s,cor:RH15_CORES[(i+1)%RH15_CORES.length],vals:dias.map(d=>{const x=mapa.get(rh15DK(d));return x&&Number.isFinite(+x.slots[s])?+x.slots[s]:null})}));
+ const tabela=[...dias].reverse().map(d=>{const x=mapa.get(rh15DK(d));return `<tr class="${x?'':'nd'}"><td>${d.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'})}</td>${B.slotKeys.map(k=>`<td>${x&&x.slots[k]!==undefined?x.slots[k]:'—'}</td>`).join('')}<td><b>${x?x.pico:'—'}</b></td><td>${x?rh15N(x.media):'—'}</td><td>${x?(x.pico>=+rh15Regra.minPico&&x.pico>0?'<span class="rh15-pill ok">VÁLIDO</span>':'<span class="rh15-pill warn">NÃO CONTA</span>'):'<span class="rh15-pill off">SEM COLETA</span>'}</td></tr>`}).join('');
+ return `<div class="rh15-subbar"><label class="rh15-select wide"><span>FACÇÃO</span><select id="rh15FacSel">${L.map(x=>`<option value="${esc(x.k)}" ${x.k===e.k?'selected':''}>${esc(x.faccao)} — ${esc(x.group)}${x.ex?' (saiu)':''}</option>`).join('')}</select></label><button type="button" class="rh15-btn" data-rh15-exp="fac-csv">CSV DA FACÇÃO</button><button type="button" class="rh15-btn" data-rh15-exp="fac-pdf">RELATÓRIO DA FACÇÃO</button></div>
+<div class="rh15-kpis">
+<div><span>DIAS VÁLIDOS</span><b>${st.validos}/${st.total}</b><small>pico ≥ ${rh15Regra.minPico} players</small></div>
+<div><span>MÉDIA DOS PICOS</span><b>${rh15N(st.media)}</b><small>${st.comDados} dia(s) com coleta</small></div>
+<div><span>PICO MÁXIMO</span><b>${rh15N(st.pico)}</b><small>última presença ${st.ultima?rh15Dm(st.ultima):'—'}</small></div>
+<div><span>MÉDIA POR COLETA</span><b>${rh15N(st.mediaColetas)}</b><small>${st.coletas} coleta(s)</small></div>
+<div class="money"><span>PAGAMENTO</span><b>${rh15Contrato(e)?rh15Din(p.total):'Sem contrato'}</b><small>${st.validos} × (${rh15Din(p.valorDia)}${p.bonus?` + ${rh15Din(p.bonus)}`:''})${p.motivo?` · ${esc(p.motivo)}`:''}</small></div></div>
+<section class="rh15-card"><header><b>Pico diário</b><small>${esc(e.segmento)} · ${esc(B.r.rotulo)}</small></header>${st.comDados?org15Grafico(dias,{serie:st.serie,mapa,media:st.media}):rh15Vazio('Sem coletas no período','')}</section>
+${st.comDados&&B.slotKeys.length?`<section class="rh15-card"><header><b>Por horário de coleta</b><small>Média: ${B.slotKeys.map(s=>`${esc(s)} ${rh15N(st.porSlot[s])}`).join(' · ')}</small></header>${rh15Linhas(dias,serieSlots,{altura:210})}</section>`:''}
+<section class="rh15-card"><header><b>Coletas dia a dia</b></header><div class="rh15-table-wrap tall"><table class="rh15-table compact"><thead><tr><th>DIA</th>${B.slotKeys.map(k=>`<th>${esc(k)}</th>`).join('')}<th>PICO</th><th>MÉDIA</th><th>PAGAMENTO</th></tr></thead><tbody>${tabela}</tbody></table></div></section>`;
+}
+const RH15_AGRUP=[['faccao','Facção'],['group','Group'],['segmento','Segmento'],['dia','Dia'],['horario','Horário de coleta'],['faccaodia','Facção × dia']];
+function rh15Relatorio(B){
+ const cfg=rh15.rep,L=rh15Filtrar(B.lista,{soContrato:cfg.soContrato,ex:cfg.ex}).filter(e=>e.st.comDados||cfg.agrupar==='faccao');
+ const T=rh15RelTabela(B,L,cfg);
+ return `<div class="rh15-presets"><span>MODELOS PRONTOS</span>
+<button type="button" data-rh15-preset="mensal-faccao">Mensal por facção</button><button type="button" data-rh15-preset="mensal-segmento">Mensal por segmento</button><button type="button" data-rh15-preset="mensal-group">Mensal por Group</button><button type="button" data-rh15-preset="picos-diarios">Picos diários (facção × dia)</button><button type="button" data-rh15-preset="horarios">Movimento por horário</button><button type="button" data-rh15-preset="ilegal-dia">Total do Ilegal por dia</button></div>
+<div class="rh15-subbar"><label class="rh15-select"><span>AGRUPAR POR</span><select id="rh15RepAgrupar">${RH15_AGRUP.map(([v,l])=>`<option value="${v}" ${cfg.agrupar===v?'selected':''}>${l}</option>`).join('')}</select></label>
+<label class="rh15-check"><input type="checkbox" id="rh15RepEx" ${cfg.ex?'checked':''}> Incluir facções que saíram do Group</label>
+<label class="rh15-check"><input type="checkbox" id="rh15RepContrato" ${cfg.soContrato?'checked':''}> Só contratos</label>
+<div class="rh15-actions"><button type="button" class="rh15-btn" data-rh15-exp="rep-csv">BAIXAR CSV</button><button type="button" class="rh15-btn primary" data-rh15-exp="rep-pdf">IMPRIMIR / PDF</button></div></div>
+<section class="rh15-card"><header><b>${esc(T.titulo)}</b><small>${esc(B.r.rotulo)}${rh15.seg?` · ${esc(rh15.seg)}`:''} · ${T.linhas.length} linha(s)</small></header>
+${T.grafico||''}
+<div class="rh15-table-wrap tall"><table class="rh15-table compact"><thead><tr>${T.cab.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${T.linhas.map(l=>`<tr>${l.map((c,i)=>`<td>${i===0?`<b>${esc(c)}</b>`:esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div></section>`;
+}
+function rh15RelTabela(B,L,cfg){
+ const dias=B.dias,ag=cfg.agrupar,pres=e=>`${Math.round(e.st.presentes/Math.max(1,e.st.total)*100)}%`;
+ const lbl=Object.fromEntries(RH15_AGRUP);
+ if(ag==='faccao'){const o=[...L].sort((a,b)=>(b.st.media??-1)-(a.st.media??-1));
+  return {titulo:'Relatório por facção',cab:['Facção','Group','Segmento','Dias com coleta','Dias presentes','Presença','Dias válidos','Pico máximo','Média dos picos','Média por coleta',...B.slotKeys.map(s=>'Média '+s),'Contrato','Pagamento'],
+   linhas:o.map(e=>[e.faccao+(e.ex?' (saiu)':''),e.group,e.segmento,e.st.comDados,e.st.presentes,pres(e),e.st.validos,rh15N(e.st.pico),rh15N(e.st.media),rh15N(e.st.mediaColetas),...B.slotKeys.map(s=>rh15N(e.st.porSlot[s])),rh15Contrato(e)?'SIM':'NÃO',rh15Contrato(e)?rh15Din(e.pg.total):'—']),
+   grafico:rh15Barras(o.filter(e=>e.st.comDados).slice(0,20).map(e=>({nome:e.faccao,v:e.st.media})))};}
+ if(ag==='group'){const m=new Map();L.forEach(e=>{const k=org15GK(e.group);if(!m.has(k))m.set(k,{group:e.group,seg:e.segmento,fs:[]});m.get(k).fs.push(e)});
+  const o=[...m.values()].map(g=>{const sd=dias.map((d,i)=>{const v=g.fs.map(e=>e.st.serie[i]).filter(v=>v!==null);return v.length?Math.max(...v):null}),vv=sd.filter(v=>v!==null);return {...g,vv,media:vv.length?vv.reduce((a,b)=>a+b,0)/vv.length:null,pico:vv.length?Math.max(...vv):null,pres:vv.filter(v=>v>0).length}}).sort((a,b)=>(b.media??-1)-(a.media??-1));
+  return {titulo:'Relatório por Group',cab:['Group','Segmento','Facção(ões) no período','Dias com coleta','Dias presentes','Pico máximo','Média dos picos','Pagamento (contratos)'],
+   linhas:o.map(g=>[g.group,g.seg,g.fs.map(e=>e.faccao+(e.ex?' (saiu)':'')).join(', '),g.vv.length,g.pres,rh15N(g.pico),rh15N(g.media),rh15Din(g.fs.filter(rh15Contrato).reduce((a,e)=>a+e.pg.total,0))]),
+   grafico:rh15Barras(o.filter(g=>g.vv.length).slice(0,20).map(g=>({nome:g.group,v:g.media})))};}
+ if(ag==='segmento'){const segs=[...new Set(L.map(e=>e.segmento))];
+  const o=segs.map(s=>{const fs=L.filter(e=>e.segmento===s),c=fs.filter(e=>e.st.comDados),sd=dias.map((d,i)=>{let t=0,tem=false;fs.forEach(e=>{const v=e.st.serie[i];if(v!==null){t+=v;tem=true}});return tem?t:null}),vv=sd.filter(v=>v!==null);
+   return {s,fs,c,mediaSoma:vv.length?vv.reduce((a,b)=>a+b,0)/vv.length:null,picoSoma:vv.length?Math.max(...vv):null,mediaFac:c.length?c.reduce((a,e)=>a+e.st.media,0)/c.length:null,pg:fs.filter(rh15Contrato).reduce((a,e)=>a+e.pg.total,0)}}).sort((a,b)=>(b.mediaSoma??-1)-(a.mediaSoma??-1));
+  return {titulo:'Relatório por segmento',cab:['Segmento','Facções','Com coleta','Players/dia (soma, média)','Players/dia (soma, pico)','Média por facção','Pagamento (contratos)'],
+   linhas:o.map(x=>[x.s,x.fs.length,x.c.length,rh15N(x.mediaSoma),rh15N(x.picoSoma),rh15N(x.mediaFac),rh15Din(x.pg)]),
+   grafico:rh15Barras(o.map((x,i)=>({nome:x.s,v:x.mediaSoma,cor:RH15_CORES[i%RH15_CORES.length]})))};}
+ if(ag==='dia'){const o=dias.map((d,i)=>{const v=L.map(e=>({e,v:e.st.serie[i]})).filter(x=>x.v!==null);const top=v.sort((a,b)=>b.v-a.v)[0];return {d,n:v.length,soma:v.reduce((a,x)=>a+x.v,0),pres:v.filter(x=>x.v>0).length,top}});
+  return {titulo:'Total do Ilegal por dia',cab:['Dia','Facções com coleta','Facções com players','Soma dos picos','Maior facção do dia'],
+   linhas:o.map(x=>[x.d.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'}),x.n,x.pres,x.n?x.soma:'—',x.top?`${x.top.e.faccao} (${x.top.v})`:'—']),
+   grafico:rh15Linhas(dias,[{nome:'Soma dos picos',cor:'#9a4dff',vals:o.map(x=>x.n?x.soma:null)}],{altura:220})};}
+ if(ag==='horario'){const o=B.slotKeys.map(s=>{const a=[];const porDia=new Map();L.forEach(e=>e.dias.forEach((x,dk)=>{const v=+x.slots[s];if(Number.isFinite(v)){a.push(v);porDia.set(dk,(porDia.get(dk)||0)+v)}}));const pd=[...porDia.values()];return {s,n:a.length,media:a.length?a.reduce((p,q)=>p+q,0)/a.length:null,max:a.length?Math.max(...a):null,mediaDia:pd.length?pd.reduce((p,q)=>p+q,0)/pd.length:null,maxDia:pd.length?Math.max(...pd):null}});
+  return {titulo:'Movimento por horário de coleta',cab:['Horário','Coletas','Média por facção','Maior coleta de uma facção','Total do Ilegal (média)','Total do Ilegal (máximo)'],
+   linhas:o.map(x=>[x.s,x.n,rh15N(x.media),rh15N(x.max),rh15N(x.mediaDia),rh15N(x.maxDia)]),
+   grafico:rh15Barras(o.map((x,i)=>({nome:x.s,v:x.mediaDia,cor:RH15_CORES[(i+1)%RH15_CORES.length]})))};}
+ /* facção × dia */
+ const linhas=[];[...L].sort((a,b)=>a.faccao.localeCompare(b.faccao,'pt-BR')).forEach(e=>dias.forEach(d=>{const x=e.dias.get(rh15DK(d));linhas.push([d.toLocaleDateString('pt-BR'),e.faccao,e.group,e.segmento,...B.slotKeys.map(k=>x&&x.slots[k]!==undefined?x.slots[k]:''),x?x.pico:'',x?rh15N(x.media):'',x?(x.pico>0&&x.pico>=+rh15Regra.minPico?'SIM':'NÃO'):'SEM COLETA'])}));
+ return {titulo:'Picos diários por facção',cab:['Data','Facção','Group','Segmento',...B.slotKeys,'Pico do dia','Média do dia','Dia válido'],linhas};
+}
+function rh15Vazio(t,p){return `<div class="placeholder"><b>◌</b><h3>${esc(t.toUpperCase())}</h3>${p?`<p>${esc(p)}</p>`:''}</div>`}
+function rh15RegraTexto(){
+ const R=rh15Regra,segs=Object.entries(R.porSegmento||{}).filter(([,v])=>+v>0);
+ return `O dia conta quando o <b>pico ≥ ${R.minPico} players</b>. Cada dia válido paga <b>${rh15Din(R.valorDia)}</b>${segs.length?` (${segs.map(([s,v])=>`${esc(s)}: ${rh15Din(v)}`).join(', ')})`:''}${(R.faixas||[]).length?`, mais bônus por dia conforme a média dos picos: ${(R.faixas||[]).slice().sort((a,b)=>a.media-b.media).map(f=>`média ≥ ${f.media} → +${rh15Din(f.bonus)}`).join('; ')}`:''}.${+R.diasMin>0?` Mínimo de <b>${R.diasMin} dias válidos</b> — abaixo disso ${R.abaixoMin==='paga'?'paga só os dias válidos':'não recebe'}.`:''}${+R.teto>0?` Teto por facção: ${rh15Din(R.teto)}.`:''}`;
+}
+
+/* ---------- editor da regra ---------- */
+function rh15EditarRegra(){
+ const R=rh15Regra,segs=[...new Set([...(RH15_FACCOES()||[]).map(f=>String(f.segmento||orgV92Segment(f)||'').toUpperCase()).filter(Boolean),...Object.keys(R.porSegmento||{})])].sort();
+ let box=document.getElementById('rh15RegraModal');
+ if(!box){box=document.createElement('div');box.id='rh15RegraModal';box.className='modal hidden rh15-modal';document.body.appendChild(box);box.addEventListener('click',e=>{if(e.target===box||e.target.closest('[data-rh15-close]'))box.classList.add('hidden')})}
+ const faixa=(f={},i)=>`<div class="rh15-faixa"><label>Média a partir de<input type="number" min="0" step="0.5" data-fx-media value="${f.media??''}"></label><label>Bônus por dia válido<input type="number" min="0" step="100" data-fx-bonus value="${f.bonus??''}"></label><button type="button" class="rh15-x" data-fx-del title="Remover faixa">×</button></div>`;
+ box.innerHTML=`<div class="modal-card rh15-modal-card"><button type="button" class="modal-x" data-rh15-close>×</button>
+<div class="eyebrow">CENTRAL RH • FOLHA DAS ORGANIZAÇÕES</div><h2>Regra de pagamento</h2><p class="rh15-sub">Vale para todos os períodos. Fica salva neste navegador e sai impressa em toda folha exportada.</p>
+<div class="rh15-form">
+<label>Moeda / prefixo<input id="rgMoeda" value="${esc(R.moeda)}" maxlength="4"></label>
+<label>Players mínimos no pico para o dia valer<input id="rgMin" type="number" min="0" value="${R.minPico}"></label>
+<label>Valor por dia válido<input id="rgValor" type="number" min="0" step="100" value="${R.valorDia}"></label>
+<label>Mínimo de dias válidos no período<input id="rgDiasMin" type="number" min="0" value="${R.diasMin}"></label>
+<label>Abaixo do mínimo de dias<select id="rgAbaixo"><option value="zero" ${R.abaixoMin!=='paga'?'selected':''}>Não recebe</option><option value="paga" ${R.abaixoMin==='paga'?'selected':''}>Recebe só os dias válidos</option></select></label>
+<label>Teto por facção (0 = sem teto)<input id="rgTeto" type="number" min="0" step="100" value="${R.teto}"></label>
+</div>
+<h3 class="rh15-h3">Bônus por faixa de média dos picos</h3><div id="rgFaixas">${(R.faixas||[]).map(faixa).join('')}</div><button type="button" class="rh15-btn" id="rgAddFaixa">+ FAIXA</button>
+<h3 class="rh15-h3">Valor por dia diferente por segmento <small>(em branco = valor geral)</small></h3>
+<div class="rh15-form segs">${segs.map(s=>`<label>${esc(s)}<input type="number" min="0" step="100" data-rg-seg="${esc(s)}" value="${+R.porSegmento?.[s]>0?+R.porSegmento[s]:''}" placeholder="${R.valorDia}"></label>`).join('')}</div>
+<div class="rh15-modal-actions"><button type="button" class="rh15-btn" id="rgPadrao">RESTAURAR EXEMPLO</button><button type="button" class="rh15-btn primary" id="rgSalvar">SALVAR REGRA</button></div></div>`;
+ const fx=box.querySelector('#rgFaixas'),ligarDel=()=>fx.querySelectorAll('[data-fx-del]').forEach(b=>b.onclick=()=>b.closest('.rh15-faixa').remove());ligarDel();
+ box.querySelector('#rgAddFaixa').onclick=()=>{fx.insertAdjacentHTML('beforeend',faixa({}));ligarDel()};
+ box.querySelector('#rgPadrao').onclick=()=>{if(!confirm('Voltar para a regra de exemplo?'))return;rh15Regra={...RH15_REGRA_PADRAO};rh15LS.set(RH15_REGRA_KEY,rh15Regra);rh15EditarRegra()};
+ box.querySelector('#rgSalvar').onclick=()=>{
+  const num=(id,d=0)=>{const v=Number(box.querySelector(id).value);return Number.isFinite(v)&&v>=0?v:d};
+  const porSegmento={};box.querySelectorAll('[data-rg-seg]').forEach(i=>{const v=Number(i.value);if(i.value!==''&&Number.isFinite(v)&&v>0)porSegmento[i.dataset.rgSeg]=v});
+  const faixas=[...fx.querySelectorAll('.rh15-faixa')].map(d=>({media:Number(d.querySelector('[data-fx-media]').value),bonus:Number(d.querySelector('[data-fx-bonus]').value)})).filter(f=>Number.isFinite(f.media)&&f.media>0&&Number.isFinite(f.bonus)&&f.bonus>0);
+  rh15Regra={moeda:String(box.querySelector('#rgMoeda').value||'').trim(),minPico:num('#rgMin',0),valorDia:num('#rgValor',0),diasMin:num('#rgDiasMin',0),abaixoMin:box.querySelector('#rgAbaixo').value,teto:num('#rgTeto',0),porSegmento,faixas,revisada:true,atualizadaEm:new Date().toISOString()};
+  rh15LS.set(RH15_REGRA_KEY,rh15Regra);box.classList.add('hidden');rh15Render();
+ };
+ box.classList.remove('hidden');
+}
+
+/* ---------- exportações ---------- */
+function rh15Imprimir(titulo,sub,cab,linhas,extra=''){
+ const w=window.open('','_blank');if(!w)return alert('O navegador bloqueou a janela do relatório. Libere pop-ups para o High OS.');
+ w.document.open();w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(titulo)}</title><style>@page{size:A4 landscape;margin:10mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#241c28;margin:0;font-size:10px}header{border-bottom:4px solid #6f2e8f;padding-bottom:10px;margin-bottom:12px}.k{font-size:9px;letter-spacing:1.6px;color:#713f86;font-weight:700}h1{font-size:20px;margin:4px 0}.m{color:#776d7b}.rule{background:#f6f1f8;border:1px solid #e4d8ea;border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.5}table{width:100%;border-collapse:collapse}th{background:#302537;color:#fff;text-align:left;padding:6px;font-size:8.5px}td{padding:5px 6px;border-bottom:1px solid #e7e1e9;vertical-align:top}tfoot td{font-weight:bold;border-top:2px solid #302537}.f{margin-top:12px;color:#817683;font-size:8px;border-top:1px solid #ddd;padding-top:6px}.np{position:fixed;right:16px;top:16px;background:#5d2876;color:#fff;border:0;border-radius:7px;padding:8px 12px;font-weight:bold;cursor:pointer}@media print{.np{display:none}}</style></head><body><button class="np" onclick="window.print()">IMPRIMIR / SALVAR PDF</button><header><div class="k">HIGH OS • CENTRAL RH DE MÉTRICAS</div><h1>${esc(titulo)}</h1><div class="m">${esc(sub)} • gerado em ${new Date().toLocaleString('pt-BR')}</div></header>${extra}<table><thead><tr>${cab.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${linhas.map(l=>`<tr>${l.map(c=>`<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table><div class="f">Fonte: Central de Métricas do High OS. Pico diário = maior coleta do dia. A métrica acompanha a facção que ocupava o Group no horário da coleta.</div></body></html>`);w.document.close();
+}
+function rh15Exportar(tipo){
+ const B=rh15Base(),stamp=(B.r.mes||rh15DK(B.r.ini)+'_'+rh15DK(B.r.fim)).replace(/-/g,'');
+ const regra=`<div class="rule"><b>Regra aplicada:</b> ${rh15RegraTexto()}</div>`;
+ const regraTxt=rh15RegraTexto().replace(/<[^>]+>/g,'');
+ if(tipo.startsWith('pag')){
+  const L=rh15Filtrar(B.lista).filter(rh15Contrato).sort((a,b)=>b.pg.total-a.pg.total),total=L.reduce((a,e)=>a+e.pg.total,0);
+  const cab=['Facção','Group','Segmento','Dias válidos','Dias no período','Média dos picos','Pico','Valor/dia','Bônus/dia','Total','Situação'];
+  const linhas=L.map(e=>[e.faccao,e.group,e.segmento,e.st.validos,e.st.total,rh15N(e.st.media),rh15N(e.st.pico),Math.round(e.pg.valorDia),Math.round(e.pg.bonus),Math.round(e.pg.total),e.pg.status==='OK'?'OK':e.pg.motivo]);
+  if(tipo==='pag-csv')return org15Csv(`folha_orgs_${stamp}.csv`,cab,[...linhas,['TOTAL','','','','','','','','',Math.round(total),''],[],['Regra',regraTxt],['Período',B.r.rotulo]]);
+  if(tipo==='pag-pdf')return rh15Imprimir(`Folha de pagamento das organizações — ${B.r.rotulo}`,`${L.length} facção(ões) com contrato • total ${rh15Din(total)}`,cab,[...linhas.map(l=>{const x=[...l];x[7]=rh15Din(x[7]);x[8]=x[8]?rh15Din(x[8]):'—';x[9]=rh15Din(x[9]);return x}),['TOTAL','','','','','','','','',rh15Din(total),'']],regra);
+  const txt=`**💰 FOLHA DAS ORGANIZAÇÕES — ${B.r.rotulo.toUpperCase()}**\n${L.map(e=>`• **${e.faccao}** (${e.group}) — ${e.st.validos} dias válidos · média ${rh15N(e.st.media)} → **${rh15Din(e.pg.total)}**${e.pg.status!=='OK'?` _(${e.pg.motivo})_`:''}`).join('\n')}\n\n**TOTAL: ${rh15Din(total)}**\n_Regra: ${regraTxt}_`;
+  return navigator.clipboard?.writeText(txt).then(()=>alert('Folha copiada. Cole no Discord.'),()=>prompt('Copie o texto:',txt));
+ }
+ if(tipo==='picos-csv'){const T=rh15RelTabela(B,rh15Filtrar(B.lista,{soContrato:false}).filter(e=>e.st.comDados),{agrupar:'faccaodia'});return org15Csv(`picos_diarios_${stamp}.csv`,T.cab,T.linhas)}
+ if(tipo.startsWith('fac')){const e=B.lista.find(x=>x.k===rh15.fac);if(!e)return;
+  const T=rh15RelTabela(B,[e],{agrupar:'faccaodia'});
+  if(tipo==='fac-csv')return org15Csv(`metricas_${rh15K(e.faccao)}_${stamp}.csv`,T.cab,T.linhas);
+  return rh15Imprimir(`${e.faccao} — ${B.r.rotulo}`,`${e.group} • ${e.segmento} • ${e.st.validos}/${e.st.total} dias válidos • média ${rh15N(e.st.media)} • pico ${rh15N(e.st.pico)}${rh15Contrato(e)?` • pagamento ${rh15Din(e.pg.total)}`:''}`,T.cab,T.linhas,regra);}
+ if(tipo.startsWith('rep')){const cfg=rh15.rep,T=rh15RelTabela(B,rh15Filtrar(B.lista,{soContrato:cfg.soContrato,ex:cfg.ex}).filter(e=>e.st.comDados||cfg.agrupar==='faccao'),cfg);
+  if(tipo==='rep-csv')return org15Csv(`${rh15K(T.titulo)}_${stamp}.csv`,T.cab,T.linhas);
+  return rh15Imprimir(`${T.titulo} — ${B.r.rotulo}`,`${rh15.seg||'Todos os segmentos'} • ${T.linhas.length} linha(s)`,T.cab,T.linhas,cfg.agrupar==='faccao'?regra:'');}
+}
+
+/* ---------- montagem ---------- */
+function rh15Controles(){
+ const per=$('#rh15Periodo');if(!per)return;
+ const meses=rh15Meses(),h=rh15Hoje(),atual=`${h.getFullYear()}-${String(h.getMonth()+1).padStart(2,'0')}`;
+ per.innerHTML=`<optgroup label="Competência">${meses.map(m=>`<option value="mes:${m}">${rh15MesRot(m)}${m===atual?' • atual':''}</option>`).join('')}</optgroup><optgroup label="Atalhos"><option value="dias:7">Últimos 7 dias</option><option value="dias:15">Últimos 15 dias</option><option value="dias:30">Últimos 30 dias</option><option value="intervalo">Intervalo personalizado…</option></optgroup>`;
+ if(rh15.per==='mes:atual')rh15.per='mes:'+atual;
+ if(![...per.options].some(o=>o.value===rh15.per))rh15.per='mes:'+atual;
+ per.value=rh15.per;
+ const iv=$('#rh15Intervalo');if(iv)iv.classList.toggle('hidden',rh15.per!=='intervalo');
+ if($('#rh15Ini'))$('#rh15Ini').value=rh15.ini||rh15DK(new Date(h.getFullYear(),h.getMonth(),1));
+ if($('#rh15Fim'))$('#rh15Fim').value=rh15.fim||rh15DK(h);
+ const seg=$('#rh15Seg');if(seg){const segs=[...new Set((RH15_FACCOES()||[]).filter(f=>!f.removido).map(f=>String(f.segmento||orgV92Segment(f)||'').toUpperCase()).filter(Boolean))].sort();
+  seg.innerHTML=`<option value="">Todos</option>${segs.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('')}`;seg.value=segs.includes(rh15.seg)?rh15.seg:'';rh15.seg=seg.value}
+ document.querySelectorAll('[data-rh15-tab]').forEach(b=>b.classList.toggle('active',b.dataset.rh15Tab===rh15.tab));
+}
+function rh15Render(){
+ const host=$('#rh15Main');if(!host)return;
+ rh15Controles();
+ const legado=$('#rh15Legado');
+ if(rh15.tab==='avancado'){host.innerHTML='';host.classList.add('hidden');legado?.classList.remove('hidden');return}
+ host.classList.remove('hidden');legado?.classList.add('hidden');
+ let B;try{B=rh15Base()}catch(e){console.error('[RH] falha ao montar a base',e);host.innerHTML=rh15Vazio('Erro ao ler as métricas',e?.message||String(e));return}
+ const info=$('#rh15Info');if(info)info.textContent=`${B.r.rotulo} · ${B.dias.length} dia(s) · ${B.lista.filter(e=>e.st.comDados).length} facção(ões) com coleta${(RH15_METRICAS()||[]).length?'':' · aguardando métricas carregarem'}`;
+ host.innerHTML=rh15.tab==='pagamentos'?rh15Pagamentos(B):rh15.tab==='picos'?rh15Picos(B):rh15.tab==='faccao'?rh15Faccao(B):rh15.tab==='relatorios'?rh15Relatorio(B):rh15Painel(B);
+ host.querySelectorAll('[data-rh15-fac]').forEach(b=>b.onclick=()=>{rh15.fac=b.dataset.rh15Fac;rh15.tab='faccao';rh15Salvar();rh15Render();host.scrollIntoView({behavior:'smooth',block:'start'})});
+ host.querySelectorAll('[data-rh15-seg]').forEach(r=>r.onclick=()=>{rh15.seg=r.dataset.rh15Seg;rh15Salvar();rh15Render()});
+ host.querySelectorAll('[data-rh15-regra]').forEach(b=>b.onclick=rh15EditarRegra);
+ host.querySelectorAll('[data-rh15-exp]').forEach(b=>b.onclick=()=>{try{rh15Exportar(b.dataset.rh15Exp)}catch(e){alert('Não foi possível exportar: '+(e?.message||e))}});
+ host.querySelectorAll('[data-rh15-contrato]').forEach(i=>i.onchange=()=>{const e=B.lista.find(x=>x.k===i.dataset.rh15Contrato);if(!e)return;rh15Contratos[rh15K(e.faccao)]=i.checked;rh15LS.set(RH15_CONTRATO_KEY,rh15Contratos);rh15Render()});
+ host.querySelector('#rh15SoContrato')?.addEventListener('change',e=>{rh15.soContrato=e.target.checked;rh15Salvar();rh15Render()});
+ host.querySelectorAll('[data-rh15-slot]').forEach(b=>b.onclick=()=>{rh15.heatSlot=b.dataset.rh15Slot;rh15Salvar();rh15Render()});
+ host.querySelector('#rh15FacSel')?.addEventListener('change',e=>{rh15.fac=e.target.value;rh15Salvar();rh15Render()});
+ host.querySelector('#rh15RepAgrupar')?.addEventListener('change',e=>{rh15.rep.agrupar=e.target.value;rh15Salvar();rh15Render()});
+ host.querySelector('#rh15RepEx')?.addEventListener('change',e=>{rh15.rep.ex=e.target.checked;rh15Salvar();rh15Render()});
+ host.querySelector('#rh15RepContrato')?.addEventListener('change',e=>{rh15.rep.soContrato=e.target.checked;rh15Salvar();rh15Render()});
+ const presets={'mensal-faccao':'faccao','mensal-segmento':'segmento','mensal-group':'group','picos-diarios':'faccaodia','horarios':'horario','ilegal-dia':'dia'};
+ host.querySelectorAll('[data-rh15-preset]').forEach(b=>b.onclick=()=>{const p=b.dataset.rh15Preset;rh15.rep.agrupar=presets[p];if(p.startsWith('mensal')&&!String(rh15.per).startsWith('mes:'))rh15.per='mes:atual';rh15Salvar();rh15Render()});
+}
+function rh15Ligar(){
+ document.querySelectorAll('[data-rh15-tab]').forEach(b=>b.onclick=()=>{rh15.tab=b.dataset.rh15Tab;rh15Salvar();rh15Render()});
+ $('#rh15Periodo')?.addEventListener('change',e=>{rh15.per=e.target.value;rh15Salvar();rh15Render()});
+ ['#rh15Ini','#rh15Fim'].forEach(id=>$(id)?.addEventListener('change',()=>{rh15.ini=$('#rh15Ini').value;rh15.fim=$('#rh15Fim').value;rh15Salvar();rh15Render()}));
+ $('#rh15Seg')?.addEventListener('change',e=>{rh15.seg=e.target.value;rh15Salvar();rh15Render()});
+ let t;$('#rh15Busca')?.addEventListener('input',e=>{clearTimeout(t);t=setTimeout(()=>{rh15.q=e.target.value;rh15Render()},180)});
+ $('#rh15RegraBtn')?.addEventListener('click',rh15EditarRegra);
+}
+rh15Ligar();
+{const _rmRh15=renderMetrics;renderMetrics=function(...a){const out=_rmRh15.apply(this,a);try{if($('#page-metricas')?.classList.contains('active')||!$('#rh15Main')?.innerHTML)rh15Render()}catch(e){console.warn('[RH]',e)}return out}}
+document.querySelectorAll('.nav-item[data-page="metricas"]').forEach(b=>b.addEventListener('click',()=>setTimeout(()=>{try{rh15Render()}catch(_){}},0)));
+setTimeout(()=>{try{rh15Render()}catch(e){console.warn('[RH]',e)}},0);
+
 /* ===== HIGH OS V9.4 - PONTE DE MISSOES NA NUVEM =====
    O Planejador salva localmente (localStorage) e, quando o usuario tem permissao,
    tambem sincroniza com Firestore para que a equipe veja as mesmas missoes. */
