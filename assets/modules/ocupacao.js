@@ -124,7 +124,10 @@ export function inconsistencias(lista = [], entregas = []) {
       id: `entrega-orfa:${d.id}`, group: d.group, nivel: 'medio', tipo: 'ENTREGA_ORFA', entregaId: d.id,
       titulo: `Entrega de ${d.faccao || '—'} em ${d.group} ainda consta como ATIVA`,
       detalhe: g && temFaccao(g) ? `O Group hoje está com ${g.faccao}.` : 'O Group hoje está vago.',
-      acoes: [{ id: 'fechar-entrega', label: 'MARCAR ENTREGA COMO RECOLHIDA', patch: 'FECHAR_ENTREGA' }]
+      acoes: [
+        ...(g && !temFaccao(g) && temQG(g) && d.faccao && !gs.some(x => x.group !== g.group && temFaccao(x) && norm(x.faccao) === norm(d.faccao)) ? [{ id: 'restaurar', label: `RESTAURAR ${String(d.faccao).toUpperCase()} NO GROUP`, patch: { status: 'ATIVA', faccao: d.faccao, lider: d.lider || '', staff: d.staff || '', dataEntrega: d.dataEntrega || '' } }] : []),
+        { id: 'fechar-entrega', label: 'MARCAR ENTREGA COMO RECOLHIDA', patch: 'FECHAR_ENTREGA' }
+      ]
     });
   });
   const ordem = { alto: 0, medio: 1, baixo: 2 };
