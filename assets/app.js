@@ -10019,15 +10019,22 @@ function availableAnnouncementText(f){
  const linhas=[
   'ASSUMIR FACÇÃO ILEGAL! 📌',
   'Facção disponível para assumir via contingente.',
+  '',
   `Segmento: ${anuncioSegmentoNome(f.segmento)}`,
   `Localização: ${local}`,
   `Contingente para assumir: De ${min} a ${max} pessoas.`,
   `Fabricação: ${anuncioFabricacao(f)}`,
+  '',
   'Benefícios ao assumir:',
+  '',
   'Kit inicial Facção. (Com mais de 25 itens)',
+  '',
   'VIP Facção por 15 dias.',
+  '',
   'R$ 1.000.000 em dinheiro sujo.',
+  '',
   'Possibilidade de benefícios futuros por meta de contingente.',
+  '',
   `Interessados devem acessar ${ANUNCIO_ASSUMIR_CANAL}, selecionar "Assumir Facção" e apresentar o contingente solicitado.`
  ];
  if(f.imagemAnuncio)linhas.push('',String(f.imagemAnuncio).trim());
