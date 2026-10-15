@@ -154,3 +154,13 @@ Regra de manutenção: configuração estática e funções puras não devem vol
 - **✨ OTIMIZAR SPAWNS:** reposiciona só os spawns na água, perto de QG, fora da safe, colados ou fora da faixa de distância, mantendo a numeração.
 - **Altura suspeita:** CDS validada muito acima/abaixo da mediana da zona (risco de limbo ou de nascer no alto) vira aviso para revalidar.
 - Correções: `fitZone` quebrava ao enquadrar a zona; círculos de spawn herdavam a cor da camada anterior no canvas. Versões dos assets atualizadas no `index.html` (12.15.0) para o navegador baixar o código novo.
+
+
+## V12.16 — Varredura de erros e acabamento visual
+
+- Corrigido: o estilo global `.brand` (logo do topo) quebrava cards e etapas com tom "brand" (ex.: PRONTAS P/ ENVIAR).
+- Corrigido: a barra da zona grudava em `top:0` e cobria o topo do site; agora fica logo abaixo (calculado pela altura real do topo). No celular quebra em linhas e as ações rolam na horizontal.
+- Corrigido: zona oficial sem nenhum spawn (Cayo Perico do preset) aparecia como "No /evento"; agora é Rascunho e não conta como zona no jogo.
+- Novo aviso: centro com altura suspeita (CDS do centro muito acima/abaixo dos spawns — ex.: Dominação Sul com z=481).
+- Checklist agrupado: pendências que bloqueiam, avisos, e verificações OK recolhidas.
+- Cards de zona com barra de validação e nº de partidas; excluir evento virou ícone; janelas rolam por dentro em telas baixas; painel de camadas começa recolhido no celular.

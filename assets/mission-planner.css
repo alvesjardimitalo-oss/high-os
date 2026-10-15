@@ -452,3 +452,39 @@
 .mpp-lista b{color:#ddd;font-variant-numeric:tabular-nums;font-weight:700}.mpp-lista span{color:#9f67c8;font-weight:800}.mpp-lista em{font-style:normal;color:#f3d48a;font-weight:800}.mpp-lista small{color:#8e8597}
 .mpp-lista button{border:0;background:transparent;color:#8e8597;font-size:16px;cursor:pointer}.mpp-lista button:hover{color:var(--mpk-bad)}
 @media(max-width:620px){.mpp-form{grid-template-columns:1fr 1fr}.mpp-form label.wide{grid-column:span 2}.mpp-lista>div{grid-template-columns:auto 1fr auto;}.mpp-lista small{grid-column:1/-1}}
+
+/* V12.16 — correções visuais */
+/* o .brand global (logo do topo) é display:flex e quebrava cards/etapas com tom "brand" */
+.mpk-kpi.brand,.mpk-stage.brand{display:block;gap:0}
+#page-planejador .mpc-zone em.mpk-badge.brand{display:inline-block;gap:0}
+/* barra da zona abaixo do topo do site */
+#page-planejador:not(.mp-library-mode) .mp-workspace-bar{top:var(--mp-sticky-top,86px);z-index:19;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+/* checklist agrupado */
+.mpk-checkwrap{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.mpk-ckgroup{padding:7px 9px;border-radius:9px;border:1px solid rgba(255,255,255,.06)}
+.mpk-ckgroup>b{display:block;font-size:8px;letter-spacing:.12em;margin-bottom:2px}
+.mpk-ckgroup.bad{background:rgba(255,125,147,.05);border-color:rgba(255,125,147,.2)}.mpk-ckgroup.bad>b{color:var(--mpk-bad)}
+.mpk-ckgroup.warn{background:rgba(255,195,92,.045);border-color:rgba(255,195,92,.18)}.mpk-ckgroup.warn>b{color:var(--mpk-warn)}
+.mpk-checks li{display:grid;grid-template-columns:14px 1fr;gap:5px;align-items:start;line-height:1.4}
+.mpk-checks li i{font-style:normal;font-weight:900;text-align:center}
+.mpk-ckgroup .mpk-checks{margin-top:4px}
+.mpk-ckok summary{cursor:pointer;font-size:9.5px;font-weight:800;color:var(--mpk-ok);padding:4px 2px;list-style:none}
+.mpk-ckok summary::-webkit-details-marker{display:none}
+.mpk-ckok[open] summary{margin-bottom:2px}
+/* barra de validação nos cards de zona */
+#page-planejador .mpc-zone>span{min-width:0;flex:1}
+.mpk-bar{display:block;height:3px;margin-top:6px;border-radius:3px;background:rgba(255,255,255,.07);overflow:hidden}
+.mpk-bar u{display:block;height:100%;background:linear-gradient(90deg,#7426c7,#55dfa0);border-radius:3px}
+/* ações do evento mais compactas */
+#page-planejador .mpc-event-actions button.mpk-icon{width:34px;padding:0;font-size:12px}
+/* janelas: rolagem interna em telas baixas */
+.mpk-modal{max-height:calc(100vh - 32px);overflow:auto}
+/* celular */
+@media(max-width:700px){
+  #page-planejador:not(.mp-library-mode) .mp-workspace-bar{height:auto;flex-wrap:wrap;padding:8px;gap:6px}
+  #page-planejador:not(.mp-library-mode) .mp-workspace-path{order:3;width:100%;font-size:11px}
+  #page-planejador:not(.mp-library-mode) .mp-editor-actions{order:4;width:100%;margin-left:0;overflow-x:auto;flex-wrap:nowrap;padding-bottom:2px;scrollbar-width:none}
+  #page-planejador:not(.mp-library-mode) .mp-editor-actions button{flex:0 0 auto;white-space:nowrap}
+  .mpp-lista>div{grid-template-columns:auto 1fr auto}
+  .mpp-form button{grid-column:1/-1}
+}
