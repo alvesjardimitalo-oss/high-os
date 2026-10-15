@@ -18,7 +18,7 @@
   <title>High OS • Gestão do Ilegal</title>
   <link rel="stylesheet" href="assets/style.css?v=12.5.0">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="assets/mission-planner.css?v=12.8.0">
+  <link rel="stylesheet" href="assets/mission-planner.css?v=12.17.0">
   <link rel="stylesheet" href="assets/ui-kit.css?v=12.5.0">
   <link rel="stylesheet" href="assets/high-refresh.css?v=12.6.2">
   <link rel="stylesheet" href="assets/calma.css?v=12.5.0">
@@ -258,7 +258,7 @@
         </section>
         
         <section class="page" id="page-planejador">
-          <div class="page-head"><div><div class="eyebrow">MAPA GTA V • EVENTOS • MISSÕES</div><h2>PLANEJADOR DE MISSÕES</h2><p class="page-subtitle">Eventos e zonas do painel /evento: monte a zona, valide as CDS, envie a solicitação à cidade e acompanhe até a zona estar no jogo.</p></div><span class="dev-badge">V12.8.0</span></div>
+          <div class="page-head"><div><div class="eyebrow">MAPA GTA V • EVENTOS • MISSÕES</div><h2>PLANEJADOR DE MISSÕES</h2><p class="page-subtitle">Eventos e zonas do painel /evento: monte a zona, valide as CDS, envie a solicitação à cidade e acompanhe até a zona estar no jogo.</p></div><span class="dev-badge">V12.17.0</span></div>
 
           <section id="mpCentralV954" class="mp-central-v952" aria-label="Central de Missões"></section>
 
@@ -371,8 +371,8 @@
 
               <div class="mp-card">
                 <h3>EXPORTAR</h3>
-                <textarea id="mpExport" rows="7" readonly placeholder="Somente pontos realmente validados aparecem aqui. Pontos pendentes podem ser copiados individualmente com Z=0 para teste via TPCDS/NC."></textarea>
-                <div class="mp-actions"><button type="button" id="mpExportBtn" class="primary">COPIAR CDS VALIDADAS</button><button type="button" id="mpExportXYBtn">COPIAR CDS PARA TESTE (Z=0)</button></div>
+                <textarea id="mpExport" rows="7" readonly placeholder="Somente pontos realmente validados aparecem aqui. Pontos pendentes são copiados com Z estimado pelas CDS já validadas próximas, para o TP não cair embaixo do mapa."></textarea>
+                <div class="mp-actions"><button type="button" id="mpExportBtn" class="primary">COPIAR CDS VALIDADAS</button><button type="button" id="mpExportXYBtn">COPIAR CDS PARA TESTE (Z ESTIMADO)</button></div>
               </div>
 
               <div class="mp-card">
@@ -851,9 +851,9 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <script src="assets/ui-kit.js?v=12.5.0"></script>
-  <script src="assets/modules/eventos-painel.js?v=12.8.0"></script>
-  <script src="assets/mission-planner.js?v=12.8.0"></script>
-  <script type="module" src="assets/app.js?v=14.1.0"></script>
+  <script src="assets/modules/eventos-painel.js?v=12.17.0"></script>
+  <script src="assets/mission-planner.js?v=12.17.0"></script>
+  <script type="module" src="assets/app.js?v=14.1.1"></script>
   <script defer src="assets/compact-group-map.js?v=12.6.2"></script>
 
 <div id="newDeliveryModal" class="modal hidden"><div class="modal-card delivery-modal-v5"><button class="modal-x" id="newDeliveryClose">×</button>

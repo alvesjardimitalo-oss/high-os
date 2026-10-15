@@ -105,6 +105,74 @@ Regra de manutenção: configuração estática e funções puras não devem vol
 - **Histórico:** cada zona mostra o histórico do ciclo (enviada, reenviada, cancelada, aplicada) com data e usuário.
 
 
+## V12.10 — Padrão dos eventos com zona de gás (solicitação de 13/10)
+
+- `PADRAO_GAS` em `eventos-painel.js` registra a solicitação de sistema enviada à cidade para Modo Sobrevivência, Fac x Fac e Battle Royale: safe final até raio zero, dano contínuo até sobrar uma equipe, HUD do player, inventário inicial, espectador/`/surrender` e comemoração de vitória.
+- Toda solicitação de zona desses eventos sai com o bloco do padrão; a movimentação da safe termina em "fechamento final até raio zero".
+- Modo Sobrevivência: aviso quando as fases da safe (tempos/dano) de uma zona diferem das demais; a solicitação exige comportamento idêntico entre as 3 zonas.
+- Botão **PADRÃO GÁS** (central e zona): resumo da HUD/regras e situação dos testes por zona.
+- **Testes no jogo:** confirmar uma zona como aplicada abre os 15 critérios de validação da solicitação; pendências ficam visíveis na zona e na central até serem testadas.
+
+
+## V12.11 — Meta de facções e geração dos spawns que faltam
+
+- **Meta do evento:** por padrão, o número de facções com Group ATIVO no High OS (`HighOSMissionCloud.faccoesAtivas`); o botão **META** na central fixa outro número por evento (vazio volta ao automático).
+- A central avisa quais zonas têm menos spawns que a meta; a zona mostra "Faltam X spawns".
+- **GERAR X SPAWNS QUE FALTAM:** cria só os spawns que faltam, sem alterar nenhum existente, na mesma faixa de distância do centro, nos vãos entre os spawns atuais, virados para o centro e (eventos com gás) dentro da safe inicial. Entram PENDENTES e seguem o fluxo normal de validação da CDS real no FiveM.
+
+
+## V12.12 — Spawns longe da água e dos QGs
+
+- **Água:** o Planejador lê a cor do próprio mapa (tiles Atlas em Los Santos/condado e o satélite de Cayo Perico; fora da ilha é mar). Vale para oceano, Alamo Sea, represas, rios e canais.
+- **QG:** CDS de QG/favela dos Groups (`HighOSMissionCloud.qgs`); distância mínima `RAIO_QG_M` = 150 m em `eventos-painel.js`.
+- **GERAR SPAWNS QUE FALTAM** descarta candidatos na água ou perto de QG antes de escolher; se a faixa não comportar todos, avisa quantos conseguiu.
+- Checklist da zona avisa spawns existentes na água ou perto de QG (aviso: píer, ponte e barco podem enganar a leitura; nada é movido).
+
+
+## V12.13 — Spawn de risco: cria, marca e ajusta no mouse
+
+- O gerador nunca deixa faltar spawn: se não houver espaço seguro suficiente, cria os restantes mesmo em área de risco.
+- Pinos na água ou perto de QG ficam com contorno LARANJA no mapa (popup diz o motivo).
+- Em modo edição, arrastar um pino remove a validação e abre direto a aba VALIDAÇÃO com o campo de CDS em foco (validador nativo).
+
+
+## V12.14 — Partidas e Planejador inteligente
+
+- **PARTIDAS** (central e zona): registra zona, data/hora, nº de facções, campeã (lista das facções ativas) e spawn da campeã. O spawn é guardado com a CDS, então a análise resiste a renumeração.
+- **Zona sugerida:** entre as zonas no jogo, a que está há mais tempo sem partida (rodízio automático).
+- **Vantagem de spawn:** spawn que vence ≥3 vezes e ≥2,5× o esperado (partidas ÷ spawns) vira aviso na zona, na central e no pino (🏆).
+- **Vantagem de lado:** com 6+ partidas, um lado (norte/leste/sul/oeste) com metade ou mais das vitórias vira aviso.
+- **Facção dominante:** facção com 40%+ das vitórias nas últimas 10 partidas aparece na central.
+- **Participação real:** média e pico de facções; aviso quando o pico já passou do número de spawns da zona; a META sugere o pico registrado.
+
+
+## V12.15 — Montagem inteligente (gás e Dominação)
+
+- **⚡ SAFE AUTOMÁTICA:** tempos pela duração alvo (`DURACAO_ALVO_MIN` = 20), raios por fase (`SAFE_RAIOS`), dano por fase (`SAFE_DANO`), fechamento final até zero (`finalCloseSeconds`) e 3 opções de SAFE 2 e de SAFE 3 em terra firme, longe de QG, com toda SAFE 3 válida para qualquer SAFE 2 sorteada. A solicitação passa a informar o fechamento final e a duração prevista do ciclo.
+- **⚖ CENTRO JUSTO:** calcula pelas CDS dos spawns o centro mais equidistante (ajuste de círculo + refinamento do pior caso). Na Dominação reposiciona a área disputada; no gás leva a safe e ajusta o raio inicial. O checklist avisa quando o centro pode ficar mais justo.
+- **🔎 SUGERIR LOCAIS:** varre a área visível do mapa e marca até 3 locais (L1–L3) com mais terra firme, sem QG e sem sobrepor zonas do evento; "usar este local" leva centro (e, se quiser, os spawns no mesmo desenho).
+- **✨ OTIMIZAR SPAWNS:** reposiciona só os spawns na água, perto de QG, fora da safe, colados ou fora da faixa de distância, mantendo a numeração.
+- **Altura suspeita:** CDS validada muito acima/abaixo da mediana da zona (risco de limbo ou de nascer no alto) vira aviso para revalidar.
+- Correções: `fitZone` quebrava ao enquadrar a zona; círculos de spawn herdavam a cor da camada anterior no canvas. Versões dos assets atualizadas no `index.html` (12.15.0) para o navegador baixar o código novo.
+
+
+## V12.16 — Varredura de erros e acabamento visual
+
+- Corrigido: o estilo global `.brand` (logo do topo) quebrava cards e etapas com tom "brand" (ex.: PRONTAS P/ ENVIAR).
+- Corrigido: a barra da zona grudava em `top:0` e cobria o topo do site; agora fica logo abaixo (calculado pela altura real do topo). No celular quebra em linhas e as ações rolam na horizontal.
+- Corrigido: zona oficial sem nenhum spawn (Cayo Perico do preset) aparecia como "No /evento"; agora é Rascunho e não conta como zona no jogo.
+- Novo aviso: centro com altura suspeita (CDS do centro muito acima/abaixo dos spawns — ex.: Dominação Sul com z=481).
+- Checklist agrupado: pendências que bloqueiam, avisos, e verificações OK recolhidas.
+- Cards de zona com barra de validação e nº de partidas; excluir evento virou ícone; janelas rolam por dentro em telas baixas; painel de camadas começa recolhido no celular.
+
+
+## V12.17 — TP de teste com Z estimado (sem limbo)
+
+- Ponto pendente não vai mais com Z=0 no TP: o Z é estimado pelas CDS já validadas por perto (spawns e centros de todas as zonas + CDS de QG dos Groups), com média ponderada pela distância (até 600 m, 6 mais próximas).
+- Margem de segurança acima do chão conforme a confiança: alta (CDS a < 80 m) +1,5 m · média (< 250 m) +3 m · baixa +6 m. Em terreno irregular usa a maior altura próxima para nunca nascer enterrado.
+- CDS com altura suspeita (ex.: centro em z=481) ficam fora da base de alturas.
+- A validação continua obrigatória: o Z estimado serve só para o TP; o ponto fica pendente até colar a CDS real.
+- Vale para COPIAR TP do ponto, cópia por linha, COPIAR CDS PARA TESTE e COPIAR TP DO CENTRO; a tela de validação mostra o Z estimado e a confiança.
 ## V14 — Ocupação dos Groups, Entrega e Dashboard refeitos
 
 ### Regra única (`assets/modules/ocupacao.js`)
