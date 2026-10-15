@@ -127,3 +127,10 @@ Regra de manutenção: configuração estática e funções puras não devem vol
 - **QG:** CDS de QG/favela dos Groups (`HighOSMissionCloud.qgs`); distância mínima `RAIO_QG_M` = 150 m em `eventos-painel.js`.
 - **GERAR SPAWNS QUE FALTAM** descarta candidatos na água ou perto de QG antes de escolher; se a faixa não comportar todos, avisa quantos conseguiu.
 - Checklist da zona avisa spawns existentes na água ou perto de QG (aviso: píer, ponte e barco podem enganar a leitura; nada é movido).
+
+
+## V12.13 — Spawn de risco: cria, marca e ajusta no mouse
+
+- O gerador nunca deixa faltar spawn: se não houver espaço seguro suficiente, cria os restantes mesmo em área de risco.
+- Pinos na água ou perto de QG ficam com contorno LARANJA no mapa (popup diz o motivo).
+- Em modo edição, arrastar um pino remove a validação e abre direto a aba VALIDAÇÃO com o campo de CDS em foco (validador nativo).

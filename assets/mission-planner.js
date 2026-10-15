@@ -1236,7 +1236,7 @@ status:'planned'},m.points.length));commit('Ponto marcado no mapa');}
     });
   }
 
-  function pinIcon(p,outside=false){const cls=isValidated(p)?'validated':'planned';const warn=outside?' style="outline:3px solid #ff5252;box-shadow:0 0 0 5px rgba(255,82,82,.22)"':'';return L.divIcon({className:'',
+  function pinIcon(p,outside=false,risco=false){const cls=isValidated(p)?'validated':'planned';const warn=outside?' style="outline:3px solid #ff5252;box-shadow:0 0 0 5px rgba(255,82,82,.22)"':(risco?' style="outline:3px solid #ffb02e;box-shadow:0 0 0 5px rgba(255,176,46,.25)"':'');return L.divIcon({className:'',
 html:`<div class="mp-pin ${cls} ${outside?'outside':''}"${warn}>${outside?'!':''}${String(p.id).padStart(2,'0')}</div>`,
 iconSize:[outside?34:28,
 outside?34:28],
@@ -1416,11 +1416,13 @@ fillOpacity:outside?.14:.07,
 dashArray:outside?'3 4':(valid?null:'6 5'),
 color:outside?'#ff5252':undefined,
 fillColor:outside?'#ff5252':undefined}).addTo(state.map);
-      const marker=L.marker(pos,{icon:pinIcon(p,outside),
+      /* V12.13 — risco de terreno (água/QG) marcado no pino: arraste e valide */
+      const agua=pointWater(p)===true,qgPerto=nearQg(p),risco=agua||!!qgPerto;
+      const marker=L.marker(pos,{icon:pinIcon(p,outside,risco),
 draggable:state.editing}).addTo(state.map);
-      marker.bindPopup(`<b>Ponto ${String(p.id).padStart(2,'0')}</b><br>Status: <b>${valid?'VALIDADO':'PENDENTE'}</b>${outside?'<br><b style="color:#ff7474">FORA DA ZONA ⚠</b>':''}<br>${f(p.x)},${f(p.y)}${valid?','+f(p.z)+','+f(p.h):''}`);
+      marker.bindPopup(`<b>Ponto ${String(p.id).padStart(2,'0')}</b><br>Status: <b>${valid?'VALIDADO':'PENDENTE'}</b>${outside?'<br><b style="color:#ff7474">FORA DA ZONA ⚠</b>':''}${agua?'<br><b style="color:#ffb02e">⚠ PARECE ESTAR NA ÁGUA</b>':''}${qgPerto?`<br><b style="color:#ffb02e">⚠ ${Math.round(qgPerto.d)} m do QG ${esc(qgPerto.qg||qgPerto.group)}</b>`:''}<br>${f(p.x)},${f(p.y)}${valid?','+f(p.z)+','+f(p.h):''}${risco&&!valid?`<br><small>${state.editing?'Arraste para terra firme e valide a CDS':'Clique em EDITAR para arrastar'}</small>`:''}`);
       marker.on('click',()=>selectPoint(p.id));
-      marker.on('dragend',ev=>{const n=ev.target.getLatLng();p.x=n.lng;p.y=n.lat;p.z=0;p.status='planned';p.validatedAt=null;commit(`Ponto ${p.id} movido — validação removida`);selectPoint(p.id);});
+      marker.on('dragend',ev=>{const n=ev.target.getLatLng();p.x=n.lng;p.y=n.lat;p.z=0;p.status='planned';p.validatedAt=null;commit(`Ponto ${p.id} movido — valide a CDS real`);selectPoint(p.id);goValidate();});
       state.drawn.push(circle,marker);
       if(Number.isFinite(p.h)){const a=p.h*Math.PI/180,
 d=35;state.drawn.push(L.marker(ll(p.x+Math.sin(a)*d,p.y+Math.cos(a)*d),{icon:headingIcon(p.h),
@@ -1441,6 +1443,8 @@ box=qs('#mpPointList');if(!box||!m)return;
     qsa('[data-copy]',box).forEach(b=>b.onclick=async e=>{e.stopPropagation();const p=m.points[Number(b.dataset.copy)];await copyText(isValidated(p)?rawCds(p):tpCds(p));b.textContent='✓';setTimeout(()=>b.textContent='⧉',800);});
     qsa('[data-del]',box).forEach(b=>b.onclick=e=>{e.stopPropagation();if(!requireEdit())return;m.points.splice(Number(b.dataset.del),1);commit('Ponto removido');});
   }
+  /* depois de mover um ponto: abre a validação com o campo de CDS pronto */
+  function goValidate(){try{setPlannerTab('validacao');setTimeout(()=>qs('#mpValidateCds')?.focus(),60);}catch(e){}}
   function selectPoint(id){
     const m=active(),
 p=m?.points[id-1],
@@ -1999,7 +2003,7 @@ ${lines.map(l=>`- ${l}`).join('\n')}
      distância do centro dos spawns atuais (equilíbrio) e, um a um, o
      candidato mais afastado de todos os spawns (preenche os vazios).
      Em evento com gás ficam sempre dentro da safe inicial. */
-  function suggestSpawns(m,n,bloqueado=null){
+  function suggestSpawns(m,n,bloqueado=null,extra=[]){
     const c=m?.center;if(!validCoord(c?.x)||!validCoord(c?.y)||n<1)return [];
     const cx=Number(c.x),cy=Number(c.y),R=effectiveEventRadius(m),gas=eventTypeOf(m).gas;
     const pts=(m.points||[]).filter(p=>validCoord(p.x)&&validCoord(p.y)).map(p=>({x:Number(p.x),y:Number(p.y)}));
@@ -2008,7 +2012,7 @@ ${lines.map(l=>`- ${l}`).join('\n')}
     const band=[1,.92,1.08].map(k=>gas?Math.min(mean*k,R*.92):mean*k);
     let cand=[];for(let a=0;a<360;a+=2)band.forEach(d=>{const r=a*Math.PI/180;cand.push({x:cx+Math.sin(r)*d,y:cy+Math.cos(r)*d,deg:a});});
     if(bloqueado)cand=cand.filter(q=>!bloqueado(q));
-    const out=[],all=[...pts];
+    const out=[],all=[...pts,...extra.map(q=>({x:q.x,y:q.y}))];
     const minTo=(q,arr)=>{let md=Infinity;for(const p of arr){const d=Math.hypot(q.x-p.x,q.y-p.y);if(d<md)md=d;}return md;};
     for(let k=0;k<n;k++){
       /* empate no vão (spawns atuais uniformes): espalha os novos pelo círculo */
@@ -2062,7 +2066,7 @@ ${lines.map(l=>`- ${l}`).join('\n')}
   function pointWater(p){
     const k=wKey(p);if(waterOf.has(k))return waterOf.get(k);
     waterOf.set(k,undefined);
-    isWater(p.x,p.y).then(v=>{waterOf.set(k,v);clearTimeout(state.waterTimer);state.waterTimer=setTimeout(()=>{try{renderRequestStatus();}catch(e){}},250);});
+    isWater(p.x,p.y).then(v=>{waterOf.set(k,v);clearTimeout(state.waterTimer);state.waterTimer=setTimeout(()=>{try{renderRequestStatus();renderMap();}catch(e){}},250);});
     return undefined;
   }
   function terrainIssues(m){
@@ -2092,11 +2096,15 @@ ${lines.map(l=>`- ${l}`).join('\n')}
       if(nearQg({x,y},qgs)){bad.set(k,'qg');return;}
       jobs.push(isWater(x,y).then(w=>{if(w===true)bad.set(k,'agua');else if(w===null)semLeitura++;}));});
     await Promise.all(jobs);
-    const add=suggestSpawns(m,need,q=>bad.has(`${Math.round(q.x)},${Math.round(q.y)}`)),base=m.points.length;
+    const seguros=suggestSpawns(m,need,q=>bad.has(`${Math.round(q.x)},${Math.round(q.y)}`));
+    /* sem espaço seguro suficiente: cria mesmo assim e marca em laranja
+       para ajuste no mouse + validação da CDS (nunca deixa faltar spawn) */
+    const arriscados=seguros.length<need?suggestSpawns(m,need-seguros.length,null,seguros):[];
+    const add=[...seguros,...arriscados],base=m.points.length;
     add.forEach((q,i)=>m.points.push(normalizePoint({x:q.x,y:q.y,z:0,h:(q.deg+180)%360,status:'planned'},base+i)));
     const nAgua=[...bad.values()].filter(v=>v==='agua').length,nQg=[...bad.values()].filter(v=>v==='qg').length;
     commit(`${add.length} spawns gerados como PENDENTES${nAgua||nQg?` (evitados: ${nAgua?`${nAgua} pontos na água`:''}${nAgua&&nQg?' · ':''}${nQg?`${nQg} perto de QG`:''})`:''} — confira no mapa e SALVE`);fit();
-    if(add.length<need)alert(`Só foi possível gerar ${add.length} de ${need} spawns: o restante da faixa de distância está na água ou perto de QG. Aumente o raio da zona ou marque os pontos manualmente.`);
+    if(arriscados.length){setPlannerTab('pontos');alert(`${arriscados.length} de ${add.length} spawns ficaram em área de risco (água ou perto de QG) e estão marcados em LARANJA no mapa.\n\nArraste cada um para terra firme e valide a CDS real.`);}
     else if(semLeitura>jobs.length/2)alert('O mapa não respondeu para a leitura de água: os spawns foram gerados sem esse filtro. Confira no mapa antes de salvar.');
   }
 
