@@ -67,7 +67,8 @@ export function abrirRevisao(deps) {
   m.hidden = false;
   const draw = () => {
     const lista = inconsistencias(deps.estado.faccoes, deps.estado.entregas);
-    const seguras = lista.filter(i => i.tipo === 'ATIVA_SEM_FACCAO' || i.tipo === 'ENTREGA_ORFA');
+    /* sem ambiguidade = só existe uma correção possível */
+    const seguras = lista.filter(i => (i.tipo === 'ATIVA_SEM_FACCAO' || i.tipo === 'ENTREGA_ORFA') && i.acoes.length === 1);
     m.innerHTML = `<div class="ev2-card po-rev"><div class="ev2-head"><div><span class="ev2-kick">REGRA ÚNICA DE OCUPAÇÃO</span><h2>REVISAR OCUPAÇÃO</h2><small>${lista.length ? `${lista.length} caso${lista.length > 1 ? 's' : ''} com dados contraditórios ou incompletos` : 'Nenhum problema encontrado'}</small></div><button type="button" class="ev2-x" data-po-x>×</button></div>
       <div class="ev2-body">${lista.length ? `${seguras.length ? `<div class="po-safe"><span>${seguras.length} correç${seguras.length > 1 ? 'ões' : 'ão'} sem ambiguidade (status ATIVA sem facção, entrega antiga ainda ativa)</span><button type="button" class="ev2-primary" data-po-seguras>APLICAR ${seguras.length}</button></div>` : ''}
         ${lista.map((i, n) => `<article class="po-item ${i.nivel}"><div><b>${esc(i.titulo)}</b><small>${esc(i.detalhe)}</small></div><div class="po-acts">${i.acoes.map((a, k) => `<button type="button" data-po-acao="${n}:${k}" class="${k === 0 && a.patch !== 'ABRIR' ? 'ev2-primary' : ''}">${esc(a.label)}</button>`).join('')}</div></article>`).join('')}`

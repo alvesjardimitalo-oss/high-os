@@ -120,7 +120,8 @@ export function atribuirLinhas(rows = [], tl, { faccoes = [], dataDe, slotsDe })
     porOcup.forEach(({ occ, slots: s }) => {
       if (!occ) { semOcupante.push({ ...r, group: g, slots: s }); return; }
       const atual = grupoAtual.get(chave(occ));
-      const destino = atual ? atual.group : `EX:${occ}`;
+      /* facção que saiu: linha própria "Group • Facção" (nunca se mistura com a atual) */
+      const destino = atual ? atual.group : `${g} • ${occ}`;
       const id = `${chave(destino)}|${base}`;
       const limpo = { ...r }; SLOT_FIELDS.forEach(k => { delete limpo[k]; });
       const prev = saida.get(id);
