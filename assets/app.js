@@ -28,6 +28,7 @@ import { getFirestore,
 import { estado } from './modules/estado.js';
 import { situacaoGroup, SITUACOES, ocupado as ocupadoV14 } from './modules/ocupacao.js';
 import { criarEntrega } from './modules/entrega.js';
+import { montarLinhaDoTempo, atribuirLinhas, coletaDoDia, rotuloColeta } from './modules/metricas-motor.js';
 import { painelOcupacaoHtml, painelDisponiveisHtml, ligarPaineis, abrirRevisao } from './modules/painel-ocupacao.js';
 import { esc, alvesNorm, fmtDuration, fmtDateMs, fmtMoneyMaybe } from './modules/formatadores.js';
 import { definirGroupsConhecidos, normalizeMetricDate, parseMetricNumber, normalizeMetricSlotKey, metricSlotLabel, metricGroupLabel, parseMetricSheet, parseCsvRows } from './modules/metricas-parser.js';
@@ -3338,7 +3339,9 @@ async function loadDeliveries(){
  try{const qs=await getDocsCached(deliveryCol,'entregas');
 estado.entregas=qs.docs.map(d=>({id:d.id,
 ...d.data()})).sort((a,b)=>String(b.createdAtText||b.dataEntrega||'').localeCompare(String(a.createdAtText||a.dataEntrega||'')));
-renderDeliveries()}catch(e){if($('#deliveryList'))$('#deliveryList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR</h3><p>${esc(e.message)}</p></div>`}
+renderDeliveries();
+/* V14.1: entregas definem quem ocupava cada Group — reatribui as métricas */
+if(reatribuirMetricas()){try{renderMetrics()}catch(e){}}}catch(e){if($('#deliveryList'))$('#deliveryList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR</h3><p>${esc(e.message)}</p></div>`}
 }
 function renderDeliveries(){
  if(!$('#deliveryList'))return;
@@ -4051,7 +4054,24 @@ year:'numeric'}).replace(/^./,c=>c.toUpperCase());
 }
 function parseIsoMetricDate(v=''){const m=String(v).match(/^(\d{4})-(\d{2})-(\d{2})$/);
 return m?new Date(+m[1],+m[2]-1,+m[3]):null}
-function metricGroupOccupied(group){return estado.faccoes.some(f=>alvesNorm(f.group)===alvesNorm(group)&&f.status==='ATIVA'&&String(f.faccao||'').trim())}
+function metricGroupOccupied(group){return estado.faccoes.some(f=>!f.removido&&alvesNorm(f.group)===alvesNorm(group)&&ocupadoV14(f))}
+/* ===== V14.1 · MÉTRICA POR FACÇÃO (modules/metricas-motor.js) =====
+   estado.metricasCache guarda as linhas BRUTAS (planilha/espelho, usadas na
+   sincronização). estado.metricas passa a ser a versão ATRIBUÍDA: cada
+   coleta vai para a facção que ocupava o Group naquele horário, já no Group
+   atual dela. Coleta em Group vago fica em metricSemOcupante (anomalias). */
+let metricTransferencias=[],metricSemOcupante=[];
+function metricasAtribuidas(rows=[]){
+ try{
+  const tl=montarLinhaDoTempo({faccoes:estado.faccoes,entregas:estado.entregas,transferencias:metricTransferencias});
+  const r=atribuirLinhas(rows,tl,{faccoes:estado.faccoes,dataDe:metricDateValue,slotsDe:metricSlots});
+  metricSemOcupante=r.semOcupante;return r.linhas;
+ }catch(e){console.warn('[MÉTRICAS] atribuição por facção falhou; exibindo por Group',e);metricSemOcupante=[];return rows.slice()}
+}
+function reatribuirMetricas(){if(!estado.metricasCache?.length)return false;estado.metricas=metricasAtribuidas(estado.metricasCache);return true}
+async function carregarTransferenciasMetricas(){
+ try{const qs=await getDocs(query(histCol,where('tipo','==','TRANSFERENCIA_PAINEL')));metricTransferencias=qs.docs.map(d=>d.data())}catch(e){metricTransferencias=[]}
+}
 function activeMetricRows(){
  const occupied=m=>metricGroupOccupied(m.group||m.organizacao||m.faccao);
 
@@ -4389,7 +4409,7 @@ function applyMetricSnapshot(qs,{realtime=false}={}){
  estado.metricasCache=qs.docs.map(d=>({id:d.id,
 ...d.data()}));
 
- estado.metricas=estado.metricasCache.slice();
+ estado.metricas=metricasAtribuidas(estado.metricasCache);
 
  metricPeriodKey=previousKey;
 
@@ -4820,7 +4840,7 @@ function aplicarLinhasMetricas(rows=[],origem=''){
 
  estado.metricasCache=rows.slice();
 
- estado.metricas=rows.slice();
+ estado.metricas=metricasAtribuidas(rows);
 
  metricPeriodKey=metricPeriodKey||currentMetricMonthKey();
 
@@ -4834,6 +4854,7 @@ function aplicarLinhasMetricas(rows=[],origem=''){
 
 async function loadMetrics(){
  await loadMetricSourceConfig();
+ await carregarTransferenciasMetricas();
 
  metricPeriodKey=metricPeriodKey||currentMetricMonthKey();
  setTimeout(()=>{moverInfraParaAdmin();
@@ -5014,7 +5035,7 @@ filled=a.rows.reduce((n,r)=>n+Object.values(metricSlots(r)).filter(v=>Number.isF
 
  sum.innerHTML=`<article><span>FACÇÃO</span><b>${esc(id.faccao||'—')}</b><small>${esc(group)} • ${esc(id.segmento||'—')}</small></article><article><span>PICO</span><b>${a.peak.value}</b><small>${esc(a.peak.hour)} • ${esc(a.peak.date)}</small></article><article class="metric-predominance-card"><span>PREDOMINÂNCIA</span><b>${esc(a.predominance.label)}</b><small>${a.predominance.share.toFixed(0)}% das medições nessa faixa</small></article><article><span>MÉDIA DIÁRIA DE PICO</span><b>${a.dailyPeakAvg.toFixed(1)}</b><small>média do maior contingente de cada dia</small></article><article><span>MÉDIA GERAL</span><b>${a.avg.toFixed(1)}</b><small>todos os horários do período</small></article><article><span>MELHOR HORÁRIO</span><b>${esc(a.strongestHour)}</b><small>média ${a.strongestHourAvg.toFixed(1)} • noite ${esc(a.nightPredominance.label)}</small></article>`;
 
- table.innerHTML=`<div class="metric-date-table-title"><div><b>HISTÓRICO DIÁRIO</b><span>${esc(id.faccao||group)} • ${esc(metricActivePeriodLabel())} • ${filled}/${expected} coletas</span></div></div><div class="metric-table-scroll"><table class="metric-date-table"><thead><tr><th>DATA</th>${keys.map(h=>`<th>${esc(h)}</th>`).join('')}<th>PICO DO DIA</th><th>MÉDIA DO DIA</th></tr></thead><tbody>${a.rows.map(r=>{const sl=metricSlots(r),vals=Object.values(sl).filter(Number.isFinite),pk=vals.length?Math.max(...vals):'—';return `<tr><td><b>${esc(metricDateLabel(r))}</b></td>${keys.map(h=>`<td>${sl[h]??'—'}</td>`).join('')}<td><b>${pk}</b></td><td>${metricDayAverage(r).toFixed(1)}</td></tr>`}).join('')}</tbody></table></div>`;
+ table.innerHTML=`<div class="metric-date-table-title"><div><b>HISTÓRICO DIÁRIO</b><span>${esc(id.faccao||group)} • ${esc(metricActivePeriodLabel())} • ${filled}/${expected} coletas</span></div></div><div class="metric-table-scroll"><table class="metric-date-table"><thead><tr><th>DATA</th>${keys.map(h=>`<th>${esc(h)}</th>`).join('')}<th>PICO DO DIA</th><th>MÉDIA DO DIA</th></tr></thead><tbody>${a.rows.map(r=>{const sl=metricSlots(r),vals=Object.values(sl).filter(Number.isFinite),pk=vals.length?Math.max(...vals):'—';const cl=coletaDoDia(sl,metricDateValue(r)),pl=rotuloColeta(cl);return `<tr class="${pl?'metric-row-parcial':''}"><td><b>${esc(metricDateLabel(r))}</b>${r.gruposOrigem&&r.gruposOrigem.some(x=>alvesNorm(x)!==alvesNorm(group))?`<small class="metric-origem">no ${esc(r.gruposOrigem.join(', '))}</small>`:''}</td>${keys.map(h=>`<td>${sl[h]??(cl.aguardando&&!(h in sl)?'<i class="metric-wait">…</i>':'—')}</td>`).join('')}<td><b>${pk}</b></td><td>${metricDayAverage(r).toFixed(1)}${pl?`<small class="metric-parcial">${esc(pl)}</small>`:''}</td></tr>`}).join('')}</tbody></table></div>`;
 
 }
 function metricReportData(group,period=metricPeriodKey){
@@ -5770,6 +5791,11 @@ dailyPeakOverall=dailyPeaksAll.length?dailyPeaksAll.reduce((a,b)=>a+b,0)/dailyPe
 if($('#metricOverview'))$('#metricOverview').innerHTML=selected?`<article class="metric-hero-kpi"><span>FACÇÃO / GROUP</span><b>${esc(selected.f.faccao||selected.f.group)}</b><small>${esc(selected.f.group)} • ${esc(selected.f.segmento||'—')}</small></article><article class="metric-hero-kpi"><span>PICO</span><b>${selected.a.peak.value}</b><small>${esc(selected.a.peak.hour)} • ${esc(selected.a.peak.date)}</small></article><article class="metric-hero-kpi metric-predominance-card"><span>PREDOMINÂNCIA</span><b>${esc(selected.a.predominance.label)}</b><small>${selected.a.predominance.share.toFixed(0)}% das medições</small></article><article class="metric-hero-kpi"><span>MÉDIA DIÁRIA DE PICO</span><b>${selected.a.dailyPeakAvg.toFixed(1)}</b><small>média geral ${selected.a.avg.toFixed(1)} • melhor ${esc(selected.a.strongestHour)}</small></article>`:`<article class="metric-hero-kpi"><span>VISÃO GERAL</span><b>${rows.length}</b><small>facções / Groups no recorte</small></article><article class="metric-hero-kpi"><span>MAIOR PICO</span><b>${peak?peak.a.peak.value:'—'}</b><small>${peak?`${esc(peak.f.group)} • ${esc(peak.a.peak.hour)}`:'sem dados'}</small></article><article class="metric-hero-kpi metric-predominance-card"><span>PREDOMINÂNCIA GERAL</span><b>${esc(generalPred.label)}</b><small>${generalPred.share.toFixed(0)}% das medições</small></article><article class="metric-hero-kpi"><span>MÉDIA DIÁRIA DE PICO</span><b>${dailyPeakOverall.toFixed(1)}</b><small>média geral ${overall.toFixed(1)} • horário forte ${esc(pred[0])}</small></article>`;
 
  $('#metricStats').innerHTML=`<span><b>${esc(metricActivePeriodLabel())}</b> COMPETÊNCIA</span><span><b>${esc(metricPeriodRange(active))}</b> PERÍODO</span><span><b>${active.length}</b> DIAS / REGISTROS</span><span><b>${groupsWith}</b> GROUPS COM DADOS</span><span><b>${rows.length}</b> EXIBIDOS</span>${seg?`<span>SEGMENTO <b>${esc(seg)}</b></span>`:''}`;
+ /* V14.1: coleta de hoje — parcial em vez de parecer zero/média baixa */
+ {const hoje=new Date(),hk=isoDay(hoje),doDia=visibleRaw.filter(r=>isoDay(metricDateValue(r))===hk);
+  if(doDia.length){const uni={};doDia.forEach(r=>Object.assign(uni,metricSlots(r)));const c=coletaDoDia(uni,hoje,hoje);
+   $('#metricStats').insertAdjacentHTML('beforeend',`<span class="${c.parcial?'metric-parcial-chip':''}"><b>HOJE ${c.feitas}/${c.esperadas}</b> ${c.parcial?esc(rotuloColeta(c)):'COLETAS COMPLETAS'}</span>`)}}
+ {const ex=estado.metricas.filter(r=>r.__exFaccao&&metricMonthKey(r)===(metricPeriodKey||currentMetricMonthKey())).length;if(ex)$('#metricStats').insertAdjacentHTML('beforeend',`<span title="Coletas de facções que já saíram ficam fora dos relatórios operacionais"><b>${ex}</b> REGISTROS DE FACÇÕES QUE SAÍRAM (fora)</span>`)}
 
  const maxHour=Math.max(1,...Object.values(hourAvgs)),
 top5=rows.slice(0,5),
@@ -5910,17 +5936,27 @@ function metricTimeShare(rows=[]){
 function renderMetricTimeVisual(){
  syncMetricTimeSelectors();
  const box=$('#metricTimeVisual');if(!box)return;
- const rows=metricTimeRows(),prev=metricTimePreviousRows(),avg=metricTimeAverage(rows),prevAvg=metricTimeAverage(prev),peak=metricTimePeak(rows),series=metricTimeSeries(rows),share=metricTimeShare(rows);
+ const rows=metricTimeRows(),prev=metricTimePreviousRows(),avg=metricTimeAverage(rows),peak=metricTimePeak(rows),series=metricTimeSeries(rows),share=metricTimeShare(rows);
+ /* V14.1: compara só os mesmos horários já coletados (dia parcial de hoje não
+    é comparado com dias completos) e a cobertura conta os 4 horários padrão */
+ const slotsAtuais=new Set(rows.flatMap(r=>Object.keys(metricSlots(r))));
+ const prevVals=prev.flatMap(r=>Object.entries(metricSlots(r)).filter(([h])=>slotsAtuais.has(h)).map(([,v])=>Number(v)).filter(Number.isFinite));
+ const prevAvg=prevVals.length?prevVals.reduce((a,b)=>a+b,0)/prevVals.length:0;
  const delta=prevAvg?((avg-prevAvg)/prevAvg*100):null,groups=new Set(rows.map(r=>alvesNorm(r.group||r.organizacao||r.faccao))).size;
- const expectedSlots=metricSlotKeys(rows).length||4,expectedDays=series.length,expected=Math.max(1,groups||1)*expectedDays*expectedSlots,actual=rows.reduce((n,r)=>n+Object.keys(metricSlots(r)).length,0),coverage=Math.min(100,actual/expected*100);
+ const agora=new Date();let cFeitas=0,cFaltam=0,cAguard=0;
+ const porGD=new Map();rows.forEach(r=>{const k=alvesNorm(r.group||'')+'|'+metricTimeIso(metricDateValue(r));porGD.set(k,{...(porGD.get(k)||{}),...metricSlots(r)})});
+ const gruposSet=[...new Set(rows.map(r=>alvesNorm(r.group||'')))];
+ series.forEach(sx=>{const d=parseIsoMetricDate(sx.key);if(!d||d>agora)return;gruposSet.forEach(g=>{const c=coletaDoDia(porGD.get(g+'|'+sx.key)||{},d,agora);cFeitas+=c.feitas;cFaltam+=c.faltam;cAguard+=c.aguardando})});
+ const coverage=cFeitas+cFaltam+cAguard?Math.min(100,cFeitas/(cFeitas+cFaltam+cAguard)*100):0;
+ const coberturaTxt=cAguard?`PARCIAL • aguardando +${cAguard} coleta${cAguard>1?'s':''}`:cFaltam?`${cFaltam} coleta${cFaltam>1?'s':''} sem registro`:'período completo';
  const max=Math.max(1,...series.map(x=>x.value||0)),shareMax=Math.max(1,...share.map(x=>x.value));
  const periodName={day:'DIA',week:'SEMANA',month:'MÊS'}[metricTimeMode];
  box.innerHTML='<div class="metric-time-kpis">'+
   '<article class="metric-hero-kpi"><span>'+periodName+'</span><b>'+rows.length+'</b><small>registros no recorte</small></article>'+
-  '<article class="metric-hero-kpi"><span>MÉDIA</span><b>'+avg.toFixed(1)+'</b><small>'+(delta===null?'sem base anterior':(delta>=0?'+':'')+delta.toFixed(1)+'% vs período anterior')+'</small></article>'+
+  '<article class="metric-hero-kpi"><span>MÉDIA</span><b>'+avg.toFixed(1)+'</b><small>'+(delta===null?'sem base anterior':(delta>=0?'+':'')+delta.toFixed(1)+'% vs período anterior'+(cAguard?' (mesmos horários)':''))+'</small></article>'+
   '<article class="metric-hero-kpi"><span>PICO</span><b>'+peak.value+'</b><small>'+esc(peak.label)+'</small></article>'+
   '<article class="metric-hero-kpi"><span>FACÇÕES</span><b>'+groups+'</b><small>com dados no período</small></article>'+
-  '<article class="metric-hero-kpi"><span>COBERTURA</span><b>'+coverage.toFixed(0)+'%</b><small>'+(coverage<100?'PARCIAL • aguardando coletas':'período completo')+'</small></article>'+
+  '<article class="metric-hero-kpi"><span>COBERTURA</span><b>'+coverage.toFixed(0)+'%</b><small>'+esc(coberturaTxt)+'</small></article>'+
  '</div>'+
  '<section class="metric-time-chart"><header><b>EVOLUÇÃO NO '+periodName+'</b><span>Média das coletas por dia</span></header><div class="metric-time-bars">'+series.map(x=>'<div class="metric-time-bar-col" title="'+esc(x.label+(x.value===null?' • sem coleta':' • '+x.value.toFixed(1)))+'"><div><i style="height:'+((x.value||0)/max*100).toFixed(1)+'%"></i></div><b>'+(x.value===null?'—':x.value.toFixed(0))+'</b><small>'+esc(x.label)+'</small></div>').join('')+'</div></section>'+
  '<section class="metric-time-share"><header><b>REPRESENTATIVIDADE</b><span>'+($('#metricTimeFaction')?.value?'Segmento da facção':'Facções no recorte')+'</span></header><div class="metric-time-share-list">'+(share.length?share.map(x=>'<div class="metric-time-share-row"><span>'+esc(x.name)+'</span><div><i style="width:'+(x.value/shareMax*100).toFixed(1)+'%"></i></div><b>'+x.value.toFixed(1)+'</b></div>').join(''):'<div class="muted">Sem dados para este período.</div>')+'</div></section>';
@@ -6412,7 +6448,7 @@ diff=compareMetricSources(sheetRows,fireRows);
     entao aplicamos localmente e economizamos N leituras por ciclo. */
  estado.metricasCache=sheetRows.slice();
 
- estado.metricas=sheetRows.slice();
+ estado.metricas=metricasAtribuidas(sheetRows);
 
  metricPeriodKey=metricPeriodKey||currentMetricMonthKey();
 
@@ -9583,15 +9619,15 @@ prevStart=new Date(curStart);
 prevStart.setDate(prevStart.getDate()-7);
 const prevEnd=new Date(curStart.getTime()-1);
 
- const currentRows=estado.metricasCache.filter(r=>{const d=metricDateValue(r);return d&&d>=curStart&&d<=now});
+ const currentRows=estado.metricas.filter(r=>{const d=metricDateValue(r);return d&&d>=curStart&&d<=now});
 
- const previousRows=estado.metricasCache.filter(r=>{const d=metricDateValue(r);return d&&d>=prevStart&&d<=prevEnd});
+ const previousRows=estado.metricas.filter(r=>{const d=metricDateValue(r);return d&&d>=prevStart&&d<=prevEnd});
 
  const cfg=dashboardConfig||DEFAULT_DASHBOARD_CONFIG,
 weekKey=isoDay(curStart),
 out=[];
 
- estado.faccoes.filter(f=>f.status==='ATIVA'&&String(f.faccao||'').trim()).forEach(f=>{
+ estado.faccoes.filter(f=>!f.removido&&ocupadoV14(f)).forEach(f=>{
   const same=r=>alvesNorm(r.group||r.organizacao||r.faccao)===alvesNorm(f.group),
 cur=currentRows.filter(same),
 prev=previousRows.filter(same);if(!cur.length||!prev.length)return;
@@ -9626,8 +9662,8 @@ function vacantMetricAnomalies(){
  const cutoff=new Date();
 cutoff.setDate(cutoff.getDate()-7);
 const by=new Map();
-estado.metricasCache.forEach(r=>{const g=String(r.group||r.organizacao||r.faccao||'').trim(),
-d=metricDateValue(r);if(!g||!d||d<cutoff||metricGroupOccupied(g))return;const vals=Object.values(metricSlots(r)).map(Number).filter(Number.isFinite),
+metricSemOcupante.forEach(r=>{const g=String(r.group||r.organizacao||r.faccao||'').trim(),
+d=metricDateValue(r);if(!g||!d||d<cutoff)return;const vals=Object.values(metricSlots(r)).map(Number).filter(Number.isFinite),
 mx=vals.length?Math.max(...vals):0;if(mx<=0)return;const cur=by.get(alvesNorm(g));if(!cur||d>cur.date)by.set(alvesNorm(g),{group:g,
 date:d,
 value:mx,

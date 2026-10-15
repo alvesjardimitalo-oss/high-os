@@ -182,3 +182,10 @@ body.ev2-open{overflow:hidden}
 @container (max-width:420px){.po-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .po-kpis{grid-template-columns:repeat(auto-fit,minmax(78px,1fr))}
 .po-kpi small{line-height:1.25}
+
+/* V14.1 — métricas por facção: coleta parcial e origem */
+.metric-parcial{display:block;margin-top:2px;font-size:9px;font-weight:700;color:#ffc35c;white-space:nowrap}
+.metric-row-parcial td{background:rgba(255,195,92,.035)}
+.metric-wait{font-style:normal;color:#ffc35c;opacity:.8}
+.metric-origem{display:block;margin-top:2px;font-size:9px;color:#9ed7ff}
+.metric-parcial-chip{border-color:rgba(255,195,92,.35)!important;color:#ffc35c!important}
