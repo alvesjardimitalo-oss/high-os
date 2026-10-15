@@ -13748,19 +13748,21 @@ const rh15AprovHtml=(a)=>a===null||a===undefined?'—':`<span class="rh15-meter 
 const rh15SomaDia=(L,i)=>{let s=0,t=false;L.forEach(e=>{const v=e.st.serie[i];if(v!==null){s+=v;t=true}});return t?s:null};
 
 /* ---------- gráficos SVG ---------- */
+const rh15Cor=i=>i<8?RH15_CORES[i]:`hsl(${(i*47)%360} 70% 62%)`;
 const RH15_CORES=['#9a4dff','#4fdc8f','#ffc35c','#5cc8ff','#ff6b81','#c08bff','#7be0d6','#f39b5c'];
-function rh15Linhas(dias,series,{altura=240,rotulo='players'}={}){
+function rh15Linhas(dias,series,{altura=240,rotulo='players',faixa=null,legendaInterativa=false}={}){
  const W=860,H=altura,L=40,R=14,T=16,B=34,iw=W-L-R,ih=H-T-B,n=Math.max(1,dias.length);
- const max=Math.max(1,...series.flatMap(s=>s.vals.filter(v=>v!==null)));
+ const max=Math.max(1,faixa?faixa.max:0,...series.flatMap(s=>s.vals.filter(v=>v!==null)));
  const passo=max<=5?1:max<=10?2:max<=25?5:max<=50?10:max<=100?20:max<=250?50:100,topo=Math.ceil(max/passo)*passo;
  const x=i=>L+(n===1?iw/2:i*iw/(n-1)),y=v=>T+ih-(v/topo)*ih;
  let g='';for(let v=0;v<=topo;v+=passo)g+=`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" class="grid"/><text x="${L-6}" y="${y(v)+3}" class="ax" text-anchor="end">${v}</text>`;
+ if(faixa)g+=`<rect x="${L}" y="${y(faixa.max)}" width="${iw}" height="${Math.max(1,y(faixa.min)-y(faixa.max))}" class="meta"/><text x="${W-R-4}" y="${y(faixa.max)-4}" class="metat" text-anchor="end">meta ${faixa.min===faixa.max?faixa.max:faixa.min+' a '+faixa.max}</text>`;
  const salto=n>16?Math.ceil(n/14):1;
  dias.forEach((d,i)=>{if((n-1-i)%salto===0)g+=`<text x="${x(i)}" y="${H-B+16}" class="ax" text-anchor="middle">${rh15Dm(d)}</text>`});
- const ls=series.map(s=>{let path='',pts='';s.vals.forEach((v,i)=>{if(v===null)return;path+=(path&&i>0&&s.vals[i-1]!==null?'L':'M')+x(i).toFixed(1)+' '+y(v).toFixed(1);
+ const ls=series.map((s,si)=>{let path='',pts='';s.vals.forEach((v,i)=>{if(v===null)return;path+=(path&&i>0&&s.vals[i-1]!==null?'L':'M')+x(i).toFixed(1)+' '+y(v).toFixed(1);
   pts+=`<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="${n>40?1.6:2.6}" fill="${s.cor}"><title>${esc(s.nome)} — ${rh15Dm(dias[i])}: ${rh15N(v)} ${rotulo}</title></circle>`});
-  return `<path d="${path}" fill="none" stroke="${s.cor}" stroke-width="${s.destaque?2.6:2}" stroke-linejoin="round" stroke-linecap="round"/>${pts}`}).join('');
- const leg=series.length>1?`<div class="rh15-legend">${series.map(s=>`<span><i style="background:${s.cor}"></i>${esc(s.nome)}</span>`).join('')}</div>`:'';
+  return `<g class="rh15-s" data-i="${si}"><path d="${path}" fill="none" stroke="${s.cor}" stroke-width="${s.destaque?2.6:2}" stroke-linejoin="round" stroke-linecap="round"/>${pts}</g>`}).join('');
+ const leg=series.length>1?(legendaInterativa?`<div class="rh15-legend inter"><button type="button" class="all" data-rh15-serie="all">Todas</button><button type="button" class="all" data-rh15-serie="none">Nenhuma</button>${series.map((s,i)=>`<button type="button" data-rh15-serie="${i}"><i style="background:${s.cor}"></i>${esc(s.nome)}</button>`).join('')}</div>`:`<div class="rh15-legend">${series.map(s=>`<span><i style="background:${s.cor}"></i>${esc(s.nome)}</span>`).join('')}</div>`):'';
  return `<svg class="rh15-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Gráfico diário">${g}${ls}</svg>${leg}`;
 }
 function rh15Barras(itens,{fmt=rh15N}={}){
@@ -13776,14 +13778,11 @@ function rh15Painel(B){
  const picoGeral=comDado.length?Math.max(...comDado):null,iPico=somaDia.indexOf(picoGeral),mediaGeral=comDado.length?comDado.reduce((a,b)=>a+b,0)/comDado.length:null;
  const PA=rh15Filtrar(B.anterior.lista),somaAnt=B.anterior.dias.map((d,i)=>rh15SomaDia(PA,i)).filter(v=>v!==null);
  const mediaAnt=somaAnt.length?somaAnt.reduce((a,b)=>a+b,0)/somaAnt.length:null,picoAnt=somaAnt.length?Math.max(...somaAnt):null;
- const segs=[...new Set(L.map(e=>e.segmento))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
- const series=[{nome:'Total do Ilegal',cor:'#f4f0f8',vals:somaDia,destaque:true},...segs.map((s,i)=>({nome:s,cor:RH15_CORES[i%RH15_CORES.length],vals:dias.map((d,di)=>rh15SomaDia(L.filter(e=>e.segmento===s),di))}))];
+ const porFac=[...L].filter(e=>e.st.comDados).sort((a,b)=>b.st.media-a.st.media);
+ const series=porFac.map((e,i)=>({nome:e.faccao,cor:rh15Cor(i),vals:e.st.serie}));
+ const M=rh15Meta();
  const ativas=L.filter(e=>e.st.comDados),presMed=ativas.length?ativas.reduce((a,e)=>a+(e.st.aprov||0),0)/ativas.length:0;
  const ativasAnt=PA.filter(e=>e.st.comDados),presAnt=ativasAnt.length?ativasAnt.reduce((a,e)=>a+(e.st.aprov||0),0)/ativasAnt.length:null;
- const porSeg=segs.map(s=>{const g=L.filter(e=>e.segmento===s),c=g.filter(e=>e.st.comDados),sd=dias.map((d,i)=>rh15SomaDia(g,i)).filter(v=>v!==null);
-  const ga=PA.filter(e=>e.segmento===s),sda=B.anterior.dias.map((d,i)=>rh15SomaDia(ga,i)).filter(v=>v!==null);
-  const m=sd.length?sd.reduce((a,b)=>a+b,0)/sd.length:null,ma=sda.length?sda.reduce((a,b)=>a+b,0)/sda.length:null;
-  return {s,n:g.length,m,ma,pico:sd.length?Math.max(...sd):null,pres:c.length?c.reduce((a,e)=>a+(e.st.aprov||0),0)/c.length:null}});
  const top=[...ativas].sort((a,b)=>b.st.media-a.st.media).slice(0,8);
  const varia=ativas.filter(e=>e.ant?.media).map(e=>({e,v:(e.st.media-e.ant.media)/e.ant.media})).sort((a,b)=>b.v-a.v);
  const linhaVar=x=>`<button type="button" class="rh15-row" data-rh15-fac="${esc(x.e.k)}"><b>${esc(x.e.faccao)}</b><span>${rh15N(x.e.ant.media)} → ${rh15N(x.e.st.media)}</span>${rh15Var(x.e.st.media,x.e.ant.media)}</button>`;
@@ -13794,10 +13793,10 @@ function rh15Painel(B){
 <div><span>PICO DO ILEGAL</span><b>${rh15N(picoGeral)}</b><small>${rh15Var(picoGeral,picoAnt)} ${iPico>=0?`em ${rh15Dm(dias[iPico])}`:''}</small></div>
 <div><span>APROVEITAMENTO MÉDIO</span><b>${rh15Pct(presMed)}</b><small>${rh15Var(presMed,presAnt)} média dos picos ÷ ${rh15Meta().max} (meta ${rh15MetaTxt()})</small></div>
 <div><span>COLETAS NO PERÍODO</span><b>${ativas.reduce((a,e)=>a+e.st.coletas,0)}</b><small>${B.slotKeys.length} horário(s): ${esc(B.slotKeys.join(', ')||'—')}</small></div></div>
-<section class="rh15-card"><header><b>Players por dia</b><small>Soma do pico diário de cada facção · ${esc(B.r.rotulo)}</small></header>${rh15Linhas(dias,series)}</section>
+<section class="rh15-card"><header><b>Pico diário por facção</b><small>${esc(rh15.seg||'Todos os segmentos')} · faixa verde = meta de ${rh15MetaTxt()} · clique nos nomes para mostrar ou esconder</small></header>${series.length?rh15Linhas(dias,series,{altura:280,faixa:M,legendaInterativa:true}):rh15Vazio('Sem coletas no período','')}</section>
 <div class="rh15-grid2">
-<section class="rh15-card"><header><b>Por segmento</b><small>Players por dia (soma dos picos) · clique para filtrar</small></header>
-<table class="rh15-table compact"><thead><tr><th>SEGMENTO</th><th>FACÇÕES</th><th>MÉDIA/DIA</th><th>VARIAÇÃO</th><th>PICO</th><th>APROVEITAMENTO</th></tr></thead><tbody>${porSeg.map(x=>`<tr data-rh15-seg="${esc(x.s)}"><td><b>${esc(x.s)}</b></td><td>${x.n}</td><td>${rh15N(x.m)}</td><td>${rh15Var(x.m,x.ma)}</td><td>${rh15N(x.pico)}</td><td>${rh15Pct(x.pres)}</td></tr>`).join('')}</tbody></table></section>
+<section class="rh15-card"><header><b>Por facção · pico diário</b><small>Último dia com coleta · clique para abrir a facção</small></header>
+<div class="rh15-table-wrap tall"><table class="rh15-table compact"><thead><tr><th>FACÇÃO</th><th>ÚLTIMO PICO</th><th>MÉDIA</th><th>APROV.</th><th>NA META</th><th>VARIAÇÃO</th></tr></thead><tbody>${porFac.map(e=>{let ui=-1;for(let k=e.st.serie.length-1;k>=0;k--){if(e.st.serie[k]!==null){ui=k;break}}const up=ui>=0?e.st.serie[ui]:null;return `<tr data-rh15-fac="${esc(e.k)}"><td><b>${esc(e.faccao)}</b><small>${esc(e.segmento)}</small></td><td><b class="fx-${rh15Faixa(up)}">${rh15N(up)}</b><small>${ui>=0?rh15Dm(dias[ui]):''}</small></td><td>${rh15N(e.st.media)}</td><td>${rh15Pct(e.st.aprov)}</td><td>${e.st.diasMeta}/${e.st.total}</td><td>${rh15Var(e.st.media,e.ant?.media??null)}</td></tr>`}).join('')}</tbody></table></div></section>
 <section class="rh15-card"><header><b>Maiores médias de pico</b><small>Clique para abrir a facção</small></header>${rh15Barras(top.map(e=>({nome:e.faccao,v:e.st.media,k:e.k})))}</section>
 </div>
 <div class="rh15-grid2">
@@ -13972,6 +13971,10 @@ function rh15Render(){
  const info=$('#rh15Info');if(info)info.textContent=`${B.r.rotulo} · ${B.dias.length} dia(s) · ${B.lista.filter(e=>e.st.comDados).length} facção(ões) com coleta · comparação com ${B.ra.rotulo}${(RH15_METRICAS()||[]).length?'':' · aguardando métricas carregarem'}`;
  host.innerHTML=rh15.tab==='ranking'?rh15Ranking(B):rh15.tab==='picos'?rh15Picos(B):rh15.tab==='faccao'?rh15Faccao(B):rh15.tab==='relatorios'?rh15Relatorio(B):rh15Painel(B);
  host.querySelectorAll('[data-rh15-fac]').forEach(b=>b.onclick=()=>{rh15.fac=b.dataset.rh15Fac;rh15.tab='faccao';rh15Salvar();rh15Render();host.scrollIntoView({behavior:'smooth',block:'start'})});
+ host.querySelectorAll('.rh15-legend.inter').forEach(lg=>{const card=lg.closest('.rh15-card'),svg=card?.querySelector('svg');lg.querySelectorAll('[data-rh15-serie]').forEach(b=>b.onclick=()=>{const v=b.dataset.rh15Serie;const gs=[...svg.querySelectorAll('g.rh15-s')];
+  if(v==='all'||v==='none'){gs.forEach(g=>g.classList.toggle('off',v==='none'));lg.querySelectorAll('[data-rh15-serie]:not(.all)').forEach(x=>x.classList.toggle('off',v==='none'));return}
+  const g=svg.querySelector(`g.rh15-s[data-i="${v}"]`);g?.classList.toggle('off');b.classList.toggle('off',g?.classList.contains('off'))});
+  lg.querySelectorAll('[data-rh15-serie]:not(.all)').forEach(b=>{b.onmouseenter=()=>{svg.classList.add('focus');svg.querySelector(`g.rh15-s[data-i="${b.dataset.rh15Serie}"]`)?.classList.add('hl')};b.onmouseleave=()=>{svg.classList.remove('focus');svg.querySelectorAll('g.hl').forEach(g=>g.classList.remove('hl'))}})});
  host.querySelectorAll('[data-rh15-seg]').forEach(r=>r.onclick=()=>{rh15.seg=r.dataset.rh15Seg;rh15Salvar();rh15Render()});
  host.querySelectorAll('[data-rh15-exp]').forEach(b=>b.onclick=()=>{try{rh15Exportar(b.dataset.rh15Exp)}catch(e){alert('Não foi possível exportar: '+(e?.message||e))}});
  host.querySelectorAll('[data-rh15-slot]').forEach(b=>b.onclick=()=>{rh15.heatSlot=b.dataset.rh15Slot;rh15Salvar();rh15Render()});
