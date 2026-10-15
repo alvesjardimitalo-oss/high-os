@@ -417,3 +417,78 @@
 .mpk-part.done header b{color:var(--mpk-ok)}
 .mpk-part pre{margin:6px 0 0;white-space:pre-wrap;word-break:break-word;font-size:9px;color:#8e8597;max-height:90px;overflow:hidden}
 .mpk-part header button{height:28px;border-radius:7px;border:1px solid rgba(255,255,255,.12);background:#1a1b23;color:#eee;padding:0 10px;font-weight:900;font-size:9px;cursor:pointer}
+
+/* V12.10 — padrão dos eventos com gás: resumo, testes no jogo */
+.mpk-testbar{margin-top:8px;padding:8px 11px;border-radius:10px;border:1px solid rgba(255,255,255,.08)}
+.mpk-testbar b{display:block;font-size:8.5px;letter-spacing:.1em}
+.mpk-testbar small{display:block;margin-top:3px;font-size:9.5px;color:#a69daf;line-height:1.4}
+.mpk-testbar.ok{border-color:rgba(85,223,160,.3)}.mpk-testbar.ok b{color:var(--mpk-ok)}
+.mpk-testbar.warn{border-color:rgba(255,195,92,.3)}.mpk-testbar.warn b{color:var(--mpk-warn)}
+.mpk-tests{display:flex;flex-direction:column;gap:4px;margin:12px 0 8px;max-height:58vh;overflow:auto}
+.mpk-tests label{display:flex;gap:9px;align-items:flex-start;padding:7px 10px;border-radius:8px;background:rgba(255,255,255,.025);font-size:11px;color:#ddd;cursor:pointer;line-height:1.35}
+.mpk-tests input{margin-top:2px;accent-color:#8d35ff}
+.mpk-tests label:has(input:checked){background:rgba(85,223,160,.07);color:var(--mpk-ok)}
+.mpk-padrao{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;margin:12px 0}
+.mpk-padrao>div{padding:9px 11px;border:1px solid rgba(255,255,255,.07);border-radius:10px;background:rgba(255,255,255,.02)}
+.mpk-padrao span,.mpk-ztests>span{display:block;font-size:8px;font-weight:900;letter-spacing:.1em;color:#9f67c8;margin-bottom:5px}
+.mpk-padrao ul{margin:0;padding-left:15px;display:flex;flex-direction:column;gap:2px;font-size:10px;color:#ddd;line-height:1.35}
+.mpk-ztests{display:flex;flex-direction:column;gap:5px}
+.mpk-ztest{display:grid;grid-template-columns:minmax(90px,auto) 1fr;gap:2px 10px;padding:7px 10px;border-radius:8px;background:rgba(255,255,255,.025);font-size:10px}
+.mpk-ztest b{color:#fff}.mpk-ztest span{color:#8e8597}.mpk-ztest span.ok{color:var(--mpk-ok)}.mpk-ztest span.warn{color:var(--mpk-warn)}
+.mpk-ztest small{grid-column:1/-1;color:#a69daf;font-size:9px}
+
+/* V12.14 — partidas e inteligência */
+.mpp-sug{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;padding:7px 14px;border-bottom:1px solid rgba(255,255,255,.05);background:rgba(255,200,80,.045);font-size:9.5px;color:#f3d48a}
+.mpp-sug b{color:#fff}.mpp-sug small{color:#a69daf;font-size:9px}
+.mpp-dicas{display:flex;flex-direction:column;gap:3px;margin:12px 0 4px;padding:9px 11px;border-radius:10px;background:rgba(141,53,255,.07);border:1px solid rgba(196,155,255,.18);font-size:10.5px;color:#ddd}
+.mpp-dicas b{color:#fff}.mpp-dicas .w{color:var(--mpk-warn)}
+.mpp-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0;align-items:end}
+.mpp-form label{display:flex;flex-direction:column;gap:4px;font-size:8px;font-weight:900;letter-spacing:.1em;color:#9f67c8}
+.mpp-form label.wide{grid-column:span 2}
+.mpp-form input,.mpp-form select{height:34px;border-radius:8px;border:1px solid rgba(255,255,255,.12);background:#14131b;color:#eee;padding:0 9px;font-size:11px;letter-spacing:0;font-weight:500}
+.mpp-form button{height:34px;border-radius:8px;border:1px solid #a452c8;background:#70258f;color:#fff;font-weight:900;font-size:10px;cursor:pointer}
+.mpp-lista{display:flex;flex-direction:column;gap:4px;max-height:36vh;overflow:auto}
+.mpp-lista>div{display:grid;grid-template-columns:auto auto 1fr auto auto;gap:10px;align-items:center;padding:7px 10px;border-radius:8px;background:rgba(255,255,255,.025);font-size:10.5px}
+.mpp-lista b{color:#ddd;font-variant-numeric:tabular-nums;font-weight:700}.mpp-lista span{color:#9f67c8;font-weight:800}.mpp-lista em{font-style:normal;color:#f3d48a;font-weight:800}.mpp-lista small{color:#8e8597}
+.mpp-lista button{border:0;background:transparent;color:#8e8597;font-size:16px;cursor:pointer}.mpp-lista button:hover{color:var(--mpk-bad)}
+@media(max-width:620px){.mpp-form{grid-template-columns:1fr 1fr}.mpp-form label.wide{grid-column:span 2}.mpp-lista>div{grid-template-columns:auto 1fr auto;}.mpp-lista small{grid-column:1/-1}}
+
+/* V12.16 — correções visuais */
+/* o .brand global (logo do topo) é display:flex e quebrava cards/etapas com tom "brand" */
+.mpk-kpi.brand,.mpk-stage.brand{display:block;gap:0}
+#page-planejador .mpc-zone em.mpk-badge.brand{display:inline-block;gap:0}
+/* barra da zona abaixo do topo do site */
+#page-planejador:not(.mp-library-mode) .mp-workspace-bar{top:var(--mp-sticky-top,86px);z-index:19;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+/* checklist agrupado */
+.mpk-checkwrap{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.mpk-ckgroup{padding:7px 9px;border-radius:9px;border:1px solid rgba(255,255,255,.06)}
+.mpk-ckgroup>b{display:block;font-size:8px;letter-spacing:.12em;margin-bottom:2px}
+.mpk-ckgroup.bad{background:rgba(255,125,147,.05);border-color:rgba(255,125,147,.2)}.mpk-ckgroup.bad>b{color:var(--mpk-bad)}
+.mpk-ckgroup.warn{background:rgba(255,195,92,.045);border-color:rgba(255,195,92,.18)}.mpk-ckgroup.warn>b{color:var(--mpk-warn)}
+.mpk-checks li{display:grid;grid-template-columns:14px 1fr;gap:5px;align-items:start;line-height:1.4}
+.mpk-checks li i{font-style:normal;font-weight:900;text-align:center}
+.mpk-ckgroup .mpk-checks{margin-top:4px}
+.mpk-ckok summary{cursor:pointer;font-size:9.5px;font-weight:800;color:var(--mpk-ok);padding:4px 2px;list-style:none}
+.mpk-ckok summary::-webkit-details-marker{display:none}
+.mpk-ckok[open] summary{margin-bottom:2px}
+/* barra de validação nos cards de zona */
+#page-planejador .mpc-zone>span{min-width:0;flex:1}
+.mpk-bar{display:block;height:3px;margin-top:6px;border-radius:3px;background:rgba(255,255,255,.07);overflow:hidden}
+.mpk-bar u{display:block;height:100%;background:linear-gradient(90deg,#7426c7,#55dfa0);border-radius:3px}
+/* ações do evento mais compactas */
+#page-planejador .mpc-event-actions button.mpk-icon{width:34px;padding:0;font-size:12px}
+/* janelas: rolagem interna em telas baixas */
+.mpk-modal{max-height:calc(100vh - 32px);overflow:auto}
+/* celular */
+@media(max-width:700px){
+  #page-planejador:not(.mp-library-mode) .mp-workspace-bar{height:auto;flex-wrap:wrap;padding:8px;gap:6px}
+  #page-planejador:not(.mp-library-mode) .mp-workspace-path{order:3;width:100%;font-size:11px}
+  #page-planejador:not(.mp-library-mode) .mp-editor-actions{order:4;width:100%;margin-left:0;overflow-x:auto;flex-wrap:nowrap;padding-bottom:2px;scrollbar-width:none}
+  #page-planejador:not(.mp-library-mode) .mp-editor-actions button{flex:0 0 auto;white-space:nowrap}
+  .mpp-lista>div{grid-template-columns:auto 1fr auto}
+  .mpp-form button{grid-column:1/-1}
+}
+
+/* V12.17 — Z estimado no TP */
+.mpz{display:inline-block;margin-top:4px;font-size:9.5px;color:#9ed7ff;line-height:1.35}
+.mpz.low{color:var(--mpk-warn,#ffc35c)}

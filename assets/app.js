@@ -13337,6 +13337,12 @@ return false}
 window.HighOSMissionCloud={
  canEdit:()=>!!currentUser&&canEditModule('planejador'),
 
+ /* Planejador: facções com Group ativo hoje (meta de spawns dos eventos) */
+ faccoesAtivas:()=>estado.faccoes.filter(f=>f.status==='ATIVA').map(f=>({group:f.group,faccao:f.faccao||'',segmento:f.segmento||''})),
+
+ /* Planejador: QGs/favelas com CDS (spawn de evento não pode cair dentro) */
+ qgs:()=>estado.faccoes.map(f=>{const n=String(f.cds||'').match(/-?\d+(?:\.\d+)?/g)||[];return {group:f.group,qg:f.qg||'',faccao:f.faccao||'',x:Number(n[0]),y:Number(n[1]),z:Number(n[2])};}).filter(q=>Number.isFinite(q.x)&&Number.isFinite(q.y)&&q.x!==0&&!/sem local/i.test(q.qg)),
+
  user:()=>currentUser?.email||'',
 
  pull:pullMissionsFromCloud,
