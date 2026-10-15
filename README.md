@@ -173,3 +173,34 @@ Regra de manutenção: configuração estática e funções puras não devem vol
 - CDS com altura suspeita (ex.: centro em z=481) ficam fora da base de alturas.
 - A validação continua obrigatória: o Z estimado serve só para o TP; o ponto fica pendente até colar a CDS real.
 - Vale para COPIAR TP do ponto, cópia por linha, COPIAR CDS PARA TESTE e COPIAR TP DO CENTRO; a tela de validação mostra o Z estimado e a confiança.
+## V14 — Ocupação dos Groups, Entrega e Dashboard refeitos
+
+### Regra única (`assets/modules/ocupacao.js`)
+- **ASSUMIDA:** status ATIVA **e** facção preenchida · **DISPONÍVEL:** sem facção, com QG · **SEM QG:** sem facção e sem QG · **REVISAR:** dados contraditórios.
+- Organizações, Dashboard e Entrega usam a mesma função (`situacaoGroup`). Antes eram três regras diferentes.
+- A rotina V8.20, que gravava status ATIVA sozinha em qualquer Group com facção preenchida, foi desligada. As contradições agora vão para a revisão.
+- O perfil do Group não deixa mais salvar facção com status vago nem a mesma facção em dois Groups.
+
+### Entrega (`assets/modules/entrega.js`)
+- Etapas: Group → Facção → Benefícios → Revisão, com validação em cada passo.
+- Bloqueia Group SEM QG / REVISAR e facção que já ocupa outro Group.
+- **Troca de ocupante:** Group ocupado pode ser entregue com motivo, justificativa e confirmação. Grava o recolhimento da anterior (histórico `RECOLHIMENTO`, organização `SEM_GROUP`) e a entrega (`ENTREGA_GROUP`), para o bot anunciar os dois.
+- Mesmas coleções e campos de antes (`entregas`, `faccoes`, `organizacoes`, `historico`); as escritas de ocupação vão num lote único (tudo ou nada). A data aceita dd/mm/aa ou dd/mm/aaaa.
+- O modal antigo `#newDeliveryModal` continua no HTML só por compatibilidade; `openNewDelivery()` abre o fluxo novo.
+
+### Dashboard (`assets/modules/painel-ocupacao.js`)
+- **Facções disponíveis:** lista pronta para entrega com segmento, QG, há quanto tempo está vago, status do anúncio no Discord e as ações ANÚNCIO (copiar texto), MARCAR POSTADO e ASSUMIR.
+- **Ocupação do Ilegal:** assumidas, disponíveis, sem QG e a revisar, barra de distribuição e ocupação por segmento (assumidos + livres).
+- **Revisar ocupação:** lista contradições e cadastros incompletos com as correções possíveis. "Aplicar" em lote só para os casos sem ambiguidade. Cada correção gera histórico `CORRECAO_OCUPACAO`, que não é anunciado.
+
+
+## V14.1 — Métricas por facção (`assets/modules/metricas-motor.js`)
+
+- **A métrica pertence à facção que ocupava o Group no horário da coleta.** O motor monta a linha do tempo de cada Group com entregas, recolhimentos, trocas (V14) e transferências de painel (histórico `TRANSFERENCIA_PAINEL`), e reparte cada linha da planilha por horário de coleta.
+- O histórico segue a facção: as coletas no Group antigo aparecem no Group atual dela, com a marcação "no Drogas03" no histórico diário.
+- Os dias da facção anterior não entram mais na conta da nova. Facção que saiu fica fora das visões operacionais, e o total aparece em "registros de facções que saíram (fora)".
+- Antes do primeiro registro de ocupação: vale a data de entrega do cadastro; se não houver data e o Group está assumido, vale a facção atual (o cadastro incompleto aparece em Revisar ocupação).
+- Coleta em Group vago no horário vira anomalia ("Group vago com player"), fora de ranking e relatórios.
+- **Coleta parcial:** "parcial — aguardando +N coletas" (horário ainda não chegou) e "N coletas sem registro" (já passou), no histórico diário, no resumo da competência (HOJE x/4) e na cobertura do painel de evolução, que agora conta os 4 horários padrão. A comparação com o período anterior usa só os mesmos horários quando o dia está parcial.
+- Alertas semanais do Dashboard passam a comparar a mesma facção; `metricGroupOccupied` usa a regra única de ocupação.
+- `estado.metricasCache` continua com as linhas brutas (sincronização com planilha/espelho intacta); `estado.metricas` é a versão atribuída.
