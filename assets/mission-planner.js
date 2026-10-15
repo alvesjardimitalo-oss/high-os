@@ -1999,14 +1999,15 @@ ${lines.map(l=>`- ${l}`).join('\n')}
      distância do centro dos spawns atuais (equilíbrio) e, um a um, o
      candidato mais afastado de todos os spawns (preenche os vazios).
      Em evento com gás ficam sempre dentro da safe inicial. */
-  function suggestSpawns(m,n){
+  function suggestSpawns(m,n,bloqueado=null){
     const c=m?.center;if(!validCoord(c?.x)||!validCoord(c?.y)||n<1)return [];
     const cx=Number(c.x),cy=Number(c.y),R=effectiveEventRadius(m),gas=eventTypeOf(m).gas;
     const pts=(m.points||[]).filter(p=>validCoord(p.x)&&validCoord(p.y)).map(p=>({x:Number(p.x),y:Number(p.y)}));
     let mean=pts.length?pts.reduce((s,p)=>s+Math.hypot(p.x-cx,p.y-cy),0)/pts.length:R*.8;
     if(gas)mean=Math.min(mean,R*.85);
     const band=[1,.92,1.08].map(k=>gas?Math.min(mean*k,R*.92):mean*k);
-    const cand=[];for(let a=0;a<360;a+=2)band.forEach(d=>{const r=a*Math.PI/180;cand.push({x:cx+Math.sin(r)*d,y:cy+Math.cos(r)*d,deg:a});});
+    let cand=[];for(let a=0;a<360;a+=2)band.forEach(d=>{const r=a*Math.PI/180;cand.push({x:cx+Math.sin(r)*d,y:cy+Math.cos(r)*d,deg:a});});
+    if(bloqueado)cand=cand.filter(q=>!bloqueado(q));
     const out=[],all=[...pts];
     const minTo=(q,arr)=>{let md=Infinity;for(const p of arr){const d=Math.hypot(q.x-p.x,q.y-p.y);if(d<md)md=d;}return md;};
     for(let k=0;k<n;k++){
@@ -2017,7 +2018,60 @@ ${lines.map(l=>`- ${l}`).join('\n')}
     }
     return out;
   }
-  function completeSpawns(){
+  /* V12.12 — terreno: água (lida dos próprios tiles do mapa) e QGs.
+     A leitura usa as mesmas imagens que o mapa exibe: Atlas para Los
+     Santos/condado e o overlay de satélite para Cayo Perico. */
+  const TERRAIN={atlasZ:4,cayoUrl:'https://raw.githubusercontent.com/fivenet-app/livemap-tiles/main/overlays/cayo-perico/satellite.webp',
+    cayo:{x0:3900,x1:5600,y0:-6000,y1:-4300},cayoSea:{x0:3450,x1:6050,y0:-6450,y1:-3850}};
+  const pixelCache=new Map();
+  function loadPixels(url){
+    if(!pixelCache.has(url))pixelCache.set(url,new Promise(res=>{
+      const img=new Image();img.crossOrigin='anonymous';
+      img.onload=()=>{try{const c=document.createElement('canvas');c.width=img.naturalWidth;c.height=img.naturalHeight;const ctx=c.getContext('2d',{willReadFrequently:true});ctx.drawImage(img,0,0);res({w:c.width,h:c.height,d:ctx.getImageData(0,0,c.width,c.height).data});}catch(e){res(null);}};
+      img.onerror=()=>res(null);img.src=url;
+    }));
+    return pixelCache.get(url);
+  }
+  const inBox=(x,y,b)=>x>=b.x0&&x<=b.x1&&y>=b.y0&&y<=b.y1;
+  /* true = água, false = terra, null = sem leitura (mapa não carregou) */
+  async function isWater(x,y){
+    x=Number(x);y=Number(y);if(!Number.isFinite(x)||!Number.isFinite(y))return null;
+    if(inBox(x,y,TERRAIN.cayoSea)){
+      if(!inBox(x,y,TERRAIN.cayo))return true;
+      const im=await loadPixels(TERRAIN.cayoUrl);if(!im)return null;
+      const b=TERRAIN.cayo,u=Math.floor((x-b.x0)/(b.x1-b.x0)*(im.w-1)),v=Math.floor((b.y1-y)/(b.y1-b.y0)*(im.h-1));
+      let agua=0,n=0;
+      for(let dx=-2;dx<=2;dx+=2)for(let dy=-2;dy<=2;dy+=2){const uu=Math.min(im.w-1,Math.max(0,u+dx)),vv=Math.min(im.h-1,Math.max(0,v+dy)),i=(vv*im.w+uu)*4,r=im.d[i],g=im.d[i+1],bl=im.d[i+2],a=im.d[i+3];n++;if(a<100||(bl>r+40&&bl>g+10))agua++;}
+      return agua*2>n;
+    }
+    const z=TERRAIN.atlasZ,sc=Math.pow(2,z),X=(0.02072*x+117.3)*sc,Y=(-0.0205*y+172.8)*sc,tx=Math.floor(X/256),ty=Math.floor(Y/256),max=sc-1;
+    if(tx<0||ty<0||tx>max||ty>max)return null;
+    let im=null;for(const base of remoteBases){im=await loadPixels(`${base}/styleAtlas/${z}/${tx}/${ty}.jpg`);if(im)break;}
+    if(!im)return null;
+    const u=Math.floor(X-tx*256),v=Math.floor(Y-ty*256);let agua=0,n=0;
+    for(let dx=-2;dx<=2;dx+=2)for(let dy=-2;dy<=2;dy+=2){const uu=Math.min(im.w-1,Math.max(0,u+dx)),vv=Math.min(im.h-1,Math.max(0,v+dy)),i=(vv*im.w+uu)*4,r=im.d[i],g=im.d[i+1],bl=im.d[i+2];n++;if(bl-r>=35&&bl>=160&&bl>g+5)agua++;}
+    return agua*2>n;
+  }
+  function qgList(){try{const l=window.HighOSMissionCloud?.qgs?.();return Array.isArray(l)?l:[];}catch(e){return [];}}
+  function raioQg(){return Number(CATALOG()?.RAIO_QG_M)||150;}
+  function nearQg(p,qgs=qgList()){const r=raioQg();let best=null;qgs.forEach(q=>{const d=Math.hypot(Number(p.x)-q.x,Number(p.y)-q.y);if(d<r&&(!best||d<best.d))best={...q,d};});return best;}
+  /* Resultado de água por ponto fica em cache; o checklist lê o cache e
+     pede a leitura quando falta (re-renderiza ao terminar). */
+  const waterOf=new Map();
+  const wKey=p=>`${Math.round(Number(p.x))},${Math.round(Number(p.y))}`;
+  function pointWater(p){
+    const k=wKey(p);if(waterOf.has(k))return waterOf.get(k);
+    waterOf.set(k,undefined);
+    isWater(p.x,p.y).then(v=>{waterOf.set(k,v);clearTimeout(state.waterTimer);state.waterTimer=setTimeout(()=>{try{renderRequestStatus();}catch(e){}},250);});
+    return undefined;
+  }
+  function terrainIssues(m){
+    const qgs=qgList(),agua=[],qg=[];let pend=0;
+    (m?.points||[]).forEach((p,i)=>{if(!validCoord(p.x)||!validCoord(p.y))return;const w=pointWater(p);if(w===undefined)pend++;else if(w===true)agua.push(i+1);const q=nearQg(p,qgs);if(q)qg.push({n:i+1,q});});
+    return {agua,qg,pend,temQg:qgs.length>0};
+  }
+
+  async function completeSpawns(){
     const m=active();if(!m)return;
     if(!canMarkRequests()){alert('Seu acesso ao Planejador é somente leitura.');return;}
     const t=eventTarget(m.eventId),need=spawnShortfall(m);
@@ -2026,9 +2080,24 @@ ${lines.map(l=>`- ${l}`).join('\n')}
     if(!validCoord(m.center?.x)||!validCoord(m.center?.y)){alert('Defina primeiro o centro da zona.');return;}
     if(!confirm(`Gerar ${need} spawn${need>1?'s':''} novo${need>1?'s':''} para a zona "${m.name}" chegar a ${t.n} facções (${t.fonte})?\n\nOs ${m.points.length} spawns atuais NÃO serão alterados. Os novos entram na mesma faixa de distância do centro, nos espaços vazios${eventTypeOf(m).gas?', dentro da safe inicial':''}, e ficam PENDENTES até a validação da CDS real no FiveM.`))return;
     if(!state.editing)startEdit();
-    const add=suggestSpawns(m,need),base=m.points.length;
+    setSaveState('Lendo terreno (água e QGs)…');
+    /* candidatos são lidos uma vez: água pelo mapa, QG pela CDS dos Groups */
+    const c=m.center,cx=Number(c.x),cy=Number(c.y),qgs=qgList(),bad=new Map();
+    const R=effectiveEventRadius(m),gas=eventTypeOf(m).gas;
+    const pts=(m.points||[]).filter(p=>validCoord(p.x)&&validCoord(p.y));
+    let mean=pts.length?pts.reduce((s2,p)=>s2+Math.hypot(Number(p.x)-cx,Number(p.y)-cy),0)/pts.length:R*.8;if(gas)mean=Math.min(mean,R*.85);
+    const band=[1,.92,1.08].map(k=>gas?Math.min(mean*k,R*.92):mean*k),jobs=[];
+    let semLeitura=0;
+    for(let a=0;a<360;a+=2)band.forEach(d=>{const r=a*Math.PI/180,x=cx+Math.sin(r)*d,y=cy+Math.cos(r)*d,k=`${Math.round(x)},${Math.round(y)}`;
+      if(nearQg({x,y},qgs)){bad.set(k,'qg');return;}
+      jobs.push(isWater(x,y).then(w=>{if(w===true)bad.set(k,'agua');else if(w===null)semLeitura++;}));});
+    await Promise.all(jobs);
+    const add=suggestSpawns(m,need,q=>bad.has(`${Math.round(q.x)},${Math.round(q.y)}`)),base=m.points.length;
     add.forEach((q,i)=>m.points.push(normalizePoint({x:q.x,y:q.y,z:0,h:(q.deg+180)%360,status:'planned'},base+i)));
-    commit(`${add.length} spawns gerados como PENDENTES — confira no mapa e SALVE`);fit();
+    const nAgua=[...bad.values()].filter(v=>v==='agua').length,nQg=[...bad.values()].filter(v=>v==='qg').length;
+    commit(`${add.length} spawns gerados como PENDENTES${nAgua||nQg?` (evitados: ${nAgua?`${nAgua} pontos na água`:''}${nAgua&&nQg?' · ':''}${nQg?`${nQg} perto de QG`:''})`:''} — confira no mapa e SALVE`);fit();
+    if(add.length<need)alert(`Só foi possível gerar ${add.length} de ${need} spawns: o restante da faixa de distância está na água ou perto de QG. Aumente o raio da zona ou marque os pontos manualmente.`);
+    else if(semLeitura>jobs.length/2)alert('O mapa não respondeu para a leitura de água: os spawns foram gerados sem esse filtro. Confira no mapa antes de salvar.');
   }
 
   /* Prazo de retorno da cidade */
@@ -2081,6 +2150,15 @@ ${lines.map(l=>`- ${l}`).join('\n')}
         :{label:'Fases da safe (tempos/dano) iguais às demais zonas',ok:true,block:false});
     }
     /* avisos (não bloqueiam): capacidade igual às demais zonas e equilíbrio */
+    const ti=terrainIssues(m);
+    if((m.points||[]).length){
+      out.push(ti.agua.length
+        ?{label:`Spawn${ti.agua.length>1?'s':''} na água pelo mapa: ${ti.agua.map(pad2).join(', ')} — confira (píer/ponte podem enganar)`,ok:false,block:false,warn:true}
+        :{label:ti.pend?'Verificando água no mapa…':'Nenhum spawn na água (leitura do mapa)',ok:!ti.pend,block:false});
+      if(ti.temQg)out.push(ti.qg.length
+        ?{label:`Spawn perto de QG: ${ti.qg.slice(0,4).map(o=>`${pad2(o.n)} a ${Math.round(o.q.d)} m de ${o.q.qg||o.q.group}`).join(', ')} (mínimo ${raioQg()} m)`,ok:false,block:false,warn:true}
+        :{label:`Nenhum spawn a menos de ${raioQg()} m de QG`,ok:true,block:false});
+    }
     const tg=eventTarget(m.eventId);
     if(tg){
       const tot=(m.points||[]).length;

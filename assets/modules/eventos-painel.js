@@ -145,8 +145,11 @@
     return `há ${Math.round(h / 24)} dias`;
   }
 
+  /* Distância mínima (m) entre um spawn de evento e a CDS de um QG/favela */
+  const RAIO_QG_M = 150;
+
   /* Horas sem retorno da cidade até a zona aparecer como ATRASADA */
   const PRAZO_RETORNO_H = 48;
 
-  window.HighEventCatalog = { PANEL_PADRAO, TIPOS, porId, tipoDe, ETAPAS, tempoDesde, PRAZO_RETORNO_H, PADRAO_GAS };
+  window.HighEventCatalog = { PANEL_PADRAO, TIPOS, porId, tipoDe, ETAPAS, tempoDesde, PRAZO_RETORNO_H, PADRAO_GAS, RAIO_QG_M };
 })();

@@ -119,3 +119,11 @@ Regra de manutenção: configuração estática e funções puras não devem vol
 - **Meta do evento:** por padrão, o número de facções com Group ATIVO no High OS (`HighOSMissionCloud.faccoesAtivas`); o botão **META** na central fixa outro número por evento (vazio volta ao automático).
 - A central avisa quais zonas têm menos spawns que a meta; a zona mostra "Faltam X spawns".
 - **GERAR X SPAWNS QUE FALTAM:** cria só os spawns que faltam, sem alterar nenhum existente, na mesma faixa de distância do centro, nos vãos entre os spawns atuais, virados para o centro e (eventos com gás) dentro da safe inicial. Entram PENDENTES e seguem o fluxo normal de validação da CDS real no FiveM.
+
+
+## V12.12 — Spawns longe da água e dos QGs
+
+- **Água:** o Planejador lê a cor do próprio mapa (tiles Atlas em Los Santos/condado e o satélite de Cayo Perico; fora da ilha é mar). Vale para oceano, Alamo Sea, represas, rios e canais.
+- **QG:** CDS de QG/favela dos Groups (`HighOSMissionCloud.qgs`); distância mínima `RAIO_QG_M` = 150 m em `eventos-painel.js`.
+- **GERAR SPAWNS QUE FALTAM** descarta candidatos na água ou perto de QG antes de escolher; se a faixa não comportar todos, avisa quantos conseguiu.
+- Checklist da zona avisa spawns existentes na água ou perto de QG (aviso: píer, ponte e barco podem enganar a leitura; nada é movido).
