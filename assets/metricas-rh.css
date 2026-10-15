@@ -172,3 +172,12 @@
 #page-metricas .rh15-table td.pos{color:var(--r-text-3);font-weight:800;width:1%}
 #page-metricas .rh15-meter{display:block;width:70px;height:6px;border-radius:4px;background:rgba(255,255,255,.07);overflow:hidden}
 #page-metricas .rh15-meter i{display:block;height:100%;background:var(--r-brand-2)}
+
+/* meta de pico (15 a 20) e aproveitamento */
+#page-metricas .rh15-meta input{width:52px!important;background:transparent!important;border:0!important;border-bottom:1px solid var(--r-line-2)!important;border-radius:0;color:var(--r-text);font-size:14px;font-weight:700;text-align:center;padding:6px 2px!important}
+#page-metricas .rh15-meta em{font-style:normal;color:var(--r-text-3);font-size:12px}
+#page-metricas .rh15-meter.ok i{background:var(--r-ok)}
+#page-metricas .rh15-meter.top i{background:var(--r-ok)}
+#page-metricas .rh15-meter.low i{background:var(--r-warn)}
+#page-metricas .rh15-heat td.v.f-low{box-shadow:inset 0 0 0 2px rgba(255,195,92,.8)}
+#page-metricas .rh15-heat td.v.f-top{box-shadow:inset 0 0 0 2px rgba(79,220,143,.85)}
