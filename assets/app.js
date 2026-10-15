@@ -9994,10 +9994,11 @@ const ANUNCIO_ASSUMIR_CANAL='<#1488964261513531583>';
 const ANUNCIO_SEGMENTO_NOME={ARMAS:'Armas','MUNIÇÃO':'Munição',MUNICAO:'Munição',DROGAS:'Drogas',LAVAGEM:'Lavagem',DESMANCHE:'Desmanche','ESTELIONATÁRIOS':'Estelionatários',ESTELIONATARIOS:'Estelionatários',CONTRABANDO:'Contrabando',APOIO:'Apoio',OUTROS:'Outros'};
 const ANUNCIO_FABRICACAO={
  ARMAS:'Armas de pequeno, médio e grosso calibre.',
- 'MUNIÇÃO':'Munições de pequeno, médio e grosso calibre, energéticos e explosivos.',
- MUNICAO:'Munições de pequeno, médio e grosso calibre, energéticos e explosivos.',
- LAVAGEM:'Pendrives de lavagem, lavadora, algemas e álcool em gel.',
- DESMANCHE:'Gazuas, cartões ilegíveis e desmanche de veículos.',
+ 'MUNIÇÃO':'Cx de Munição de Rifle, Cx de Munição de SMG, Cx de Munição de Pistola, C4, C4++, Energético Zero.',
+ MUNICAO:'Cx de Munição de Rifle, Cx de Munição de SMG, Cx de Munição de Pistola, C4, C4++, Energético Zero.',
+ LAVAGEM:'Lavadora Brastemp, Secadora, Pendrive Clandestino (1 ao 5).',
+ DESMANCHE:'Cartão Ilegível, Cartão Ilegível ++, Bloqueador de Sinal, Gazua (Lockpick Veículos), Gazua ++ (Lockpick Casas).',
+ DROGAS:'Pacote Selado de Droga, Placa Balística, Capuz.',
  'ESTELIONATÁRIOS':'Cartões Nuhigh (prata e ouro) e dinheiro falso.',
  ESTELIONATARIOS:'Cartões Nuhigh (prata e ouro) e dinheiro falso.',
  CONTRABANDO:'Farm de todas as facções disponíveis.'
@@ -10006,7 +10007,7 @@ function anuncioSegmentoKey(seg){return String(seg||'OUTROS').trim().toUpperCase
 function anuncioSegmentoNome(seg){const k=anuncioSegmentoKey(seg);return ANUNCIO_SEGMENTO_NOME[k]||k.charAt(0)+k.slice(1).toLowerCase()}
 function anuncioFabricacao(f){
  const k=anuncioSegmentoKey(f.segmento);
- // Drogas/Apoio/Outros variam por Group: usa o produto cadastrado no próprio Group.
+ // Apoio/Outros variam por Group: usa o produto cadastrado no próprio Group.
  if(ANUNCIO_FABRICACAO[k])return ANUNCIO_FABRICACAO[k];
  const p=String(f.produto||'').trim().replace(/\s+/g,' ').replace(/[.;,\s]+$/,'');
  return p?p.charAt(0).toUpperCase()+p.slice(1)+'.':'Conforme o segmento da facção.';
