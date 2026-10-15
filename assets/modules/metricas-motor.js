@@ -26,6 +26,8 @@ export const SLOTS_PADRAO = ['14H', '16H', '21H', '23H'];
 const SLOT_FIELDS = ['14H', '16H', '21H', '23H', 'h14', 'h16', 'h21', 'h23'];
 
 export const chave = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+/** Chave de Group: tolera grafias antigas (IlegalMecanic01 = IlegalMechanic01, IlegalMedic1 = IlegalMedic01). */
+export const chaveGroup = s => chave(s).replace(/mecanic/g, 'mechanic').replace(/0*(\d+)$/, '$1');
 
 export function msDe(v) {
   if (v === null || v === undefined || v === '') return NaN;
@@ -43,7 +45,7 @@ export function montarLinhaDoTempo({ faccoes = [], entregas = [], transferencias
   const ev = new Map(), nomes = new Map();
   const push = (group, t, faccao, fonte) => {
     if (!group || !Number.isFinite(t)) return;
-    const k = chave(group); if (!ev.has(k)) ev.set(k, []);
+    const k = chaveGroup(group); if (!ev.has(k)) ev.set(k, []);
     ev.get(k).push({ t, faccao: faccao ? String(faccao).trim() : null, fonte });
     if (faccao) nomes.set(chave(faccao), String(faccao).trim());
   };
@@ -64,7 +66,7 @@ export function montarLinhaDoTempo({ faccoes = [], entregas = [], transferencias
   ev.forEach(l => l.sort((a, b) => a.t - b.t || (a.faccao === null) - (b.faccao === null)));
   /* situação atual: o último ocupante conhecido precisa bater com o cadastro */
   faccoes.filter(f => f && !f.removido).forEach(f => {
-    const k = chave(f.group), l = ev.get(k) || [], ult = l[l.length - 1];
+    const k = chaveGroup(f.group), l = ev.get(k) || [], ult = l[l.length - 1];
     if (ocupado(f)) {
       if (!ult || chave(ult.faccao) !== chave(f.faccao)) {
         const t0 = msDe(f.dataEntrega);
@@ -87,7 +89,7 @@ export function montarLinhaDoTempo({ faccoes = [], entregas = [], transferencias
     nome: k => nomes.get(chave(k)) || k,
     /** facção no instante t · null = Group vago · undefined = sem ocupante identificado (antes do 1º registro) */
     ocupanteEm(group, t) {
-      const l = ev.get(chave(group)); if (!l || !l.length) return undefined;
+      const l = ev.get(chaveGroup(group)); if (!l || !l.length) return undefined;
       let atual; for (const e of l) { if (e.t <= t) atual = e.faccao; else break; }
       return atual;
     }
@@ -125,7 +127,7 @@ export function atribuirLinhas(rows = [], tl, { faccoes = [], dataDe, slotsDe })
       const id = `${chave(destino)}|${base}`;
       const limpo = { ...r }; SLOT_FIELDS.forEach(k => { delete limpo[k]; });
       const prev = saida.get(id);
-      if (prev) { Object.assign(prev.slots, s); if (chave(g) !== chave(prev.groupOrigem) && !prev.gruposOrigem.includes(g)) prev.gruposOrigem.push(g); return; }
+      if (prev) { Object.assign(prev.slots, s); if (chaveGroup(g) !== chaveGroup(prev.groupOrigem) && !prev.gruposOrigem.includes(g)) prev.gruposOrigem.push(g); return; }
       saida.set(id, {
         ...limpo, group: destino, organizacao: undefined, slots: { ...s },
         faccaoSnapshot: atual ? atual.faccao : occ, qgSnapshot: atual ? (atual.qg || '') : (r.qgSnapshot || ''), segmentoSnapshot: atual ? (atual.segmento || '') : (r.segmentoSnapshot || ''),
