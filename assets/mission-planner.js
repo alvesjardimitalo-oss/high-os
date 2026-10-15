@@ -1284,6 +1284,7 @@ iconAnchor:[12,
       <div id="mpSafeRouteStatus" class="mp-readout"></div>
       <div id="mpSafeStages"></div>
       <div class="mp-actions" style="display:flex;gap:6px;flex-wrap:wrap">
+        <button type="button" id="mpSafeAuto" class="primary">⚡ SAFE AUTOMÁTICA</button>
         <button type="button" id="mpSafeUseCenter">SAFE 1 = CENTRO ATUAL</button>
         <button type="button" id="mpSafePlace2">ADICIONAR OPÇÃO SAFE 2</button>
         <button type="button" id="mpSafePlace3">ADICIONAR OPÇÃO SAFE 3</button>
@@ -1292,6 +1293,7 @@ iconAnchor:[12,
       </div>`;
     if(anchor)anchor.insertAdjacentElement('afterend',box);else zonePanel.appendChild(box);
     qs('#mpSafeUseCenter')?.addEventListener('click',()=>{if(!requireEdit())return;const m=active(),r=ensureSafeRoute(m);if(!m||!r)return;r.stages[0].x=num(m.center.x);r.stages[0].y=num(m.center.y);r.stages[0].z=num(m.center.z);commit('Safe 1 vinculada ao centro da missão');});
+    qs('#mpSafeAuto')?.addEventListener('click',autoSafe);
     qs('#mpSafePlace2')?.addEventListener('click',()=>beginSafePlacement(1));
     qs('#mpSafePlace3')?.addEventListener('click',()=>beginSafePlacement(2));
     qs('#mpSafePreview')?.addEventListener('click',startSafePreview);
@@ -1336,7 +1338,9 @@ iconAnchor:[12,
     const o2=r.stage2Options||[],o3=r.stage3Options||[];
     const opts=document.createElement('div');opts.className='mp-note';opts.style.marginTop='8px';opts.innerHTML=`Opções aleatórias: <b>Safe 2: ${o2.length}</b> • <b>Safe 3: ${o3.length}</b> <button type="button" id="mpSafeClearOptions" style="margin-left:8px">LIMPAR OPÇÕES</button>`;host.appendChild(opts);
     qs('#mpSafeClearOptions')?.addEventListener('click',()=>{if(!requireEdit())return;r.stage2Options=[];r.stage3Options=[];r.stages[1].x=r.stages[1].y=null;r.stages[2].x=r.stages[2].y=null;commit('Opções aleatórias da Safe removidas');});
-    status.innerHTML=`Raio inicial: <b>${Math.round(initial)} m</b> • Etapas configuradas: <b>${ok}/3</b><br><small>Adicione várias opções de Safe 2 e Safe 3 clicando no mapa. A execução poderá sortear uma rota.</small>`;
+    const fz=document.createElement('div');fz.className='mp-grid';fz.style.marginTop='8px';fz.innerHTML=`<label>Fechamento final até zero (s)<input id="mpSafeFinal" type="number" min="0" value="${Number(r.finalCloseSeconds)||''}" placeholder="padrão"></label>`;host.appendChild(fz);
+    qs('#mpSafeFinal')?.addEventListener('change',e=>{if(!requireEdit())return;const v=Number(e.target.value);if(v>0)r.finalCloseSeconds=v;else delete r.finalCloseSeconds;state.dirty=true;setSaveState('Rota da Safe alterada • NÃO SALVO');renderSafeRouteUi();});
+    status.innerHTML=`Raio inicial: <b>${Math.round(initial)} m</b> • Etapas configuradas: <b>${ok}/3</b> • Ciclo: <b>~${Math.round(safeDuration(m)/60)} min</b> (alvo ${duracaoAlvo()} min)<br><small>Adicione várias opções de Safe 2 e Safe 3 clicando no mapa. A execução poderá sortear uma rota.</small>`;
   }
   function drawSafeRoute(m){
     if(!state.map||!m||((m.category||'dominacao')!=='gas'))return;
@@ -1406,16 +1410,15 @@ interactive:false}).addTo(state.map);
       }
     }
     drawSafeRoute(m);
+    drawLocSuggestions();
     m.points.forEach((p,i)=>{
       p.id=i+1;const valid=isValidated(p),
 outside=((m.category||'dominacao')==='gas')&&!pointInsideZone(m,p),
 pos=ll(p.x,p.y);
-      const circle=L.circle(pos,{radius:Number(m.spawnRadius)||100,
-weight:outside?3:2,
-fillOpacity:outside?.14:.07,
-dashArray:outside?'3 4':(valid?null:'6 5'),
-color:outside?'#ff5252':undefined,
-fillColor:outside?'#ff5252':undefined}).addTo(state.map);
+      /* V12.15: cor só quando definida — "undefined" fazia o canvas herdar a cor da camada anterior */
+      const co={radius:Number(m.spawnRadius)||100,weight:outside?3:2,fillOpacity:outside?.14:.07,dashArray:outside?'3 4':(valid?null:'6 5')};
+      if(outside){co.color='#ff5252';co.fillColor='#ff5252';}
+      const circle=L.circle(pos,co).addTo(state.map);
       /* V12.13 — risco de terreno (água/QG) marcado no pino: arraste e valide */
       const agua=pointWater(p)===true,qgPerto=nearQg(p),risco=agua||!!qgPerto;
       const wk=`${partidasDe(m).length}|${m.points.length}`;if(!state._winsFor||state._winsFor.m!==m||state._winsFor.k!==wk){state._winsFor={m,k:wk,w:zoneInsights(m).wins};}
@@ -1493,6 +1496,12 @@ h=r.h===null?0:r.h;
 s=coverageStats(m);if(!m||!s)return;applyRadius(s.recommended);});
     qs('#mpFitZone')?.addEventListener('click',fitZone);
     qs('#mpGenerateInsideZone')?.addEventListener('click',generateInsideZone);
+    const asst=document.createElement('div');asst.className='mp-actions mpa-assist';asst.style.marginTop='10px';
+    asst.innerHTML=`<button type="button" id="mpSuggestLoc" title="Varre a área visível do mapa">🔎 SUGERIR LOCAIS</button><button type="button" id="mpOptimize" title="Reposiciona só os spawns com problema">✨ OTIMIZAR SPAWNS</button><button type="button" id="mpFairCenter" title="Centro mais equidistante de todos os spawns">⚖ CENTRO JUSTO</button>`;
+    box.appendChild(asst);
+    qs('#mpSuggestLoc')?.addEventListener('click',suggestLocations);
+    qs('#mpOptimize')?.addEventListener('click',optimizeSpawns);
+    qs('#mpFairCenter')?.addEventListener('click',applyFairCenter);
   }
   function renderCoverage(){
     ensureCoverageUi();ensureSafeRouteUi();const m=active(),
@@ -1528,7 +1537,8 @@ counts=zoneCoverageCounts(m);
   function fitZone(){
     const m=active();if(!state.map||!m||!validCoord(m.center?.x)||!validCoord(m.center?.y))return;
     const r=effectiveEventRadius(m);if(r<=0)return;
-    const temp=L.circle(ll(m.center.x,m.center.y),{radius:r});state.map.fitBounds(temp.getBounds(),{padding:[35,
+    /* V12.15: o círculo temporário não estava no mapa e o getBounds quebrava */
+    const cx=Number(m.center.x),cy=Number(m.center.y);state.map.fitBounds(L.latLngBounds(ll(cx-r,cy-r),ll(cx+r,cy+r)),{padding:[35,
 35]});
   }
   function generateInsideZone(){
@@ -1902,6 +1912,7 @@ v=m?.points.filter(isValidated)||[];if(!v.length){alert('Nenhum ponto validado p
       (sr.stages||[]).forEach(s=>parts.push(`${f(s.x)},${f(s.y)},${Math.round(Number(s.radius)||0)},${Number(s.damage)||0},${Number(s.closeSeconds)||0},${Number(s.moveSeconds)||0}`));
       (sr.stage2Options||[]).forEach(p=>parts.push(`s2:${f(p.x)},${f(p.y)}`));
       (sr.stage3Options||[]).forEach(p=>parts.push(`s3:${f(p.x)},${f(p.y)}`));
+      if(Number(sr.finalCloseSeconds)>0)parts.push(`fz:${Number(sr.finalCloseSeconds)}`);
     }
     return parts;
   }
@@ -2198,6 +2209,190 @@ ${lines.map(l=>`- ${l}`).join('\n')}
     modal.addEventListener('click',e=>{if(e.target===modal)modal.remove();});
   }
 
+  /* V12.15 — MONTAGEM INTELIGENTE
+     · Safe automática: tempos pela duração alvo (~20 min), raios por
+       fase, opções de SAFE 2/3 em terra e válidas entre si.
+     · Altura suspeita: CDS validada muito acima/abaixo das demais
+       (risco de limbo ou de nascer no alto).
+     · Sugerir locais: varre a área visível do mapa e propõe centros
+       com mais terra firme, sem QG e sem sobrepor as outras zonas.
+     · Otimizar spawns: troca só os spawns problemáticos (água, QG,
+       colados, fora da faixa) mantendo a numeração. */
+  function duracaoAlvo(){return Number(CATALOG()?.DURACAO_ALVO_MIN)||20;}
+  function safeDuration(m){
+    const sr=m?.safeRoute;if(!sr?.stages)return 0;const st=sr.stages;
+    return (Number(st[0]?.closeSeconds)||0)+(Number(st[0]?.moveSeconds)||0)+(Number(st[1]?.closeSeconds)||0)+(Number(st[1]?.moveSeconds)||0)+(Number(st[2]?.closeSeconds)||0)+(Number(sr.finalCloseSeconds)||0);
+  }
+  async function landFraction(cx,cy,r,n=16){
+    const pts=[[cx,cy],...Array.from({length:n},(_,i)=>{const a=i/n*Math.PI*2;return [cx+Math.sin(a)*r*.7,cy+Math.cos(a)*r*.7];}),...Array.from({length:8},(_,i)=>{const a=(i+.5)/8*Math.PI*2;return [cx+Math.sin(a)*r*.35,cy+Math.cos(a)*r*.35];})];
+    const res=await Promise.all(pts.map(([x,y])=>isWater(x,y)));
+    const lidos=res.filter(v=>v!==null);if(!lidos.length)return null;
+    return lidos.filter(v=>v===false).length/lidos.length;
+  }
+  async function autoSafe(){
+    if(!requireEdit())return;const m=active();if(!m||eventTypeOf(m).category!=='gas')return;
+    if(!validCoord(m.center?.x)||!validCoord(m.center?.y)){alert('Defina primeiro o centro da zona.');return;}
+    const sr=ensureSafeRoute(m),st=sr.stages,R0=effectiveEventRadius(m),C=CATALOG()||{};
+    const T=duracaoAlvo()*60,tp=C.SAFE_TEMPO||{close1:.25,move1:.08,close2:.2,move2:.08,close3:.17,final:.22},rr=C.SAFE_RAIOS||[.6,.35,.15],dn=C.SAFE_DANO||[5,10,20];
+    const q=v=>Math.max(15,Math.round(T*v/15)*15);
+    const temOpcoes=(sr.stage2Options||[]).length||(sr.stage3Options||[]).length;
+    if(!confirm(`Gerar a safe automática da zona "${m.name}"?\n\n• Duração do ciclo: ~${duracaoAlvo()} min\n• Raios: ${rr.map(v=>Math.round(R0*v)+' m').join(' → ')} → 0\n• 3 opções de SAFE 2 e 3 de SAFE 3, em terra firme e válidas para qualquer sorteio${temOpcoes?'\n\nAs opções de SAFE 2/3 atuais serão substituídas.':''}`))return;
+    setSaveState('Calculando a safe (terreno)…');
+    const cx=Number(m.center.x),cy=Number(m.center.y),[ra1,ra2,ra3]=rr.map(v=>Math.max(30,Math.round(R0*v/10)*10));
+    Object.assign(st[0],{x:cx,y:cy,z:num(m.center.z),radius:ra1,damage:dn[0],closeSeconds:q(tp.close1),moveSeconds:q(tp.move1)});
+    Object.assign(st[1],{radius:ra2,damage:dn[1],closeSeconds:q(tp.close2),moveSeconds:q(tp.move2)});
+    Object.assign(st[2],{radius:ra3,damage:dn[2],closeSeconds:q(tp.close3),moveSeconds:0});
+    sr.finalCloseSeconds=q(tp.final);
+    const qgs=qgList(),livre=async(x,y,r)=>{if(qgs.some(g=>Math.hypot(g.x-x,g.y-y)<r*.6))return -1;const lf=await landFraction(x,y,r,12);return lf===null?.5:lf;};
+    /* SAFE 2: centros a até (ra1-ra2) da SAFE 1, espalhados; escolhe os com mais terra */
+    const d2=Math.max(0,(ra1-ra2)*.85),c2=[];
+    for(let a=0;a<360;a+=30)for(const k of [.5,1])c2.push({x:cx+Math.sin(a*Math.PI/180)*d2*k,y:cy+Math.cos(a*Math.PI/180)*d2*k,a});
+    for(const c of c2)c.s=await livre(c.x,c.y,ra2);
+    const pick=(arr,n,minSep)=>{const out=[];[...arr].filter(c=>c.s>=0).sort((a,b)=>b.s-a.s).forEach(c=>{if(out.length<n&&out.every(o=>Math.hypot(o.x-c.x,o.y-c.y)>=minSep))out.push(c);});return out;};
+    let o2=pick(c2,3,d2*.8);if(o2.length<2)o2=pick(c2,3,d2*.3);if(!o2.length)o2=[{x:cx,y:cy}];
+    /* SAFE 3: precisa caber em QUALQUER SAFE 2 sorteada (distância ≤ ra2-ra3 de todas) */
+    const lim3=ra2-ra3,gx=o2.reduce((s2,o)=>s2+o.x,0)/o2.length,gy=o2.reduce((s2,o)=>s2+o.y,0)/o2.length,c3=[];
+    for(let dx=-lim3;dx<=lim3;dx+=lim3/4)for(let dy=-lim3;dy<=lim3;dy+=lim3/4){const p={x:gx+dx,y:gy+dy};if(o2.every(o=>Math.hypot(o.x-p.x,o.y-p.y)<=lim3*.95))c3.push(p);}
+    if(!c3.length)c3.push({x:gx,y:gy});
+    for(const c of c3)c.s=await livre(c.x,c.y,ra3);
+    let o3=pick(c3,3,ra3*.9);if(!o3.length)o3=[{x:gx,y:gy}];
+    sr.stage2Options=o2.map(o=>({x:r2(o.x),y:r2(o.y),z:num(m.center.z)}));
+    sr.stage3Options=o3.map(o=>({x:r2(o.x),y:r2(o.y),z:num(m.center.z)}));
+    st[1].x=sr.stage2Options[0].x;st[1].y=sr.stage2Options[0].y;st[2].x=sr.stage3Options[0].x;st[2].y=sr.stage3Options[0].y;
+    commit(`Safe automática: ~${Math.round(safeDuration(m)/60)} min, ${o2.length} op. SAFE 2 · ${o3.length} op. SAFE 3`);
+    renderSafeRouteUi();
+  }
+  /* Altura: compara cada CDS validada com a mediana da zona */
+  function heightIssues(m){
+    const v=(m?.points||[]).map((p,i)=>({n:i+1,z:Number(p.z),ok:isValidated(p)})).filter(o=>o.ok&&Number.isFinite(o.z));
+    if(v.length<3)return [];
+    const zs=v.map(o=>o.z).sort((a,b)=>a-b),med=zs[Math.floor(zs.length/2)];
+    const dev=zs.map(z=>Math.abs(z-med)).sort((a,b)=>a-b)[Math.floor(zs.length/2)];
+    const lim=Math.max(35,dev*4);
+    return v.filter(o=>o.z<-2||Math.abs(o.z-med)>lim).map(o=>({...o,med,tipo:o.z<-2||o.z<med?'baixo':'alto'}));
+  }
+  /* Sugerir locais na área visível do mapa */
+  async function suggestLocations(){
+    const m=active();if(!m||!state.map)return;
+    /* pegada do evento: área disputada/safe ou o spawn mais distante, o que for maior */
+    const R=Math.max(effectiveEventRadius(m),coverageStats(m)?.max||0)*1.05,b=state.map.getBounds(),x0=b.getWest(),x1=b.getEast(),y0=b.getSouth(),y1=b.getNorth();
+    const others=zonesOfEvent(m.eventId).filter(z=>z.id!==m.id&&validCoord(z.center?.x));
+    const sep=eventTypeOf(m).zonasSeparadas;
+    if((x1-x0)<R*1.2||(y1-y0)<R*1.2){alert(`Afaste o zoom: a área visível precisa caber pelo menos uma zona de ${Math.round(R)} m.`);return;}
+    setSaveState('Procurando locais na área visível…');
+    const qgs=qgList(),cand=[],N=7;
+    for(let i=0;i<N;i++)for(let j=0;j<N;j++){
+      const x=x0+R*.6+(x1-x0-R*1.2)*(i/(N-1)),y=y0+R*.6+(y1-y0-R*1.2)*(j/(N-1));
+      const qgDentro=qgs.filter(g=>Math.hypot(g.x-x,g.y-y)<R+raioQg());
+      const sobre=others.filter(z=>Math.hypot(Number(z.center.x)-x,Number(z.center.y)-y)<R+effectiveEventRadius(z));
+      cand.push({x,y,qg:qgDentro.length,sobre:sobre.length});
+    }
+    for(const c of cand)c.terra=c.qg?0:(await landFraction(c.x,c.y,R));
+    /* o próprio local atual não é sugestão */
+    const aqui=validCoord(m.center?.x)?{x:Number(m.center.x),y:Number(m.center.y)}:null;
+    const aptos=cand.filter(c=>c.terra!==null&&c.terra>=.75&&!c.qg&&(!sep||!c.sobre)&&(!aqui||Math.hypot(c.x-aqui.x,c.y-aqui.y)>R)).sort((a,b)=>b.terra-a.terra);
+    const top=[];aptos.forEach(c=>{if(top.length<3&&top.every(t=>Math.hypot(t.x-c.x,t.y-c.y)>R*1.2))top.push(c);});
+    state.locSuggest=top;renderMap();
+    setSaveState(top.length?`${top.length} local(is) sugerido(s) no mapa (L1–L${top.length}) — clique para usar`:'Nenhum local apto na área visível');
+    if(!top.length)alert('Nenhum local apto na área visível (terra firme ≥ 75%, sem QG e sem sobrepor outras zonas). Mova o mapa para outra região e tente de novo.');
+  }
+  function drawLocSuggestions(){
+    (state.locSuggest||[]).forEach((c,i)=>{
+      const m=active();if(!m)return;const R=Math.max(effectiveEventRadius(m),coverageStats(m)?.max||0)*1.05;
+      const circ=L.circle(ll(c.x,c.y),{radius:R,color:'#ffd166',weight:2,dashArray:'6 6',fillOpacity:.06,interactive:false}).addTo(state.map);
+      const icon=L.divIcon({className:'',html:`<div class="mp-center-pin" style="background:#ffd166;color:#201a00;font-size:10px;font-weight:900">L${i+1}</div>`,iconSize:[32,32],iconAnchor:[16,16]});
+      const mk=L.marker(ll(c.x,c.y),{icon}).addTo(state.map).bindPopup(`<b>LOCAL SUGERIDO L${i+1}</b><br>Terra firme: <b>${Math.round(c.terra*100)}%</b><br>Sem QG no raio + ${raioQg()} m${c.sobre?'<br>⚠ encosta em outra zona':''}<br><button type="button" class="mp-use-loc" data-loc="${i}">USAR ESTE LOCAL</button>`);
+      mk.on('popupopen',ev=>{ev.popup.getElement()?.querySelector('.mp-use-loc')?.addEventListener('click',()=>useLocation(i));});
+      state.drawn.push(circ,mk);
+    });
+  }
+  function useLocation(i){
+    const m=active(),c=state.locSuggest?.[i];if(!m||!c)return;
+    if(!canMarkRequests()){alert('Seu acesso ao Planejador é somente leitura.');return;}
+    if(!state.editing)startEdit();
+    const temCentro=validCoord(m.center?.x)&&validCoord(m.center?.y),n=(m.points||[]).length;
+    const mover=temCentro&&n&&confirm(`Levar os ${n} spawns junto, mantendo o desenho atual da zona?\n\nOK = move tudo (spawns ficam PENDENTES para validar)\nCancelar = só o centro`);
+    const dx=temCentro?c.x-Number(m.center.x):0,dy=temCentro?c.y-Number(m.center.y):0;
+    m.center.x=r2(c.x);m.center.y=r2(c.y);m.center.z=0;m.center.h=0;m.center.status='planned';m.center.validatedAt=null;m.center.validationReason='coordinate-change';
+    if(mover)m.points.forEach(p=>{p.x=r2(Number(p.x)+dx);p.y=r2(Number(p.y)+dy);p.z=0;p.status='planned';p.validatedAt=null;});
+    if(m.safeRoute){m.safeRoute.stage2Options=[];m.safeRoute.stage3Options=[];if(m.safeRoute.stages?.[0]){m.safeRoute.stages[0].x=m.center.x;m.safeRoute.stages[0].y=m.center.y;}}
+    state.locSuggest=[];state.map?.closePopup();
+    commit(`Zona levada para o local L${i+1}${mover?' com os spawns':''} — valide centro e CDS`);fit();
+  }
+  /* Centro justo: a partir das CDS dos spawns, o ponto mais equidistante
+     de todos (ajuste de círculo por mínimos quadrados + refinamento do
+     pior caso). Na Dominação define onde fica a área disputada; no gás,
+     onde nasce a safe. A diferença entre o spawn mais perto e o mais
+     longe é a medida de justiça. */
+  function spreadOf(pts,cx,cy){const d=pts.map(p=>Math.hypot(p.x-cx,p.y-cy));return {min:Math.min(...d),max:Math.max(...d),mean:d.reduce((a,b)=>a+b,0)/d.length};}
+  function fairCenterOf(m){
+    const pts=(m?.points||[]).filter(p=>validCoord(p.x)&&validCoord(p.y)).map(p=>({x:Number(p.x),y:Number(p.y)}));
+    if(pts.length<3)return null;
+    /* Kasa: x²+y² = 2ax + 2by + c */
+    let Sx=0,Sy=0,Sxx=0,Syy=0,Sxy=0,Sxz=0,Syz=0,Sz=0;const n=pts.length;
+    pts.forEach(({x,y})=>{const z=x*x+y*y;Sx+=x;Sy+=y;Sxx+=x*x;Syy+=y*y;Sxy+=x*y;Sxz+=x*z;Syz+=y*z;Sz+=z;});
+    const A=[[2*Sxx,2*Sxy,Sx],[2*Sxy,2*Syy,Sy],[2*Sx,2*Sy,n]],B=[Sxz,Syz,Sz];
+    const det=M=>M[0][0]*(M[1][1]*M[2][2]-M[1][2]*M[2][1])-M[0][1]*(M[1][0]*M[2][2]-M[1][2]*M[2][0])+M[0][2]*(M[1][0]*M[2][1]-M[1][1]*M[2][0]);
+    const D=det(A);let cx,cy;
+    if(Math.abs(D)>1e-6){const col=(k)=>A.map((r,i)=>r.map((v,j)=>j===k?B[i]:v));cx=det(col(0))/D;cy=det(col(1))/D;}
+    else{cx=Sx/n;cy=Sy/n;}
+    /* refinamento: reduz a diferença máx−mín (pior caso) */
+    let best={x:cx,y:cy,...spreadOf(pts,cx,cy)},step=Math.max(10,(best.max-best.min)/2);
+    for(let it=0;it<60&&step>0.5;it++){let moved=false;
+      for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1],[.7,.7],[-.7,.7],[.7,-.7],[-.7,-.7]]){const x=best.x+dx*step,y=best.y+dy*step,sp=spreadOf(pts,x,y);if(sp.max-sp.min<best.max-best.min-0.01){best={x,y,...sp};moved=true;}}
+      if(!moved)step/=2;}
+    const atual=validCoord(m.center?.x)?spreadOf(pts,Number(m.center.x),Number(m.center.y)):null;
+    return {...best,atual,deslocamento:atual?Math.hypot(best.x-Number(m.center.x),best.y-Number(m.center.y)):null};
+  }
+  function applyFairCenter(){
+    const m=active();if(!m)return;
+    if(!canMarkRequests()){alert('Seu acesso ao Planejador é somente leitura.');return;}
+    const fc=fairCenterOf(m);if(!fc){alert('Cadastre pelo menos 3 spawns para calcular o centro justo.');return;}
+    const dom=eventTypeOf(m).category!=='gas',dif=fc.max-fc.min,difA=fc.atual?fc.atual.max-fc.atual.min:null;
+    if(fc.deslocamento!==null&&fc.deslocamento<3){alert(`O centro atual já é o mais justo (diferença entre spawns: ${Math.round(difA)} m).`);return;}
+    const R=effectiveEventRadius(m),sugR=dom?null:Math.ceil(fc.max*1.05/50)*50;
+    if(!confirm(`CENTRO JUSTO pelas CDS dos ${m.points.length} spawns:\n\n${fc.atual?`Hoje: spawn mais perto ${Math.round(fc.atual.min)} m · mais longe ${Math.round(fc.atual.max)} m (diferença ${Math.round(difA)} m)\n`:''}Novo: mais perto ${Math.round(fc.min)} m · mais longe ${Math.round(fc.max)} m (diferença ${Math.round(dif)} m)\n${fc.deslocamento!==null?`Centro se move ${Math.round(fc.deslocamento)} m.\n`:''}${dom?`\nA área de Dominação (${Math.round(R)} m) passa a ficar nesse centro; os spawns não mudam.`:`\nA safe inicial passa para ${sugR} m para cobrir todos os spawns.`}\n\nO centro fica PENDENTE até validar a CDS real no jogo.`))return;
+    if(!state.editing)startEdit();
+    /* a rota da safe acompanha o centro (mesmo desenho) */
+    const ddx=validCoord(m.center?.x)?fc.x-Number(m.center.x):0,ddy=validCoord(m.center?.y)?fc.y-Number(m.center.y):0,sr=m.safeRoute;
+    if(sr&&!dom){[...(sr.stage2Options||[]),...(sr.stage3Options||[]),...(sr.stages||[]).slice(1)].forEach(o=>{if(validCoord(o.x)&&validCoord(o.y)){o.x=r2(Number(o.x)+ddx);o.y=r2(Number(o.y)+ddy);}});}
+    m.center.x=r2(fc.x);m.center.y=r2(fc.y);m.center.z=0;m.center.h=0;m.center.status='planned';m.center.validatedAt=null;m.center.validationReason='coordinate-change';
+    if(!dom){m.eventRadius=Math.max(Math.round(R),sugR);if(m.safeRoute?.stages?.[0]){m.safeRoute.stages[0].x=m.center.x;m.safeRoute.stages[0].y=m.center.y;}}
+    commit(`Centro justo aplicado (diferença ${Math.round(dif)} m) — valide a CDS do centro`);fitZone();
+  }
+
+  /* Otimizar: troca só os spawns com problema, mantendo a numeração */
+  async function optimizeSpawns(){
+    const m=active();if(!m)return;
+    if(!canMarkRequests()){alert('Seu acesso ao Planejador é somente leitura.');return;}
+    if(!validCoord(m.center?.x)){alert('Defina primeiro o centro da zona.');return;}
+    setSaveState('Analisando spawns…');
+    const qgs=qgList(),bal=zoneBalance(m),motivo=new Map();
+    for(const [i,p] of (m.points||[]).entries()){
+      if(!validCoord(p.x)||!validCoord(p.y))continue;
+      if(await isWater(p.x,p.y)===true)motivo.set(i,'na água');
+      else if(nearQg(p,qgs))motivo.set(i,'perto de QG');
+      else if(eventTypeOf(m).gas&&!pointInsideZone(m,p))motivo.set(i,'fora da safe');
+    }
+    (bal?.near||[]).forEach(o=>{if(!motivo.has(o.n-1))motivo.set(o.n-1,'perto demais do centro');});
+    (bal?.far||[]).forEach(o=>{if(!motivo.has(o.n-1))motivo.set(o.n-1,'longe demais do centro');});
+    (bal?.tight||[]).forEach(t=>{if(!motivo.has(t.b-1)&&!motivo.has(t.a-1))motivo.set(t.b-1,`colado no ${pad2(t.a)}`);});
+    if(!motivo.size){setSaveState('Spawns OK');alert('Nenhum spawn precisa de ajuste: todos em terra, longe de QG e equilibrados.');return;}
+    const lista=[...motivo.entries()].sort((a,b)=>a[0]-b[0]);
+    if(!confirm(`Reposicionar ${lista.length} spawn(s)?\n\n${lista.map(([i,mo])=>`• ${pad2(i+1)}: ${mo}`).join('\n')}\n\nOs demais não mudam. Os reposicionados mantêm o número e ficam PENDENTES para validar a CDS.`))return;
+    if(!state.editing)startEdit();
+    const idx=lista.map(([i])=>i),manter=m.points.filter((_,i)=>!motivo.has(i));
+    const bad=new Map();const c=m.center,R=effectiveEventRadius(m);
+    const tmp={...m,points:manter};
+    /* candidatos ruins (água/QG) descartados antes de escolher */
+    const cand=suggestSpawns(tmp,idx.length*4);
+    for(const q of cand){if(nearQg(q,qgs)||await isWater(q.x,q.y)===true)bad.set(`${Math.round(q.x)},${Math.round(q.y)}`,1);}
+    let novos=suggestSpawns(tmp,idx.length,q=>bad.has(`${Math.round(q.x)},${Math.round(q.y)}`)||nearQg(q,qgs));
+    if(novos.length<idx.length)novos=[...novos,...suggestSpawns(tmp,idx.length-novos.length,null,novos)];
+    idx.forEach((i,k)=>{const q=novos[k];if(!q)return;m.points[i]=normalizePoint({x:q.x,y:q.y,z:0,h:(Math.atan2(Number(c.x)-q.x,Number(c.y)-q.y)*180/Math.PI+360)%360,status:'planned'},i);});
+    commit(`${idx.length} spawn(s) reposicionado(s) — confira e valide as CDS`);
+  }
+
   /* Prazo de retorno da cidade */
   function retornoHoras(){return Number(CATALOG()?.PRAZO_RETORNO_H)||48;}
   function isStale(m){const r=m?.request;if(r?.status!=='sent'||zoneStage(m)!=='enviada')return false;const t=Date.parse(r.sentAt||'');return Number.isFinite(t)&&Date.now()-t>retornoHoras()*3600000;}
@@ -2248,6 +2443,14 @@ ${lines.map(l=>`- ${l}`).join('\n')}
         :{label:'Fases da safe (tempos/dano) iguais às demais zonas',ok:true,block:false});
     }
     /* avisos (não bloqueiam): capacidade igual às demais zonas e equilíbrio */
+    const fc=fairCenterOf(m);
+    if(fc&&fc.atual){const difA=fc.atual.max-fc.atual.min,difB=fc.max-fc.min;
+      out.push(difA-difB>Math.max(40,fc.mean*.12)
+        ?{label:`Centro pode ser mais justo: diferença entre spawns ${Math.round(difA)} m → ${Math.round(difB)} m movendo ${Math.round(fc.deslocamento)} m (⚖ CENTRO JUSTO)`,ok:false,block:false,warn:true}
+        :{label:`Centro equidistante dos spawns (diferença ${Math.round(difA)} m)`,ok:true,block:false});}
+    const hz=heightIssues(m);
+    if(hz.length)out.push({label:`Altura suspeita (risco de limbo/nascer no alto): ${hz.slice(0,4).map(o=>`${pad2(o.n)} z=${o.z.toFixed(1)}`).join(', ')} — mediana ${hz[0].med.toFixed(1)}; revalide no jogo`,ok:false,block:false,warn:true});
+    if(type.padrao&&m.safeRoute&&((m.safeRoute.stage2Options||[]).length)){const dur=safeDuration(m);out.push(dur<duracaoAlvo()*60*.9?{label:`Ciclo da safe ~${Math.round(dur/60)} min (alvo ${duracaoAlvo()} min) — use SAFE AUTOMÁTICA ou aumente os tempos`,ok:false,block:false,warn:true}:{label:`Ciclo da safe ~${Math.round(dur/60)} min`,ok:true,block:false});}
     const ti=terrainIssues(m);
     if((m.points||[]).length){
       out.push(ti.agua.length
@@ -2381,7 +2584,9 @@ ${o3.map((p,i)=>fmtOpt(p,i,'SAFE 3')).join('\n')}
 
 - A cada execução, sortear uma opção de SAFE 2 e uma opção de SAFE 3 dentre as CDS configuradas.
 - Fluxo: SAFE 1 fecha → círculo inteiro se desloca até SAFE 2 mantendo o raio alcançado → fecha novamente → desloca até SAFE 3 → fechamento final${eventTypeOf(m).padrao?' até raio zero, com dano contínuo até restar uma equipe':''}.
-- Movimento SAFE 1→2: ${Number(s[0]?.moveSeconds)||0}s. Movimento SAFE 2→3: ${Number(s[1]?.moveSeconds)||0}s.
+- Movimento SAFE 1→2: ${Number(s[0]?.moveSeconds)||0}s. Movimento SAFE 2→3: ${Number(s[1]?.moveSeconds)||0}s.${eventTypeOf(m).padrao?`
+- Fechamento final (SAFE 3 até raio zero): ${Number(sr.finalCloseSeconds)>0?`${Number(sr.finalCloseSeconds)}s`:'conforme padrão'}; depois disso o gás segue causando dano até restar uma equipe.`:''}
+- Duração prevista do ciclo da safe: ~${Math.round(safeDuration(m)/60)} min (eventos previstos para cerca de ${duracaoAlvo()} min ou mais).
 - Durante o deslocamento, centro e área do gás devem se mover continuamente, sem teleporte da zona.`;
       }
     }

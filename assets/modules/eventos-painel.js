@@ -148,8 +148,16 @@
   /* Distância mínima (m) entre um spawn de evento e a CDS de um QG/favela */
   const RAIO_QG_M = 150;
 
+  /* Duração alvo dos eventos com gás (min) e divisão do tempo da safe:
+     fecha 1 · move · fecha 2 · move · fecha 3 · fechamento final até zero */
+  const DURACAO_ALVO_MIN = 20;
+  const SAFE_TEMPO = { close1: .25, move1: .08, close2: .20, move2: .08, close3: .17, final: .22 };
+  /* Raio de cada fase em fração do raio inicial da safe */
+  const SAFE_RAIOS = [ .60, .35, .15 ];
+  const SAFE_DANO = [ 5, 10, 20 ];
+
   /* Horas sem retorno da cidade até a zona aparecer como ATRASADA */
   const PRAZO_RETORNO_H = 48;
 
-  window.HighEventCatalog = { PANEL_PADRAO, TIPOS, porId, tipoDe, ETAPAS, tempoDesde, PRAZO_RETORNO_H, PADRAO_GAS, RAIO_QG_M };
+  window.HighEventCatalog = { PANEL_PADRAO, TIPOS, porId, tipoDe, ETAPAS, tempoDesde, PRAZO_RETORNO_H, PADRAO_GAS, RAIO_QG_M, DURACAO_ALVO_MIN, SAFE_TEMPO, SAFE_RAIOS, SAFE_DANO };
 })();

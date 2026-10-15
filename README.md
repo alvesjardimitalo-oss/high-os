@@ -144,3 +144,13 @@ Regra de manutenção: configuração estática e funções puras não devem vol
 - **Vantagem de lado:** com 6+ partidas, um lado (norte/leste/sul/oeste) com metade ou mais das vitórias vira aviso.
 - **Facção dominante:** facção com 40%+ das vitórias nas últimas 10 partidas aparece na central.
 - **Participação real:** média e pico de facções; aviso quando o pico já passou do número de spawns da zona; a META sugere o pico registrado.
+
+
+## V12.15 — Montagem inteligente (gás e Dominação)
+
+- **⚡ SAFE AUTOMÁTICA:** tempos pela duração alvo (`DURACAO_ALVO_MIN` = 20), raios por fase (`SAFE_RAIOS`), dano por fase (`SAFE_DANO`), fechamento final até zero (`finalCloseSeconds`) e 3 opções de SAFE 2 e de SAFE 3 em terra firme, longe de QG, com toda SAFE 3 válida para qualquer SAFE 2 sorteada. A solicitação passa a informar o fechamento final e a duração prevista do ciclo.
+- **⚖ CENTRO JUSTO:** calcula pelas CDS dos spawns o centro mais equidistante (ajuste de círculo + refinamento do pior caso). Na Dominação reposiciona a área disputada; no gás leva a safe e ajusta o raio inicial. O checklist avisa quando o centro pode ficar mais justo.
+- **🔎 SUGERIR LOCAIS:** varre a área visível do mapa e marca até 3 locais (L1–L3) com mais terra firme, sem QG e sem sobrepor zonas do evento; "usar este local" leva centro (e, se quiser, os spawns no mesmo desenho).
+- **✨ OTIMIZAR SPAWNS:** reposiciona só os spawns na água, perto de QG, fora da safe, colados ou fora da faixa de distância, mantendo a numeração.
+- **Altura suspeita:** CDS validada muito acima/abaixo da mediana da zona (risco de limbo ou de nascer no alto) vira aviso para revalidar.
+- Correções: `fitZone` quebrava ao enquadrar a zona; círculos de spawn herdavam a cor da camada anterior no canvas. Versões dos assets atualizadas no `index.html` (12.15.0) para o navegador baixar o código novo.
