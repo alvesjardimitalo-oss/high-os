@@ -65,7 +65,8 @@ if(!raw)return '';
 
  const n=alvesNorm(raw).replace(/\s+/g,'');
 
- const known=groupsConhecidos.find(f=>alvesNorm(f.group).replace(/\s+/g,'')===n);
+ const gk=x=>alvesNorm(x).replace(/[^a-z0-9]/g,'').replace(/mecanic/g,'mechanic').replace(/0*(\d+)$/,'$1');
+ const known=groupsConhecidos.find(f=>alvesNorm(f.group).replace(/\s+/g,'')===n)||groupsConhecidos.find(f=>gk(f.group)===gk(raw));
 if(known)return known.group;
 
  const compact=raw.replace(/\s+/g,'');
