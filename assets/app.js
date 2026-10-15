@@ -9718,7 +9718,7 @@ v])=>`<div class="dash-seg-row"><span>${esc(k)}</span><div><i style="width:${v.a
 
  const attention=visibleWeekly.length?visibleWeekly.map(x=>`<article class="dash-week-alert ${x.level==='CRÍTICO'?'critical':''} ${x.state==='CONCLUIDO'?'done':''}"><button type="button" class="dash-alert-main" data-alert-group="${esc(x.group)}"><i></i><span><b>${esc(x.faccao)} • ${esc(x.group)}</b><small>${x.level} • queda ${x.drop.toFixed(1)}% • semana atual ${x.currentAvg.toFixed(1)} vs anterior ${x.previousAvg.toFixed(1)} • ${x.pairs} coletas comparáveis</small></span><strong>${x.state==='CONCLUIDO'?'CONCLUÍDO':x.level}</strong></button><div class="dash-alert-actions"><button type="button" title="Marcar como concluído" data-alert-state="CONCLUIDO" data-group="${esc(x.group)}" data-week="${esc(x.weekKey)}">✓</button><button type="button" title="Reabrir alerta" data-alert-state="PENDENTE" data-group="${esc(x.group)}" data-week="${esc(x.weekKey)}">↺</button><button type="button" class="clear" title="Limpar este alerta do Dashboard nesta semana" data-alert-state="LIMPO" data-group="${esc(x.group)}" data-week="${esc(x.weekKey)}">LIMPAR</button></div></article>`).join(''):'<div class="dash-empty good-text">Nenhuma queda semanal relevante entre as facções ocupadas.</div>';
 
- const anomalyHtml=anomalies.length?anomalies.map(x=>`<article class="dash-anomaly-row"><button type="button" class="dash-anomaly-main" data-anomaly-group="${esc(x.group)}"><span><b>⚠ ${esc(x.group)} SEM OCUPAÇÃO COM MÉTRICA ${x.value}</b><small>${esc(x.qg||'QG')} • ${x.date.toLocaleString('pt-BR')} • ${x.hasExtract?'há histórico de entrega, mas o Group está vago':'não consta extrato de entrega/assunção compatível'}</small><em>Confirme a ocupação. Se não houve assunção, peça ao staff/player que estiver neste Group para sair ou remova-o.</em></span><strong>VER →</strong></button><button type="button" class="dash-anomaly-clear" data-clear-anomaly="${esc(x.group)}" data-anomaly-date="${esc(x.date.toISOString())}">LIMPAR ALERTA</button></article>`).join(''):'<div class="dash-empty good-text">Nenhuma presença indevida detectada em Groups vagos nos últimos 7 dias.</div>';
+ const anomalyHtml=anomalies.length?anomalies.map(x=>`<article class="dash-anomaly-row"><button type="button" class="dash-anomaly-main" data-anomaly-group="${esc(x.group)}"><span><b>⚠ ${esc(x.group)} SEM OCUPAÇÃO COM MÉTRICA ${x.value}</b><small>${esc(x.qg||'QG')} • ${x.date.toLocaleString('pt-BR')} • ${x.hasExtract?'há histórico de entrega, mas o Group está vago':'não consta extrato de entrega/assunção compatível'}</small><em>Confirme a ocupação. Se não houve assunção, peça ao staff/player que estiver neste Group para sair ou remova-o.</em></span><strong>VER →</strong></button><div class="dash-anomaly-actions"><button type="button" class="dash-anomaly-deliver" data-deliver-anomaly="${esc(x.group)}">ENTREGA DE FACÇÃO</button><button type="button" class="dash-anomaly-clear" data-clear-anomaly="${esc(x.group)}" data-anomaly-date="${esc(x.date.toISOString())}">LIMPAR ALERTA</button></div></article>`).join(''):'<div class="dash-empty good-text">Nenhuma presença indevida detectada em Groups vagos nos últimos 7 dias.</div>';
 
  const activity=movements.map(h=>`<div class="dash-activity-row"><i></i><div><b>${esc(historyTitle(h))}</b><span>${esc([h.group,h.faccao].filter(Boolean).join(' • ')||h.descricao||'Operação administrativa')}</span><small>${esc(formatHistoryDate(h))}${h.usuario?' • '+esc(h.usuario):''}</small></div></div>`).join('')||'<div class="dash-empty">Nenhuma movimentação registrada.</div>';
 
@@ -9735,6 +9735,7 @@ box.querySelector('[data-open-general-report]')?.addEventListener('click',mgmtOp
 box.querySelectorAll('[data-alert-group]').forEach(b=>b.onclick=()=>openMetricForGroup(b.dataset.alertGroup));
 box.querySelectorAll('[data-alert-state]').forEach(b=>b.onclick=e=>{e.stopPropagation();setDashboardAlertState(b.dataset.group,b.dataset.week,b.dataset.alertState)});
 box.querySelectorAll('[data-anomaly-group]').forEach(b=>b.onclick=()=>{activateAppPage('faccoes');const f=estado.faccoes.find(x=>alvesNorm(x.group)===alvesNorm(b.dataset.anomalyGroup));if(f)openFac(f.id)});
+box.querySelectorAll('[data-deliver-anomaly]').forEach(b=>b.onclick=e=>{e.stopPropagation();const f=estado.faccoes.find(x=>alvesNorm(x.group)===alvesNorm(b.dataset.deliverAnomaly));openNewDelivery(f?.group||b.dataset.deliverAnomaly)});
 box.querySelectorAll('[data-clear-anomaly]').forEach(b=>b.onclick=e=>{e.stopPropagation();clearVacantMetricAlert(b.dataset.clearAnomaly,new Date(b.dataset.anomalyDate))});
 
 }
@@ -9988,50 +9989,48 @@ $('#farmEditorForm')?.addEventListener('submit',e=>{e.preventDefault();const i=+
 x=techDraft?.farm?.itens?.[i];if(!x||String(x.origem||'').toUpperCase()==='CRAFT')return closeFarmEditor();x.nome=$('#farmEditorName').value.trim();x.spawn=$('#farmEditorSpawn').value.trim();x.qtd=$('#farmEditorQty').value.trim();x.imagem=ITEM_META[x.spawn]?.imagem||x.imagem||'';renderFarmItems();renderConnectedRequests();updateDeliveryPreview();closeFarmEditor()});
 
 // HIGH OS V8.1 · FACÇÕES DISPONÍVEIS + ANÚNCIOS DISCORD
+// Modelo oficial "ASSUMIR FACÇÃO ILEGAL! 📌" — muda apenas segmento, local, contingente e fabricação.
+const ANUNCIO_ASSUMIR_CANAL='<#1488964261513531583>';
+const ANUNCIO_SEGMENTO_NOME={ARMAS:'Armas','MUNIÇÃO':'Munição',MUNICAO:'Munição',DROGAS:'Drogas',LAVAGEM:'Lavagem',DESMANCHE:'Desmanche','ESTELIONATÁRIOS':'Estelionatários',ESTELIONATARIOS:'Estelionatários',CONTRABANDO:'Contrabando',APOIO:'Apoio',OUTROS:'Outros'};
+const ANUNCIO_FABRICACAO={
+ ARMAS:'Armas de pequeno, médio e grosso calibre.',
+ 'MUNIÇÃO':'Munições de pequeno, médio e grosso calibre, energéticos e explosivos.',
+ MUNICAO:'Munições de pequeno, médio e grosso calibre, energéticos e explosivos.',
+ LAVAGEM:'Pendrives de lavagem, lavadora, algemas e álcool em gel.',
+ DESMANCHE:'Gazuas, cartões ilegíveis e desmanche de veículos.',
+ 'ESTELIONATÁRIOS':'Cartões Nuhigh (prata e ouro) e dinheiro falso.',
+ ESTELIONATARIOS:'Cartões Nuhigh (prata e ouro) e dinheiro falso.',
+ CONTRABANDO:'Farm de todas as facções disponíveis.'
+};
+function anuncioSegmentoKey(seg){return String(seg||'OUTROS').trim().toUpperCase().replace(/\d+$/,'')}
+function anuncioSegmentoNome(seg){const k=anuncioSegmentoKey(seg);return ANUNCIO_SEGMENTO_NOME[k]||k.charAt(0)+k.slice(1).toLowerCase()}
+function anuncioFabricacao(f){
+ const k=anuncioSegmentoKey(f.segmento);
+ // Drogas/Apoio/Outros variam por Group: usa o produto cadastrado no próprio Group.
+ if(ANUNCIO_FABRICACAO[k])return ANUNCIO_FABRICACAO[k];
+ const p=String(f.produto||'').trim().replace(/\s+/g,' ').replace(/[.;,\s]+$/,'');
+ return p?p.charAt(0).toUpperCase()+p.slice(1)+'.':'Conforme o segmento da facção.';
+}
 function availableAnnouncementText(f){
  const min=Math.max(1,Number(f.contingenteMin||15));
-
  const max=Math.max(min,Number(f.contingenteMax||28));
-
- const local=[f.qg||'SEM LOCAL',
-f.group||''].filter(Boolean).join(' - ');
-
+ const local=String(f.qg||'').trim()||'A definir';
  const linhas=[
-  '# 🔥 OPORTUNIDADE DE ASSUMIR FACÇÃO',
-'',
-
-  `🏴 Segmento: ${f.segmento||'OUTROS'}`,
-'',
-
-  `📍 Local: ${local}`,
-'',
-
-  `👥 Contingente mínimo: ${min} a ${max} membros`,
-'',
-
-  '🎁 Benefícios iniciais:',
-'- VIP Facção por 2 semanas',
-'- $1.000.000 em dinheiro sujo',
-'- Estrutura inicial da organização',
-'',
-
-  '📋 Como participar:',
-'- Abra um ticket no suporte do Ilegal',
-'- Mencione esta postagem no ticket',
-'- Informe o nome da sua tropa e a quantidade de membros',
-'- Aguarde o atendimento de um responsável do Ilegal',
-'',
-
-  '🚨 A facção será liberada mediante análise de contingente, organização e disponibilidade.',
-'',
-
-  '🏆 Reúna sua tropa e venha disputar seu espaço no Ilegal da High.'
+  'ASSUMIR FACÇÃO ILEGAL! 📌',
+  'Facção disponível para assumir via contingente.',
+  `Segmento: ${anuncioSegmentoNome(f.segmento)}`,
+  `Localização: ${local}`,
+  `Contingente para assumir: De ${min} a ${max} pessoas.`,
+  `Fabricação: ${anuncioFabricacao(f)}`,
+  'Benefícios ao assumir:',
+  'Kit inicial Facção. (Com mais de 25 itens)',
+  'VIP Facção por 15 dias.',
+  'R$ 1.000.000 em dinheiro sujo.',
+  'Possibilidade de benefícios futuros por meta de contingente.',
+  `Interessados devem acessar ${ANUNCIO_ASSUMIR_CANAL}, selecionar "Assumir Facção" e apresentar o contingente solicitado.`
  ];
-
  if(f.imagemAnuncio)linhas.push('',String(f.imagemAnuncio).trim());
-
  return linhas.join('\n');
-
 }
 
 async function saveAvailableImageLink(group,input,button){
