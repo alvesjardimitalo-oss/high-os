@@ -1,0 +1,204 @@
+/* =========================================================
+   HIGH OS V14.2 · ORGANIZAÇÕES
+   Lista enxuta, filtros em uma faixa, frequência das facções
+   (minigráfico, mapa de frequência e gráfico detalhado) e
+   exportação. Carregado por último: só vale para #page-faccoes
+   e para o painel de frequência (#org15Drawer).
+   ========================================================= */
+#page-faccoes, #org15Drawer{
+  --o15-bg:#100c15;
+  --o15-surface:#151019;
+  --o15-surface-2:#1c1523;
+  --o15-line:rgba(255,255,255,.07);
+  --o15-line-2:rgba(255,255,255,.13);
+  --o15-text:#f4f0f8;
+  --o15-text-2:#b9aec6;
+  --o15-text-3:#8a7f99;
+  --o15-brand:#9a4dff;
+  --o15-brand-2:#c08bff;
+  --o15-ok:#4fdc8f;
+  --o15-mid:#ffc35c;
+  --o15-low:#ff6b81;
+  --o15-heat:154,77,255;
+}
+
+/* ---------- cabeçalho ---------- */
+#page-faccoes .org15-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:14px!important}
+#page-faccoes .org15-head h2{margin:2px 0 8px}
+#page-faccoes #orgV92Summary.org15-summary{display:flex!important;flex-wrap:wrap;gap:6px 18px!important;margin:0!important;align-items:center;font-size:13px;color:var(--o15-text-2)}
+#page-faccoes #orgV92Summary.org15-summary>span,#page-faccoes #orgV92Summary.org15-summary>button{padding:0;border:0;background:none;display:inline-flex!important;align-items:baseline;gap:4px;margin:0!important}
+#page-faccoes .org15-summary b{font-size:16px;color:var(--o15-text);margin-right:3px;font-variant-numeric:tabular-nums}
+#page-faccoes .org15-summary .assumida b{color:var(--o15-ok)}
+#page-faccoes .org15-summary .disponivel b{color:var(--o15-brand-2)}
+#page-faccoes .org15-summary .indisponivel b{color:var(--o15-low)}
+#page-faccoes #orgV92Summary.org15-summary>.revisar{border:1px solid rgba(255,195,92,.35);background:rgba(255,195,92,.1);color:var(--o15-mid);border-radius:999px;padding:4px 11px;font-size:12px;font-weight:700;cursor:pointer}
+#page-faccoes .org15-summary .revisar b{color:var(--o15-mid)}
+#page-faccoes .org15-head-actions{display:flex;gap:8px;align-items:center}
+
+/* exportar */
+#page-faccoes .org15-export{position:relative}
+#page-faccoes .org15-export>summary{list-style:none;cursor:pointer;user-select:none;border:1px solid var(--o15-line-2);background:var(--o15-surface-2);color:var(--o15-text);border-radius:10px;padding:10px 16px;font-size:12px;font-weight:800;letter-spacing:.06em}
+#page-faccoes .org15-export>summary::-webkit-details-marker{display:none}
+#page-faccoes .org15-export>summary:hover,#page-faccoes .org15-export[open]>summary{border-color:var(--o15-brand);background:#25183a}
+#page-faccoes .org15-export-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:30;width:300px;padding:6px;background:#17111f;border:1px solid var(--o15-line-2);border-radius:12px;box-shadow:0 18px 40px rgba(0,0,0,.55)}
+#page-faccoes .org15-export-menu button{display:block;width:100%;text-align:left;background:transparent;border:0;border-radius:8px;padding:10px 12px;color:var(--o15-text);cursor:pointer}
+#page-faccoes .org15-export-menu button:hover{background:rgba(154,77,255,.16)}
+#page-faccoes .org15-export-menu b{display:block;font-size:13px}
+#page-faccoes .org15-export-menu small{display:block;font-size:11.5px;color:var(--o15-text-3);margin-top:2px}
+
+/* ---------- filtros ---------- */
+#page-faccoes .org15-filters{background:var(--o15-surface);border:1px solid var(--o15-line);border-radius:14px;padding:12px;margin-bottom:12px}
+#page-faccoes .org15-toolbar{display:flex;gap:8px;align-items:stretch;flex-wrap:wrap}
+#page-faccoes .org15-search{flex:1 1 280px;display:flex;align-items:center;gap:8px;background:var(--o15-bg);border:1px solid var(--o15-line-2);border-radius:10px;padding:0 12px;min-height:42px;margin:0}
+#page-faccoes .org15-search span{color:var(--o15-text-3);font-size:16px}
+#page-faccoes .org15-search input{flex:1;background:transparent!important;border:0!important;outline:0;color:var(--o15-text);font-size:14px;padding:0!important;box-shadow:none!important;min-width:0}
+#page-faccoes .org15-select{display:flex;align-items:center;gap:8px;background:var(--o15-bg);border:1px solid var(--o15-line-2);border-radius:10px;padding:0 4px 0 12px;min-height:42px;margin:0}
+#page-faccoes .org15-select span{font-size:10px;font-weight:800;letter-spacing:.1em;color:var(--o15-text-3)}
+#page-faccoes .org15-select select{background:transparent!important;border:0!important;color:var(--o15-text);font-size:13px;font-weight:600;padding:8px 6px!important;cursor:pointer;width:auto!important}
+#page-faccoes .org15-select select option{background:#17111f}
+#page-faccoes .org15-view{display:flex;background:var(--o15-bg);border:1px solid var(--o15-line-2);border-radius:10px;padding:3px;gap:3px}
+#page-faccoes .org15-view button{border:0;background:transparent;color:var(--o15-text-2);border-radius:7px;padding:0 12px;font-size:11px;font-weight:800;letter-spacing:.05em;cursor:pointer;white-space:nowrap}
+#page-faccoes .org15-view button.active{background:var(--o15-brand);color:#fff}
+#page-faccoes .org15-chips-row{margin-top:10px}
+#page-faccoes .org15-status{margin:0!important;gap:6px}
+#page-faccoes #facStatusButtons button{display:inline-flex!important;align-items:center;gap:8px;font-size:11px!important;padding:7px 12px!important}
+#page-faccoes #facStatusButtons .chip-contagem{font-style:normal;min-width:20px;padding:1px 7px;border-radius:20px;font-size:10.5px;font-weight:800;background:rgba(255,255,255,.1);color:inherit;font-variant-numeric:tabular-nums;text-align:center}
+#page-faccoes #facStatusButtons button.active .chip-contagem{background:rgba(255,255,255,.22);color:#fff}
+
+/* segmentos como pílulas compactas */
+#page-faccoes .org15-segments{display:flex!important;flex-wrap:wrap;gap:6px!important;margin:8px 0 0!important;grid-template-columns:none!important}
+#page-faccoes .org15-segments .segment-visual-card{display:inline-flex!important;align-items:center;gap:7px;min-height:0!important;height:auto!important;width:auto!important;padding:6px 11px!important;border-radius:999px!important;font-size:11px}
+#page-faccoes .org15-segments .segment-visual-card .segment-icon{width:auto!important;height:auto!important;font-size:12px!important;background:none!important;border:0!important;padding:0!important;margin:0!important;box-shadow:none!important}
+#page-faccoes .org15-segments .segment-visual-card .segment-copy{display:block!important}
+#page-faccoes .org15-segments .segment-visual-card .segment-copy strong{font-size:11px!important;letter-spacing:.04em}
+#page-faccoes .org15-segments .segment-visual-card .segment-copy small{display:none!important}
+#page-faccoes .org15-segments .segment-visual-card>b{position:static!important;font-size:10.5px!important;padding:1px 7px;border-radius:20px;background:rgba(255,255,255,.1);min-width:0!important}
+
+#page-faccoes .org15-list-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin:4px 2px 8px}
+#page-faccoes .org15-list-head #orgV92ListTitle{font-size:13px!important;font-weight:700!important;color:var(--o15-text)!important;margin:0!important;text-transform:none!important;letter-spacing:0!important}
+#page-faccoes .org15-list-head #facStats{font-size:12px;color:var(--o15-text-3)}
+
+/* ---------- lista ---------- */
+#page-faccoes .org15-wrap{width:100%;overflow-x:auto;border:1px solid var(--o15-line);border-radius:14px;background:var(--o15-surface)}
+#page-faccoes .org15-table{width:100%;border-collapse:collapse;min-width:960px;table-layout:auto}
+#page-faccoes .org15-table th{position:sticky;top:0;z-index:1;background:#191220;text-align:left;padding:12px 14px;font-size:10.5px;font-weight:800;letter-spacing:.1em;color:var(--o15-text-3);border-bottom:1px solid var(--o15-line-2);white-space:nowrap}
+#page-faccoes .org15-table th small{font-weight:600;letter-spacing:.02em;text-transform:none;margin-left:4px;color:var(--o15-text-3);opacity:.8}
+#page-faccoes .org15-table td{padding:12px 14px;border-bottom:1px solid var(--o15-line);vertical-align:middle;color:var(--o15-text)}
+#page-faccoes .org15-table tbody tr{cursor:pointer;transition:background .12s}
+#page-faccoes .org15-table tbody tr:hover{background:rgba(154,77,255,.07)}
+#page-faccoes .org15-table tbody tr:last-child td{border-bottom:0}
+#page-faccoes .org15-table td b{display:block;font-weight:700;line-height:1.25}
+#page-faccoes .org15-table td small{display:block;margin-top:3px;font-size:12px;color:var(--o15-text-3)}
+#page-faccoes .org15-table td small.warn{color:var(--o15-mid)}
+#page-faccoes .org15-table .c-group b{font-size:15px;font-variant-numeric:tabular-nums}
+#page-faccoes .org15-table .c-group small{font-size:10.5px;font-weight:800;letter-spacing:.08em}
+#page-faccoes .org15-table .c-fac b{font-size:16px}
+#page-faccoes .org15-table .c-qg b{font-size:14px;font-weight:600}
+#page-faccoes .org15-table .c-st,#page-faccoes .org15-table th.c-st{width:1%;white-space:nowrap}
+#page-faccoes .org15-table .c-act,#page-faccoes .org15-table th.c-act{width:1%;white-space:nowrap}
+#page-faccoes .org15-table tr.st-assumed .c-group{box-shadow:inset 3px 0 0 var(--o15-ok)}
+#page-faccoes .org15-table tr.st-available .c-group{box-shadow:inset 3px 0 0 var(--o15-brand-2)}
+#page-faccoes .org15-table tr.st-unavailable .c-group{box-shadow:inset 3px 0 0 var(--o15-low)}
+#page-faccoes .org15-table tr.st-review .c-group{box-shadow:inset 3px 0 0 var(--o15-mid)}
+#page-faccoes .org15-table .org-v92-status{font-size:10.5px;padding:5px 10px}
+#page-faccoes .org15-muted{color:var(--o15-text-3);font-size:13px}
+
+/* ações: dois botões de mesma largura, sempre alinhados */
+#page-faccoes .org15-actions{display:grid;grid-template-columns:92px 120px;gap:6px}
+#page-faccoes .org15-btn{height:34px;border-radius:9px;border:1px solid var(--o15-line-2);background:var(--o15-surface-2);color:var(--o15-text);font-size:11px;font-weight:800;letter-spacing:.06em;cursor:pointer;white-space:nowrap;padding:0 10px}
+#page-faccoes .org15-btn:hover{border-color:var(--o15-brand);background:#25183a}
+#page-faccoes .org15-btn.ghost{background:transparent}
+#page-faccoes .org15-btn.primary{background:var(--o15-brand);border-color:var(--o15-brand);color:#fff}
+#page-faccoes .org15-btn.primary:hover{background:#ad6bff}
+
+/* frequência na linha */
+#page-faccoes .org15-freq{display:flex;align-items:center;gap:12px;background:transparent;border:1px solid transparent;border-radius:9px;padding:5px 8px;margin:-5px -8px;cursor:pointer;color:inherit;text-align:left}
+#page-faccoes .org15-freq:hover{border-color:var(--o15-line-2);background:rgba(154,77,255,.08)}
+#page-faccoes .org15-freq.empty span{font-size:12px;color:var(--o15-text-3)}
+#page-faccoes .org15-freq-nums{display:grid;grid-template-columns:repeat(3,auto);grid-template-rows:auto auto;grid-auto-flow:column;column-gap:12px;align-items:baseline}
+#page-faccoes .org15-freq-nums b{font-size:14px;font-variant-numeric:tabular-nums;margin:0}
+#page-faccoes .org15-freq-nums small{font-size:9.5px!important;letter-spacing:.08em;text-transform:uppercase;margin:0!important}
+#page-faccoes .org15-freq-nums b.good,#page-faccoes .org15-heat .sum.good{color:var(--o15-ok)}
+#page-faccoes .org15-freq-nums b.mid,#page-faccoes .org15-heat .sum.mid{color:var(--o15-mid)}
+#page-faccoes .org15-freq-nums b.low,#page-faccoes .org15-heat .sum.low{color:var(--o15-low)}
+.org15-spark{display:block;flex:none}
+.org15-spark rect.ok{fill:var(--o15-brand-2)}
+.org15-spark rect.zero{fill:var(--o15-low);opacity:.7}
+.org15-spark rect.nd{fill:rgba(255,255,255,.14)}
+
+/* qualidade cadastral: uma linha discreta */
+#page-faccoes .org15-audit{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;margin-top:10px;padding:10px 12px;border:1px dashed var(--o15-line-2);border-radius:12px;font-size:12px;color:var(--o15-text-3)}
+#page-faccoes .org15-audit b{font-size:10.5px;letter-spacing:.1em;margin-right:4px}
+#page-faccoes .org15-audit span{padding:3px 9px;border-radius:999px;background:rgba(255,195,92,.08);color:var(--o15-mid)}
+#page-faccoes .org15-audit span.danger{background:rgba(255,107,129,.1);color:var(--o15-low)}
+
+/* ---------- mapa de frequência ---------- */
+#page-faccoes .org15-heat-wrap{overflow:auto;max-height:72vh}
+#page-faccoes .org15-heat{border-collapse:separate;border-spacing:3px;width:100%;font-variant-numeric:tabular-nums}
+#page-faccoes .org15-heat thead th{position:sticky;top:0;z-index:2;background:#191220;font-size:11px;color:var(--o15-text-3);font-weight:700;padding:6px 2px;text-align:center}
+#page-faccoes .org15-heat thead th small{display:block;font-size:9px;opacity:.7}
+#page-faccoes .org15-heat thead th.today{color:var(--o15-brand-2)}
+#page-faccoes .org15-heat thead th.wknd span{color:var(--o15-text-2)}
+#page-faccoes .org15-heat th.name{position:sticky;left:0;z-index:3;background:#191220;text-align:left;min-width:190px;padding:0}
+#page-faccoes .org15-heat tbody th.name{z-index:1;background:var(--o15-surface)}
+#page-faccoes .org15-heat thead th.name{padding:6px 10px;font-size:10.5px;letter-spacing:.1em}
+#page-faccoes .org15-heat th.name button{width:100%;text-align:left;background:transparent;border:0;color:var(--o15-text);padding:6px 10px;cursor:pointer;border-radius:8px}
+#page-faccoes .org15-heat th.name button:hover{background:rgba(154,77,255,.12)}
+#page-faccoes .org15-heat th.name b{display:block;font-size:13.5px}
+#page-faccoes .org15-heat th.name small{display:block;font-size:11px;color:var(--o15-text-3);font-weight:500}
+#page-faccoes .org15-heat td{min-width:30px;height:34px;text-align:center;border-radius:6px;font-size:12px;font-weight:700}
+#page-faccoes .org15-heat td.v{background:rgba(var(--o15-heat),var(--a));color:#fff}
+#page-faccoes .org15-heat td.z{background:rgba(255,107,129,.12);color:var(--o15-low)}
+#page-faccoes .org15-heat td.nd{background:rgba(255,255,255,.03)}
+#page-faccoes .org15-heat .sum{min-width:52px;color:var(--o15-text);font-size:13px;background:transparent}
+#page-faccoes .org15-heat thead .sum{font-size:10px;letter-spacing:.08em}
+#page-faccoes .org15-heat-legend{display:flex;flex-wrap:wrap;gap:6px 18px;padding:10px 14px;border-top:1px solid var(--o15-line);font-size:11.5px;color:var(--o15-text-3)}
+#page-faccoes .org15-heat-legend span{display:inline-flex;align-items:center;gap:5px}
+#page-faccoes .org15-heat-legend i{display:inline-block;width:14px;height:14px;border-radius:4px;background:rgba(var(--o15-heat),var(--a))}
+#page-faccoes .org15-heat-legend i.z{background:rgba(255,107,129,.25)}
+#page-faccoes .org15-heat-legend i.nd{background:rgba(255,255,255,.06)}
+
+/* ---------- painel de frequência da facção ---------- */
+#org15Drawer .org15-drawer-card{width:min(880px,96vw);background:#120d18;border-color:var(--o15-line-2)}
+#org15Drawer h2{margin:4px 0 2px;font-size:24px}
+#org15Drawer .org15-sub{margin:0 0 12px;color:var(--o15-text-3);font-size:13px}
+#org15Drawer .org15-drawer-periodo{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+#org15Drawer .org15-drawer-periodo button{border:1px solid var(--o15-line-2);background:transparent;color:var(--o15-text-2);border-radius:999px;padding:6px 12px;font-size:11px;font-weight:700;cursor:pointer}
+#org15Drawer .org15-drawer-periodo button.active{background:var(--o15-brand);border-color:var(--o15-brand);color:#fff}
+#org15Drawer .org15-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:12px}
+#org15Drawer .org15-kpis div{background:var(--o15-surface);border:1px solid var(--o15-line);border-radius:12px;padding:10px 12px}
+#org15Drawer .org15-kpis span{display:block;font-size:10px;font-weight:800;letter-spacing:.1em;color:var(--o15-text-3)}
+#org15Drawer .org15-kpis b{display:block;font-size:24px;margin-top:4px;color:var(--o15-text);font-variant-numeric:tabular-nums}
+#org15Drawer .org15-kpis small{font-size:11px;color:var(--o15-text-3)}
+#org15Drawer .org15-chart{width:100%;height:auto;display:block;background:var(--o15-surface);border:1px solid var(--o15-line);border-radius:12px}
+#org15Drawer .org15-chart .grid{stroke:rgba(255,255,255,.06)}
+#org15Drawer .org15-chart .ax{fill:var(--o15-text-3);font-size:10px}
+#org15Drawer .org15-chart .val{fill:var(--o15-text-2);font-size:9.5px;font-weight:700}
+#org15Drawer .org15-chart rect.ok{fill:var(--o15-brand)}
+#org15Drawer .org15-chart rect.ok:hover{fill:var(--o15-brand-2)}
+#org15Drawer .org15-chart rect.zero{fill:var(--o15-low)}
+#org15Drawer .org15-chart rect.nd{fill:rgba(255,255,255,.12)}
+#org15Drawer .org15-chart .avg{stroke:var(--o15-mid);stroke-dasharray:5 4;stroke-width:1.5}
+#org15Drawer .org15-chart .avgt{fill:var(--o15-mid);font-size:10.5px;font-weight:700}
+#org15Drawer .org15-days{margin-top:12px}
+#org15Drawer .org15-days summary{cursor:pointer;font-size:12px;font-weight:700;color:var(--o15-text-2);padding:6px 0}
+#org15Drawer .org15-days-wrap{max-height:280px;overflow:auto;border:1px solid var(--o15-line);border-radius:10px}
+#org15Drawer .org15-days table{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums}
+#org15Drawer .org15-days th{position:sticky;top:0;background:#191220;padding:8px 10px;text-align:left;font-size:10px;letter-spacing:.08em;color:var(--o15-text-3)}
+#org15Drawer .org15-days td{padding:7px 10px;border-top:1px solid var(--o15-line);color:var(--o15-text)}
+#org15Drawer .org15-days tr.nd td{color:var(--o15-text-3)}
+#org15Drawer .org15-drawer-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:14px}
+#org15Drawer .org15-drawer-actions button{width:auto!important;min-width:150px;height:40px;margin:0!important;padding:0 18px!important}
+#org15Drawer .org15-chart .avgbg{fill:rgba(18,13,24,.85);stroke:rgba(255,195,92,.4)}
+
+/* ---------- telas menores ---------- */
+@media (max-width:900px){
+  #page-faccoes .org15-head{align-items:flex-start}
+  #page-faccoes .org15-view{flex:1 1 100%}
+  #page-faccoes .org15-view button{flex:1;padding:9px 6px}
+  #org15Drawer .org15-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:560px){
+  #page-faccoes .org15-select{flex:1 1 calc(50% - 4px)}
+  #page-faccoes .org15-export-menu{right:auto;left:0;width:min(300px,86vw)}
+}
