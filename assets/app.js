@@ -26,6 +26,9 @@ import { getFirestore,
  arrayUnion } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
 
 import { estado } from './modules/estado.js';
+import { situacaoGroup, SITUACOES, ocupado as ocupadoV14 } from './modules/ocupacao.js';
+import { criarEntrega } from './modules/entrega.js';
+import { painelOcupacaoHtml, painelDisponiveisHtml, ligarPaineis, abrirRevisao } from './modules/painel-ocupacao.js';
 import { esc, alvesNorm, fmtDuration, fmtDateMs, fmtMoneyMaybe } from './modules/formatadores.js';
 import { definirGroupsConhecidos, normalizeMetricDate, parseMetricNumber, normalizeMetricSlotKey, metricSlotLabel, metricGroupLabel, parseMetricSheet, parseCsvRows } from './modules/metricas-parser.js';
 import { SEED } from './modules/base-groups.js';
@@ -1559,6 +1562,11 @@ updatedBy:currentUser.email};
 
  if(data.status==='ATIVA'&&!data.faccao){alert('Informe o nome da facção para marcar como ATIVA.');
 return}
+ /* V14: o perfil não pode criar ocupação contraditória. Facção entra pela ENTREGA e sai pelo RECOLHER. */
+ if(data.faccao&&data.status!=='ATIVA'){alert('Facção preenchida com status vago deixa o Group contraditório (assumido numa tela e vago em outra).\n\nPara liberar o Group use RECOLHER; para registrar uma facção use ENTREGAR. Se o cadastro já estava assim, corrija em Organizações → REVISAR.');
+return}
+ {const outroV14=data.faccao?estado.faccoes.find(x=>!x.removido&&x.group!==data.group&&ocupadoV14(x)&&String(x.faccao).trim().toLowerCase()===data.faccao.trim().toLowerCase()):null;
+ if(outroV14){alert(`${data.faccao} já ocupa o ${outroV14.group}. Uma facção só pode ter um Group.`);return}}
  try{const generated=autoDeliveryRequests(data);
 await setDoc(doc(db,'highos','data','faccoes',group),data);
 const localIndex=estado.faccoes.findIndex(x=>x.group===group);
@@ -3621,7 +3629,28 @@ alert(pendencias.length
  }catch(err){alert('Erro ao concluir entrega: '+err.message)}
 }
 initDeliveryUi();
-
+/* ===== V14 · ENTREGA DE GROUP REFEITA (modules/entrega.js) =====
+   O modal antigo (#newDeliveryModal) fica no HTML só por compatibilidade;
+   toda abertura de entrega passa a usar o fluxo novo em etapas. */
+let entregaV14Inst=null;
+function entregaV14(){return entregaV14Inst||(entregaV14Inst=criarEntrega({
+ esc,estado,db,fs:{writeBatch,doc,setDoc,addDoc,serverTimestamp},deliveryCol,histCol,
+ INSTALLATIONS,installedValue,isInstalled,fmtCds,orgKey,derivedOrganizations,
+ user:()=>({email:currentUser?.email||'',nome:currentProfile?.name||currentUser?.displayName||'',sessionId:currentSessionId||''}),
+ syncSheet:groups=>syncGroupsToOfficialSheet(groups,{quiet:true}),
+ upsertOrg:upsertOrganizationFromDelivery,
+ recarregar:async()=>{await loadFaccoes();await loadDeliveries();},
+ alert:msg=>alert(msg)}))}
+openNewDelivery=function(group=''){if(!currentUser)return alert('Entre com sua conta para registrar entregas.');entregaV14().abrir(group)};
+function painelDepsV14(){return {esc,estado,db,fs:{setDoc,doc,addDoc,serverTimestamp},histCol,
+ user:()=>({email:currentUser?.email||'',sessionId:currentSessionId||''}),
+ discordState:f=>availableDiscordState(f),anuncioTexto:f=>availableAnnouncementText(f),
+ marcarPostado:(g,v)=>setAvailableDiscordState(g,v),
+ abrirEntrega:g=>openNewDelivery(g),
+ abrirGroup:g=>{activateAppPage('faccoes');const f=estado.faccoes.find(x=>x.group===g);if(f)openFac(f.id)},
+ abrirOrganizacoes:st=>{activateAppPage('faccoes');const sel=$('#facStatus');if(sel){sel.value=st==='SEM_QG'?'INDISPONIVEL':st;renderFaccoes();}},
+ recarregar:async()=>{await loadFaccoes();await loadDeliveries();renderCommandDashboard();},
+ alert:msg=>alert(msg)}}
 const _loadFaccoesV5=loadFaccoes;
 loadFaccoes=async function(){await _loadFaccoesV5();
 renderFaccoes();
@@ -9628,8 +9657,9 @@ function renderCommandDashboard(){
  const box=$('#commandDashboard');
 if(!box)return;
 
- const active=estado.faccoes.filter(f=>f.status==='ATIVA'&&f.faccao),
-vacant=estado.faccoes.filter(f=>f.status!=='ATIVA'||!f.faccao),
+ /* V14: regra única de ocupação (modules/ocupacao.js) */
+ const active=estado.faccoes.filter(f=>!f.removido&&situacaoGroup(f)==='ASSUMIDA'),
+vacant=estado.faccoes.filter(f=>!f.removido&&situacaoGroup(f)==='DISPONIVEL'),
 weekly=weeklyContingentAlerts(),
 visibleWeekly=weekly.filter(x=>x.state!=='LIMPO'),
 openAlerts=visibleWeekly.filter(x=>x.state!=='CONCLUIDO'),
@@ -9656,14 +9686,14 @@ v])=>`<div class="dash-seg-row"><span>${esc(k)}</span><div><i style="width:${v.a
 
  const activity=movements.map(h=>`<div class="dash-activity-row"><i></i><div><b>${esc(historyTitle(h))}</b><span>${esc([h.group,h.faccao].filter(Boolean).join(' • ')||h.descricao||'Operação administrativa')}</span><small>${esc(formatHistoryDate(h))}${h.usuario?' • '+esc(h.usuario):''}</small></div></div>`).join('')||'<div class="dash-empty">Nenhuma movimentação registrada.</div>';
 
- box.innerHTML=`<section class="dash-command-hero"><div><span class="dash-hero-kicker">HIGH OS • CENTRAL EXECUTIVA</span><h3>VISÃO GERAL DO ILEGAL</h3><p>Indicadores, alertas e ações prioritárias reunidos em uma leitura rápida da operação.</p></div><div class="dash-hero-actions"><button type="button" data-open-management>ABRIR GESTÃO DO ILEGAL</button><button type="button" class="primary" data-open-general-report>GERAR RELATÓRIO GERAL</button></div></section><div class="dash-kpis"><button data-go="faccoes"><span>FACÇÕES ATIVAS</span><b>${active.length}</b><small>somente ocupadas</small></button><button data-go="faccoes"><span>QGs VAGOS</span><b>${vacant.length}</b><small>fora de métricas globais</small></button><button data-go="metricas" class="${openAlerts.length?'warn':''}"><span>ALERTAS SEMANAIS</span><b>${openAlerts.length}</b><small>${critical?critical+' crítico(s)':'comparação com semana anterior'}</small></button><button data-go="solicitacoes"><span>SOLICITAÇÕES</span><b>${pending||estado.solicitacoes.length}</b><small>${pending?'pendentes':'modelos cadastrados'}</small></button><article class="health ${health.toLowerCase()}"><span>SAÚDE DO ILEGAL</span><b>${health}</b><small>${openAlerts.length?openAlerts.length+' alerta(s) pendente(s)':'sem alertas pendentes'}</small></article></div>
- <div class="dash-grid"><section class="dash-panel dash-wide"><header><div><span>COMPARAÇÃO SEMANAL</span><h3>ALERTAS OBJETIVOS DE CONTINGENTE</h3></div><button data-go="metricas">ABRIR CENTRAL →</button></header><p class="dash-rule-note">A semana atual é comparada com os mesmos dias e horários da semana anterior. Facções sem ocupação nunca geram alerta.</p><div class="dash-week-alerts">${attention}</div></section>
- <section class="dash-panel"><header><div><span>PATRIMÔNIO</span><h3>OCUPAÇÃO POR SEGMENTO</h3></div><button data-go="faccoes">VER ORGANIZAÇÕES →</button></header><div class="dash-segments">${bars}</div></section>
+ box.innerHTML=`<section class="dash-command-hero"><div><span class="dash-hero-kicker">HIGH OS • CENTRAL EXECUTIVA</span><h3>VISÃO GERAL DO ILEGAL</h3><p>Indicadores, alertas e ações prioritárias reunidos em uma leitura rápida da operação.</p></div><div class="dash-hero-actions"><button type="button" data-open-management>ABRIR GESTÃO DO ILEGAL</button><button type="button" class="primary" data-open-general-report>GERAR RELATÓRIO GERAL</button></div></section><div class="dash-kpis"><button data-go="faccoes"><span>FACÇÕES ATIVAS</span><b>${active.length}</b><small>somente ocupadas</small></button><button data-go="faccoes"><span>DISPONÍVEIS</span><b>${vacant.length}</b><small>prontas para entrega</small></button><button data-go="metricas" class="${openAlerts.length?'warn':''}"><span>ALERTAS SEMANAIS</span><b>${openAlerts.length}</b><small>${critical?critical+' crítico(s)':'comparação com semana anterior'}</small></button><button data-go="solicitacoes"><span>SOLICITAÇÕES</span><b>${pending||estado.solicitacoes.length}</b><small>${pending?'pendentes':'modelos cadastrados'}</small></button><article class="health ${health.toLowerCase()}"><span>SAÚDE DO ILEGAL</span><b>${health}</b><small>${openAlerts.length?openAlerts.length+' alerta(s) pendente(s)':'sem alertas pendentes'}</small></article></div>
+ <div class="dash-grid">${painelDisponiveisHtml(painelDepsV14())}${painelOcupacaoHtml(painelDepsV14())}<section class="dash-panel dash-wide"><header><div><span>COMPARAÇÃO SEMANAL</span><h3>ALERTAS OBJETIVOS DE CONTINGENTE</h3></div><button data-go="metricas">ABRIR CENTRAL →</button></header><p class="dash-rule-note">A semana atual é comparada com os mesmos dias e horários da semana anterior. Facções sem ocupação nunca geram alerta.</p><div class="dash-week-alerts">${attention}</div></section>
  <section class="dash-panel dash-wide"><header><div><span>VALIDAÇÃO AUTOMÁTICA</span><h3>INCONSISTÊNCIAS • GROUP VAGO COM PLAYER</h3></div></header><div class="dash-anomalies">${anomalyHtml}</div></section>
  <section class="dash-panel"><header><div><span>30 DIAS / HISTÓRICO</span><h3>MOVIMENTAÇÃO DE FACÇÕES</h3></div><button data-go="historico">VER HISTÓRICO →</button></header><div class="dash-move-kpis"><div><b>${ent30}</b><span>ENTREGAS</span></div><div><b>${rec30}</b><span>RECOLHIMENTOS</span></div><div><b>${estado.historico.length}</b><span>EVENTOS</span></div></div></section>
  <section class="dash-panel dash-wide"><header><div><span>AUDITORIA</span><h3>ATIVIDADE RECENTE</h3></div><button data-go="historico">ABRIR HISTÓRICO →</button></header><div class="dash-activity">${activity}</div></section></div>`;
 
  box.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>dashboardGo(b.dataset.go));
+ligarPaineis(box,painelDepsV14(),renderCommandDashboard);
 box.querySelector('[data-open-management]')?.addEventListener('click',()=>{activateAppPage('metricas');switchMetricCenterView('management');renderIllegalManagement()});
 box.querySelector('[data-open-general-report]')?.addEventListener('click',mgmtOpenRichReport);
 box.querySelectorAll('[data-alert-group]').forEach(b=>b.onclick=()=>openMetricForGroup(b.dataset.alertGroup));
@@ -10577,6 +10607,11 @@ $('#adminOpenUsersBtn')?.addEventListener('click',()=>activateAppPage('usuarios'
 
 // HIGH OS V8.20 · status da facção é determinado pela ocupação do Group.
 async function normalizeOccupationStatusV820(){
+ /* V14: desligada. Ela gravava status ATIVA em qualquer Group com nome de
+    facção — inclusive sobra de cadastro de facção que já tinha saído — sem
+    ninguém confirmar. Agora a contradição aparece em Organizações →
+    REVISAR / Dashboard → A REVISAR e o administrador escolhe a correção. */
+ return;
  const changes=[];
 
  estado.faccoes.forEach(f=>{const active=!!String(f.faccao||'').trim(),
@@ -13106,10 +13141,11 @@ function orgV92HasQG(f={}){
  return !!q && !/^(sem\s*(qg|local)|-|—|n\/a)$/i.test(q);
 
 }
-function orgV92Status(f={}){if(orgV92HasOccupant(f))return 'ASSUMIDA';
-return orgV92HasQG(f)?'DISPONIVEL':'INDISPONIVEL'}
-function orgV92StatusLabel(s=''){return s==='ASSUMIDA'?'ASSUMIDA':s==='DISPONIVEL'?'DISPONÍVEL':s==='INDISPONIVEL'?'INDISPONÍVEL':'—'}
-function orgV92StatusClass(s=''){return s==='ASSUMIDA'?'assumed':s==='DISPONIVEL'?'available':'unavailable'}
+/* V14: mesma regra do Dashboard, métricas e entrega (modules/ocupacao.js).
+   SEM_QG continua com o código INDISPONIVEL usado pelos filtros/relatórios. */
+function orgV92Status(f={}){const s=situacaoGroup(f);return s==='SEM_QG'?'INDISPONIVEL':s}
+function orgV92StatusLabel(s=''){return s==='ASSUMIDA'?'ASSUMIDA':s==='DISPONIVEL'?'DISPONÍVEL':s==='INDISPONIVEL'?'SEM QG':s==='REVISAR'?'REVISAR':'—'}
+function orgV92StatusClass(s=''){return s==='ASSUMIDA'?'assumed':s==='DISPONIVEL'?'available':s==='REVISAR'?'review':'unavailable'}
 function orgV92Segment(f={}){
  const raw=String(f.segmento||'').trim();
 if(raw)return raw;
@@ -13131,7 +13167,7 @@ return 'OUTROS';
    Assim o número aparece onde a pessoa vai clicar, e não num cartão
    separado que repete a mesma informação. */
 function aplicarContagemNosChips(cont){
- const mapa={'':cont.todas,'ASSUMIDA':cont.assumida,'DISPONIVEL':cont.disponivel,'INDISPONIVEL':cont.indisponivel};
+ const mapa={'':cont.todas,'ASSUMIDA':cont.assumida,'DISPONIVEL':cont.disponivel,'INDISPONIVEL':cont.indisponivel,'REVISAR':cont.revisar||0};
  document.querySelectorAll('#facStatusButtons [data-value]').forEach(b=>{
   const n=mapa[b.dataset.value??''];
   if(n===undefined)return;
@@ -13184,8 +13220,11 @@ function renderFacActivityButtons(){activityButtons('facStatusButtons','facStatu
 'DISPONÍVEIS',
 '◇'],
 ['INDISPONIVEL',
-'INDISPONÍVEIS',
-'×']],renderFaccoes)}
+'SEM QG',
+'×'],
+['REVISAR',
+'REVISAR',
+'!']],renderFaccoes)}
 renderFacSegmentChips=function(){renderVisualSegmentFilter({rows:orgV92Rows().map(f=>({...f,
 segmento:f.__orgSegment})),
 field:'segmento',
@@ -13221,8 +13260,10 @@ if(summary)summary.innerHTML=`<div class="org-resumo-linha">`
  +`<span class="org-resumo-item assumida"><b>${c('ASSUMIDA')}</b> assumidas</span>`
  +`<span class="org-resumo-item disponivel"><b>${c('DISPONIVEL')}</b> disponíveis</span>`
  +`<span class="org-resumo-item indisponivel"><b>${c('INDISPONIVEL')}</b> sem QG</span>`
+ +(c('REVISAR')?`<button type="button" class="org-resumo-item revisar" data-revisar-ocupacao><b>${c('REVISAR')}</b> a revisar →</button>`:'')
  +`</div>`;
-aplicarContagemNosChips({todas:all.length,assumida:c('ASSUMIDA'),disponivel:c('DISPONIVEL'),indisponivel:c('INDISPONIVEL')});
+summary?.querySelector('[data-revisar-ocupacao]')?.addEventListener('click',()=>abrirRevisao(painelDepsV14()));
+aplicarContagemNosChips({todas:all.length,assumida:c('ASSUMIDA'),disponivel:c('DISPONIVEL'),indisponivel:c('INDISPONIVEL'),revisar:c('REVISAR')});
 if(false)summary.innerHTML=`<article><span>TOTAL</span><b>${all.length}</b><small>Groups administrativos</small></article><article class="assumed"><span>ASSUMIDAS</span><b>${c('ASSUMIDA')}</b><small>com facção ocupante</small></article><article class="available"><span>DISPONÍVEIS</span><b>${c('DISPONIVEL')}</b><small>livres com QG/Favela</small></article><article class="unavailable"><span>INDISPONÍVEIS</span><b>${c('INDISPONIVEL')}</b><small>ausência de QG/Favela</small></article>`;
 
  const st=$('#facStatus')?.value||'',

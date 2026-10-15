@@ -103,3 +103,24 @@ Regra de manutenção: configuração estática e funções puras não devem vol
 - **Discord:** textos acima de 2.000 caracteres são divididos em partes numeradas, sem cortar CDS.
 - **Prazo da cidade:** solicitação sem retorno há mais de 48 h (`PRAZO_RETORNO_H` em `eventos-painel.js`) aparece como ATRASADA na central.
 - **Histórico:** cada zona mostra o histórico do ciclo (enviada, reenviada, cancelada, aplicada) com data e usuário.
+
+
+## V14 — Ocupação dos Groups, Entrega e Dashboard refeitos
+
+### Regra única (`assets/modules/ocupacao.js`)
+- **ASSUMIDA:** status ATIVA **e** facção preenchida · **DISPONÍVEL:** sem facção, com QG · **SEM QG:** sem facção e sem QG · **REVISAR:** dados contraditórios.
+- Organizações, Dashboard e Entrega usam a mesma função (`situacaoGroup`). Antes eram três regras diferentes.
+- A rotina V8.20, que gravava status ATIVA sozinha em qualquer Group com facção preenchida, foi desligada. As contradições agora vão para a revisão.
+- O perfil do Group não deixa mais salvar facção com status vago nem a mesma facção em dois Groups.
+
+### Entrega (`assets/modules/entrega.js`)
+- Etapas: Group → Facção → Benefícios → Revisão, com validação em cada passo.
+- Bloqueia Group SEM QG / REVISAR e facção que já ocupa outro Group.
+- **Troca de ocupante:** Group ocupado pode ser entregue com motivo, justificativa e confirmação. Grava o recolhimento da anterior (histórico `RECOLHIMENTO`, organização `SEM_GROUP`) e a entrega (`ENTREGA_GROUP`), para o bot anunciar os dois.
+- Mesmas coleções e campos de antes (`entregas`, `faccoes`, `organizacoes`, `historico`); as escritas de ocupação vão num lote único (tudo ou nada). A data aceita dd/mm/aa ou dd/mm/aaaa.
+- O modal antigo `#newDeliveryModal` continua no HTML só por compatibilidade; `openNewDelivery()` abre o fluxo novo.
+
+### Dashboard (`assets/modules/painel-ocupacao.js`)
+- **Facções disponíveis:** lista pronta para entrega com segmento, QG, há quanto tempo está vago, status do anúncio no Discord e as ações ANÚNCIO (copiar texto), MARCAR POSTADO e ASSUMIR.
+- **Ocupação do Ilegal:** assumidas, disponíveis, sem QG e a revisar, barra de distribuição e ocupação por segmento (assumidos + livres).
+- **Revisar ocupação:** lista contradições e cadastros incompletos com as correções possíveis. "Aplicar" em lote só para os casos sem ambiguidade. Cada correção gera histórico `CORRECAO_OCUPACAO`, que não é anunciado.

@@ -22,6 +22,7 @@
   <link rel="stylesheet" href="assets/ui-kit.css?v=12.5.0">
   <link rel="stylesheet" href="assets/high-refresh.css?v=12.6.2">
   <link rel="stylesheet" href="assets/calma.css?v=12.5.0">
+  <link rel="stylesheet" href="assets/ocupacao.css?v=14.0.1">
   <link rel="icon" type="image/png" href="assets/high_logo.png?v=12.5.0">
 </head>
 <body>
@@ -108,7 +109,7 @@
       </aside>
       <div class="content">
         <section class="page active" id="page-dashboard">
-          <div class="page-head"><div><div class="eyebrow">CENTRAL DE COMANDO DO ILEGAL</div><h2>DASHBOARD</h2><p class="page-subtitle">Visão operacional para identificar rapidamente ocupação, contingente, pendências e movimentações da Staff.</p></div><span class="dev-badge">V12.5.0</span></div>
+          <div class="page-head"><div><div class="eyebrow">CENTRAL DE COMANDO DO ILEGAL</div><h2>DASHBOARD</h2><p class="page-subtitle">Visão operacional para identificar rapidamente ocupação, contingente, pendências e movimentações da Staff.</p></div><span class="dev-badge">V14.0.0</span></div>
           <div class="dash-v4-intro"><strong>PAINEL DE CONTROLE</strong><span>O que precisa da sua atenção hoje, sem poluição visual.</span></div>
           <div id="commandDashboard" class="command-dashboard"><div class="placeholder"><b>◆</b><h3>CARREGANDO CENTRAL DE COMANDO</h3></div></div>
           <span id="dashEmail" class="hidden">—</span><span id="dashRole" class="hidden">—</span>
@@ -143,7 +144,7 @@
           <div class="org-v92-toolbar">
             <div class="org-v92-search"><span>⌕</span><input id="facSearch" placeholder="Buscar Group, facção, QG/Favela, líder, staff ou produto..."></div>
             <select id="facSegment" class="filter-native-hidden" aria-label="Segmento"><option value="">TODOS OS SEGMENTOS</option></select>
-            <select id="facStatus" class="filter-native-hidden" aria-label="Situação"><option value="">TODAS</option><option value="ASSUMIDA">ASSUMIDAS</option><option value="DISPONIVEL">DISPONÍVEIS</option><option value="INDISPONIVEL">INDISPONÍVEIS</option></select>
+            <select id="facStatus" class="filter-native-hidden" aria-label="Situação"><option value="">TODAS</option><option value="ASSUMIDA">ASSUMIDAS</option><option value="DISPONIVEL">DISPONÍVEIS</option><option value="INDISPONIVEL">SEM QG</option><option value="REVISAR">REVISAR</option></select>
           </div>
           <div id="facStatusButtons" class="org-v92-status-filter" aria-label="Filtrar organizações por situação"></div>
           <div id="facSegmentChips" class="segment-visual-grid org-v92-segments" aria-label="Filtrar organizações por segmento"></div>
@@ -852,7 +853,7 @@
   <script src="assets/ui-kit.js?v=12.5.0"></script>
   <script src="assets/modules/eventos-painel.js?v=12.8.0"></script>
   <script src="assets/mission-planner.js?v=12.8.0"></script>
-  <script type="module" src="assets/app.js?v=12.5.8"></script>
+  <script type="module" src="assets/app.js?v=14.0.0"></script>
   <script defer src="assets/compact-group-map.js?v=12.6.2"></script>
 
 <div id="newDeliveryModal" class="modal hidden"><div class="modal-card delivery-modal-v5"><button class="modal-x" id="newDeliveryClose">×</button>
