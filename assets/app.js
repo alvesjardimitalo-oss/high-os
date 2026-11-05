@@ -15560,6 +15560,21 @@ function orgV92HasQG(f={}){
 
 }
 /* V14: mesma regra do Dashboard, métricas e entrega (modules/ocupacao.js). */
+/* Quando a lista sai vazia o motivo quase nunca e o filtro: na virada
+   de season a temporada simplesmente ainda nao tem Group definido.
+   Dizer "ajuste o filtro" manda a pessoa procurar onde nao ha nada. */
+function vazioDeGroups(){
+ const naSeason=(faccoes||[]).length, total=(faccoesTodas||[]).length;
+ if(season.carregada&&!naSeason){
+  const fora=total-naSeason;
+  return `<div class="placeholder"><b>◆</b><h3>A ${esc(season.nome)} AINDA NÃO TEM GROUP</h3>
+   <p>Group é a definição produtiva de uma favela — o produto, a receita e o farm.
+   Abra <b>QGs da Season</b>, escolha uma favela e defina o Group dela.</p>
+   ${fora?`<p class="muted">${fora} Group(s) de outras seasons não aparecem aqui. Troque de season no topo para vê-los.</p>`:''}</div>`;
+ }
+ return '<div class="placeholder"><b>⌕</b><h3>NENHUM GROUP NESTE FILTRO</h3><p>Ajuste segmento, situação ou busca.</p></div>';
+}
+
 function orgV92Status(f={}){const s=situacaoGroup(f);return s==='SEM_QG'?'INDISPONIVEL':s}
 function orgV92StatusLabel(s=''){return s==='ASSUMIDA'?'ASSUMIDA':s==='DISPONIVEL'?'DISPONÍVEL':s==='INDISPONIVEL'?'SEM QG':s==='REVISAR'?'REVISAR':'—'}
 function orgV92StatusClass(s=''){return s==='ASSUMIDA'?'assumed':s==='DISPONIVEL'?'available':s==='REVISAR'?'review':'unavailable'}
@@ -15665,7 +15680,7 @@ if($('#facStats'))$('#facStats').textContent=`${rows.length} exibida(s) de ${all
 
  const box=$('#facList');
 if(!box)return;
-if(!rows.length){box.innerHTML='<div class="placeholder"><b>⌕</b><h3>NENHUMA ORGANIZAÇÃO NESTE FILTRO</h3><p>Ajuste segmento, situação ou busca.</p></div>';
+if(!rows.length){box.innerHTML='vazioDeGroups()';
 return}
  const ordered=rows.slice().sort((a,b)=>String(a.__orgSegment).localeCompare(String(b.__orgSegment),'pt-BR')||String(a.group||'').localeCompare(String(b.group||''),'pt-BR',{numeric:true}));
 
@@ -15949,7 +15964,7 @@ renderFaccoes=function(){
 
  const box=$('#facList');if(!box)return;
  document.querySelectorAll('#orgV92Audit').forEach(el=>el.remove());
- if(!rows.length){box.innerHTML='<div class="placeholder"><b>⌕</b><h3>NENHUMA ORGANIZAÇÃO NESTE FILTRO</h3><p>Ajuste segmento, situação ou busca.</p></div>';return}
+ if(!rows.length){box.innerHTML='vazioDeGroups()';return}
  const ordered=org15Ordenar(rows,res);
  box.innerHTML=org15.view==='mapa'?org15Mapa(ordered,res,dias,max):org15Lista(ordered,res,max,r0);
 
