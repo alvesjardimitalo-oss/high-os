@@ -31,7 +31,8 @@ import { painelOcupacaoHtml, painelDisponiveisHtml, ligarPaineis, abrirRevisao }
 import * as fila from './modules/fila-bot.js?v=13.1.0';
 import * as qgsUi from './modules/qgs-ui.js?v=13.2.0';
 import * as catCraft from './modules/catalogo-craft.js?v=13.1.0';
-import * as catUi from './modules/catalogo-ui.js?v=13.1.0';
+import * as catUi from './modules/catalogo-ui.js?v=13.2.0';
+import * as itensUi from './modules/itens-conhecidos.js?v=13.0.0';
 import { season, lerIndice, carregarSeason, seasonEscolhida, guardarEscolha, esquecerEscolha, filtrarPorSeason, qgsSemVinculo, foraDaPlanilha, resumoSeason, salvarQg, vincularGroup, desvincularGroup } from './modules/season.js?v=13.1.0';
 
 const firebaseConfig={apiKey:'AIzaSyBKtl3rCA9Id1RDMwGch-yi4hxAs83DraU',
@@ -2337,7 +2338,7 @@ function abrirCraftQg(chave){
     <button class="modal-x" type="button" aria-label="Fechar">×</button>
     <div class="eyebrow">${nova?'NOVA RECEITA':'EDITAR RECEITA'}</div>
     <h2 style="margin:4px 0 14px">${esc(base.nome||'Sem nome')}</h2>
-    ${catUi.editorReceitaHtml(base,cat,esc)}
+    ${catUi.editorReceitaHtml(base,cat,esc,mercadoCatalogo||[])}
     <div class="modal-actions">
      ${nova?'':'<button type="button" class="btn-danger" data-apagar>APAGAR</button>'}
      <div style="display:flex;gap:9px;margin-left:auto">
@@ -2369,7 +2370,15 @@ function abrirCraftQg(chave){
     sl.onchange=()=>{cx.style.display=sl.value==='CRAFT'?'':'none';previa()};
    });
   }
-  ligar(); sub.addEventListener('input',previa); previa();
+  ligar();
+  sub.addEventListener('input',e=>{
+   if(e.target.matches('[data-i="spawn"],[data-r="spawn"]')){
+    const alvo=e.target.parentElement.querySelector('.cat-nome-item');
+    if(alvo)alvo.textContent=itensUi.nomeDoItem(e.target.value)||'';
+   }
+   previa();
+  });
+  previa();
 
   sub.querySelector('[data-apagar]')?.addEventListener('click',()=>{
    if(!confirm(`Apagar "${base.nome||'esta receita'}"?`))return;
