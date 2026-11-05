@@ -14,9 +14,17 @@ jobs:
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # o conferidor de versoes compara com a main
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Versões de cache dos assets alterados
+        # Um arquivo alterado cujo ?v= não sobe segue sendo servido do
+        # cache: a correção vai ao ar e a tela continua quebrada.
+        run: |
+          git fetch origin main --depth=50 || true
+          node tools/versoes.mjs origin/main
       - name: Sintaxe dos módulos críticos
         run: |
           node --check assets/app.js

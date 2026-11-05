@@ -3,7 +3,7 @@
    lado, derivada dos insumos. Quem edita ve na hora o que a faccao vai
    ter que colher. */
 
-import {ORIGENS,rotaDaReceita,rotaDoSegmento,conferirCatalogo,receitasDisponiveis,resumoCatalogo} from './catalogo-craft.js?v=13.0.0';
+import {ORIGENS,rotaDaReceita,rotaDoSegmento,conferirCatalogo,receitasDisponiveis,resumoCatalogo} from './catalogo-craft.js?v=13.1.0';
 
 export function catalogoHtml({catalogo,segmentoAtivo,esc,podeEditar}){
  const segs=Object.keys(catalogo?.segmentos||{}).sort();
