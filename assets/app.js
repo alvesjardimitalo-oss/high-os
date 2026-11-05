@@ -29,7 +29,7 @@ import { syncBlipsCoordinates, valuesFor as blipsValuesFor } from './modules/bli
 import { montarLinhaDoTempo, atribuirLinhas, coletaDoDia, rotuloColeta, msDe, chaveGroup, descartarColetasVazias } from './modules/metricas-motor.js?v=14.8.2';
 import { painelOcupacaoHtml, painelDisponiveisHtml, ligarPaineis, abrirRevisao } from './modules/painel-ocupacao.js?v=14.7.0';
 import * as fila from './modules/fila-bot.js?v=13.1.0';
-import * as qgsUi from './modules/qgs-ui.js?v=13.1.0';
+import * as qgsUi from './modules/qgs-ui.js?v=13.2.0';
 import * as catCraft from './modules/catalogo-craft.js?v=13.1.0';
 import * as catUi from './modules/catalogo-ui.js?v=13.1.0';
 import { season, lerIndice, carregarSeason, seasonEscolhida, guardarEscolha, esquecerEscolha, filtrarPorSeason, qgsSemVinculo, foraDaPlanilha, resumoSeason, salvarQg, vincularGroup, desvincularGroup } from './modules/season.js?v=13.1.0';
@@ -2078,6 +2078,15 @@ function ligarQgs(){
 
  box.querySelectorAll('[data-qg-editar]').forEach(b=>b.onclick=()=>abrirEditorQg(b.dataset.qgEditar));
  box.querySelectorAll('[data-qg-craft]').forEach(b=>b.onclick=()=>abrirCraftQg(b.dataset.qgCraft));
+ /* O QG e o Group sao o mesmo lugar em dois momentos: definida a
+    producao, o cartao leva direto ao perfil do Group em vez de obrigar
+    a procurar a mesma favela na outra tela. */
+ box.querySelectorAll('[data-qg-abrir]').forEach(b=>b.onclick=()=>{
+  const alvo=(faccoes||[]).find(x=>String(x.group||'').toUpperCase()===String(b.dataset.qgAbrir).toUpperCase());
+  if(!alvo)return alert(`O Group "${b.dataset.qgAbrir}" não está na season ativa.`);
+  activateAppPage('faccoes');
+  setTimeout(()=>openFac(alvo.id),120);
+ });
  box.querySelectorAll('[data-qg-vincular]').forEach(b=>b.onclick=()=>vincularQg(b.dataset.qgVincular));
  box.querySelectorAll('[data-qg-desvincular]').forEach(b=>b.onclick=()=>desvincularQg(b.dataset.qgDesvincular));
 }
