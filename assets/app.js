@@ -28,10 +28,10 @@ import { situacaoGroup, ocupado as ocupadoV14, inconsistencias } from './modules
 import { syncBlipsCoordinates, valuesFor as blipsValuesFor } from './modules/blips-sheet-sync.js?v=1.2.0';
 import { montarLinhaDoTempo, atribuirLinhas, coletaDoDia, rotuloColeta, msDe, chaveGroup, descartarColetasVazias } from './modules/metricas-motor.js?v=14.8.2';
 import { painelOcupacaoHtml, painelDisponiveisHtml, ligarPaineis, abrirRevisao } from './modules/painel-ocupacao.js?v=14.7.0';
-import * as fila from './modules/fila-bot.js?v=13.0.0';
-import * as qgsUi from './modules/qgs-ui.js?v=13.0.0';
-import * as catCraft from './modules/catalogo-craft.js?v=13.0.0';
-import * as catUi from './modules/catalogo-ui.js?v=13.0.0';
+import * as fila from './modules/fila-bot.js?v=13.1.0';
+import * as qgsUi from './modules/qgs-ui.js?v=13.1.0';
+import * as catCraft from './modules/catalogo-craft.js?v=13.1.0';
+import * as catUi from './modules/catalogo-ui.js?v=13.1.0';
 import { season, lerIndice, carregarSeason, seasonEscolhida, guardarEscolha, esquecerEscolha, filtrarPorSeason, qgsSemVinculo, foraDaPlanilha, resumoSeason, salvarQg, vincularGroup, desvincularGroup } from './modules/season.js?v=13.1.0';
 
 const firebaseConfig={apiKey:'AIzaSyBKtl3rCA9Id1RDMwGch-yi4hxAs83DraU',
