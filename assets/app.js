@@ -59,8 +59,18 @@ const HIGH_OS_DISCORD_API=String(window.HIGH_OS_API_URL||'https://desktop-a2oor0
 // A API Discord continua sendo a fonte operacional canônica, sem simular gravações.
 let highOsEmergencyReadOnly=false;
 /* V13 - ferramentas do Firestore repassadas aos modulos, para eles nao
-   abrirem conexao propria. */
-const fnsFila={db,doc,collection,getDoc,getDocs,setDoc,serverTimestamp,writeBatch,query,where,orderBy,limit};
+   abrirem conexao propria.
+
+   Montado SOB DEMANDA, nunca no topo do arquivo: setDoc e writeBatch
+   aqui sao os embrulhos com contagem de escrita e limpeza de cache,
+   declarados mais abaixo com const. Um objeto literal no topo leria
+   essas variaveis antes da declaracao e derrubava o modulo inteiro com
+   "Cannot access 'setDoc' before initialization" - nao o trecho da
+   fila, o app todo. */
+let _fnsFila=null;
+function fnsFila(){
+ return _fnsFila||(_fnsFila={db,doc,collection,getDoc,getDocs,setDoc,serverTimestamp,writeBatch,query,where,orderBy,limit});
+}
 
 async function highOsDiscordRequest(path,options={}){
  if(!currentUser)throw new Error('Sessão expirada. Entre novamente.');
@@ -72,7 +82,7 @@ async function highOsDiscordRequest(path,options={}){
   if(!fila.mutacao(metodo))throw new Error('API do Discord offline. Modo de contingência: somente leitura.');
   let corpo=null;
   try{corpo=options.body?JSON.parse(options.body):null}catch(e){corpo=options.body??null}
-  const id=await fila.enfileirar(fnsFila,{
+  const id=await fila.enfileirar(fnsFila(),{
    caminho:path,metodo,corpo,
    resumo:fila.resumirOperacao(path,metodo,corpo),
    usuario:currentUser.email||''
@@ -2003,7 +2013,7 @@ let filaPendentes=null;         // null = ainda não consultado
 /* Uma leitura só, no login: o documento contador. Se não há
    pendência, a coleção da fila não é tocada. */
 async function iniciarFila(){
- const st=await fila.lerStatusFila(fnsFila);
+ const st=await fila.lerStatusFila(fnsFila());
  filaPendentes=st.pendentes;
  atualizarSeloFila();
  /* API de volta e fila com itens: oferece drenar, não drena sozinho.
@@ -2029,7 +2039,7 @@ function atualizarSeloFila(){
 
 async function abrirFila(){
  let itens=[];
- try{itens=await fila.listarPendentes(fnsFila)}
+ try{itens=await fila.listarPendentes(fnsFila())}
  catch(e){return alert('Não consegui ler a fila: '+e.message)}
  if(!itens.length){filaPendentes=0;atualizarSeloFila();return alert('A fila está vazia.')}
 
@@ -2047,7 +2057,7 @@ function oferecerDrenagem(){
 }
 
 async function drenarFila(){
- const r=await fila.drenar(fnsFila,async item=>{
+ const r=await fila.drenar(fnsFila(),async item=>{
   const res=await fetch(HIGH_OS_DISCORD_API+item.caminho,{
    method:item.metodo,
    headers:{'content-type':'application/json','authorization':'Bearer '+(await currentUser.getIdToken())},
