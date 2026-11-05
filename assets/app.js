@@ -1619,6 +1619,7 @@ userPhotoEl=$('#userPhoto');
   if(needsSegments)await loadSegmentConfig();
   if(initialPage==='dashboard')await loadDashboardConfig();
   await iniciarSeason();
+  renderSeasonTopo();
   await iniciarFila();
   if(needsSegments&&(!highOsEmergencyReadOnly||canViewModule('faccoes'))){
    try{await loadFaccoes()}catch(e){
@@ -2130,18 +2131,55 @@ function perguntarSeason(lista,atual=''){
 
 function renderSeasonBadge(){
  const el=$('#seasonBadge');
- if(!el)return;
- if(!season.carregada)return;            // o aviso de "sem season" ja cuidou do selo
- const r=resumoSeason(faccoesTodas||[]);
- el.hidden=false;
- el.classList.remove('vazia');
- el.innerHTML=`<span><b>${esc(season.nome)}</b><small>${r.noPainel} no painel${r.semVinculo?` • ${r.semVinculo} QG sem Group`:''}</small></span>`;
- el.title=`${r.qgs} QGs na planilha • ${r.foraDaPlanilha} Group(s) do painel fora da planilha desta season`;
- el.onclick=()=>{
-  if(!confirm(`Trocar de season? Agora você está em ${season.nome}.`))return;
-  esquecerEscolha();
-  location.reload();
- };
+ if(el&&season.carregada){
+  const r=resumoSeason(faccoesTodas||[]);
+  el.hidden=false;
+  el.classList.remove('vazia');
+  el.innerHTML=`<span><b>${esc(season.nome)}</b><small>${r.noPainel} no painel${r.semVinculo?` • ${r.semVinculo} QG sem Group`:''}</small></span>`;
+  el.title=`${r.qgs} QGs na planilha • ${r.foraDaPlanilha} Group(s) do painel fora da planilha desta season`;
+  el.onclick=trocarSeason;
+ }
+ renderSeasonTopo();
+}
+
+/* Botao no topo: a season ativa fica visivel de qualquer tela, nao so
+   dentro de Organizacoes. Trocar dali nao recarrega a pagina as cegas -
+   abre a mesma escolha do login. */
+function renderSeasonTopo(){
+ const b=$('#seasonTopBtn');
+ if(!b)return;
+ if(!season.carregada){
+  b.hidden=false;
+  b.classList.add('vazia');
+  b.innerHTML='<i></i><span><b>SEM SEASON</b><small>importar planilha</small></span>';
+  b.title='Nenhuma season importada. O painel está mostrando todos os Groups.';
+  b.onclick=()=>alert('Nenhuma season importada ainda.\n\nO painel está mostrando TODOS os Groups gravados. Para limitar aos QGs da temporada, importe a aba de blips e coordenadas em tools/importador-planilha.html.');
+  return;
+ }
+ b.hidden=false;
+ b.classList.remove('vazia');
+ b.innerHTML=`<i></i><span><b>${esc(season.nome)}</b><small>trocar</small></span>`;
+ b.title=`Season ativa: ${season.nome} — ${season.qgs.length} QGs na planilha. Clique para trocar.`;
+ b.onclick=trocarSeason;
+}
+
+async function trocarSeason(){
+ let lista=season.indice;
+ if(!lista?.length){
+  const r=await lerIndice({getDoc,doc,db});
+  lista=r.lista;
+ }
+ if(!lista?.length)return alert('Nenhuma season importada ainda.');
+ const antes=season.id;
+ await perguntarSeason(lista,season.id);
+ if(season.id===antes)return;          // escolheu a mesma: nada a refazer
+ try{
+  faccoes=filtrarPorSeason(faccoesTodas);
+  renderFaccoes();
+  renderSeasonBadge();
+  renderAvailableFaccoes();
+  renderCommandDashboard();
+ }catch(e){location.reload()}
 }
 
 function renderFaccoes(){
