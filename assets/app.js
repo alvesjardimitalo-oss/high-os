@@ -2065,7 +2065,7 @@ function renderMetas(){
  const box=$('#metasBox');
  if(!box)return;
  box.innerHTML=metasUi.metasHtml({
-  lista:(faccoes||[]).filter(f=>!f.removido),
+  lista:(faccoes||[]).filter(f=>!f.removido).map(f=>({...f,metaRec:f.perfilTecnico?.metaRec??f.metaRec})),
   season,esc,podeEditar:canEditModule('faccoes'),filtro:metaFiltro
  });
  ligarMetas();
@@ -2105,8 +2105,14 @@ async function salvarMeta(group,btn){
  const rotulo=btn?.textContent;
  if(btn){btn.disabled=true;btn.textContent='...'}
  try{
+  /* A meta vai DENTRO do perfil tecnico: o backend do bot descarta campo
+     de primeiro nivel que ele nao conhece, e perfilTecnico ele guarda
+     inteiro - foi por ali que a receita sobreviveu. Gravar em metaRec
+     solto falhava calado: a tela mostrava salvo e o dado nao existia. */
+  const atual=(faccoes||[]).find(x=>x.group===group);
+  const perfil={...(atual?.perfilTecnico||{}),metaRec:meta};
   await setDoc(doc(db,'highos','data','faccoes',group),
-   {metaRec:meta,updatedAt:serverTimestamp(),updatedBy:currentUser?.email||''},{merge:true});
+   {perfilTecnico:perfil,updatedAt:serverTimestamp(),updatedBy:currentUser?.email||''},{merge:true});
   await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'META_REC',
    group,season:season.id||'',
    descricao:meta?`Meta de rec de ${group}: ${metasUi.descreverMeta(meta)}`:`Meta de rec de ${group} removida`,
@@ -2134,7 +2140,8 @@ async function aplicarMetaEmLote(segmento){
  for(const f of alvos){
   try{
    await setDoc(doc(db,'highos','data','faccoes',f.group),
-    {metaRec:meta,updatedAt:serverTimestamp(),updatedBy:currentUser?.email||''},{merge:true});
+    {perfilTecnico:{...(f.perfilTecnico||{}),metaRec:meta},
+     updatedAt:serverTimestamp(),updatedBy:currentUser?.email||''},{merge:true});
   }catch(e){erros++}
  }
  await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'META_REC_LOTE',season:season.id||'',
