@@ -2022,10 +2022,10 @@ let catalogoCraft={versao:0,segmentos:{}}, catSegAtivo='', catalogoCarregado=fal
    ja esta carregada. */
 async function carregarCatalogo(){
  const segmentos={};
- for(const q of (season.qgs||[])){
-  const receitas=q.craft?.receitas||[];
+ for(const f of (faccoesTodas||[])){
+  const receitas=f.perfilTecnico?.craft?.receitas||[];
   if(!receitas.length)continue;
-  const seg=(q.setor||'SEM SETOR').toUpperCase();
+  const seg=(f.segmento||'SEM SEGMENTO').toUpperCase();
   (segmentos[seg]=segmentos[seg]||{receitas:[]}).receitas.push(...receitas);
  }
  catalogoCraft=catCraft.normalizarCatalogo({segmentos});
@@ -2049,6 +2049,121 @@ function ligarCatalogo(){
  box.querySelectorAll('[data-cat-seg]').forEach(b=>b.onclick=()=>{catSegAtivo=b.dataset.catSeg;renderCatalogo()});
 }
 
+/* ============================================================
+   V13 · QGs DA SEASON
+   O Firebase e o banco: esta tela grava. A planilha semeia e
+   serve de espelho, mas nao manda.
+   ============================================================ */
+let qgFiltro={setor:'',estado:'',busca:''};
+
+function renderQgs(){
+ const box=$('#qgsBox');
+ if(!box)return;
+ box.innerHTML=qgsUi.qgsHtml({season,faccoes:faccoesTodas||[],esc,filtro:qgFiltro});
+ ligarQgs();
+}
+
+function ligarQgs(){
+ const box=$('#qgsBox');
+ if(!box)return;
+ box.querySelectorAll('[data-qg-estado]').forEach(b=>b.onclick=()=>{
+  qgFiltro.estado=b.dataset.qgEstado; renderQgs();
+ });
+ const busca=$('#qgBusca');
+ if(busca)busca.oninput=()=>{qgFiltro.busca=busca.value;clearTimeout(busca._t);
+  busca._t=setTimeout(()=>{const pos=busca.selectionStart;renderQgs();
+   const novo=$('#qgBusca');if(novo){novo.focus();novo.setSelectionRange(pos,pos)}},250)};
+ const setor=$('#qgSetor');
+ if(setor)setor.onchange=()=>{qgFiltro.setor=setor.value;renderQgs()};
+
+ box.querySelectorAll('[data-qg-editar]').forEach(b=>b.onclick=()=>abrirEditorQg(b.dataset.qgEditar));
+ box.querySelectorAll('[data-qg-vincular]').forEach(b=>b.onclick=()=>vincularQg(b.dataset.qgVincular));
+ box.querySelectorAll('[data-qg-desvincular]').forEach(b=>b.onclick=()=>desvincularQg(b.dataset.qgDesvincular));
+}
+
+function qgPorChave(chave){return (season.qgs||[]).find(q=>q.chave===chave)}
+
+async function vincularQg(chave){
+ if(!canEditModule('faccoes'))return permissionDeniedMessage('faccoes',true);
+ const q=qgPorChave(chave);
+ if(!q)return;
+ const sugestao=qgsUi.sugerirGroup(q.setor,faccoesTodas||[],season.qgs||[]);
+ const nome=prompt(`Vincular um Group a "${q.local||chave}".\n\nSugestão pela convenção do setor:`,sugestao);
+ if(nome===null)return;
+ const g=nome.trim();
+ try{
+  /* Vincular CRIA o Group. Antes so anotava o nome no QG, e o Group nao
+     existia em lugar nenhum - sem registro nao ha onde guardar a receita
+     nem como ele aparecer nas Organizacoes. */
+  const jaExiste=(faccoesTodas||[]).some(x=>String(x.group||'').toUpperCase()===g.toUpperCase());
+  if(!jaExiste){
+   await setDoc(doc(db,'highos','data','faccoes',g),{
+    group:g, segmento:q.setor||'', qg:q.local||'', produto:q.produto||'',
+    status:'INATIVA', faccao:'', lider:'', staff:'',
+    seasonId:season.id||'', qgChave:q.chave,
+    criadoEm:serverTimestamp(), updatedAt:serverTimestamp(), updatedBy:currentUser?.email||''
+   },{merge:true});
+  }
+  await vincularGroup(fnsFila(),chave,g,currentUser?.email||'');
+  await registrarHistoricoQg('QG_VINCULADO',q,`Group ${g} ${jaExiste?'vinculado':'criado e vinculado'} a ${q.local||chave}`);
+  try{await loadFaccoes()}catch(e){}
+  renderQgs(); renderSeasonBadge();
+ }catch(e){alert('Não vinculou: '+e.message)}
+}
+
+async function desvincularQg(chave){
+ if(!canEditModule('faccoes'))return permissionDeniedMessage('faccoes',true);
+ const q=qgPorChave(chave);
+ if(!q)return;
+ if(!confirm(`Tirar o Group "${q.group}" de "${q.local||chave}"?\n\nO cadastro do Group não é apagado — ele só deixa de ocupar este QG.`))return;
+ try{
+  await desvincularGroup(fnsFila(),chave,currentUser?.email||'');
+  await registrarHistoricoQg('QG_DESVINCULADO',q,`Group ${q.group} desvinculado de ${q.local||chave}`);
+  renderQgs(); renderSeasonBadge();
+ }catch(e){alert('Não desvinculou: '+e.message)}
+}
+
+function abrirEditorQg(chave){
+ const q=qgPorChave(chave);
+ if(!q)return;
+ const pode=canEditModule('faccoes');
+ const modal=document.createElement('div');
+ modal.className='modal';
+ modal.innerHTML=`<div class="modal-card qg-modal">
+   <button class="modal-x" type="button" aria-label="Fechar">×</button>
+   <div class="eyebrow">COORDENADAS DO QG</div>
+   <h2 style="margin:4px 0 2px">${esc(q.local||chave)}</h2>
+   <p class="page-subtitle" style="margin:0 0 16px">${esc(q.setor||'sem setor')}${q.group?' · Group '+esc(q.group):' · sem Group'}</p>
+   ${qgsUi.editorHtml(q,esc)}
+   <div class="modal-actions">
+    <button type="button" class="btn-secondary" data-fechar>FECHAR</button>
+    ${pode?'<button type="button" class="btn-primary compact" data-salvar>SALVAR NO BANCO</button>':''}
+   </div>
+  </div>`;
+ document.body.appendChild(modal);
+ const fechar=()=>modal.remove();
+ modal.querySelector('.modal-x').onclick=fechar;
+ modal.querySelector('[data-fechar]').onclick=fechar;
+ modal.onclick=e=>{if(e.target===modal)fechar()};
+ if(!pode)modal.querySelectorAll('input').forEach(i=>i.disabled=true);
+
+ modal.querySelector('[data-salvar]')?.addEventListener('click',async ev=>{
+  const btn=ev.currentTarget;
+  btn.disabled=true; btn.textContent='SALVANDO...';
+  try{
+   const atualizado=qgsUi.lerEditor(modal,q);
+   await salvarQg(fnsFila(),chave,{
+    local:atualizado.local,setor:atualizado.setor,produto:atualizado.produto,cds:atualizado.cds
+   },currentUser?.email||'');
+   await registrarHistoricoQg('QG_EDITADO',q,`Coordenadas de ${atualizado.local||chave} atualizadas no painel`);
+   fechar(); renderQgs();
+  }catch(e){
+   alert('Não salvou: '+e.message);
+   btn.disabled=false; btn.textContent='SALVAR NO BANCO';
+  }
+ });
+}
+
 /* ------------------------------------------------------------
    CRAFT E ROTA DO QG
    A receita e cadastrada no Group, e o Group mora num QG - entao
@@ -2062,11 +2177,20 @@ function abrirCraftQg(chave){
  const pode=canEditModule('faccoes');
  /* Catalogo de uma season so: as receitas dos QGs dela, para um insumo
     poder apontar para a receita de outro QG quando for intermediario. */
+ /* Para um insumo intermediario poder apontar para a receita de outro
+    Group da cidade. */
  const catalogoDaSeason=()=>({versao:1,segmentos:{
-  SEASON:{receitas:(season.qgs||[]).flatMap(x=>(x.craft?.receitas||[]))}
+  CIDADE:{receitas:(faccoesTodas||[]).flatMap(x=>(x.perfilTecnico?.craft?.receitas||[]))}
  }});
 
- let receitas=catCraft.normalizarCatalogo({segmentos:{S:{receitas:q.craft?.receitas||[]}}}).segmentos.S.receitas;
+ /* A RECEITA MORA NO GROUP, nao na favela: se o Group for recolhido e
+    for para outro QG, ela vai junto. Sem Group nao ha onde cadastrar. */
+ const grp=(faccoesTodas||[]).find(x=>String(x.group||'').toUpperCase()===String(q.group||'').toUpperCase());
+ if(!q.group||!grp){
+  alert(`"${q.local||chave}" ainda nao tem Group.\n\nA receita fica no Group, nao na favela - vincule um Group primeiro e depois cadastre o craft dele.`);
+  return;
+ }
+ let receitas=catCraft.normalizarCatalogo({segmentos:{S:{receitas:grp.perfilTecnico?.craft?.receitas||[]}}}).segmentos.S.receitas;
 
  const modal=document.createElement('div');
  modal.className='modal';
@@ -2087,7 +2211,7 @@ function abrirCraftQg(chave){
    <button class="modal-x" type="button" aria-label="Fechar">×</button>
    <div class="eyebrow">CRAFT E ROTA</div>
    <h2 style="margin:4px 0 2px">${esc(q.local||chave)}</h2>
-   <p class="page-subtitle" style="margin:0 0 16px">${q.group?'Group '+esc(q.group):'<b>sem Group vinculado</b> — a receita fica guardada no QG e segue com ele'}${q.setor?' · '+esc(q.setor):''}</p>
+   <p class="page-subtitle" style="margin:0 0 16px">Group <b>${esc(q.group)}</b>${q.setor?' · '+esc(q.setor):''} · a receita fica no Group e vai com ele se mudar de favela</p>
 
    <div class="cat-layout">
     <section>
@@ -2183,8 +2307,12 @@ function abrirCraftQg(chave){
   const btn=ev.currentTarget;
   btn.disabled=true; btn.textContent='SALVANDO...';
   try{
-   await salvarQg(fnsFila(),chave,{craft:{receitas}},currentUser?.email||'');
-   await registrarHistoricoQg('QG_CRAFT',q,`Craft de ${q.local||chave}: ${receitas.length} receita(s)`);
+   const perfil={...(grp.perfilTecnico||{})};
+   perfil.craft={...(perfil.craft||{}),receitas};
+   await setDoc(doc(db,'highos','data','faccoes',grp.group),
+    {perfilTecnico:perfil,updatedAt:serverTimestamp(),updatedBy:currentUser?.email||''},{merge:true});
+   await registrarHistoricoQg('GROUP_CRAFT',q,`Craft do Group ${grp.group}: ${receitas.length} receita(s)`);
+   try{await loadFaccoes()}catch(e){}
    modal.remove(); renderQgs();
   }catch(e){
    alert('Não salvou: '+e.message);
