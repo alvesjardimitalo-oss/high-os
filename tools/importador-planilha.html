@@ -176,14 +176,14 @@ function mostrarPrevia(){
   ].map(([rot,v,cls])=>`<div><span class="rot">${rot}</span><span class="num ${cls}">${esc(v)}</span></div>`).join('');
 
   const setores=r.setores.length?`<p class="sub" style="margin:12px 0 0">Setores: ${r.setores.map(s=>`<span class="tag">${esc(s)}</span>`).join('')}</p>`:'';
-  const inv=inventario?`<div class="inv">
+  const htmlInv=inventario?`<div class="inv">
     <h3>O QUE ESTA ABA OFERECE</h3>
     <p class="sub" style="margin:0 0 10px">A estrutura da aba está congelada — não se cria linha nova. O painel usa o que existe aqui; o resto é preenchido no cadastro.</p>
-    <p style="margin:0 0 9px"><b class="ok">${inv.disponiveis.length}</b> linha(s) disponíveis: ${inv.disponiveis.map(d=>`<span class="tag">${esc(d.campo)} <b>${d.qtd}</b></span>`).join('')}</p>
-    ${inv.semLinha.length?`<p style="margin:0 0 9px"><b class="mut">${inv.semLinha.length}</b> sem linha na aba (só no painel): <span class="mut">${esc(inv.semLinha.join(', '))}</span></p>`:''}
-    ${inv.rotulosNaoMapeados.length?`<p style="margin:0"><b class="warn">${inv.rotulosNaoMapeados.length}</b> rótulo(s) que não reconheci: ${inv.rotulosNaoMapeados.map(x=>`<span class="tag mud">${esc(x.rotulo)} <b>${x.qtd}</b></span>`).join('')} — se algum desses for dado que o painel deve usar, me avise o nome exato.</p>`:''}
+    <p style="margin:0 0 9px"><b class="ok">${inventario.disponiveis.length}</b> linha(s) disponíveis: ${inventario.disponiveis.map(d=>`<span class="tag">${esc(d.campo)} <b>${d.qtd}</b></span>`).join('')}</p>
+    ${inventario.semLinha.length?`<p style="margin:0 0 9px"><b class="mut">${inventario.semLinha.length}</b> sem linha na aba (só no painel): <span class="mut">${esc(inventario.semLinha.join(', '))}</span></p>`:''}
+    ${inventario.rotulosNaoMapeados.length?`<p style="margin:0"><b class="warn">${inventario.rotulosNaoMapeados.length}</b> rótulo(s) que não reconheci: ${inventario.rotulosNaoMapeados.map(x=>`<span class="tag mud">${esc(x.rotulo)} <b>${x.qtd}</b></span>`).join('')} — se algum desses for dado que o painel deve usar, me avise o nome exato.</p>`:''}
   </div>`:'';
-  $('#avisosGerais').innerHTML=setores+inv+(r.bytes>700*1024
+  $('#avisosGerais').innerHTML=setores+htmlInv+(r.bytes>700*1024
     ? `<div class="verdict warn">O pacote passou de 700 KB. O limite de um documento do Firestore é 1 MB — antes de crescer mais, vamos dividir por setor.</div>`:'');
 
   $('#tabela').innerHTML=`<thead><tr><th>GROUP</th><th>LOCAL</th><th>SETOR</th><th>COORDENADAS</th><th>AVISOS</th></tr></thead><tbody>`+
