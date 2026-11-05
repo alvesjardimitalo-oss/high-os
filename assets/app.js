@@ -2097,28 +2097,98 @@ async function vincularQg(chave){
  if(!canEditModule('faccoes'))return permissionDeniedMessage('faccoes',true);
  const q=qgPorChave(chave);
  if(!q)return;
- const sugestao=qgsUi.sugerirGroup(q.setor,faccoesTodas||[],season.qgs||[]);
- const nome=prompt(`Vincular um Group a "${q.local||chave}".\n\nSugestão pela convenção do setor:`,sugestao);
- if(nome===null)return;
- const g=nome.trim();
- try{
-  /* Vincular CRIA o Group. Antes so anotava o nome no QG, e o Group nao
-     existia em lugar nenhum - sem registro nao ha onde guardar a receita
-     nem como ele aparecer nas Organizacoes. */
-  const jaExiste=(faccoesTodas||[]).some(x=>String(x.group||'').toUpperCase()===g.toUpperCase());
-  if(!jaExiste){
+
+ /* A planilha da season traz "Setor 1", nao o segmento, e o produto vem
+    vazio. Entao definir o Group NAO e so dar um nome: e dizer o que
+    aquele lugar passa a produzir. Sem segmento o sistema nao sabe que
+    receita padrao oferecer, nem onde o Group entra nos relatorios. */
+ const segs=segmentDefs().map(s=>s.nome).filter(Boolean);
+ const existentes=(faccoesTodas||[]).map(x=>String(x.group||'').toUpperCase());
+
+ const modal=document.createElement('div');
+ modal.className='modal';
+ modal.innerHTML=`<div class="modal-card qg-definir">
+   <button class="modal-x" type="button" aria-label="Fechar">×</button>
+   <div class="eyebrow">DEFINIR GROUP</div>
+   <h2 style="margin:4px 0 2px">${esc(q.local||chave)}</h2>
+   <p class="page-subtitle" style="margin:0 0 18px">O Group é a definição produtiva desta favela: o que ela fabrica, com que receita e que farm. A facção que vai ocupar entra depois, na entrega.</p>
+
+   <div class="qg-definir-grade">
+    <label><span>SEGMENTO</span>
+     <select data-d="segmento">
+      <option value="">— escolha —</option>
+      ${segs.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('')}
+     </select></label>
+    <label><span>NOME DO GROUP</span>
+     <input data-d="group" placeholder="MUNICAO01" autocomplete="off"></label>
+    <label class="larga"><span>PRODUTO</span>
+     <input data-d="produto" value="${esc(q.produto||'')}" placeholder="Munições e Explosivos"></label>
+   </div>
+   <p class="qg-definir-aviso" data-aviso></p>
+
+   <div class="modal-actions">
+    <button type="button" class="btn-secondary compact" data-cancelar>CANCELAR</button>
+    <button type="button" class="btn-primary compact" data-ok>DEFINIR</button>
+   </div>
+  </div>`;
+ document.body.appendChild(modal);
+ const fechar=()=>modal.remove();
+ modal.querySelector('.modal-x').onclick=fechar;
+ modal.querySelector('[data-cancelar]').onclick=fechar;
+ modal.onclick=e=>{if(e.target===modal)fechar()};
+
+ const campo=s=>modal.querySelector(`[data-d="${s}"]`);
+ const aviso=modal.querySelector('[data-aviso]');
+
+ /* Escolhido o segmento, o nome vem sugerido pela convencao e o produto
+    pelo nome do segmento - os dois continuam editaveis. */
+ campo('segmento').onchange=()=>{
+  const seg=campo('segmento').value;
+  if(!seg)return;
+  if(!campo('group').value.trim())campo('group').value=qgsUi.sugerirGroup(seg,faccoesTodas||[],season.qgs||[]);
+  if(!campo('produto').value.trim())campo('produto').value=seg;
+  conferir();
+ };
+ const conferir=()=>{
+  const g=campo('group').value.trim().toUpperCase();
+  const repetido=g&&existentes.includes(g);
+  aviso.textContent=repetido?`Já existe um Group chamado "${g}". Definir aqui vai movê-lo para esta favela.`:'';
+  aviso.className='qg-definir-aviso'+(repetido?' alerta':'');
+ };
+ campo('group').oninput=conferir;
+
+ modal.querySelector('[data-ok]').onclick=async ev=>{
+  const g=campo('group').value.trim();
+  const seg=campo('segmento').value;
+  const prod=campo('produto').value.trim();
+  if(!seg)return alert('Escolha o segmento: é ele que define que receita padrão o sistema oferece e onde o Group entra nos relatórios.');
+  if(!g)return alert('Dê um nome ao Group.');
+
+  const btn=ev.currentTarget;
+  btn.disabled=true; btn.textContent='DEFININDO...';
+  try{
+   const jaExiste=existentes.includes(g.toUpperCase());
    await setDoc(doc(db,'highos','data','faccoes',g),{
-    group:g, segmento:q.setor||'', qg:q.local||'', produto:q.produto||'',
+    group:g, segmento:seg, qg:q.local||'', produto:prod,
     status:'INATIVA', faccao:'', lider:'', staff:'',
     seasonId:season.id||'', qgChave:q.chave,
-    criadoEm:serverTimestamp(), updatedAt:serverTimestamp(), updatedBy:currentUser?.email||''
+    ...(jaExiste?{}:{criadoEm:serverTimestamp()}),
+    updatedAt:serverTimestamp(), updatedBy:currentUser?.email||''
    },{merge:true});
+   await vincularGroup(fnsFila(),chave,g,currentUser?.email||'');
+   /* O segmento vem do Group, nao da planilha: o setor da aba e so a
+      posicao fisica na cidade. */
+   await salvarQg(fnsFila(),chave,{produto:prod},currentUser?.email||'');
+   await registrarHistoricoQg('QG_VINCULADO',q,`Group ${g} (${seg}) ${jaExiste?'movido para':'criado em'} ${q.local||chave}`);
+   try{await loadFaccoes()}catch(e){}
+   fechar(); renderQgs(); renderSeasonBadge();
+   if(confirm(`${g} definido em ${q.local||chave}.\n\nCadastrar agora a receita de craft e farm?`))abrirCraftQg(chave);
+  }catch(e){
+   alert('Não definiu: '+e.message);
+   btn.disabled=false; btn.textContent='DEFINIR';
   }
-  await vincularGroup(fnsFila(),chave,g,currentUser?.email||'');
-  await registrarHistoricoQg('QG_VINCULADO',q,`Group ${g} ${jaExiste?'vinculado':'criado e vinculado'} a ${q.local||chave}`);
-  try{await loadFaccoes()}catch(e){}
-  renderQgs(); renderSeasonBadge();
- }catch(e){alert('Não vinculou: '+e.message)}
+ };
+ setTimeout(()=>campo('segmento').focus(),60);
 }
 
 async function desvincularQg(chave){
