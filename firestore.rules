@@ -1,7 +1,7 @@
 rules_version = '2';
 
 /* =============================================================
-   HIGH OS · REGRAS DE SEGURANCA DO FIRESTORE (V12.5)
+   HIGH OS · REGRAS DE SEGURANCA DO FIRESTORE (V12.7)
    -------------------------------------------------------------
    Ate a V9.3 nao existia arquivo de regras no repositorio: toda a
    autorizacao era feita apenas no navegador (isAdmin / canEditModule),
@@ -110,6 +110,18 @@ service cloud.firestore {
       allow update: if false;
       allow delete: if isAdmin();
     }
+    // Trilha imutável de transferências de ocupação. Sem este match, os
+    // writeBatch de TRANSFER_PANEL são negados pelo bloqueio geral abaixo.
+    match /highos/data/ocupacoes/{docId} {
+      allow read: if canView('faccoes');
+      allow create: if canEdit('faccoes')
+                    && request.resource.data.get('createdBy', '').lower() == myEmail()
+                    && request.resource.data.get('tipo', '') == 'TRANSFERENCIA_GROUP'
+                    && request.resource.data.get('groupOrigem', '') is string
+                    && request.resource.data.get('groupDestino', '') is string;
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
     match /highos/data/solicitacoes/{docId} {
       allow read: if canView('solicitacoes');
       allow write: if canEdit('solicitacoes');
@@ -181,8 +193,12 @@ service cloud.firestore {
                   && myEmail() in resource.data.get('participants', []);
       allow create: if activeUser() && canView('chat')
                     && request.resource.data.participants is list
+                    && request.resource.data.participants.size() == 2
                     && myEmail() in request.resource.data.participants;
-      allow update, delete: if activeUser() && canView('chat')
+      allow update: if activeUser() && canView('chat')
+                    && myEmail() in resource.data.get('participants', [])
+                    && request.resource.data.participants == resource.data.participants;
+      allow delete: if activeUser() && canView('chat')
                     && myEmail() in resource.data.get('participants', []);
     }
 
@@ -219,13 +235,77 @@ service cloud.firestore {
       allow read: if activeUser();
       allow write: if canEdit('spotify');
     }
+    // V12.7 - documento antigo: continua legivel como copia de seguranca,
+    // mas ninguem grava mais nele (as zonas agora ficam em missoes_zonas).
     match /highos/data/config/missoes_planejador {
       allow read: if canView('planejador');
+      allow write: if isAdmin();
+    }
+    // V12.7 - trava da migracao unica para o formato novo
+    match /highos/data/config/missoes_migracao {
+      allow read: if canView('planejador');
       allow write: if canEdit('planejador');
+    }
+    // V12.7 - uma zona por documento. "rev" so avanca de 1 em 1: quem esta
+    // com versao antiga nao consegue sobrescrever o trabalho de outra pessoa.
+    // Exclusao e um marcador (deleted:true); apagar de verdade so ADMIN.
+    match /highos/data/missoes_zonas/{zonaId} {
+      allow read: if canView('planejador');
+      allow create: if canEdit('planejador')
+                    && request.resource.data.rev == 1
+                    && request.resource.data.updatedBy == myEmail()
+                    && request.resource.data.json is string
+                    && request.resource.data.json.size() <= 900000;
+      allow update: if canEdit('planejador')
+                    && request.resource.data.rev == resource.data.rev + 1
+                    && request.resource.data.updatedBy == myEmail()
+                    && request.resource.data.json is string
+                    && request.resource.data.json.size() <= 900000;
+      allow delete: if isAdmin();
     }
     match /highos/data/config/{outro} {
       allow read: if activeUser();
       allow write: if isAdmin();
+    }
+
+    // ---------- Ítalo Alves TI (assistência técnica · repo italo-alves-ti) ----------
+    // Só o dono acessa. Dados em ti/base/{colecao}/{doc} e ti/base/meta/{config|contadores}.
+    function tiDono() {
+      return signedIn()
+        && myEmail() in ['alvesjardim.italo@gmail.com']
+        && request.auth.token.email_verified == true;
+    }
+    match /ti/{document=**} {
+      allow read, write: if tiDono();
+    }
+    // Site público: qualquer visitante pode CRIAR um pedido ("Fale comigo"),
+    // mas não pode ler, alterar nem apagar. Campos e tamanhos travados.
+    function tiTexto(d, campo, max) {
+      return !(campo in d) || (d[campo] is string && d[campo].size() <= max);
+    }
+    match /ti/base/leads/{leadId} {
+      allow create: if request.resource.data.keys().hasOnly(['nome', 'whatsapp', 'cidade', 'equipamento', 'problema',
+                         'detalhe', 'atendimento', 'servico', 'origem', 'utm', 'indicacao', 'status', 'criadoEm'])
+        && request.resource.data.nome is string
+        && request.resource.data.nome.size() >= 2 && request.resource.data.nome.size() <= 80
+        && request.resource.data.whatsapp is string
+        && request.resource.data.whatsapp.matches('^[0-9]{10,13}$')
+        && tiTexto(request.resource.data, 'cidade', 80)
+        && tiTexto(request.resource.data, 'equipamento', 40)
+        && tiTexto(request.resource.data, 'problema', 60)
+        && tiTexto(request.resource.data, 'detalhe', 1500)
+        && tiTexto(request.resource.data, 'atendimento', 40)
+        && tiTexto(request.resource.data, 'servico', 40)
+        && tiTexto(request.resource.data, 'origem', 120)
+        && tiTexto(request.resource.data, 'utm', 120)
+        && tiTexto(request.resource.data, 'indicacao', 60)
+        && request.resource.data.status == 'Novo'
+        && request.resource.data.criadoEm == request.time;
+    }
+    // "Acompanhar OS": o visitante só LÊ um documento se souber o ID exato
+    // (hash do código da OS + telefone). Não dá para listar nem gravar.
+    match /ti/base/rastreio/{rastreioId} {
+      allow get: if true;
     }
 
     // ---------- tudo que nao foi previsto fica fechado ----------

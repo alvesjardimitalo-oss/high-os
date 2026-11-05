@@ -26,6 +26,12 @@ function alvesNorm(v) {
   return String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 }
 
+function validMetricDate(day,month,year){
+ if(!Number.isInteger(day)||!Number.isInteger(month)||!Number.isInteger(year))return false;
+ const d=new Date(year,month-1,day);
+ return d.getFullYear()===year&&d.getMonth()===month-1&&d.getDate()===day;
+}
+
 export function normalizeMetricDate(v){
  const x=String(v??'').trim();
 if(!x)return '';
@@ -33,9 +39,11 @@ if(!x)return '';
  let m=x.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/);
 if(m){let y=+m[3];
 if(y<100)y+=2000;
+if(!validMetricDate(+m[1],+m[2],y))return '';
 return `${String(+m[1]).padStart(2,'0')}/${String(+m[2]).padStart(2,'0')}/${y}`}
  m=x.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-if(m)return `${String(+m[3]).padStart(2,'0')}/${String(+m[2]).padStart(2,'0')}/${m[1]}`;
+if(m){if(!validMetricDate(+m[3],+m[2],+m[1]))return '';
+return `${String(+m[3]).padStart(2,'0')}/${String(+m[2]).padStart(2,'0')}/${m[1]}`;}
 
  return '';
 
@@ -65,13 +73,12 @@ if(!raw)return '';
 
  const n=alvesNorm(raw).replace(/\s+/g,'');
 
- const gk=x=>alvesNorm(x).replace(/[^a-z0-9]/g,'').replace(/mecanic/g,'mechanic').replace(/0*(\d+)$/,'$1');
- const known=groupsConhecidos.find(f=>alvesNorm(f.group).replace(/\s+/g,'')===n)||groupsConhecidos.find(f=>gk(f.group)===gk(raw));
+ const known=groupsConhecidos.find(f=>alvesNorm(f.group).replace(/\s+/g,'')===n);
 if(known)return known.group;
 
  const compact=raw.replace(/\s+/g,'');
 
- if(/^(ARMAS|MUNI[CÇ][AÃ]O|MUNICAO|LAVAGEM|DROGAS|DESMANCHE|CONTRABANDO|ESTELIONATARIOS|ILEGALMEDIC|ILEGALMECHANIC)0*\d+$/i.test(compact))return compact.replace(/^MUNI[CÇ][AÃ]O/i,'Municao');
+ if(/^(ARMAS|MUNI[CÇ][AÃ]O|MUNICAO|LAVAGEM|DROGAS|DESMANCHE|CONTRABANDO|ESTELIONATARIOS|ILEGALMEDIC|ILEGALMECHANIC|ILEGALMECANIC|GALPAO|GALPÃO)0*\d+$/i.test(compact))return compact.replace(/^MUNI[CÇ][AÃ]O/i,'Municao');
 
  if(/^(VANILLA|MANICOMIO)$/i.test(compact))return compact;
 
@@ -87,7 +94,7 @@ export function parseMetricSheet(values=[]){
     (um bloco preenchido e outro vazio). Nao usamos mais a deteccao de cabecalho para
     delimitar o bloco: uma linha com varias datas e a ancora; a linha seguinte e o
     cabecalho e as linhas seguintes sao os Groups ate a proxima linha de datas. */
- const scanLimit=Math.min(values.length,600),
+ const scanLimit=values.length,
  dateBlocks=[];
 
  for(let r=0;r<scanLimit;r++){

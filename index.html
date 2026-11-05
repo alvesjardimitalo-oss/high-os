@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#09070d">
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="assets/icon-192.png">
-  <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="High OS">
   <meta name="description" content="High OS - central interna de gestao do Ilegal do High Roleplay. Acesso restrito a contas cadastradas.">
@@ -16,17 +16,26 @@
   <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
   <link rel="preconnect" href="https://unpkg.com" crossorigin>
   <title>High OS • Gestão do Ilegal</title>
-  <link rel="stylesheet" href="assets/style.css?v=12.5.1">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="assets/mission-planner.css?v=12.17.0">
-  <link rel="stylesheet" href="assets/ui-kit.css?v=12.5.0">
-  <link rel="stylesheet" href="assets/high-refresh.css?v=12.6.2">
-  <link rel="stylesheet" href="assets/calma.css?v=12.5.0">
+  <link rel="stylesheet" href="assets/style.css?v=12.9.8">
+  <link rel="stylesheet" href="assets/vendor/leaflet/leaflet.css?v=1.9.4">
+  <link rel="stylesheet" href="assets/mission-planner.css?v=12.18.0">
+  <link rel="stylesheet" href="assets/mission-planner-nav.css?v=12.8.0">
+  <link rel="stylesheet" href="assets/ui-kit.css?v=10.4.1">
+  <link rel="stylesheet" href="assets/high-refresh.css?v=10.76.3">
+  <link rel="stylesheet" href="assets/prime.css?v=10.76.3">
   <link rel="stylesheet" href="assets/ocupacao.css?v=14.1.0">
   <link rel="stylesheet" href="assets/organizacoes.css?v=14.2.0">
-  <link rel="stylesheet" href="assets/metricas-rh.css?v=14.3.4">
+  <link rel="stylesheet" href="assets/metricas-rh.css?v=15.3.1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="assets/diario.css?v=15.5.0">
+  <link rel="stylesheet" href="assets/planejador-v15.css?v=15.0.0">
+  <link rel="stylesheet" href="assets/acoes-planejador.css?v=16">
+  <link rel="stylesheet" href="assets/acoes-gestao-simples.css?v=2">
+  <link rel="stylesheet" href="assets/anim-v15.css?v=15.0.0">
   <link rel="stylesheet" href="assets/tema.css?v=13.0.0">
-  <link rel="icon" type="image/png" href="assets/high_logo.png?v=12.5.0">
+  <link rel="icon" type="image/png" href="assets/high_logo.png?v=10.4.1">
 </head>
 <body>
   <div class="noise"></div>
@@ -34,23 +43,7 @@
     <div class="wrap topbar-inner">
       <button type="button" id="buscaGlobalBtn" class="busca-atalho" title="Busca global (Ctrl+K)"><span aria-hidden="true">⌕</span><span class="busca-atalho-txt">BUSCAR</span><kbd>Ctrl K</kbd></button>
       <a class="brand" href="index.html"><img src="assets/high_logo.png" alt="High"><div class="brand-copy"><strong>HIGH OS</strong><span>GESTÃO DO ILEGAL • DEV</span></div></a>
-      <div id="spotifyTopDock" class="spotify-top-dock hidden" aria-label="Mini Spotify High OS">
-        <button type="button" id="spotifyDockMain" class="spotify-dock-main" title="Abrir Mini Spotify" aria-expanded="false"><span class="spotify-note-icon">♫</span><span class="spotify-now"><b id="spotifyNowTitle">Spotify</b><small id="spotifyNowArtist">Conectar conta</small></span><span id="spotifyPlayGlyph">▶</span></button>
-        <div class="spotify-dock-popover" id="spotifyMiniPanel">
-          <div class="spotify-dock-head"><strong>MINI SPOTIFY • HIGH OS</strong><div class="spotify-head-actions"><button type="button" id="spotifyDockOpenPage">CONFIG</button><button type="button" id="spotifyDockClose" aria-label="Fechar Mini Spotify">✕</button></div></div>
-          <div id="spotifyDockAuth" class="spotify-dock-auth"></div>
-          <div class="spotify-mini-now">
-            <div id="spotifyCover" class="spotify-cover"><span>♫</span></div>
-            <div class="spotify-mini-meta"><b id="spotifyMiniTitle">Nenhuma música tocando</b><small id="spotifyMiniArtist">Conecte sua conta Spotify</small><small id="spotifyMiniAlbum"></small></div>
-          </div>
-          <div class="spotify-progress-wrap"><span id="spotifyElapsed">0:00</span><input id="spotifyProgress" type="range" min="0" max="1000" value="0" step="1" aria-label="Posição da música"><span id="spotifyDuration">0:00</span></div>
-          <div class="spotify-dock-controls"><button type="button" id="spotifyPrevBtn" title="Anterior">⏮</button><button type="button" id="spotifyPlayBtn" class="spotify-main-play" title="Play/Pause">▶</button><button type="button" id="spotifyNextBtn" title="Próxima">⏭</button></div>
-          <div class="spotify-volume-control"><span aria-hidden="true">🔊</span><input id="spotifyVolume" type="range" min="0" max="100" step="1" value="45" aria-label="Volume do Spotify"><strong id="spotifyVolumeValue">45%</strong></div>
-          <div class="spotify-mini-tabs"><button type="button" data-spotify-tab="search" class="active">PESQUISAR</button><button type="button" data-spotify-tab="playlists">MINHAS PLAYLISTS</button></div>
-          <div id="spotifyTabSearch" class="spotify-mini-tab active"><div class="spotify-dock-search"><input id="spotifySearchInput" placeholder="Música, artista ou álbum..."><button type="button" id="spotifySearchBtn">BUSCAR</button></div><div id="spotifySearchResults" class="spotify-search-results"></div></div>
-          <div id="spotifyTabPlaylists" class="spotify-mini-tab"><div class="spotify-library-head"><small>Suas playlists</small><button type="button" id="spotifyRefreshPlaylists">ATUALIZAR</button></div><div id="spotifyPlaylistResults" class="spotify-playlist-results"></div></div>
-        </div>
-      </div>
+      
       <div class="session" id="sessionArea">
         <button class="btn-google" id="loginBtn">G&nbsp; Entrar com Google</button>
       </div>
@@ -82,38 +75,21 @@
     <section id="appView" class="app hidden">
       <aside class="sidebar">
         <div class="user-card" title="Nome e cargo são administrados pelo ADMIN. A foto vem da conta Google."><img id="userPhoto" alt="Foto da conta Google"><div><strong id="userName">—</strong><span id="userRole">—</span><small id="userAccessLevel">—</small></div></div>
-        <nav class="sidebar-nav" aria-label="Navegação principal">
-          <div class="nav-category">
-            <span class="nav-category-label">VISÃO GERAL</span>
-            <button class="nav-item active" data-page="dashboard">⌂ <span>Dashboard</span></button>
-          </div>
-          <div class="nav-category">
-            <span class="nav-category-label">OPERAÇÃO ILEGAL</span>
-            <button class="nav-item" data-page="faccoes">◆ <span>Organizações</span></button>
-          </div>
-          <div class="nav-category">
-            <span class="nav-category-label">INTELIGÊNCIA</span>
-            <button class="nav-item" data-page="metricas">▥ <span>Métricas</span></button>
-          </div>
-          <div class="nav-category">
-            <span class="nav-category-label">EVENTOS E MISSÕES</span>
-            <button class="nav-item" data-page="planejador">◎ <span>Planejador de Missões</span></button>
-          </div>
-          <div class="nav-category nav-category-tools">
-            <span class="nav-category-label">FERRAMENTAS</span>
-            <button class="nav-item hidden" data-page="spotify">♫ <span>Spotify</span></button>
-          </div>
-          <div class="nav-category admin-only nav-category-admin">
-            <span class="nav-category-label">SISTEMA</span>
-            <button class="nav-item admin-only" data-page="usuarios">♟ <span>Usuários</span></button>
-            <button class="nav-item admin-only" data-page="administracao">⚠ <span>Administração</span></button>
-          </div>
+        <nav>
+          <button class="nav-item active" data-page="dashboard">⌂ <span>Dashboard</span></button>
+          <button class="nav-item" data-page="faccoes">◆ <span>Organizações</span></button>
+          <button class="nav-item" data-page="metricas">▥ <span>Métricas</span></button>
+          <button class="nav-item" data-page="historico">◷ <span>Histórico</span></button>
+          <button class="nav-item" data-page="diario">▦ <span>Diário Operacional</span></button>
+          <button class="nav-item" data-page="planejador">◎ <span>Planejador de Missões</span></button>
+          <button class="nav-item" data-page="planejador-acoes">▣ <span>Economia Ilegal</span></button>
+          <button class="nav-item admin-only" data-page="usuarios">♟ <span>Usuários</span></button>
+          <button class="nav-item admin-only" data-page="administracao">⚠ <span>Administração</span></button>
         </nav>
       </aside>
       <div class="content">
         <section class="page active" id="page-dashboard">
-          <div class="page-head"><div><div class="eyebrow">CENTRAL DE COMANDO DO ILEGAL</div><h2>DASHBOARD</h2><p class="page-subtitle">Visão operacional para identificar rapidamente ocupação, contingente, pendências e movimentações da Staff.</p></div><span class="dev-badge">V14.3.4</span></div>
-          <div class="dash-v4-intro"><strong>PAINEL DE CONTROLE</strong><span>O que precisa da sua atenção hoje, sem poluição visual.</span></div>
+          <div class="page-head"><div><div class="eyebrow">CENTRAL DE COMANDO DO ILEGAL</div><h2>DASHBOARD</h2><p class="page-subtitle">Visão operacional para identificar rapidamente ocupação, contingente, pendências e movimentações da Staff.</p></div><span class="dev-badge">DEV 15.5.2</span></div>
           <div id="commandDashboard" class="command-dashboard"><div class="placeholder"><b>◆</b><h3>CARREGANDO CENTRAL DE COMANDO</h3></div></div>
           <span id="dashEmail" class="hidden">—</span><span id="dashRole" class="hidden">—</span>
         </section>
@@ -182,13 +158,6 @@
             <div class="org-profile-identity"><div class="eyebrow">PERFIL COMPLETO DA ORGANIZAÇÃO</div><h2 id="orgProfilePageTitle">FACÇÃO</h2><p id="orgProfilePageSubtitle">Liderança, ocupação, dados administrativos e histórico em uma única tela.</p></div>
             <div id="orgProfilePageStatus"></div>
           </div>
-          <nav class="org-profile-tabs" aria-label="Seções da organização">
-            <button type="button" class="org-profile-tab is-active" data-org-tab="geral" aria-pressed="true">VISÃO GERAL</button>
-            <button type="button" class="org-profile-tab" data-org-tab="lideranca" aria-pressed="false">LIDERANÇA</button>
-            <button type="button" class="org-profile-tab" data-org-tab="ocupacao" aria-pressed="false">OCUPAÇÃO E QG</button>
-            <button type="button" class="org-profile-tab" data-org-tab="historico" aria-pressed="false">HISTÓRICO</button>
-          </nav>
-          <div id="orgProfileInsights" class="org-profile-insights" aria-live="polite"></div>
           <div id="orgProfilePageMount" class="org-profile-page-mount"></div>
         </section>
         <section class="page" id="page-disponiveis">
@@ -209,10 +178,14 @@
           <div class="delivery-toolbar"><input id="deliverySearch" placeholder="Buscar Group, facção, líder ou staff..."><select id="deliveryStatus"><option value="">TODAS</option><option value="ATIVA">ATIVAS</option><option value="RECOLHIDA">RECOLHIDAS</option></select></div>
           <div id="deliveryStats" class="fac-stats"></div><div id="deliveryList" class="delivery-list"><div class="placeholder"><b>◇</b><h3>CARREGANDO ENTREGAS</h3></div></div>
         </section>
-        
+        <section class="page" id="page-solicitacoes">
+          <div class="page-head"><div><div class="eyebrow">BASE DE REFERÊNCIA • PADRÃO HIGH</div><h2>BIBLIOTECA DE SOLICITAÇÕES</h2><p class="page-subtitle">Modelos já utilizados para consultar, gerar, adaptar e copiar solicitações para o Discord.</p></div><button id="newRequestBtn" class="btn-primary compact">NOVO MODELO</button></div>
+          <div class="req-toolbar"><input id="reqSearch" placeholder="Buscar modelo, assunto, categoria, Group..."><select id="reqTypeFilter"><option value="">TODAS AS CATEGORIAS</option></select></div>
+          <div id="reqStats" class="fac-stats"></div>
+          <div id="reqList" class="req-list"><div class="placeholder"><b>▤</b><h3>CARREGANDO MODELOS</h3></div></div>
+        </section>
         <section class="page" id="page-metricas">
           <div class="page-head"><div><div class="eyebrow">CENTRAL RH • PRESENÇA • PICOS DIÁRIOS • ESTATÍSTICAS</div><h2>CENTRAL DE MÉTRICAS</h2><p class="page-subtitle">Pico diário, presença, ranking e comparação com o período anterior, com relatórios por facção, Group, segmento, dia e horário.</p></div><div class="metric-head-actions"><button id="syncMetricBtn" class="btn-primary compact admin-only">ATUALIZAR CENTRAL</button><button id="metricSourceBtn" class="btn-secondary compact admin-only">FONTE</button><button id="openMetricImportBtn" class="btn-secondary compact admin-only">IMPORTAÇÃO MANUAL</button></div></div>
-          <div id="metricResumoFonte" class="metric-resumo-fonte"></div>
           <div id="metricSourceStatus" class="metric-source-card"><div><span class="metric-source-dot"></span><div><b>FONTE DE MÉTRICAS</b><small>Carregando configuração...</small></div></div><span>—</span></div>
           <div class="rh15-shell">
             <div class="rh15-tabs" role="tablist" aria-label="Central RH">
@@ -235,12 +208,6 @@
           </div>
           <div id="rh15Legado" class="rh15-legado hidden">
             <div class="rh15-legado-note">Telas anteriores da Central de Métricas, mantidas para consulta e ferramentas de gestão.</div>
-          <div id="metricPeriodosRapidos" class="metric-periodos"></div>
-          <section class="metric-time-command" aria-label="Período e escopo das métricas">
-            <div class="metric-time-switch"><button type="button" class="active" data-metric-period="day">DIA</button><button type="button" data-metric-period="week">SEMANA</button><button type="button" data-metric-period="month">MÊS</button></div>
-            <div class="metric-time-filters"><label>REFERÊNCIA<input type="date" id="metricTimeReference"></label><label>SEGMENTO<select id="metricTimeSegment"><option value="">TODOS OS SEGMENTOS</option></select></label><label>FACÇÃO<select id="metricTimeFaction"><option value="">TODAS AS FACÇÕES</option></select></label></div>
-            <div id="metricTimeVisual" class="metric-time-visual"></div>
-          </section>
           <div class="metric-center-tabs"><button class="metric-center-tab active" data-metric-view="overview">VISÃO GERAL</button><button class="metric-center-tab" data-metric-view="faction">POR FACÇÃO</button><button class="metric-center-tab" data-metric-view="ranking">RANKING</button><button class="metric-center-tab" data-metric-view="comparatives">COMPARATIVOS</button><button class="metric-center-tab" data-metric-view="reports">RELATÓRIOS</button><button class="metric-center-tab metric-management-tab" data-metric-view="management">GESTÃO DO ILEGAL</button><button class="metric-center-tab" data-metric-view="boletim">BOLETIM</button></div>
           <div class="metric-period-panel"><div class="metric-period-dates"><label>DATA INICIAL<input id="metricDateStart" type="date"></label><span>ATÉ</span><label>DATA FINAL<input id="metricDateEnd" type="date"></label><button id="metricApplyRange" class="btn-primary compact">APLICAR PERÍODO</button></div><div class="metric-period-shortcuts"><button data-days="7">ÚLTIMOS 7 DIAS</button><button data-days="15">ÚLTIMOS 15 DIAS</button><button data-days="30">ÚLTIMOS 30 DIAS</button><button data-current-month="1">MÊS ATUAL</button></div></div>
           <div class="metric-toolbar metric-toolbar-v84"><select id="metricScopeSelect" title="Visualização"><option value="">GERAL • TODAS AS FACÇÕES</option></select><select id="metricSortMode" title="Classificar por"><option value="peak">CLASSIFICAR: PICO</option><option value="predominance">CLASSIFICAR: PREDOMINÂNCIA</option><option value="dailyPeakAvg">CLASSIFICAR: MÉDIA DIÁRIA DE PICO</option><option value="avg">CLASSIFICAR: MÉDIA GERAL</option><option value="segment">CLASSIFICAR: SEGMENTO</option><option value="name">CLASSIFICAR: FACÇÃO / GROUP</option></select><select id="metricSegment"><option value="">TODOS OS SEGMENTOS</option><option>ARMAS</option><option>MUNIÇÃO</option><option>LAVAGEM</option><option>DROGAS</option><option>DESMANCHE</option><option>OUTROS</option></select><input id="metricSearch" placeholder="Buscar Group, facção ou QG..."><select id="metricPeriod" title="Competência das métricas"></select></div>
@@ -267,7 +234,7 @@
             <div class="rh-compare-controls"><label>Facção A<select id="metricCompareA"></select></label><label>Facção B<select id="metricCompareB"></select></label><button id="metricCompareBtn" class="btn-primary compact">COMPARAR</button></div>
             <div id="metricCompareResult"></div>
           </div>
-          <div id="metricViewBoletim" class="metric-center-view"><div id="metricTriagem" class="metric-triagem"></div></div>
+          <div id="metricViewBoletim" class="metric-center-view"></div>
           <div class="metric-center-view" id="metricViewManagement">
             <div class="mgmt-head">
               <div><div class="eyebrow">INTELIGÊNCIA DE GESTÃO • SEMANAL + MENSAL</div><h3>CENTRAL DE GESTÃO DO ILEGAL</h3><p>Leitura automática de todas as organizações ocupadas. Compara semana, mês, tendência e qualidade dos dados para indicar onde agir.</p></div>
@@ -290,11 +257,332 @@
             </div>
             <div id="metricReportPreview" class="metric-report-preview"><div class="placeholder"><b>▤</b><h3>RELATÓRIO AINDA NÃO GERADO</h3><p>Selecione uma facção e clique em gerar relatório.</p></div></div>
           </div>
+        
           </div>
         </section>
-        
+        <section class="page" id="page-economia">
+          <div class="page-head"><div><div class="eyebrow">REFERÊNCIA ECONÔMICA • MERCADO NEGRO</div><h2>ECONOMIA</h2><p class="page-subtitle">Consulta separada da tabela pública do Mercado Negro. Preços e referências econômicas ficam aqui; métricas permanecem exclusivamente para presença e desempenho.</p></div><span class="dev-badge">CATÁLOGO PÚBLICO</span></div>
+          <div class="economy-shell">
+            <div class="economy-summary">
+              <div><span>FONTE</span><b>Mercado Negro High</b></div>
+              <div><span>STATUS</span><b id="marketStatus">Carregando catálogo público...</b></div>
+              <div><span>ITENS</span><b id="marketCount">—</b></div>
+            </div>
+            <div class="economy-toolbar"><input id="marketSearch" placeholder="Buscar item, categoria, arma, munição, droga, serviço..."></div>
+            <div id="marketResults" class="market-results economy-results"><div class="placeholder"><b>$</b><h3>CARREGANDO ECONOMIA</h3></div></div>
+          </div>
+        </section>
+        <section class="page" id="page-planejador-acoes">
+          <div class="page-head">
+            <div><div class="eyebrow">HIGH OS • CENTRO DE GESTÃO ECONÔMICA</div><h2>ECONOMIA ILEGAL</h2>
+              <p class="page-subtitle">Escolha o tipo de roubo, veja quanto custa, quanto sobra e simule buff ou nerf. Nenhuma premiação é alterada automaticamente.</p>
+            </div><span class="dev-badge">GESTÃO ECONÔMICA</span>
+          </div>
+          <div id="actionEconomyPlanner" class="ap-root">
+            <div class="ap-toolbar">
+              <div><span class="ap-section-kicker">GESTÃO OPERACIONAL</span>
+                <p class="ap-topline" id="apSource">Carregando ações e catálogo de preços...</p></div>
+              <div class="ap-actions ap-toolbar-actions">
+                <button type="button" class="ap-button" id="apReloadRegistry">Sincronizar</button>
+                <button type="button" class="ap-button primary" id="apNewAction" hidden>+ Cadastrar ação</button>
+              </div>
+            </div>
+            <section class="ap-economy-console" aria-label="Painel de buff e nerf">
+              <nav class="ap-navigation ap-economy-navigation" aria-label="Escolha a atividade para balancear">
+                <button type="button" data-economy-area="roubados">
+                  <span class="ap-eco-nav-title"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7M5 9v12h14V9M9 21v-8h6v8"/></svg><strong>Casas</strong></span>
+                  <small>Lucro por invasão e pagamento dos itens no NPC</small>
+                </button>
+                <button type="button" data-economy-area="atm" aria-current="page">
+                  <span class="ap-eco-nav-title"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18M5 9v10m4-10v10m6-10v10m4-10v10M2 9h20L12 3Z"/></svg><strong>ATM</strong></span>
+                  <small>Custo do C4/C4++ e recompensa por roubo</small>
+                </button>
+                <button type="button" data-economy-area="registradora">
+                  <span class="ap-eco-nav-title"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="15" rx="2"/><path d="M3 9h18M15 14h4"/></svg><strong>Registradora</strong></span>
+                  <small>Recompensa mínima, máxima e lucro líquido</small>
+                </button>
+                <button type="button" data-economy-area="acoes">
+                  <span class="ap-eco-nav-title"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><path d="M12 1v4m0 14v4M1 12h4m14 0h4"/></svg><strong>Ações blipadas</strong></span>
+                  <small>Investimento, lucro, prejuízo, ranking e sugestões</small>
+                </button>
+              </nav>
+            </section>
+            <details class="ap-economy-more">
+              <summary>Outras atividades e comerciantes</summary>
+              <div class="ap-economy-more-links">
+                <button type="button" data-economy-area="lootnpc">Loot de NPC</button>
+                <button type="button" data-economy-area="portamalas">Veículos e porta-malas</button>
+                <button type="button" data-economy-area="comerciante">NPC de itens roubados</button>
+                <button type="button" data-economy-area="quebrados">NPC de itens quebrados</button>
+              </div>
+            </details>
+            <nav class="ap-navigation ap-action-navigation" aria-label="Seções das ações blipadas">
+              <button type="button" data-ap-nav="overview" aria-current="page">Visão geral</button>
+              <button type="button" data-ap-nav="catalog">Catálogo de ações</button>
+              <button type="button" data-ap-nav="ranking">Rankings</button>
+              <button type="button" data-ap-nav="prices">Preços e alertas</button>
+            </nav>
+            <div id="apRegistryNotice" class="ap-hint" hidden></div>
+            <section class="ap-panel ap-management" data-ap-subpage="overview" aria-labelledby="apManagementTitle">
+              <div class="ap-heading">
+                <div><span class="ap-section-kicker">AÇÕES BLIPADAS</span><h3 id="apManagementTitle">Escolha uma ação e veja o resultado</h3></div>
+                <div class="ap-actions"><span class="ap-status" id="apManagementDate">Indicadores calculados com dados oficiais publicados</span><button type="button" class="ap-button" id="apManageShowAll">Mostrar todas</button><button type="button" class="ap-button" id="apManagementExport">Exportar carteira CSV</button></div>
+              </div>
+              <details class="ap-simple-details"><summary>Ver todas as ações, rankings de prioridade e filtros</summary>
+              <div class="ap-management-kpis" id="apManagementKpis" aria-live="polite"></div>
+              <div class="ap-management-toolbar">
+                <label class="ap-field">Filtrar o diagnóstico
+                  <select id="apManagementFilter">
+                    <option value="TODAS">Todas as ações</option>
+                    <option value="REVISAR">Exigem revisão</option>
+                    <option value="PENDENTES">Com dados pendentes</option>
+                    <option value="IMPACTADAS">Afetadas por preço</option>
+                    <option value="PREJUIZO">Prejuízo mesmo na vitória</option>
+                    <option value="ESTAVEIS">Sem revisão prioritária</option>
+                  </select>
+                </label>
+                <label class="ap-field">Ordenar por
+                  <select id="apManagementSort">
+                    <option value="PRIORIDADE">Prioridade de gestão</option>
+                    <option value="LUCRO_MEMBRO">Maior lucro por membro</option>
+                    <option value="LUCRO_TOTAL">Maior lucro total</option>
+                    <option value="CAPITAL">Maior investimento</option>
+                    <option value="ROI">Maior retorno sobre capital</option>
+                  </select>
+                </label>
+                <label class="ap-field ap-management-search">Buscar ação
+                  <input id="apManagementSearch" type="search" placeholder="Nome da ação" aria-label="Buscar na carteira de ações">
+                </label>
+              </div>
+              <div class="ap-management-risk"><p><b>Referência econômica:</b> valores mínimo e máximo já aprovados. O planejador acompanha o custo de compra e reposição dos kits e alerta quando os preços dos insumos sobem ou caem. Regras de invasores/policiais e cooldown são respeitadas como requisitos da ação, sem alterar a recompensa por probabilidade de vitória.</p></div>
+              <div class="ap-table-scroll ap-management-scroll">
+                <table class="ap-management-table">
+                  <thead><tr><th>AÇÃO / EQUIPE</th><th>COOLDOWN</th><th>DIAGNÓSTICO</th><th>CAPITAL</th><th>REPÕE NA VITÓRIA</th><th>LUCRO MÍNIMO</th><th>POR MEMBRO</th><th>GESTÃO</th></tr></thead>
+                  <tbody id="apManagementList"></tbody>
+                </table>
+              </div>
+              <p class="ap-row-muted" id="apManagementMethod"></p></details>
+            </section>
+            <section class="ap-panel ap-intel-alerts" data-ap-subpage="prices" aria-labelledby="apPriceAlertsTitle">
+              <div class="ap-heading">
+                <div><span class="ap-section-kicker">REVISÃO DA ECONOMIA</span><h3 id="apPriceAlertsTitle">Mudanças no custo das ações</h3></div>
+                <div class="ap-actions">
+                  <button type="button" class="ap-button" id="apRefreshPrices">Atualizar preços</button>
+                  <button type="button" class="ap-button" id="apSaveReference" hidden>Salvar preços como referência</button>
+                  <button type="button" class="ap-button" id="apReadSheet" hidden>Conferir prêmios na planilha</button>
+                </div>
+              </div>
+              <p id="apPriceAlertIntro" class="ap-sub">Compare o custo de cada kit com os preços da referência salva. Sem referência, os prêmios atuais são preservados e não há buff sugerido.</p>
+              <div id="apPriceAlerts" class="ap-intel-alert-list" aria-live="polite"></div>
+              <p id="apPublicationStatus" class="ap-row-muted">Preços e premiações oficiais podem depender de publicação no GitHub. Alterações no planejador não atualizam o Suricato Roubos.</p>
+            </section>
+            <section class="ap-panel ap-house" data-ap-subpage="loot" aria-label="Rendimento dos roubos">
+              <div class="ap-heading"><div><span class="ap-section-kicker">RENDIMENTO POR TENTATIVA</span><h3 id="apLootHeading">Gestão dos roubos</h3></div><button type="button" id="apHouseMerchant" class="ap-button">Etapa final • Comerciante de Itens Roubados</button></div>
+              <details class="ap-simple-details" id="apLootDetails"><summary>Ver itens, chances e registrar um roubo</summary><div id="apHouseWorkbench"></div></details>
+            </section>
+            <section class="ap-panel ap-npc" data-ap-subpage="npc" aria-labelledby="apNpcHeading">
+              <div class="ap-heading">
+                <div><span class="ap-section-kicker">MONITORAMENTO DA ECONOMIA ILEGAL</span>
+                  <h3 id="apNpcHeading">Comerciante de Itens Roubados</h3><button type="button" class="ap-button" id="apBackHouse">Voltar ao rendimento dos roubos</button>
+                  <p class="ap-sub">Controle o preço pago em dinheiro sujo e a quantidade já comprada pelo comerciante. O total por item é preço × quantidade; alterações de preço exigem histórico para apurar o pagamento real acumulado.</p></div>
+              </div>
+              <div id="apNpcStats" class="ap-npc-stats"></div>
+              <details class="ap-simple-details"><summary>Ver itens e editar preços do comerciante</summary>
+              <div class="ap-filter-row">
+                <label class="ap-field">Comprador NPC<select id="apNpcMarket"><option value="CASAS">Comerciante de Itens Roubados</option><option value="ARMAS_QUEBRADAS">Comerciante de Itens Quebrados</option></select></label>
+                <div class="ap-actions"><button type="button" id="apNpcReset" class="ap-button">Descartar edição</button><button type="button" id="apNpcAdd" class="ap-button">+ Adicionar item</button><button type="button" id="apNpcSave" class="ap-button primary">Salvar preços e quantidades</button></div>
+              </div>
+              <p class="ap-row-muted" id="apNpcStatus"></p>
+              <div id="apNpcMessage" class="ap-hint" hidden></div>
+              <div class="ap-table-scroll">
+                <table class="ap-management-table">
+                  <thead><tr><th>ITEM COMPRADO PELO NPC</th><th>CÓDIGO</th><th>PREÇO UNITÁRIO SUJO</th><th>QUANTIDADE JÁ COMPRADA</th><th>DINHEIRO SUJO GERADO *</th><th>ENCONTRADOS NESTA CASA *</th><th>GESTÃO</th></tr></thead>
+                  <tbody id="apNpcRows"></tbody>
+                </table>
+              </div>
+              <p class="ap-row-muted">* Dinheiro sujo gerado: estimativa da quantidade comprada aos preços atuais. O contador cobre o período acumulado pelo NPC. A análise por casa está em Roubo de Casas e Loot.</p>
+              </details>
+              <p id="apNpcHistory" class="ap-row-muted"></p>
+              <div id="apNpcScenario" class="ap-npc-scenario">
+                <div class="ap-heading"><div><span class="ap-section-kicker">SIMULAÇÃO ECONÔMICA • ROUBO DE CASAS</span><h3>Quanto rende uma casa?</h3></div></div>
+                <div class="ap-filter-row">
+                  <label class="ap-field">Preço da gazua ++<select id="apNpcPriceMode"><option value="pista">Pista • Mercado Negro</option><option value="parceria">Parceria • Mercado Negro</option></select></label>
+                  <label class="ap-field">Gazuas consumidas<input id="apNpcLockpickQty" type="number" min="0" max="100" step="1" value="1"></label>
+                  <label class="ap-field">Taxa de lavagem (%)<input id="apNpcWash" type="number" min="0" max="99" step="1" value="30"></label>
+                </div>
+                <div id="apNpcLootSummary"></div>
+                <p class="ap-row-muted">A equivalência de gazua ++ com LOCKPICK ++ do catálogo deve ser confirmada nas regras do servidor; os itens e preços pagos pelo NPC são cadastrados separadamente e não são inventados pelo sistema.</p>
+              </div>
+            </section>
+            <section class="ap-panel ap-rank-hub" data-ap-subpage="ranking" aria-labelledby="apRankingHeading">
+              <div class="ap-heading">
+                <div><span class="ap-section-kicker">INTELIGÊNCIA ECONÔMICA</span><h3 id="apRankingHeading">Ranking das ações</h3></div>
+                <span class="ap-status" id="apRankingDate">Preços atuais do Mercado Negro</span>
+              </div>
+              <div class="ap-ranking-highlights" id="apRankingHighlights"></div>
+              <div class="ap-ranking-heading">
+                <div class="ap-ranking-tabs" id="apRankingTabs" aria-label="Tipo de ranking"></div>
+                <label class="ap-field ap-ranking-limit">Exibir
+                  <select id="apRankingLimit"><option value="5">Top 5</option><option value="10" selected>Top 10</option><option value="999">Todas</option></select>
+                </label>
+              </div>
+              <div id="apRankingResults" class="ap-ranking-results" aria-live="polite"></div>
+              <p class="ap-row-muted" id="apRankingMethod">Comparação pelo prêmio mínimo da vitória, após 30% de lavagem, custos de reposição, kit oficial e maior número permitido de invasores. Não considera chance de derrota nem espera policial.</p>
+            </section>
+            <div class="ap-shell" data-ap-subpage="workspace">
+              <aside class="ap-panel ap-aside">
+                <div class="ap-heading"><div><span class="ap-section-kicker">BIBLIOTECA</span><h3>Ações cadastradas</h3></div>
+                  <button type="button" class="ap-button" id="apCatalogNew" hidden>+ Nova</button></div>
+                <p class="ap-sub">Selecione uma ação para abrir o perfil completo. Os cadastros internos não alteram a cidade.</p>
+                <input class="ap-search" id="apSearch" type="search" placeholder="Pesquise pelo nome da ação" aria-label="Buscar ação">
+                <select id="apStatusFilter" class="ap-search" aria-label="Filtrar ações">
+                  <option value="ATIVAS">Somente ativas</option><option value="TODAS">Todas</option><option value="REVISAR">Com preços pendentes</option>
+                </select>
+                <p class="ap-row-muted" id="apActionCount">—</p>
+                <div id="apActionList" class="ap-action-list"></div>
+                <button type="button" id="apCatalogMore" class="ap-button ap-load-more" hidden>Carregar mais ações</button>
+                <details class="ap-disclosure ap-archive" id="apArchiveBox" hidden>
+                  <summary>Ações arquivadas no planejador</summary>
+                  <div id="apArchivedActions"></div>
+                </details>
+              </aside>
+              <div class="ap-columns">
+                <header class="ap-profile-bar">
+                  <div><button type="button" class="ap-back" id="apBackCatalog">← Voltar ao catálogo</button>
+                    <span class="ap-section-kicker">PERFIL DA AÇÃO</span>
+                    <h3 id="apProfileName">Ação selecionada</h3>
+                    <span id="apProfileOrigin" class="ap-status">Origem: Mercado Negro</span>
+                  </div>
+                  <div class="ap-actions">
+                    <button type="button" class="ap-button" id="apEditAction" hidden>Editar cadastro</button>
+                    <button type="button" class="ap-button ap-danger" id="apDeleteAction" hidden>Excluir / arquivar</button>
+                  </div>
+                </header>
+                <nav class="ap-profile-nav" aria-label="Abas do perfil da ação">
+                  <button type="button" data-ap-profile="resumo" aria-current="page">Resumo</button>
+                  <button type="button" data-ap-profile="custos">Investimento e custos</button>
+                  <button type="button" data-ap-profile="cenario">Cenários e equipes</button>
+                  <button type="button" data-ap-profile="sugestao">Sugestão e decisão</button>
+                </nav>
+                <section class="ap-panel ap-hero" data-ap-profile-panel="resumo">
+                  <div class="ap-heading"><div><span class="ap-section-kicker">AÇÃO SELECIONADA</span><h3 id="apActionTitle">Carregando...</h3></div><div id="apActionStatus"></div></div>
+                  <div class="ap-quickcards" id="apQuickMetrics"></div>
+                  <div id="apSuggestedMain" class="ap-recommend-main" aria-live="polite">
+                    <span class="ap-recommend-title">RECOMENDAÇÃO DA ECONOMIA</span>
+                    <p>Calculando prêmio recomendado com os insumos e o lucro por membro...</p>
+                  </div>
+                  <div class="ap-outcome-grid" id="apOutcome"></div>
+                  <div id="apReq"></div>
+                  <details class="ap-disclosure"><summary>Ver fotos e locais desta ação</summary><div id="apPhotos"></div></details>
+                </section>
+                <section class="ap-panel" data-ap-profile-panel="cenario">
+                  <div class="ap-heading"><h3>1. Configure o cenário</h3><span class="ap-status">Os cálculos atualizam automaticamente</span></div>
+                  <div class="ap-filter-row">
+                    <label class="ap-field">Jogadores na ação<select id="apTeam"></select></label>
+                    <label class="ap-field">Valor de compra dos itens<select id="apPriceMode"><option value="pista">Preço de pista</option><option value="parceria">Preço de parceria</option></select></label>
+                    <label class="ap-field">Alta ou queda dos insumos (%)<input id="apPriceShift" type="number" min="-90" max="300" step="5" value="0" aria-describedby="apPriceHelp"></label>
+                    <label class="ap-field">Munição usada na vitória (%)<input id="apAmmoUse" type="number" min="0" max="100" step="5" value="25"></label>
+                    <label class="ap-field">Prêmio por quantidade de jogadores<select id="apTeamPayout"><option value="publicado">Valor oficial publicado (único)</option><option value="proporcional">Simular prêmio proporcional à equipe</option></select></label>
+                  </div>
+                  <div class="ap-preset-row"><span>Preços:</span>
+                    <button type="button" class="ap-preset" data-ap-shift="-10">Queda 10%</button>
+                    <button type="button" class="ap-preset" data-ap-shift="0">Atuais</button>
+                    <button type="button" class="ap-preset" data-ap-shift="10">Alta 10%</button>
+                    <button type="button" class="ap-preset" data-ap-shift="25">Alta 25%</button>
+                  </div>
+                  <p id="apPriceHelp" class="ap-row-muted">Alta ou queda é uma hipótese aplicada a todos os insumos sobre o preço publicado, não uma variação confirmada do mercado. A munição é reposta em pacotes inteiros; os coletes são comprados novamente após cada vitória.</p>
+                  <details class="ap-disclosure"><summary>Configuração avançada do kit</summary>
+                    <div class="ap-filter-row"><label class="ap-field">Quantidades do kit<select id="apKitMode"><option value="oficial">Quantidades oficiais da ação (padrão)</option><option value="por-jogador">Simulação: 1 kit por jogador (quando houver)</option></select></label></div>
+                    <label class="ap-field">Pendrive após vitória<select id="apAccessMode"><option value="consumido">Consumido — precisa repor (hipótese)</option><option value="reutilizado">Reutilizado — não precisa repor</option></select></label>
+                    <p class="ap-row-muted">É possível editar a quantidade e o preço unitário de cada item abaixo. Preços manuais também recebem a alta/queda simulada.</p>
+                  </details>
+                </section>
+                <section class="ap-panel" data-ap-profile-panel="custos">
+                  <div class="ap-heading"><h3>2. Onde está o dinheiro da facção?</h3><span class="ap-status">Capital inicial ≠ despesa após vitória</span></div>
+                  <div class="ap-table-scroll"><table class="ap-cost-table">
+                    <thead><tr><th>ITEM E CLASSIFICAÇÃO</th><th>QTD.</th><th>PREÇO UNIT.</th><th>INVESTIMENTO</th><th>REPOR AO VENCER</th></tr></thead>
+                    <tbody id="apKitRows"></tbody><tfoot><tr><td colspan="3">TOTAL</td><td id="apTotal">—</td><td id="apWinCostTotal">—</td></tr></tfoot></table></div>
+                  <p id="apKitComputed" class="ap-row-muted"></p><p id="apWarnings" class="ap-hint"></p>
+                </section>
+                <section class="ap-panel" data-ap-profile-panel="custos"><div id="apExplosiveComparison"></div></section>
+                <section class="ap-panel" data-ap-profile-panel="resumo">
+                  <h3>3. Resultados financeiros com o prêmio atual</h3>
+                  <div id="apCurrentMetrics" class="ap-cards"></div>
+                  <div class="ap-hint">Vitória: prêmio após lavagem menos munição reposta, coletes e insumos consumidos. As armas continuam no patrimônio. Derrota: prêmio zero e perda integral do kit. O caixa da primeira tentativa pode ser menor porque a facção precisou comprar as armas.</div>
+                </section>
+                <section class="ap-panel" data-ap-profile-panel="cenario">
+                  <h3>4. Compare as equipes permitidas</h3>
+                  <p class="ap-sub">A mesma ação pode exigir outro capital e gerar outro lucro conforme a quantidade de invasores.</p>
+                  <div id="apScenarios" class="ap-table-scroll"></div><p class="ap-row-muted">Caso a ação pague valores diferentes por tamanho da equipe, somente os prêmios informados oficialmente podem ser aprovados. A divisão proporcional é ilustrativa e não altera a planilha.</p>
+                </section>
+                <section class="ap-panel ap-strategy" data-ap-profile-panel="sugestao">
+                  <details id="apStrategyDetails" class="ap-disclosure" open>
+                    <summary>5. Impacto de preços — manter, aumentar ou reduzir</summary>
+                    <p class="ap-sub">O pagamento vigente é a base aprovada. Alterações de preço afetam o investimento inicial e os itens consumidos ou repostos. O sistema somente considera revisão de premiação quando há variação comprovada da despesa por ação, nunca pela quantidade de policiais ou por uma chance de vitória presumida.</p>
+                    <div id="apIntelligenceResult" class="ap-intel-decision"></div>
+                    <div class="ap-filter-row">
+                      <label class="ap-field">Taxa de lavagem (%)<input id="apTax" type="number" min="0" max="99" step="1" value="30"></label>
+                    </div>
+                    <div id="apGoals" class="ap-cards"></div>
+                    <div class="ap-recommend-approval" id="apDecisionPayoutCompare" aria-live="polite"></div>
+                    <div id="apResult" class="ap-result"></div><p id="apProposal" class="ap-row-muted"></p>
+                    <label class="ap-field">Motivo da decisão / observações<input id="apDecisionReason" type="text" maxlength="600" placeholder="Ex.: insumos subiram; espera policial elevada"></label>
+                  <div class="ap-filter-row ap-manual-row">
+                      <label class="ap-field">Prêmio mínimo manual (sujo)<input id="apManual" type="number" min="1" placeholder="Mínimo a cadastrar no Suricato"></label>
+                      <label class="ap-field">Prêmio máximo manual (sujo)<input id="apManualMax" type="number" min="1" placeholder="Máximo a cadastrar no Suricato"></label>
+                      <div id="apManualOutcome" class="ap-hint"></div><p class="ap-row-muted" id="apManualRangeHelp">Cadastre ou simule os dois valores livremente para o Suricato Roubos. Na planilha histórica de ações blipadas, o máximo oficial segue a fórmula existente.</p>
+                    </div>
+                    <div class="ap-actions"><button type="button" class="ap-button primary" id="apCopySuricato">Copiar mínimo e máximo para Suricato</button><button type="button" class="ap-button" id="apCopy">Copiar análise completa</button>
+                      <button type="button" class="ap-button" id="apApprove" hidden>Aprovar valor recomendado</button>
+                    <button type="button" class="ap-button" id="apApproveManual" hidden>Aprovar valor manual</button>
+                    <button type="button" class="ap-button" id="apReject" hidden>Recusar proposta</button>
+                    <button type="button" class="ap-button" id="apHistory">Histórico de decisões</button>
+                      <button type="button" class="ap-button" id="apExport">Exportar todas as ações (CSV)</button></div>
+                    <p id="apCopyStatus" class="ap-row-muted">A simulação não modifica a planilha. Aprovação é uma operação separada e confirmada.</p><div id="apDecisionHistory" class="ap-decision-history" hidden></div>
+                  </details>
+                </section>
+              </div>
+            </div>
+
+            <dialog id="apEditorDialog" class="ap-editor" aria-labelledby="apEditorHeading">
+              <form id="apActionForm" novalidate>
+                <div class="ap-editor-header">
+                  <div><span class="ap-section-kicker">GESTÃO DE CADASTRO • HIGH OS</span>
+                    <h3 id="apEditorHeading">Cadastrar ação</h3>
+                    <p class="ap-sub">Planeje ações blipadas, ATM, registradoras e novas modalidades. Edite kit, invasores, policiais, cooldown, mínimo e máximo. O Suricato não é atualizado automaticamente.</p>
+                  </div>
+                  <button type="button" class="ap-back" id="apCloseEditor" aria-label="Fechar editor">✕</button>
+                </div>
+                <div class="ap-editor-content">
+                  <div class="ap-editor-grid">
+                    <label class="ap-field">Nome da ação<input required id="apEntryName" maxlength="100" placeholder="Ex.: Roubo de ATM"></label>
+                    <label class="ap-field">Tipo de ação<select id="apEntryType"><option value="blipada">Ação blipada</option><option value="atm">ATM / Caixa eletrônico</option><option value="registradora">Furto de registradora</option><option value="casas">Roubo de casas</option><option value="outros">Outra ação</option></select></label>
+                    <label class="ap-field">Situação<select id="apEntryStatus"><option value="ativo">Ativa</option><option value="inativo">Inativa</option></select></label>
+                    <label class="ap-field">Prêmio mínimo (sujo)<input required type="number" min="1" id="apEntryMin"></label>
+                    <label class="ap-field">Prêmio máximo (sujo)<input required type="number" min="1" id="apEntryMax"></label>
+                    <label class="ap-field">Cooldown (segundos)<input type="number" min="0" max="86400" id="apEntryCooldown"></label>
+                  </div>
+                  <div class="ap-editor-section"><div class="ap-heading"><h4>Equipes permitidas</h4>
+                    <button type="button" class="ap-button" id="apAddRule">+ Equipe</button></div>
+                    <div id="apEditorRules" class="ap-editor-rows"></div></div>
+                  <div class="ap-editor-section"><div class="ap-heading"><h4>Itens necessários</h4>
+                    <button type="button" class="ap-button" id="apAddItem">+ Item</button></div>
+                    <p class="ap-row-muted">Kit totalmente editável: inclua e remova itens, quantidades, categoria de consumo e custo unitário. Deixe o preço em branco para sincronizar com o Mercado Negro. Ações sem insumos podem ter kit vazio. Em ATM, compare C4 e C4 ++ no perfil.</p>
+                    <div id="apEditorItems" class="ap-editor-rows"></div>
+                    <datalist id="apItemNames"></datalist>
+                  </div>
+                  <div id="apEditorError" role="alert" class="ap-error" hidden></div>
+                </div>
+                <div class="ap-editor-footer">
+                  <button type="button" class="ap-button" id="apCancelEditor">Cancelar</button>
+                  <button type="submit" class="ap-button primary" id="apSaveEntry">Salvar cadastro</button>
+                </div>
+              </form>
+            </dialog>
+          </div>
+        </section>
         <section class="page" id="page-planejador">
-          <div class="page-head"><div><div class="eyebrow">MAPA GTA V • EVENTOS • MISSÕES</div><h2>PLANEJADOR DE MISSÕES</h2><p class="page-subtitle">Eventos e zonas do painel /evento: monte a zona, valide as CDS, envie a solicitação à cidade e acompanhe até a zona estar no jogo.</p></div><span class="dev-badge">V12.17.0</span></div>
+          <div class="page-head"><div><div class="eyebrow">MAPA GTA V • EVENTOS • MISSÕES</div><h2>PLANEJADOR DE MISSÕES</h2><p class="page-subtitle">Crie novos locais de evento, gere spawns em círculo, valide CDS uma a uma e mantenha cada missão salva com o último print do mapa.</p></div><span class="dev-badge">DEV 12.18.0</span></div>
 
           <section id="mpCentralV954" class="mp-central-v952" aria-label="Central de Missões"></section>
 
@@ -431,13 +719,19 @@
             </div>
           </div>
         </section>
-        
-        <section class="page" id="page-chat">
-          <div class="page-head"><div><div class="eyebrow">COMUNICAÇÃO INTERNA • HIGH OS</div><h2>CHAT DA EQUIPE</h2><p class="page-subtitle">O Messenger agora fica disponível em qualquer tela pelo botão flutuante no canto inferior direito. Conversas privadas por usuário, emojis, anexos e chamadas com áudio, vídeo e compartilhamento de tela.</p></div><span class="dev-badge">MESSENGER</span></div>
-          <div class="chat-feature-grid"><article><b>✉ MENSAGENS PRIVADAS</b><p>Escolha um usuário da equipe e converse individualmente sem sair da tela.</p></article><article><b>📎 ANEXOS</b><p>Envie imagens e arquivos pequenos diretamente na conversa.</p></article><article><b>🎙 REUNIÃO</b><p>Crie uma sala para áudio, vídeo e compartilhamento de tela.</p></article><article><b>🔔 CONTEXTO</b><p>Convites de reunião aparecem dentro do próprio chat.</p></article></div>
-          <button type="button" id="chatPageOpenFloat" class="btn-primary">ABRIR CHAT FLUTUANTE</button>
-          <div id="chatMessages" class="team-chat-messages chat-page-history"><div class="chat-empty">Carregando conversa...</div></div>
+        <section class="page" id="page-diario">
+          <div class="dg-head">
+            <div><div class="eyebrow">AGENDA DO BOT • EXECUÇÃO • RESULTADOS • PREMIAÇÕES</div><h2>DIÁRIO OPERACIONAL</h2><div id="dgDayLabel" class="dg-day">—</div></div>
+            <div class="dg-nav"><button type="button" id="dgPrev" title="Dia anterior">◀</button><input type="date" id="dgDate" aria-label="Data"><button type="button" id="dgNext" title="Próximo dia">▶</button><button type="button" id="dgToday" class="primary">HOJE</button><button type="button" id="dgRefresh" title="Atualizar">⟳</button></div>
+          </div>
+          <div id="dgMain"><div class="dg-skeleton"><i></i><i></i><i></i><i></i></div></div>
         </section>
+        <section class="page" id="page-historico">
+          <div class="page-head"><div><div class="eyebrow">AUDITORIA OPERACIONAL</div><h2>HISTÓRICO</h2><p class="page-subtitle">Linha do tempo de entregas, recolhimentos, alterações de estrutura, usuários e solicitações registradas no High OS.</p></div></div>
+          <div class="history-toolbar"><input id="historySearch" placeholder="Buscar Group, facção, usuário ou evento..."><select id="historyType"><option value="">TODOS OS EVENTOS</option><option value="ENTREGA_GROUP">ENTREGAS</option><option value="RECOLHIMENTO">RECOLHIMENTOS</option><option value="EDICAO">ALTERAÇÕES DE GROUP</option><option value="ENTREGA">ENTREGAS LEGADAS</option><option value="MODELO_SOLICITACAO">MODELOS / SOLICITAÇÕES</option><option value="USUARIO">USUÁRIOS</option></select></div>
+          <div id="historyStats" class="fac-stats"></div><div id="historyList" class="history-list"><div class="placeholder"><b>◷</b><h3>CARREGANDO HISTÓRICO</h3></div></div>
+        </section>
+        
         
         <section class="page" id="page-group-profile">
           <div class="group-profile-page-head">
@@ -452,18 +746,6 @@
               <div id="groupProfilePageStatus" class="profile-page-status"></div>
             </div>
           </div>
-          <section class="group-cover-v5" aria-label="Capa do Group">
-            <div class="group-cover-v5-art" id="groupCoverArt"><img id="groupCoverImage" alt="" hidden></div>
-            <div class="group-cover-v5-shade"></div>
-            <div class="group-cover-v5-copy"><span id="groupCoverSegment">ESTRUTURA OPERACIONAL</span><h3 id="groupCoverTitle">GROUP</h3><p id="groupCoverSubtitle">Perfil da organização</p></div>
-            <div class="group-cover-v5-actions"><button type="button" id="groupCoverChange">ALTERAR CAPA</button></div>
-          </section>
-          <details class="compact-map-shell" aria-label="Mapa interativo do Group">
-            <summary class="compact-map-head"><div><span class="compact-eyebrow">MAPA INTERATIVO · OPCIONAL</span><h3>Ver QG no mapa de Los Santos <span class="compact-map-chevron">⌄</span></h3><p>Clique para expandir. O mapa fica recolhido para priorizar o cadastro.</p></div></summary><div class="compact-map-controls"><button type="button" id="compactMapFocus">CENTRALIZAR QG</button><button type="button" id="compactMapCopy">COPIAR CDS</button></div>
-            <div id="compactGroupMap" class="compact-map-canvas" role="application" aria-label="Mapa GTA V com localização do QG"></div>
-            <div id="compactMapStatus" class="compact-map-status" aria-live="polite">Abra um Group para visualizar a localização.</div>
-          </details>
-          <div class="compact-profile-actionbar"><div><b>CADASTRO E EDIÇÃO DIRETA</b><small>Visualize os dados abaixo ou abra a edição sem sair desta página.</small></div><button type="button" id="compactEditGroup">✎ EDITAR CADASTRO</button></div>
           <div id="groupProfileMount" class="group-profile-page-mount"></div>
         </section>
         <section class="page" id="page-group-settings">
@@ -492,7 +774,7 @@
             <button type="button" class="admin-summary-card" data-admin-tab="integracoes"><span>↔</span><div><b>INTEGRAÇÕES</b><small>Google Sheets e sincronizações</small></div></button>
             <button type="button" class="admin-summary-card" data-admin-tab="estrutura"><span>◇</span><div><b>ESTRUTURA</b><small>Segmentos e vínculos</small></div></button>
             <button type="button" class="admin-summary-card" data-admin-tab="auditoria"><span>◷</span><div><b>AUDITORIA</b><small>Sessões e ações dos usuários</small></div></button>
-            <button type="button" class="admin-summary-card" data-admin-tab="logs"><span>▤</span><div><b>LOGS</b><small>Linha do tempo de tudo que aconteceu no sistema</small></div></button><button type="button" class="admin-summary-card danger-card" data-admin-tab="manutencao"><span>⚠</span><div><b>MANUTENÇÃO</b><small>Limpeza e reset operacional</small></div></button>
+            <button type="button" class="admin-summary-card danger-card" data-admin-tab="manutencao"><span>⚠</span><div><b>MANUTENÇÃO</b><small>Limpeza e reset operacional</small></div></button>
           </div>
 
           <div class="admin-tab-panel active" data-admin-panel="acessos">
@@ -506,7 +788,19 @@
 
           <div class="admin-tab-panel" data-admin-panel="groups">
             <div class="admin-group-card">
-              <div class="sheet-sync-head"><div><div class="eyebrow">PATRIMÔNIO • CADASTRO MESTRE</div><h3>GERENCIAR GROUPS / QGs</h3><p>Administre o cadastro permanente dos Groups: nome, segmento, QG, produto, ocupação, liderança, staff, coordenadas, anúncio e toda a estrutura técnica pelo editor completo.</p></div><span class="sheet-sync-badge online">ADMIN</span></div>
+              <div class="sheet-sync-head"><div><div class="eyebrow">PATRIMÔNIO • CADASTRO MESTRE</div><h3>GERENCIAR GROUPS / QGs</h3><p>Administre o cadastro permanente dos Groups: nome, segmento, QG, produto, ocupação, liderança, staff, coordenadas, anúncio e toda a estrutura técnica pelo editor completo.</p></div><div class="admin-group-head-actions"><span class="sheet-sync-badge online">ADMIN</span><button type="button" id="adminNewGroupBtn" class="btn-primary compact">+ NOVO GROUP</button></div></div>
+              <form id="adminNewGroupForm" class="admin-group-create hidden" autocomplete="off">
+                <div class="admin-group-create-top"><div><b>CADASTRAR NOVO GROUP</b><p>Cria uma nova posição vaga no cadastro mestre. A facção e a liderança serão vinculadas posteriormente, pela entrega.</p></div><button type="button" id="adminNewGroupClose" class="btn-secondary compact">FECHAR</button></div>
+                <div class="admin-group-create-grid">
+                  <label>Group <small>Identificador usado na cidade</small><input id="adminNewGroupName" name="group" maxlength="40" placeholder="Ex.: Armas05" required></label>
+                  <label>Segmento<select id="adminNewGroupSegment" name="segmento" required><option value="">SELECIONE O SEGMENTO</option></select></label>
+                  <label>QG / Favela <small>Opcional no cadastro inicial</small><input id="adminNewGroupQG" name="qg" maxlength="120" placeholder="Ex.: Favela do Vinhedo"></label>
+                  <label>Contingente mínimo<input id="adminNewGroupMin" name="min" type="number" min="0" max="500" step="1" value="15" required></label>
+                  <label>Contingente máximo<input id="adminNewGroupMax" name="max" type="number" min="0" max="500" step="1" value="28" required></label>
+                  <label class="admin-group-create-wide">Observações<textarea id="adminNewGroupObs" name="observacoes" rows="2" placeholder="Informações iniciais do Group (opcional)"></textarea></label>
+                </div>
+                <div class="admin-group-create-footer"><span>O novo Group será registrado como DISPONÍVEL, sem facção ocupante.</span><button type="button" id="adminNewGroupCancel" class="btn-secondary compact">CANCELAR</button><button type="submit" id="adminNewGroupSave" class="btn-primary compact">CADASTRAR GROUP</button></div>
+              </form>
               <div class="admin-group-toolbar"><input id="adminGroupSearch" placeholder="Buscar Group, QG, segmento ou facção..."><select id="adminGroupStatus"><option value="">TODOS</option><option value="ATIVA">OCUPADOS</option><option value="INATIVA">VAGOS</option></select></div>
               <div id="adminGroupStats" class="fac-stats compact-stats"></div>
               <div id="adminGroupList" class="admin-group-list"><div class="placeholder"><b>◆</b><h3>CARREGANDO GROUPS</h3></div></div>
@@ -532,17 +826,10 @@
             <div class="sheet-sync-admin-card">
               <div class="sheet-sync-head"><div><div class="eyebrow">GOOGLE SHEETS • DOCUMENTO DAS FACÇÕES</div><h3>SINCRONIZAÇÃO BIDIRECIONAL</h3><p>Planilha oficial ↔ High OS. Alterações vindas da planilha entram somente após sua confirmação; alterações feitas no High OS são enviadas diretamente à linha do Group quando o Google está conectado.</p></div><div id="facSheetSyncBadge" class="sheet-sync-badge offline">DESCONECTADO</div></div>
               <div class="sheet-sync-meta"><div><span>PLANILHA</span><b>DOCUMENTO DAS FACÇÕES</b><small id="facSheetName">ID 1MBVzWMFrAzIhYlT7-ZgWZEAoJLjPn3JeZdmHyRcZf2A • gid 1572584288</small></div><div><span>ÚLTIMA VERIFICAÇÃO</span><b id="facSheetLastCheck">—</b><small id="facSheetStatusText">Conecte sua conta Google com permissão de edição.</small></div></div>
-              <div class="sheet-sync-actions"><button type="button" id="facSheetConnectBtn" class="btn-primary compact">CONECTAR GOOGLE SHEETS</button><button type="button" id="facSheetCheckBtn" class="btn-secondary compact">VERIFICAR ALTERAÇÕES DA PLANILHA</button><button type="button" id="facSheetPushAllBtn" class="btn-secondary compact">ENVIAR HIGH OS → PLANILHA</button></div>
-              <div class="sheet-sync-note">Campos sincronizados: nº, CDS, anúncio, nome do QG, Group, produto, facção, status, líder, staff responsável, data de entrega e observações. Benefícios, craft, farm, métricas e histórico continuam somente no High OS.</div>
+              <div class="sheet-sync-actions"><button type="button" id="facSheetConnectBtn" class="btn-primary compact">CONECTAR GOOGLE SHEETS</button><button type="button" id="facSheetCheckBtn" class="btn-secondary compact">VERIFICAR ALTERAÇÕES DA PLANILHA</button><button type="button" id="facSheetPushAllBtn" class="btn-secondary compact">ENVIAR HIGH OS → PLANILHA</button><button type="button" id="blipsSyncAllBtn" class="btn-secondary compact">SINCRONIZAR BLIPS E COORDENADAS</button></div>
+              <div class="sheet-sync-note">Campos sincronizados: nº, CDS, anúncio, nome do QG, Group, produto, facção, status, líder, staff responsável, data de entrega e observações. A aba BLIPS COORDENADAS da planilha Ilegal - High Season 2 recebe os dados técnicos do Group na categoria correta. Receitas de craft, farm, métricas e histórico permanecem no High OS.</div>
             </div>
-            <div class="spotify-admin-card">
-              <div class="sheet-sync-head"><div><div class="eyebrow">SPOTIFY • INTEGRAÇÃO DO TOPO</div><h3>CONFIGURAÇÃO DO SPOTIFY</h3><p>O Spotify não ocupa mais um módulo no menu. Configure aqui o aplicativo e use o player expansível diretamente no topo do High OS.</p></div><span class="sheet-sync-badge online">TOP PLAYER</span></div>
-              <div class="spotify-real-shell admin-spotify-shell">
-                <section class="spotify-real-card"><div class="spotify-real-head"><div><span>CONTA SPOTIFY</span><h3 id="spotifyAccountName">Não conectada</h3></div><button type="button" id="spotifyLoginBtn" class="btn-primary compact">CONECTAR SPOTIFY</button></div><div id="spotifyRealStatus" class="spotify-real-status">Configure o Client ID e conecte sua conta.</div></section>
-                <section class="spotify-real-card"><h3>APLICATIVO SPOTIFY</h3><label><span>CLIENT ID</span><input id="spotifyClientId" placeholder="Client ID do aplicativo Spotify"></label><label><span>REDIRECT URI</span><input id="spotifyRedirectUri" readonly></label><button type="button" id="spotifySaveClientBtn" class="btn-secondary compact">SALVAR CONFIGURAÇÃO</button></section>
-                <section class="spotify-real-card"><h3>PLAYER PÚBLICO / FALLBACK</h3><div class="spotify-config"><label><span>LINK DO SPOTIFY</span><input id="spotifyUrl" type="url" placeholder="https://open.spotify.com/playlist/..."></label><button type="button" id="spotifySaveBtn" class="btn-secondary compact">SALVAR LINK</button></div><div id="spotifyPlayer" class="spotify-player"></div></section>
-              </div>
-            </div>
+            
           </div>
 
           <div class="admin-tab-panel" data-admin-panel="estrutura">
@@ -555,17 +842,6 @@
             </div>
           </div>
 
-          <div class="admin-tab-panel" data-admin-panel="logs">
-            <div class="logs-head">
-              <div>
-                <b>LOGS DO SISTEMA</b>
-                <span>Entregas, recolhimentos, alterações de estrutura, acessos e sincronizações. Registro somente de leitura: nada aqui pode ser editado ou apagado.</span>
-              </div>
-              <input id="historySearch" type="search" placeholder="Buscar Group, facção, usuário ou evento..." autocomplete="off">
-            </div>
-            <div id="historyStats" class="logs-stats"></div>
-            <div id="historyList" class="logs-list"></div>
-          </div>
           <div class="admin-tab-panel" data-admin-panel="auditoria">
             <div class="audit-admin-card">
               <div class="sheet-sync-head"><div><div class="eyebrow">SEGURANÇA • AUDITORIA</div><h3>SESSÕES DE USUÁRIOS</h3><p>Cada login gera uma sessão independente. Consulte quando o usuário entrou, quanto tempo permaneceu conectado e todas as alterações realizadas durante aquela sessão.</p></div><span class="sheet-sync-badge online">MÁX. 8 HORAS</span></div>
@@ -884,13 +1160,13 @@
 <div id="craftRequestModal" class="modal hidden"><div class="modal-card craft-request-modal"><button class="modal-x" id="craftRequestClose">×</button><div class="eyebrow">SOLICITAÇÃO GERADA AUTOMATICAMENTE</div><h2>ADIÇÃO DE CRAFT NO GROUP</h2><p class="tech-editor-help">A receita foi salva no High OS. Confira a solicitação abaixo e copie no padrão do Discord da cidade.</p><div class="craft-request-summary" id="craftRequestSummary"></div><label class="wide craft-request-text-label">Solicitação pronta para o Discord<textarea id="craftRequestText" rows="18" readonly></textarea></label><div class="modal-actions"><button type="button" id="craftRequestLater" class="btn-secondary">FECHAR</button><button type="button" id="copyCraftRequestBtn" class="btn-primary">COPIAR SOLICITAÇÃO</button></div></div></div>
 <div id="farmEditorModal" class="modal hidden"><div class="modal-card tech-editor-modal farm-editor-modal"><button class="modal-x" id="farmEditorClose">×</button><div class="eyebrow">PERFIL TÉCNICO • FARM / ROTA</div><h2 id="farmEditorTitle">ITEM DO FARM</h2><p class="tech-editor-help" id="farmEditorHelp">Visualize os dados do item coletado na rota.</p><form id="farmEditorForm"><input type="hidden" id="farmEditorIndex"><div class="tech-editor-product"><div class="tech-editor-image"><img id="farmEditorImage" alt="Item do farm"></div><div class="form-grid"><label>Nome do item<input id="farmEditorName" required></label><label>Spawn do item<input id="farmEditorSpawn" required></label><label class="wide">Quantidade / observação de coleta<textarea id="farmEditorQty" rows="5" placeholder="Ex.: x20 por coleta / observação da rota"></textarea></label></div></div><div id="farmLinkedInfo" class="farm-linked-info hidden"></div><div class="modal-actions"><button type="button" id="farmEditorCancel" class="btn-secondary">FECHAR</button><button type="submit" id="farmEditorSave" class="btn-primary">SALVAR ITEM</button></div></form></div></div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-  <script src="assets/ui-kit.js?v=12.5.0"></script>
-  <script src="assets/modules/eventos-painel.js?v=12.17.0"></script>
-  <script src="assets/mission-planner.js?v=12.17.0"></script>
-  <script type="module" src="assets/app.js?v=14.3.4"></script>
-  <script defer src="assets/compact-group-map.js?v=12.6.2"></script>
+  <script src="assets/vendor/leaflet/leaflet.js?v=1.9.4"></script>
+  <!-- html2canvas (assets/vendor) carrega só quando alguém captura uma imagem -->
+  <script src="assets/ui-kit.js?v=10.4.1"></script>
+  <!-- V15.6.3: eventos-painel, mission-planner e mission-planner-nav carregam só ao abrir o Planejador (app.js) -->
+  <script src="assets/anim-v15.js?v=15.0.0" defer></script>
+  <script src="assets/api-config.js?v=2"></script>
+  <script type="module" src="assets/app.js?v=15.12.18"></script>
 
 <div id="newDeliveryModal" class="modal hidden"><div class="modal-card delivery-modal-v5"><button class="modal-x" id="newDeliveryClose">×</button>
   <div class="eyebrow">NOVA OCUPAÇÃO</div><h2>ENTREGA DE GROUP</h2><p class="delivery-help">O Group traz sua estrutura instalada. Personalize apenas o que será ativado para a nova facção.</p>
@@ -898,12 +1174,31 @@
     <div class="form-grid">
       <label>Group / QG<select id="dGroup" required></select></label><label>Facção que assume<input id="dFaccao" list="orgOptions" required placeholder="Selecione ou cadastre a organização"><datalist id="orgOptions"></datalist></label>
       <label>Líder / ID / Telefone<input id="dLider"></label><label>Staff responsável<input id="dStaff"></label>
-      <label>Data da entrega<input id="dData" placeholder="dd/mm/aaaa"></label><label>Plano / pacote<input id="dPlano" placeholder="Ex.: Org Ultra / VIP Org"></label>
+      <label>Data da entrega<input id="dData" placeholder="dd/mm/aaaa"></label><label>Plano / observação comercial<input id="dPlano" placeholder="Informação complementar (opcional)"></label>
+      <label>VIP Org na entrega<select id="dVipPackage"><option value="">Sem pacote VIP Org</option><option value="ORG_ULTRA">Org Ultra</option><option value="PERSONALIZADO">Pacote personalizado</option></select></label>
     </div>
-    <div class="delivery-split">
-      <section><div class="eyebrow">PRÉ-CONFIGURAÇÃO DO GROUP</div><h3>INSTALAÇÕES DISPONÍVEIS</h3><div id="dInstalled" class="install-grid"></div></section>
-      <section><div class="eyebrow">CONFIGURAÇÃO DA ENTREGA</div><h3>ATIVAR PARA A FACÇÃO</h3><div id="dActive" class="install-grid"></div></section>
-    </div>
+    <section class="dlv-panel">
+      <div class="dlv-panel-head"><div><div class="eyebrow">PLANILHA + CADASTRO DO GROUP</div><h3>BENEFÍCIOS DA ENTREGA</h3></div><button type="button" id="dSheetRefresh" class="btn-secondary compact">ATUALIZAR DA PLANILHA</button></div>
+      <p id="dSheetStatus" class="dlv-status">Selecione um Group para ler os benefícios da planilha.</p>
+      <section id="dVipSheetPanel" class="dlv-vip-review" hidden>
+        <div class="dlv-vip-title"><b>VIP ORG · BANCO DE DADOS DA PLANILHA</b><span>BENEFICIOS FACÇÕES • status por Group</span></div>
+        <p class="dlv-vip-help">Status e origem ficam em BENEFICIOS FACÇÕES; as coordenadas e props permanecem em BLIPS COORDENADAS. Benefícios avulsos não ativam automaticamente o pacote Ultra.</p>
+        <div id="dVipSheetMeta" class="dlv-vip-items"></div>
+        <div id="dVipSheetChecklist" class="dlv-vip-checklist"></div>
+        <div class="dlv-vip-actions"><button type="button" id="dVipSheetSave" class="btn-secondary compact">SALVAR CHECKLIST NA PLANILHA</button><small id="dVipSheetFeedback">Os campos vazios continuam pendentes.</small></div>
+      </section>
+      <section id="dVipUltraReview" class="dlv-vip-review" hidden>
+        <div class="dlv-vip-title"><b>ORG ULTRA · CONFERÊNCIA DO PACOTE</b><span>Ofertado nesta entrega, não no cadastro permanente do QG</span></div>
+        <p class="dlv-vip-help">O High OS compara cada item com o que já existe na planilha e solicita somente o que falta. Dados não comprovados ficam pendentes de conferência.</p>
+        <div id="dVipUltraItems" class="dlv-vip-items"></div>
+        <div class="dlv-vip-manual"><b>SETAGEM MANUAL DO STAFF</b>
+          <label><input id="dVipMuleSet" type="checkbox"> Mule setado por mim</label><label>ID: <input id="dVipMuleId" type="text" placeholder="ID do jogador"></label>
+          <label><input id="dVipCargobobSet" type="checkbox"> Cargobob setado por mim</label><label>ID: <input id="dVipCargobobId" type="text" placeholder="ID do jogador"></label>
+          <small>Esses veículos não geram solicitações de instalação automática. Confirme apenas após setar.</small>
+        </div>
+      </section>
+      <div id="dActive"></div>
+    </section>
     <label class="delivery-notes">Personalização / alterações específicas<textarea id="dNotes" placeholder="Ex.: trocar rádio para 155; alterar CDS da garagem; solicitar nova loja..."></textarea></label>
     <div class="delivery-box"><div class="benefits-head"><div><div class="eyebrow">AUTOMAÇÃO</div><h3>SOLICITAÇÕES NECESSÁRIAS</h3></div></div><div id="dRequests" class="delivery-requests-preview"></div></div>
     <div class="delivery-box"><div class="benefits-head"><div><div class="eyebrow">DISCORD DO ILEGAL</div><h3>EXTRATO DA ENTREGA</h3></div><button type="button" id="copyDExtract" class="btn-secondary compact">COPIAR EXTRATO</button></div><textarea id="dExtract" readonly></textarea></div>
@@ -915,6 +1210,7 @@
 <div class="modal hidden" id="metricSourceModal"><div class="modal-card metric-source-modal"><div class="modal-head"><div><div class="eyebrow">GOOGLE SHEETS • INTEGRAÇÃO</div><h2>FONTE DE MÉTRICAS</h2></div><button id="metricSourceClose">×</button></div>
   <p class="delivery-help">Informe o link da planilha oficial. Depois de configurada, a leitura passa a ser feita automaticamente pelo servidor do High OS em modo <b>somente leitura</b>. O RH não precisa abrir nem autorizar a planilha.</p>
   <div class="form-grid"><label>Link ou ID da planilha<input id="metricSourceUrl" placeholder="https://docs.google.com/spreadsheets/d/.../edit"></label><label>Aba da planilha (opcional)<input id="metricSourceSheet" placeholder="Deixe vazio para detectar automaticamente"></label></div>
+  <label class="toggle-line"><input id="metricPlanilhaAtiva" type="checkbox"><span><b>Usar também a planilha MÉTRICAS</b> como fonte (desligado = somente Paradise)</span></label>
   <label class="toggle-line"><input id="metricAutoSync" type="checkbox" checked><span>Manter sincronização permanente automática às 14:05, 16:05, 21:05 e 23:05</span></label>
   <div id="metricSourceTestResult" class="metric-test-result">Ainda não testado.</div>
   <div class="modal-actions"><button id="metricSourceTest" class="btn-secondary">TESTAR LEITURA</button><button id="metricSourceSave" class="btn-primary">SALVAR CONEXÃO PERMANENTE</button></div>
@@ -924,7 +1220,7 @@
 Lavagem03;08/09/2026;8;9;10;11;12;13;11;9
 Armas02;08/09/2026;7;8;9;10;11;12;10;8"></textarea><div class="modal-actions"><button id="metricImportSave" class="btn-primary">IMPORTAR PARA A BASE</button></div></div></div>
 
-<div id="movementModal" class="modal hidden"><div class="modal-card movement-card"><button class="modal-x" id="movementClose">×</button><div class="eyebrow">GESTÃO DE GROUPS • OPERAÇÃO AUDITADA</div><h2 id="movementTitle">TRANSFERÊNCIA</h2><p id="movementHelp" class="page-subtitle"></p><div class="movement-grid"><div class="movement-side"><span>ORIGEM</span><b id="movementOrigin">—</b></div><div class="movement-arrow">→</div><label class="movement-side">DESTINO<select id="movementDestination"></select></label></div><label>Motivo / observação<textarea id="movementReason" rows="3" placeholder="Informe o motivo administrativo da operação..."></textarea></label><div id="movementPreview" class="movement-preview"></div><div class="movement-flow-note" role="note"><strong>Antes de confirmar</strong>Confira origem, destino e prévia da operação. A alteração será registrada no histórico. Se a planilha Google não estiver conectada, o sistema informará que a sincronização ficou pendente. Esta operação não altera automaticamente as permissões do Group dentro do FiveM.</div><div class="modal-actions"><button type="button" class="btn-secondary" id="movementCancel">CANCELAR</button><button type="button" class="btn-primary" id="movementConfirm">CONFIRMAR OPERAÇÃO</button></div></div></div>
+<div id="movementModal" class="modal hidden"><div class="modal-card movement-card"><button class="modal-x" id="movementClose">×</button><div class="eyebrow">GESTÃO DE GROUPS • OPERAÇÃO AUDITADA</div><h2 id="movementTitle">TRANSFERÊNCIA</h2><p id="movementHelp" class="page-subtitle"></p><div class="movement-grid"><div class="movement-side"><span>ORIGEM</span><b id="movementOrigin">—</b></div><div class="movement-arrow">→</div><label class="movement-side">DESTINO<select id="movementDestination"></select></label></div><label>Data efetiva da mudança<input id="movementEffectiveDate" type="date"></label><p class="delivery-help"><b>Importante:</b> “Transferir facção” muda a organização de Group e o histórico acompanha a facção. “Trocar QG / Local” mantém cada facção no próprio Group e troca somente o local físico.</p><label>Motivo / observação<textarea id="movementReason" rows="3" placeholder="Informe o motivo administrativo da operação..."></textarea></label><div id="movementPreview" class="movement-preview"></div><div class="modal-actions"><button type="button" class="btn-secondary" id="movementCancel">CANCELAR</button><button type="button" class="btn-primary" id="movementConfirm">CONFIRMAR OPERAÇÃO</button></div></div></div>
 
 <div class="modal hidden" id="facSheetDiffModal"><div class="modal-card sheet-diff-modal"><div class="modal-head"><div><div class="eyebrow">PLANILHA → HIGH OS</div><h2>CONFIRMAR ALTERAÇÕES</h2></div><button type="button" id="facSheetDiffClose">×</button></div>
   <p class="delivery-help">Estas diferenças foram encontradas na planilha oficial. Nada será alterado no High OS até você confirmar.</p>
@@ -934,66 +1230,12 @@ Armas02;08/09/2026;7;8;9;10;11;12;10;8"></textarea><div class="modal-actions"><b
 </div></div>
 
 
-  <button type="button" id="teamChatLauncher" class="team-chat-launcher hidden" title="High Messenger"><span>✉</span><i id="teamChatUnread" class="hidden">0</i></button>
-  <aside id="teamChatFloat" class="team-chat-float high-messenger hidden" aria-label="High Messenger">
-    <header class="hm-topbar">
-      <div><b>HIGH MESSENGER</b><small>mensagens diretas • voz • vídeo • arquivos</small></div>
-      <button type="button" id="chatFloatMin" title="Minimizar">—</button>
-    </header>
-    <div class="hm-shell">
-      <aside class="hm-sidebar">
-        <div class="hm-section-head"><span>MENSAGENS DIRETAS</span><button type="button" id="hmNewDmBtn" title="Nova conversa">＋</button></div>
-        <input id="hmContactSearch" class="hm-search" placeholder="Buscar usuário..." autocomplete="off">
-        <div id="hmContactList" class="hm-contact-list"><div class="chat-empty">Carregando equipe...</div></div>
-        <div class="hm-section-head hm-voice-head"><span>HIGH CALL</span></div>
-        <div class="hm-webrtc-note"><b>WebRTC direto</b><small>Selecione um usuário e use áudio ou vídeo. Sem serviço externo.</small></div>
-      </aside>
-      <section class="hm-conversation">
-        <header class="hm-conversation-head">
-          <div class="hm-user-head"><div id="hmActiveAvatar" class="hm-avatar">H</div><div><b id="teamChatTitle">Selecione uma conversa</b><small id="teamChatPresence">Usuários cadastrados aparecem mesmo offline</small></div></div>
-          <div class="hm-head-actions"><button type="button" id="chatAudioCallBtn" title="Iniciar chamada de áudio">☎</button><button type="button" id="chatVideoCallBtn" title="Iniciar chamada com vídeo">◉</button></div>
-        </header>
-        <select id="chatRecipientSelect" class="hidden"><option value="">Selecione um usuário</option></select>
-        <div id="floatingChatMessages" class="team-chat-messages hm-messages"><div class="chat-empty">Selecione alguém na lista para conversar.</div></div>
-        <div id="chatAttachmentPreview" class="chat-attachment-preview hidden"></div>
-        <div id="hmPicker" class="hm-picker hidden"></div>
-        <div class="team-chat-compose hm-compose">
-          <label class="hm-compose-tool" title="Enviar arquivo">＋<input id="chatAttachInput" type="file" hidden></label>
-          <textarea id="floatingChatInput" maxlength="1000" rows="1" placeholder="Mensagem..."></textarea>
-          <button type="button" class="hm-compose-tool" id="hmEmojiBtn" title="Emoji">☺</button>
-          <button type="button" class="hm-compose-tool hm-gif-btn" id="hmGifBtn" title="Enviar GIF">GIF</button>
-          <input id="hmGifInput" type="file" accept="image/gif" hidden>
-          <button type="button" class="hm-compose-tool" id="hmStickerBtn" title="Figurinhas">▣</button>
-          <button type="button" id="floatingChatSendBtn" class="hm-send">➤</button>
-        </div>
-      </section>
-    </div>
-  </aside>
-  <div id="incomingCallBar" class="incoming-call-bar hidden">
-    <div><b id="incomingCallName">Chamada recebida</b><small id="incomingCallType">CHAMADA DE ÁUDIO</small></div>
-    <button type="button" id="incomingCallReject" class="call-reject">RECUSAR</button>
-    <button type="button" id="incomingCallAccept" class="call-accept">ATENDER</button>
-  </div>
-  <div id="teamMeetingOverlay" class="team-meeting-overlay hidden">
-    <div class="team-meeting-card rtc-call-card">
-      <header class="team-meeting-head">
-        <div><b id="teamMeetingTitle">HIGH CALL</b><small id="teamMeetingRoomLabel">WebRTC direto</small></div>
-        <div class="team-call-status"><span class="team-call-live-dot"></span><span id="teamCallConnectionStatus">CONECTANDO…</span></div>
-        <button type="button" id="teamMeetingClose" class="team-call-close" title="Encerrar chamada">×</button>
-      </header>
-      <div class="rtc-stage">
-        <video id="teamCallRemoteVideo" autoplay playsinline></video>
-        <video id="teamCallLocalVideo" autoplay muted playsinline class="rtc-local-video hidden"></video>
-        <div class="rtc-audio-brand"><span>H</span><b>HIGH CALL</b><small>conexão direta entre os participantes</small></div>
-      </div>
-      <footer class="rtc-controls">
-        <button type="button" id="teamCallMic">🎙 MIC</button>
-        <button type="button" id="teamCallCam">◉ CÂMERA</button>
-        <button type="button" class="call-reject" onclick="document.getElementById('teamMeetingClose').click()">ENCERRAR</button>
-      </footer>
-    </div>
-  </div>
+  
+  
+  
+  
   </div>
 
 </body>
 </html>
+

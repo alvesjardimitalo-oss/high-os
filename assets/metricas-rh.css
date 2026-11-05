@@ -200,3 +200,107 @@
 #page-metricas .rh15-table .fx-low{color:var(--r-warn)}
 #page-metricas .rh15-table .fx-ok,#page-metricas .rh15-table .fx-top{color:var(--r-ok)}
 #page-metricas .rh15-table .fx-zero{color:var(--r-bad)}
+
+/* gráfico mensal por facção (barra = pico do dia, linha = constância) */
+#page-metricas .rh15-hint{font-size:12.5px;color:var(--r-text-3);margin:0 2px 12px}
+#page-metricas .rh15-mes-card>header{align-items:center}
+#page-metricas .rh15-mes-card>header>div:first-child b{display:block;font-size:17px}
+#page-metricas .rh15-mes-card>header>div:first-child small{display:block;margin-top:2px}
+#page-metricas .rh15-mes-kpis{display:flex;gap:18px;flex-wrap:wrap}
+#page-metricas .rh15-mes-kpis span{display:flex;flex-direction:column;align-items:flex-end}
+#page-metricas .rh15-mes-kpis em{font-style:normal;font-size:9.5px;font-weight:800;letter-spacing:.1em;color:var(--r-text-3)}
+#page-metricas .rh15-mes-kpis b{font-size:16px;color:var(--r-text);font-variant-numeric:tabular-nums}
+#page-metricas .rh15-mes-kpis b.warn{color:var(--r-warn)}
+#page-metricas .rh15-mes{width:100%;height:auto;display:block}
+
+/* gráfico diário de pico e constância (tela) — usado em Métricas e Organizações */
+.rh15-gbox{--g-ok:#22c55e;--g-top:#16a34a;--g-low:#f59e0b;--g-zero:#ef4444;--g-avg:#f87171;--g-tx:#b9aec6;--g-tx2:#8a7f99}
+.rh15-gbox svg.rh15-mes{width:100%;height:auto;display:block}
+.rh15-gbox .grid{stroke:rgba(255,255,255,.06)}
+.rh15-gbox .ax{fill:var(--g-tx2);font-size:10.5px}
+.rh15-gbox .ax.sm{font-size:8.5px;opacity:.75}
+.rh15-gbox .ax.wk{fill:#c08bff;font-weight:700}
+.rh15-gbox .meta{fill:rgba(34,197,94,.08);stroke:rgba(34,197,94,.45);stroke-dasharray:5 4}
+.rh15-gbox .b{fill:#a78bfa}.rh15-gbox .b.f-ok{fill:var(--g-ok)}.rh15-gbox .b.f-top{fill:var(--g-top)}.rh15-gbox .b.f-low{fill:var(--g-low)}.rh15-gbox .b.f-zero{fill:var(--g-zero)}
+.rh15-gbox .b:hover{opacity:.8}
+.rh15-gbox .nd{fill:rgba(255,255,255,.14)}
+.rh15-gbox .val{fill:#f4f0f8;font-size:10px;font-weight:800}
+.rh15-gbox .line{stroke:#f4f0f8;stroke-width:2;stroke-linejoin:round}
+.rh15-gbox .dot{fill:#120d18;stroke:#f4f0f8;stroke-width:1.6}
+.rh15-gbox .avg{stroke:var(--g-avg);stroke-dasharray:7 5;stroke-width:1.4}
+.rh15-gbox .avgt{fill:var(--g-avg);font-size:10.5px;font-weight:800}
+.rh15-gbox .avgbg{fill:#120d18;stroke:rgba(248,113,113,.5)}
+.rh15-gleg{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:11px;color:var(--g-tx);margin:8px 2px 0}
+.rh15-gleg i{display:inline-block;width:12px;height:8px;border-radius:2px;margin-right:6px;vertical-align:0}
+.rh15-gleg .lg-meta{background:rgba(34,197,94,.15);border:1px dashed #22c55e}.rh15-gleg .lg-top{background:var(--g-top)}.rh15-gleg .lg-ok{background:var(--g-ok)}.rh15-gleg .lg-low{background:var(--g-low)}.rh15-gleg .lg-nd{background:rgba(255,255,255,.14)}
+.rh15-gleg .lg-line{height:2px;background:#f4f0f8;vertical-align:3px}.rh15-gleg .lg-avg{height:0;border-top:2px dashed var(--g-avg);vertical-align:3px}
+.rh15-strip{display:grid;gap:3px;margin-top:10px}
+.rh15-strip div{text-align:center;border-radius:5px;padding:4px 0;font-size:11px;font-weight:800;background:rgba(255,255,255,.04);color:var(--g-tx2);font-variant-numeric:tabular-nums}
+.rh15-strip div em{display:block;font-style:normal;font-size:8.5px;font-weight:600;opacity:.75}
+.rh15-strip .s-ok{background:rgba(34,197,94,.18);color:#86efac}.rh15-strip .s-top{background:rgba(22,163,74,.35);color:#bbf7d0}.rh15-strip .s-low{background:rgba(245,158,11,.18);color:#fcd34d}.rh15-strip .s-zero{background:rgba(239,68,68,.18);color:#fca5a5}.rh15-strip .s-fut{opacity:.35}
+
+/* painel: uma facção por vez + grade de mini gráficos */
+#page-metricas .rh15-pf-head{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+#page-metricas .rh15-pf-head b{font-size:14px}
+#page-metricas .rh15-pf-head .rh15-select{min-height:36px}
+#page-metricas .rh15-mini-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
+#page-metricas .rh15-mini{display:block;text-align:left;background:var(--r-bg);border:1px solid var(--r-line-2);border-radius:12px;padding:10px 12px;cursor:pointer;color:var(--r-text)}
+#page-metricas .rh15-mini:hover{border-color:var(--r-brand)}
+#page-metricas .rh15-mini.on{border-color:var(--r-brand);box-shadow:0 0 0 1px var(--r-brand) inset;background:#1b1328}
+#page-metricas .rh15-mini .t{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:6px}
+#page-metricas .rh15-mini .t b{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#page-metricas .rh15-mini .t span{font-size:15px;font-weight:800;font-variant-numeric:tabular-nums}
+#page-metricas .rh15-mini .f{display:flex;justify-content:space-between;margin-top:5px}
+#page-metricas .rh15-mini .f small{font-size:10.5px;color:var(--r-text-3)}
+#page-metricas .rh15-minisvg{display:block;width:100%;height:34px}
+#page-metricas .rh15-minisvg .mm{fill:rgba(34,197,94,.10)}
+#page-metricas .rh15-minisvg .ok{fill:#22c55e}#page-metricas .rh15-minisvg .top{fill:#16a34a}#page-metricas .rh15-minisvg .low{fill:#f59e0b}#page-metricas .rh15-minisvg .zero{fill:#ef4444}#page-metricas .rh15-minisvg .nd{fill:rgba(255,255,255,.15)}
+.rh15-gbox .b.parcial{opacity:.45}
+
+/* pico do Ilegal por horário, segunda a sexta */
+.rh15-wh-chart .axw{fill:#f4f0f8;font-size:12px;font-weight:800}
+.rh15-wh-chart .hb.s0,.rh15-gleg .hb-leg.s0{fill:#5cc8ff;background:#5cc8ff}
+.rh15-wh-chart .hb.s1,.rh15-gleg .hb-leg.s1{fill:#9a4dff;background:#9a4dff}
+.rh15-wh-chart .hb.s2,.rh15-gleg .hb-leg.s2{fill:#22c55e;background:#22c55e}
+.rh15-wh-chart .hb.s3,.rh15-gleg .hb-leg.s3{fill:#f59e0b;background:#f59e0b}
+.rh15-wh-chart .hb.s4,.rh15-gleg .hb-leg.s4{fill:#ff6b81;background:#ff6b81}
+.rh15-wh-chart .hb.s5,.rh15-gleg .hb-leg.s5{fill:#7be0d6;background:#7be0d6}
+.rh15-wh-chart .hb.best{stroke:#fff;stroke-width:2}
+.rh15-gleg .hb-leg.best{background:transparent;border:2px solid #fff}
+#page-metricas .rh15-wh td{text-align:center}
+#page-metricas .rh15-wh td:first-child,#page-metricas .rh15-wh th:first-child{text-align:left}
+#page-metricas .rh15-wh th{text-align:center}
+#page-metricas .rh15-wh td[style]{background:rgba(154,77,255,var(--a))}
+#page-metricas .rh15-wh td b{font-size:16px}
+#page-metricas .rh15-wh td.best{box-shadow:inset 0 0 0 2px #fff}
+.rh15-wh-chart .ax.dt{fill:#c9b8e8;font-size:9.5px;font-weight:700}
+/* V15.3 · semana progressiva */
+.rh15-card>header:has(.rh15-wh-nav){display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.rh15-wh-nav{display:flex;gap:6px}
+.rh15-wh-nav button{height:34px;min-width:34px;padding:0 12px;border-radius:9px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:#e9e2f5;font-weight:800;cursor:pointer}
+.rh15-wh-nav button:hover:not(:disabled){border-color:rgba(168,85,247,.5);background:rgba(168,85,247,.12)}
+.rh15-wh-nav button:disabled{opacity:.4;cursor:default}
+.rh15-wh-chart .hoje{fill:rgba(168,85,247,.07);stroke:rgba(168,85,247,.35);stroke-dasharray:4 4}
+.rh15-wh-chart .hoje-t{fill:#c084fc;font-size:10px;font-weight:900;letter-spacing:.12em}
+.rh15-wh-chart .axw.fut{fill:#8d849c}
+.rh15-wh-chart .hb.wait,.rh15-gleg .hb-leg.wait{fill:transparent;stroke:rgba(255,255,255,.22);stroke-dasharray:3 3;background:transparent;border:1px dashed rgba(255,255,255,.35)}
+.rh15-wh-chart .hb.miss{fill:rgba(255,255,255,.05);stroke:rgba(248,113,113,.35);stroke-dasharray:2 3}
+.rh15-wh-chart .hb.grow{transform-box:fill-box;transform-origin:bottom;animation:rh15Grow .6s cubic-bezier(.2,.8,.2,1) both}
+@keyframes rh15Grow{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+.rh15-wh td.wait{color:#8d849c}
+
+/* Gerador de TXT por facções assumidas · Central RH */
+#page-metricas .rh15-txt-card{margin-bottom:16px;border-color:rgba(154,77,255,.36);background:linear-gradient(145deg,rgba(154,77,255,.07),transparent 55%),var(--r-surface)}
+#page-metricas .rh15-txt-card>header{align-items:center}
+#page-metricas .rh15-txt-card>header div{display:flex;flex-direction:column;gap:3px}
+#page-metricas .rh15-txt-card>p{margin:10px 0 14px;color:var(--r-text-3);font-size:12px;line-height:1.6}
+#page-metricas .rh15-txt-card strong{color:var(--r-text)}
+#page-metricas .rh15-txt-count{display:inline-flex;align-items:center;background:rgba(154,77,255,.14);border:1px solid rgba(154,77,255,.22);border-radius:30px;padding:6px 10px;color:#d6b7ff;font-size:11px;font-weight:800;white-space:nowrap}
+#page-metricas .rh15-txt-controls{display:flex;align-items:end;gap:8px;flex-wrap:wrap}
+#page-metricas .rh15-txt-controls .rh15-select{flex:1 1 260px;min-width:0}
+#page-metricas .rh15-txt-controls .rh15-select select{width:100%}
+#page-metricas .rh15-txt-controls .rh15-btn{min-height:40px}
+#page-metricas .rh15-txt-status{margin:12px 0 8px;color:var(--r-text-3);font-size:11px;line-height:1.5}
+#page-metricas .rh15-txt-preview{width:100%;min-height:195px;resize:vertical;box-sizing:border-box;border-radius:10px;border:1px solid var(--r-line);background:rgba(7,5,13,.55);color:var(--r-text);padding:14px;font:12px/1.55 Consolas,'Courier New',monospace;white-space:pre;tab-size:4}
+#page-metricas .rh15-txt-preview:focus{outline:1px solid #9a4dff}
+@media(max-width:600px){#page-metricas .rh15-txt-controls .rh15-btn{flex:1 1 auto}}
