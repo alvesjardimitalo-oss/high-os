@@ -344,38 +344,3 @@
 .tg-metricas p{margin:0;font-size:12px;line-height:1.55;color:#d8e8f7}
 .tg-metricas p small{color:#8e9aa6;font-size:11px}
 @media(max-width:760px){.tg-metricas{grid-template-columns:1fr}}
-
-/* ============================================================
-   V13 · SEASON
-   A escolha da season e a primeira coisa depois do login: define
-   qual elenco de Groups o painel inteiro enxerga.
-   ============================================================ */
-.season-ask{position:fixed;inset:0;z-index:9000;display:grid;place-items:center;
-  background:rgba(7,6,11,.86);backdrop-filter:blur(7px);padding:22px}
-.season-ask-box{width:min(520px,100%);background:var(--panel,#141019);
-  border:1px solid var(--line,#33283b);border-radius:16px;padding:26px 24px}
-.season-ask-box>span{font-size:9.5px;letter-spacing:.16em;color:var(--muted,#a79db6)}
-.season-ask-box h2{font-size:20px;margin:7px 0 6px;line-height:1.25}
-.season-ask-box>p{font-size:13px;color:var(--muted,#a79db6);margin:0 0 18px;line-height:1.55}
-.season-ask-list{display:grid;gap:9px}
-.season-ask-list button{display:block;width:100%;text-align:left;cursor:pointer;
-  background:#0a0810;border:1px solid var(--line,#33283b);border-radius:11px;
-  padding:14px 16px;color:inherit;transition:border-color .15s,transform .15s}
-.season-ask-list button:hover:not(:disabled){border-color:var(--purple,#8d35ff);transform:translateY(-1px)}
-.season-ask-list button:disabled{opacity:.45;cursor:progress}
-.season-ask-list b{display:block;font-size:15px;letter-spacing:.02em}
-.season-ask-list small{display:block;font-size:11.5px;color:var(--muted,#a79db6);margin-top:3px}
-.season-ask-erro{margin:14px 0 0;font-size:12.5px;color:var(--err,#ff5b76);line-height:1.5}
-
-.season-badge{margin-left:auto;cursor:pointer;text-align:right;
-  background:transparent;border:1px solid var(--line,#33283b);border-radius:9px;
-  padding:5px 11px;color:inherit;line-height:1.3}
-.season-badge:hover{border-color:var(--purple,#8d35ff)}
-.season-badge b{display:block;font-size:11.5px;letter-spacing:.04em}
-.season-badge small{display:block;font-size:9.5px;color:var(--muted,#a79db6)}
-.season-badge.vazia{border-style:dashed}
-.season-badge.vazia b{color:var(--yellow,#ffc93c)}
-.season-ask-list button.atual{border-color:var(--lime-dim,#6f9e35)}
-.season-ask-list button.atual small{color:var(--lime,#a0f040)}
-.fila-badge.offline{border-style:dashed}
-.fila-badge.offline b{color:var(--yellow,#ffc93c)}
