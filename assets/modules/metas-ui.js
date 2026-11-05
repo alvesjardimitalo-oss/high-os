@@ -1,125 +1,130 @@
-/* High OS V13 - metas de recrutamento por organizacao.
+/* High OS V13 - tela das metas de recrutamento.
    ---------------------------------------------------------------------
-   A meta e negociada na entrega, caso a caso, e muda durante o
-   atendimento - por isso ela mora no painel, no cadastro do Group, e
-   nao na planilha. A planilha do dev vai trazer o REALIZADO; o alvo
-   e combinado aqui.
+   A meta e o que a organizacao se compromete a entregar em troca do
+   beneficio ("Vip Org Ultra caso bater a meta"). Ela e negociada no
+   atendimento, caso a caso, e muda - por isso mora no painel e nao na
+   planilha: quem edita a planilha nao e quem faz o acordo.
 
-   Duas formas de combinar, porque a cidade usa as duas:
-     SEMANA - "3 rec por semana", sem dizer em que dia.
-     DIA    - "1 rec por dia, sexta e sabado". O alvo da semana vira a
-              quantidade vezes os dias combinados.
+   A tela e uma lista editavel de propósito. Definir meta e trabalho de
+   lote: na virada de season sao dezenas de Groups de uma vez, e abrir
+   um modal por organizacao transformaria dez minutos em uma hora. */
 
-   A tela mostra o alvo semanal calculado ao lado do que foi digitado,
-   para ninguem combinar 1 por dia em sete dias achando que pediu 1.
-*/
+import {normalizarMeta,DIAS_SIGLA,avaliarSemana,chaveSemana,rotuloSemana} from './recrutamento.js?v=13.0.0';
 
-import {normalizarMeta,DIAS_SIGLA} from './recrutamento.js?v=13.0.0';
+export const PERIODOS=[
+ ['SEMANA','por semana'],
+ ['DIA','por dia']
+];
 
-export {DIAS_SIGLA};
+export function metaDoGroup(f={}){
+ return normalizarMeta(f.metaRec ?? f.meta_rec ?? '');
+}
 
-/* Alvo da semana a partir da meta, que e o numero que importa na
-   cobranca - uma meta diaria em dois dias nao e a mesma coisa que uma
-   meta semanal de dois. */
-export function alvoSemanal(meta){
- const m=normalizarMeta(meta);
+export function textoMeta(m){
+ if(!m)return '';
+ if(m.periodo==='DIA'){
+  return m.dias?.length
+   ? `${m.quantidade} por dia · ${m.dias.join(', ')}`
+   : `${m.quantidade} por dia`;
+ }
+ return `${m.quantidade} por semana`;
+}
+
+/* Alvo semanal equivalente, para comparar metas de formatos diferentes
+   lado a lado sem a pessoa ter que fazer a conta de cabeca. */
+export function alvoSemanal(m){
  if(!m)return 0;
- return m.periodo==='DIA' ? m.quantidade*(m.dias.length||7) : m.quantidade;
+ return m.periodo==='DIA' ? m.quantidade*(m.dias?.length||7) : m.quantidade;
 }
 
-export function descreverMeta(meta){
- const m=normalizarMeta(meta);
- if(!m)return 'sem meta combinada';
- if(m.periodo==='SEMANA')return `${m.quantidade} por semana`;
- const dias=m.dias.length?m.dias.join(', '):'todos os dias';
- return `${m.quantidade} por dia em ${dias} — ${alvoSemanal(m)} na semana`;
-}
-
-export function resumoMetas(lista=[]){
- const com=lista.filter(f=>normalizarMeta(f.metaRec));
+export function resumoMetas(groups=[]){
+ const com=groups.filter(f=>metaDoGroup(f));
  return {
-  total:lista.length,
+  total:groups.length,
   comMeta:com.length,
-  semMeta:lista.length-com.length,
-  alvoTotal:com.reduce((s,f)=>s+alvoSemanal(f.metaRec),0)
+  semMeta:groups.length-com.length,
+  alvoTotal:com.reduce((s,f)=>s+alvoSemanal(metaDoGroup(f)),0)
  };
 }
 
-export function metasHtml({lista=[],season,esc,podeEditar,filtro={}}){
- if(!season?.carregada){
-  return `<div class="placeholder"><b>◆</b><h3>NENHUMA SEASON ATIVA</h3>
-   <p>Escolha uma season no topo para definir as metas dela.</p></div>`;
+export function metasHtml({groups=[],esc,podeEditar,filtro={},resumoRec=null}){
+ if(!groups.length){
+  return `<div class="placeholder"><b>◆</b><h3>NENHUM GROUP NESTA SEASON</h3>
+   <p>A meta é definida por organização. Defina os Groups em <b>QGs da Season</b> e eles aparecem aqui.</p></div>`;
  }
- if(!lista.length){
-  return `<div class="placeholder"><b>◆</b><h3>A ${esc(season.nome)} AINDA NÃO TEM GROUP</h3>
-   <p>A meta é combinada com a organização que ocupa um Group. Defina os Groups em <b>QGs da Season</b> e eles aparecem aqui.</p></div>`;
- }
+ const r=resumoMetas(groups);
+ const busca=String(filtro.busca||'').toLowerCase();
+ const soSem=!!filtro.soSemMeta;
+ const semana=chaveSemana(new Date().toISOString().slice(0,10));
 
- const r=resumoMetas(lista);
- const segs=[...new Set(lista.map(f=>f.segmento||'SEM SEGMENTO'))].sort();
- const fSeg=filtro.segmento||'';
- const vis=fSeg?lista.filter(f=>(f.segmento||'SEM SEGMENTO')===fSeg):lista;
+ const lista=groups.filter(f=>{
+  if(soSem&&metaDoGroup(f))return false;
+  if(busca&&!`${f.group} ${f.faccao||''} ${f.qg||''} ${f.segmento||''}`.toLowerCase().includes(busca))return false;
+  return true;
+ });
 
  return `
- <div class="cat-resumo">
-  <div><b>${r.total}</b><span>GROUPS</span></div>
-  <div><b>${r.comMeta}</b><span>COM META</span></div>
-  ${r.semMeta?`<div class="erro"><b>${r.semMeta}</b><span>SEM META</span></div>`:''}
-  <div><b>${r.alvoTotal}</b><span>REC/SEMANA NO TOTAL</span></div>
+ <div class="meta-resumo">
+  <div><b>${r.total}</b><span>ORGANIZAÇÕES</span></div>
+  <div><b class="ok">${r.comMeta}</b><span>COM META</span></div>
+  <div${r.semMeta?' class="alerta"':''}><b>${r.semMeta}</b><span>SEM META</span></div>
+  <div><b>${r.alvoTotal}</b><span>RECS/SEMANA COMBINADOS</span></div>
  </div>
 
- <div class="metas-barra">
-  <select id="metaSegmento">
-   <option value="">TODOS OS SEGMENTOS</option>
-   ${segs.map(s=>`<option value="${esc(s)}"${s===fSeg?' selected':''}>${esc(s)}</option>`).join('')}
-  </select>
-  ${podeEditar&&fSeg?`<button type="button" class="mini-btn" data-meta-lote="${esc(fSeg)}">APLICAR A TODO O SEGMENTO</button>`:''}
+ ${resumoRec?'':`<div class="meta-aviso">
+   <b>Ainda não há registro de recrutamento</b>
+   As metas podem ser definidas agora. O realizado aparece quando a planilha de recrutamento estiver no ar — uma linha por rec, com Group, data e hora.
+  </div>`}
+
+ <div class="meta-filtros">
+  <input id="metaBusca" placeholder="Buscar Group, facção, favela ou segmento..." value="${esc(filtro.busca||'')}">
+  <label class="meta-check"><input type="checkbox" id="metaSoSem"${soSem?' checked':''}> só sem meta</label>
  </div>
 
- <div class="metas-lista">
-  ${vis.map(f=>linhaMeta(f,esc,podeEditar)).join('')}
+ ${lista.length?`<div class="meta-lista">
+   <div class="meta-cab">
+    <span>ORGANIZAÇÃO</span><span>QUANTIDADE</span><span>PERÍODO</span><span>DIAS</span><span>EQUIVALE A</span><span></span>
+   </div>
+   ${lista.map(f=>linhaMeta(f,esc,podeEditar,semana,resumoRec)).join('')}
+  </div>`:`<div class="placeholder peq"><h3>NADA NESSE FILTRO</h3></div>`}`;
+}
+
+function linhaMeta(f,esc,podeEditar,semana,resumoRec){
+ const m=metaDoGroup(f);
+ const alvo=alvoSemanal(m);
+ const ocupada=String(f.faccao||'').trim();
+ const feito=resumoRec?avaliarSemana(resumoRec.groups?.[String(f.group).toUpperCase()],semana,f.metaRec):null;
+
+ return `<div class="meta-linha${m?'':' sem'}" data-meta-group="${esc(f.group)}">
+  <div class="meta-org">
+   <b>${esc(f.group)}</b>
+   <small>${ocupada?esc(ocupada):'<i>sem facção</i>'}${f.qg?' · '+esc(f.qg):''}</small>
+  </div>
+  <label><input type="number" min="0" step="1" data-m="quantidade" value="${m?m.quantidade:''}" placeholder="0" ${podeEditar?'':'disabled'}></label>
+  <label><select data-m="periodo" ${podeEditar?'':'disabled'}>
+    ${PERIODOS.map(([k,v])=>`<option value="${k}"${m?.periodo===k?' selected':''}>${esc(v)}</option>`).join('')}
+   </select></label>
+  <div class="meta-dias" data-dias${m?.periodo==='DIA'?'':' hidden'}>
+   ${DIAS_SIGLA.map(d=>`<button type="button" class="${m?.dias?.includes(d)?'on':''}" data-dia="${d}" ${podeEditar?'':'disabled'}>${d[0]}${d[1].toLowerCase()}</button>`).join('')}
+  </div>
+  <div class="meta-alvo">${alvo?`<b>${alvo}</b> rec/semana`:'<i>sem meta</i>'}
+   ${feito&&feito.meta?`<small class="s-${feito.status.toLowerCase()}">${feito.feito} feitos · ${feito.percentual}%</small>`:''}
+  </div>
+  <div class="meta-acao">
+   ${podeEditar?`<button type="button" class="mini-btn" data-salvar-meta="${esc(f.group)}">SALVAR</button>`:''}
+  </div>
  </div>`;
 }
 
-function linhaMeta(f,esc,podeEditar){
- const m=normalizarMeta(f.metaRec);
- const per=m?.periodo||'SEMANA';
- const ocupada=String(f.faccao||'').trim();
- return `<article class="meta-linha${m?'':' sem'}" data-meta-group="${esc(f.group)}">
-  <div class="meta-id">
-   <b>${esc(f.group)}</b>
-   <span>${esc(f.qg||'sem QG')}${f.segmento?' · '+esc(f.segmento):''}</span>
-   <small>${ocupada?esc(ocupada):'<i>sem facção — meta vale quando alguém assumir</i>'}</small>
-  </div>
-
-  <div class="meta-campos">
-   <label><span>QTD</span>
-    <input type="number" min="0" data-meta="quantidade" value="${esc(m?.quantidade??'')}" ${podeEditar?'':'disabled'}></label>
-   <label><span>POR</span>
-    <select data-meta="periodo" ${podeEditar?'':'disabled'}>
-     <option value="SEMANA"${per==='SEMANA'?' selected':''}>semana</option>
-     <option value="DIA"${per==='DIA'?' selected':''}>dia</option>
-    </select></label>
-   <div class="meta-dias" ${per==='DIA'?'':'hidden'}>
-    ${DIAS_SIGLA.map(d=>`<label class="dia"><input type="checkbox" data-meta-dia="${d}" ${m?.dias?.includes(d)?'checked':''} ${podeEditar?'':'disabled'}><span>${d}</span></label>`).join('')}
-   </div>
-  </div>
-
-  <div class="meta-saida">
-   <b data-meta-alvo>${m?alvoSemanal(m):'—'}</b>
-   <span>rec/semana</span>
-   <small data-meta-texto>${esc(descreverMeta(f.metaRec))}</small>
-  </div>
-
-  ${podeEditar?`<button type="button" class="mini-btn primaria" data-meta-salvar="${esc(f.group)}">SALVAR</button>`:''}
- </article>`;
-}
-
-/* Le uma linha da tela de volta para o formato gravado. */
+/* Le uma linha de volta para o formato que o modulo de recrutamento
+   entende. Quantidade zerada ou vazia significa SEM META, nao meta de
+   zero: combinar zero recrutamento nao e um acordo. */
 export function lerLinha(raiz){
- const q=Number(raiz.querySelector('[data-meta="quantidade"]')?.value)||0;
- const periodo=raiz.querySelector('[data-meta="periodo"]')?.value||'SEMANA';
- const dias=[...raiz.querySelectorAll('[data-meta-dia]:checked')].map(x=>x.dataset.metaDia);
- if(!q)return null;                  // zero ou vazio = sem meta combinada
- return {quantidade:q,periodo,dias:periodo==='DIA'?dias:[]};
+ const q=Number(raiz.querySelector('[data-m="quantidade"]')?.value||0);
+ if(!q)return null;
+ const periodo=raiz.querySelector('[data-m="periodo"]')?.value||'SEMANA';
+ const dias=periodo==='DIA'
+  ? [...raiz.querySelectorAll('[data-dia].on')].map(b=>b.dataset.dia)
+  : [];
+ return {quantidade:q,periodo,dias};
 }

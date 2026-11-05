@@ -33,7 +33,8 @@ import * as qgsUi from './modules/qgs-ui.js?v=13.2.0';
 import * as catCraft from './modules/catalogo-craft.js?v=13.1.0';
 import * as catUi from './modules/catalogo-ui.js?v=13.2.0';
 import * as itensUi from './modules/itens-conhecidos.js?v=13.0.0';
-import * as metasUi from './modules/metas-ui.js?v=13.0.0';
+import * as metasUi from './modules/metas-ui.js?v=13.1.0';
+import * as metasUi from './modules/metas-ui.js?v=13.1.0';
 import { season, lerIndice, carregarSeason, seasonEscolhida, guardarEscolha, esquecerEscolha, filtrarPorSeason, qgsSemVinculo, foraDaPlanilha, resumoSeason, salvarQg, vincularGroup, desvincularGroup } from './modules/season.js?v=13.1.0';
 
 const firebaseConfig={apiKey:'AIzaSyBKtl3rCA9Id1RDMwGch-yi4hxAs83DraU',
@@ -1417,6 +1418,7 @@ const INTERNAL_MODULE_PARENT={'planejador-acoes':'economia',
 'qgs':'faccoes',
 'receitas':'faccoes',
 'metas':'faccoes',
+'metas':'faccoes',
 'entregas':'faccoes'};
 
 function normalizePermission(v){v=String(v||'').toUpperCase();
@@ -1895,6 +1897,7 @@ if(page==='diario')setTimeout(()=>loadOperationalDiary(),0);
 if(page==='qgs')setTimeout(async()=>{try{if(!faccoesLoaded)await loadFaccoes()}catch(e){}renderQgs()},0);
 if(page==='metas')setTimeout(async()=>{try{if(!faccoesLoaded)await loadFaccoes()}catch(e){}renderMetas()},0);
 if(page==='receitas')setTimeout(async()=>{await carregarCatalogo();renderCatalogo()},0);
+if(page==='metas')setTimeout(async()=>{try{if(!faccoesLoaded)await loadFaccoes()}catch(e){}renderMetas()},0);
 if(['dashboard','metricas','faccoes','organizacoes','disponiveis','entregas','group-profile','group-settings','org-profile'].includes(page)&&!faccoesLoaded)setTimeout(()=>loadFaccoes().catch(e=>console.warn('[FACÇÕES] lazy-load falhou',e)),0);
 if(['dashboard','metricas'].includes(page)&&!metricsLoaded)setTimeout(async()=>{try{if(!faccoesLoaded)await loadFaccoes();await loadMetrics()}catch(e){console.warn('[MÉTRICAS] lazy-load falhou',e)}},0);
 if(page==='planejador')carregarPlanejadorMissoes().then(()=>setTimeout(()=>window.HighMissionPlanner?.activate?.(),60)).catch(err=>{console.error('[PLANEJADOR]',err);const box=document.querySelector('#page-planejador');if(box)box.insertAdjacentHTML('afterbegin','<div class="placeholder"><h3>NÃO FOI POSSÍVEL CARREGAR O PLANEJADOR</h3><p>Recarregue a página.</p></div>')});
@@ -2013,6 +2016,78 @@ async function loadFaccoes(){
  try{return await faccoesLoadPromise}
  finally{faccoesLoadPromise=null}
 }
+/* ============================================================
+   V13 · METAS DE RECRUTAMENTO
+   A meta e o acordo da entrega ("Vip Org Ultra caso bater a
+   meta"). Negociada caso a caso, muda no atendimento - por isso
+   mora aqui e nao na planilha.
+   ============================================================ */
+let metaFiltro={busca:'',soSemMeta:false};
+
+function renderMetas(){
+ const box=$('#metasBox');
+ if(!box)return;
+ /* So Groups: a meta e de quem produz. Um QG sem Group nao tem com quem
+    combinar nada. */
+ box.innerHTML=metasUi.metasHtml({
+  groups:(faccoes||[]).filter(f=>!f.removido&&String(f.group||'').trim()),
+  esc, podeEditar:canEditModule('faccoes'), filtro:metaFiltro, resumoRec:null
+ });
+ ligarMetas();
+}
+
+function ligarMetas(){
+ const box=$('#metasBox');
+ if(!box)return;
+ const busca=$('#metaBusca');
+ if(busca)busca.oninput=()=>{clearTimeout(busca._t);busca._t=setTimeout(()=>{
+  const pos=busca.selectionStart; metaFiltro.busca=busca.value; renderMetas();
+  const n=$('#metaBusca'); if(n){n.focus();n.setSelectionRange(pos,pos)}
+ },250)};
+ const so=$('#metaSoSem');
+ if(so)so.onchange=()=>{metaFiltro.soSemMeta=so.checked;renderMetas()};
+
+ box.querySelectorAll('.meta-linha').forEach(l=>{
+  /* Dias so fazem sentido com meta diaria; aparecem e somem junto. */
+  const per=l.querySelector('[data-m="periodo"]');
+  const dias=l.querySelector('[data-dias]');
+  if(per&&dias)per.onchange=()=>{dias.hidden=per.value!=='DIA'};
+  l.querySelectorAll('[data-dia]').forEach(b=>b.onclick=()=>b.classList.toggle('on'));
+ });
+
+ box.querySelectorAll('[data-salvar-meta]').forEach(b=>b.onclick=()=>salvarMeta(b.dataset.salvarMeta,b));
+}
+
+async function salvarMeta(group,btn){
+ if(!canEditModule('faccoes'))return permissionDeniedMessage('faccoes',true);
+ const linha=$(`[data-meta-group="${CSS.escape(group)}"]`);
+ if(!linha)return;
+ const f=(faccoes||[]).find(x=>String(x.group||'')===group);
+ if(!f)return;
+ const meta=metasUi.lerLinha(linha);
+ const antes=metasUi.textoMeta(metasUi.metaDoGroup(f));
+
+ btn.disabled=true; const rotulo=btn.textContent; btn.textContent='...';
+ try{
+  await setDoc(doc(db,'highos','data','faccoes',f.group),{
+   metaRec:meta,  /* null limpa a meta: combinar zero nao e um acordo */
+   updatedAt:serverTimestamp(), updatedBy:currentUser?.email||''
+  },{merge:true});
+  await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'META_REC',group:f.group,
+   descricao:meta?`Meta de ${f.group}: ${metasUi.textoMeta(meta)}${antes?` (antes: ${antes})`:''}`
+                 :`Meta de ${f.group} removida${antes?` (era: ${antes})`:''}`,
+   usuario:currentUser?.email||'',data:serverTimestamp()}).catch(()=>{});
+  f.metaRec=meta;
+  const i=(faccoesTodas||[]).findIndex(x=>x.group===f.group);
+  if(i>=0)faccoesTodas[i].metaRec=meta;
+  btn.textContent='SALVO';
+  setTimeout(()=>{btn.textContent=rotulo;btn.disabled=false;renderMetas()},700);
+ }catch(e){
+  alert('Não salvou: '+e.message);
+  btn.textContent=rotulo; btn.disabled=false;
+ }
+}
+
 /* ============================================================
    V13 · CATÁLOGO DE CRAFT E ROTA
    As receitas saem do código e passam a morar no Firebase,
