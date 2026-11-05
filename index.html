@@ -34,7 +34,7 @@
   <link rel="stylesheet" href="assets/acoes-planejador.css?v=16">
   <link rel="stylesheet" href="assets/acoes-gestao-simples.css?v=2">
   <link rel="stylesheet" href="assets/anim-v15.css?v=15.0.0">
-  <link rel="stylesheet" href="assets/tema.css?v=16.0.1">
+  <link rel="stylesheet" href="assets/tema.css?v=16.1.0">
   <link rel="icon" type="image/png" href="assets/high_logo.png?v=10.4.1">
 </head>
 <body>
@@ -79,6 +79,7 @@
         <nav>
           <button class="nav-item active" data-page="dashboard">⌂ <span>Dashboard</span></button>
           <button class="nav-item" data-page="faccoes">◆ <span>Organizações</span></button>
+          <button class="nav-item" data-page="qgs">▤ <span>QGs da Season</span></button>
           <button class="nav-item" data-page="metricas">▥ <span>Métricas</span></button>
           <button class="nav-item" data-page="historico">◷ <span>Histórico</span></button>
           <button class="nav-item" data-page="diario">▦ <span>Diário Operacional</span></button>
@@ -185,6 +186,10 @@
           <div class="req-toolbar"><input id="reqSearch" placeholder="Buscar modelo, assunto, categoria, Group..."><select id="reqTypeFilter"><option value="">TODAS AS CATEGORIAS</option></select></div>
           <div id="reqStats" class="fac-stats"></div>
           <div id="reqList" class="req-list"><div class="placeholder"><b>▤</b><h3>CARREGANDO MODELOS</h3></div></div>
+        </section>
+        <section class="page" id="page-qgs">
+          <div class="page-head"><div><div class="eyebrow">INVENTÁRIO DA TEMPORADA</div><h2>QGs DA SEASON</h2><p class="page-subtitle">As favelas mapeadas da season, com as coordenadas gravadas no banco. Vincule Groups, corrija pontos e acompanhe o que ainda falta para entregar.</p></div><span class="dev-badge">SEASON</span></div>
+          <div id="qgsBox"></div>
         </section>
         <section class="page" id="page-metricas">
           <div class="page-head"><div><div class="eyebrow">CENTRAL RH • PRESENÇA • PICOS DIÁRIOS • ESTATÍSTICAS</div><h2>CENTRAL DE MÉTRICAS</h2><p class="page-subtitle">Pico diário, presença, ranking e comparação com o período anterior, com relatórios por facção, Group, segmento, dia e horário.</p></div><div class="metric-head-actions"><button id="syncMetricBtn" class="btn-primary compact admin-only">ATUALIZAR CENTRAL</button><button id="metricSourceBtn" class="btn-secondary compact admin-only">FONTE</button><button id="openMetricImportBtn" class="btn-secondary compact admin-only">IMPORTAÇÃO MANUAL</button></div></div>
@@ -1168,7 +1173,7 @@
   <!-- V15.6.3: eventos-painel, mission-planner e mission-planner-nav carregam só ao abrir o Planejador (app.js) -->
   <script src="assets/anim-v15.js?v=15.0.0" defer></script>
   <script src="assets/api-config.js?v=2"></script>
-  <script type="module" src="assets/app.js?v=16.0.1"></script>
+  <script type="module" src="assets/app.js?v=16.1.0"></script>
 
 <div id="newDeliveryModal" class="modal hidden"><div class="modal-card delivery-modal-v5"><button class="modal-x" id="newDeliveryClose">×</button>
   <div class="eyebrow">NOVA OCUPAÇÃO</div><h2>ENTREGA DE GROUP</h2><p class="delivery-help">O Group traz sua estrutura instalada. Personalize apenas o que será ativado para a nova facção.</p>
