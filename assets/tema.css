@@ -1,0 +1,306 @@
+/* =====================================================================
+   HIGH OS V13 · TEMA "QG À NOITE"
+   ---------------------------------------------------------------------
+   Camada de acabamento, carregada DEPOIS de todas as outras. O resto do
+   CSS tem cor escrita no braco em 3.900 linhas; em vez de caca-la arquivo
+   por arquivo, esta folha redesenha os elementos de base - fundo, painel,
+   cartao, campo, botao, selo - e o sistema inteiro acompanha.
+
+   Se o visual nao agradar, basta tirar a linha deste arquivo do
+   index.html: nada mais depende dele.
+
+   A paleta saiu das artes que ja estao no Discord novo:
+
+     a cena do QG  -> preto azulado sujo (#0c0c18), cinza-esverdeado das
+                      paredes (#243030) e o BRILHO VERDE da mesa de
+                      dinheiro (#547848), que e a fonte de luz do lugar
+     o logo        -> contorno violeta, "HIGH" em verde acido, "ILEGAL"
+                      em magenta
+     os banners    -> magenta #f040d0, violeta #a060f0, verde #a0f040
+
+   Dai a regra do tema: o ambiente e frio e escuro como a sala, a luz
+   que guia a acao e VERDE como a mesa, o violeta estrutura e o magenta
+   so aparece no que precisa ser notado.
+   ===================================================================== */
+
+:root{
+ /* ambiente: preto com caimento frio, como a sala */
+ --ink:#080b0d;
+ --ink2:#0b0f11;
+ --panel:#101618;
+ --panel2:#151d1f;
+ --raise:#1b2427;
+ --line:#222d2f;
+ --line2:#2e3c3f;
+
+ /* luz da mesa: o verde e o acento principal */
+ --lime:#a0f040;
+ --lime-dim:#6f9e35;
+ --lime-glow:rgba(160,240,64,.18);
+
+ /* logo e banners */
+ --violet:#a060f0;
+ --violet-dim:#7442b4;
+ --magenta:#f040d0;
+ --janela:#4b8cf0;
+
+ --text:#eef3f0;
+ --muted:#8c9a95;
+ --faint:#64726e;
+
+ --good:var(--lime);
+ --warn:#ffc93c;
+ --danger:#ff5370;
+
+ /* nomes antigos continuam valendo: o CSS legado le estes */
+ --bg:var(--ink);
+ --purple:var(--violet);
+ --purple2:#c79bff;
+ --yellow:var(--warn);
+ --err:var(--danger);
+ --ok:var(--lime);
+
+ --r-sm:9px; --r-md:13px; --r-lg:18px;
+ --sombra:0 1px 0 rgba(255,255,255,.03) inset, 0 12px 32px -14px rgba(0,0,0,.85);
+}
+
+/* ---------- fundo: a sala ---------- */
+body{
+ background:
+  radial-gradient(720px 420px at 50% 62%, rgba(160,240,64,.07), transparent 64%),
+  radial-gradient(820px 520px at 88% -6%, rgba(240,64,208,.07), transparent 62%),
+  radial-gradient(700px 460px at 4% 10%, rgba(160,96,240,.09), transparent 62%),
+  var(--ink) !important;
+ color:var(--text);
+ -webkit-font-smoothing:antialiased;
+}
+.noise{opacity:.13}
+
+/* ---------- estrutura ---------- */
+.topbar{
+ background:rgba(8,11,13,.84) !important;
+ border-bottom:1px solid var(--line) !important;
+ backdrop-filter:blur(20px) saturate(140%);
+}
+.sidebar,
+.content{
+ background:linear-gradient(180deg,var(--panel),var(--ink2)) !important;
+ border:1px solid var(--line) !important;
+ border-radius:var(--r-lg) !important;
+ box-shadow:var(--sombra);
+}
+
+/* navegacao: a luz verde marca onde voce esta */
+.nav-item{
+ color:var(--muted) !important;
+ border-radius:var(--r-sm) !important;
+ background:transparent !important;
+ box-shadow:none !important;
+ position:relative;
+ transition:color .16s, background .16s;
+}
+.nav-item:hover{color:var(--text) !important;background:rgba(255,255,255,.04) !important}
+.nav-item.active{
+ color:var(--text) !important;
+ background:linear-gradient(90deg,var(--lime-glow),transparent 72%) !important;
+ box-shadow:none !important;
+}
+.nav-item.active::before{
+ content:'';position:absolute;left:0;top:18%;bottom:18%;width:3px;border-radius:3px;
+ background:var(--lime);
+ box-shadow:0 0 12px rgba(160,240,64,.7);
+}
+
+/* ---------- cartoes ---------- */
+.fac-card,.org-card,.req-card,.user-row,.delivery-row,.history-row,
+.cards article,.metric-row,.model-card,.install-item,
+.group-history-item,.market-item,.dash-panel{
+ background:linear-gradient(165deg,var(--panel2),var(--panel)) !important;
+ border:1px solid var(--line) !important;
+ border-radius:var(--r-md) !important;
+ box-shadow:var(--sombra);
+ transition:border-color .16s, transform .16s, box-shadow .16s;
+}
+.fac-card:hover,.org-card:hover,.req-card:hover,.user-row:hover,.metric-row:hover{
+ border-color:var(--lime-dim) !important;
+ transform:translateY(-2px);
+ box-shadow:var(--sombra), 0 0 0 1px var(--lime-glow);
+}
+
+/* painel interno: um degrau mais claro que o fundo, nunca mais escuro */
+.benefits-box,.delivery-box,.delivery-split>section,.group-history-box,
+.org-group-link,.org-current-group,.role-help,.metric-source-card,
+.market-panel,.group-profile-summary>div,.org-profile-summary>div,
+.info-panel,.welcome,.metric-kpis span,.toggle-line,.metric-test-result{
+ background:var(--panel) !important;
+ border:1px solid var(--line) !important;
+ border-radius:var(--r-md) !important;
+}
+
+/* ---------- campos ---------- */
+input,select,textarea{
+ background:var(--ink2) !important;
+ border:1px solid var(--line) !important;
+ color:var(--text) !important;
+ border-radius:var(--r-sm) !important;
+ transition:border-color .15s, box-shadow .15s;
+}
+input::placeholder,textarea::placeholder{color:var(--faint)}
+input:focus,select:focus,textarea:focus{
+ outline:none !important;
+ border-color:var(--lime-dim) !important;
+ box-shadow:0 0 0 3px var(--lime-glow) !important;
+}
+input[type=checkbox],input[type=radio]{accent-color:var(--lime-dim)}
+
+/* ---------- botoes ---------- */
+/* acao principal = a luz da mesa */
+.btn-primary{
+ background:linear-gradient(135deg,var(--lime),#7fd21f) !important;
+ border:0 !important;
+ color:#0a1204 !important;
+ font-weight:900 !important;
+ border-radius:var(--r-sm) !important;
+ box-shadow:0 10px 26px -12px rgba(160,240,64,.75);
+ transition:filter .15s, transform .15s;
+}
+.btn-primary:hover{filter:brightness(1.08);transform:translateY(-1px)}
+.btn-secondary,.mini-btn,.btn-google,.logout{
+ background:var(--raise) !important;
+ border:1px solid var(--line2) !important;
+ color:var(--text) !important;
+ border-radius:var(--r-sm) !important;
+ transition:border-color .15s, background .15s;
+}
+.btn-secondary:hover,.mini-btn:hover,.btn-google:hover,.logout:hover{
+ border-color:var(--lime-dim) !important;
+ background:rgba(160,240,64,.09) !important;
+}
+.btn-danger{
+ background:rgba(255,83,112,.12) !important;
+ border:1px solid rgba(255,83,112,.42) !important;
+ color:#ff9aab !important;
+ border-radius:var(--r-sm) !important;
+}
+.btn-danger:hover{background:rgba(255,83,112,.2) !important}
+button:disabled{opacity:.45 !important}
+
+/* ---------- selos ---------- */
+.status-chip,.req-status,.role-chip,.fac-stats span,.history-changes span,
+.dev-badge,.access-pill,.alves-ref span,.protocol{
+ border-radius:999px !important;
+ letter-spacing:.06em;
+}
+.status-chip.ativa,.s-concluida{
+ background:var(--lime-glow) !important;color:var(--lime) !important;border:1px solid rgba(160,240,64,.34) !important;
+}
+.status-chip.inativa,.s-cancelada{
+ background:rgba(255,83,112,.1) !important;color:#ff92a3 !important;border:1px solid rgba(255,83,112,.3) !important;
+}
+.s-pendente{background:rgba(255,201,60,.1) !important;color:var(--warn) !important;border:1px solid rgba(255,201,60,.3) !important}
+.s-em-andamento{background:rgba(160,96,240,.13) !important;color:#c79bff !important;border:1px solid rgba(160,96,240,.34) !important}
+.fac-stats span{background:var(--panel) !important;border:1px solid var(--line) !important;color:var(--muted)}
+.dev-badge,.access-pill{
+ background:rgba(240,64,208,.09) !important;border:1px solid rgba(240,64,208,.3) !important;color:#ff9ae8 !important;
+}
+
+/* ---------- modal ---------- */
+.modal{background:rgba(5,7,9,.8) !important;backdrop-filter:blur(8px)}
+.modal-card{
+ background:linear-gradient(180deg,var(--panel2),var(--panel)) !important;
+ border:1px solid var(--line2) !important;
+ border-radius:var(--r-lg) !important;
+ box-shadow:0 44px 96px -30px rgba(0,0,0,.92);
+}
+.modal-x{color:var(--muted) !important;transition:color .15s}
+.modal-x:hover{color:var(--text) !important}
+
+/* ---------- titulos e texto ---------- */
+.page-head{border-bottom:1px solid var(--line) !important}
+.page-head h2{letter-spacing:-.02em}
+.eyebrow,.group-kicker,.protocol{color:var(--magenta) !important}
+.muted,.page-subtitle,.top-email,.delivery-help{color:var(--muted) !important}
+.placeholder{
+ border:1px dashed var(--line2) !important;
+ border-radius:var(--r-lg) !important;
+ background:rgba(160,240,64,.015);
+}
+.placeholder b{color:var(--lime) !important}
+/* "HIGH OS" com as tres cores do logo */
+.hero-copy h1 span{
+ background:linear-gradient(100deg,var(--magenta),var(--violet) 48%,var(--lime)) !important;
+ -webkit-background-clip:text !important;background-clip:text;color:transparent !important;
+}
+.login-card,.state-card{
+ background:linear-gradient(160deg,rgba(160,240,64,.07),rgba(160,96,240,.05)),var(--panel) !important;
+ border:1px solid var(--line2) !important;
+ border-radius:var(--r-lg) !important;
+ backdrop-filter:blur(6px);
+}
+
+/* ---------- indicadores ---------- */
+.online,.statusline i,.alves-status i{color:var(--lime) !important}
+.statusline i,.alves-status i{background:var(--lime) !important;box-shadow:0 0 13px rgba(160,240,64,.7) !important}
+.danger{color:var(--danger) !important}
+.cards b{color:var(--lime) !important}
+.big-mark b{color:rgba(160,240,64,.12) !important}
+
+/* ---------- barra de rolagem ---------- */
+*{scrollbar-width:thin;scrollbar-color:var(--line2) transparent}
+*::-webkit-scrollbar{width:9px;height:9px}
+*::-webkit-scrollbar-thumb{background:var(--line2);border-radius:9px}
+*::-webkit-scrollbar-thumb:hover{background:var(--lime-dim)}
+*::-webkit-scrollbar-track{background:transparent}
+
+:focus-visible{outline:2px solid var(--lime);outline-offset:2px;border-radius:4px}
+
+/* =====================================================================
+   IDENTIDADE DA SEASON 3
+   A cena do QG entra como textura atras do hero do login e da tela de
+   escolha de season - bem apagada, so para dar lugar ao conteudo.
+   ===================================================================== */
+.login-view{position:relative}
+.login-view::before{
+ content:'';position:absolute;inset:-40px -24px;z-index:-1;pointer-events:none;
+ background:url('season3-cena.jpg') center/cover no-repeat;
+ opacity:.20;
+ filter:saturate(130%) contrast(106%);
+ mask-image:radial-gradient(78% 72% at 50% 46%,#000 30%,transparent 78%);
+ -webkit-mask-image:radial-gradient(78% 72% at 50% 46%,#000 30%,transparent 78%);
+ border-radius:26px;
+}
+.season-ask-box{position:relative;overflow:hidden}
+.season-ask-box::before{
+ content:'';position:absolute;inset:0;z-index:0;pointer-events:none;
+ background:url('season3-cena.jpg') center/cover no-repeat;
+ opacity:.14;
+ mask-image:linear-gradient(200deg,#000,transparent 62%);
+ -webkit-mask-image:linear-gradient(200deg,#000,transparent 62%);
+}
+.season-ask-box>*{position:relative;z-index:1}
+.season-ask-box{background:linear-gradient(180deg,var(--panel2),var(--panel)) !important;border-color:var(--line2) !important}
+.season-ask-box>span{color:var(--magenta)}
+.season-ask-list button{background:var(--ink2) !important;border-color:var(--line) !important}
+.season-ask-list button:hover:not(:disabled){border-color:var(--lime-dim) !important;background:rgba(160,240,64,.07) !important}
+
+/* selo da season, com o logo da temporada */
+.season-badge{
+ display:flex;align-items:center;gap:9px;padding-left:7px;
+ background:var(--panel) !important;border-color:var(--line) !important;
+}
+/* display:flex acima vence o padrao do atributo hidden; sem esta linha
+   o selo aparece vazio antes de a season carregar. */
+.season-badge[hidden]{display:none !important}
+.season-badge:hover{border-color:var(--lime-dim) !important}
+.season-badge::before{
+ content:'';width:26px;height:26px;flex:0 0 26px;
+ background:url('season3-logo.png') center/contain no-repeat;
+ filter:drop-shadow(0 0 7px rgba(160,240,64,.45));
+}
+.season-badge b{color:var(--text)}
+.season-badge>span{display:block;text-align:right}
+
+@media (prefers-reduced-motion:reduce){
+ *{transition:none !important;animation:none !important}
+ .fac-card:hover,.org-card:hover,.btn-primary:hover{transform:none !important}
+}

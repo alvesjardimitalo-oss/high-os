@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>High OS · Importador da Planilha</title>
+<style>
+  :root{--bg:#07060b;--panel:#141019;--line:#33283b;--purple:#8d35ff;--text:#f7f4fb;--muted:#a79db6;--ok:#50f5a0;--err:#ff5b76;--warn:#ffcf5c}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:14px/1.55 system-ui,Segoe UI,Roboto,sans-serif;padding:26px}
+  .wrap{max-width:1080px;margin:0 auto}
+  h1{font-size:20px;margin:0 0 4px}
+  .sub{color:var(--muted);font-size:13px;margin:0 0 20px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px}
+  .card h2{font-size:10.5px;letter-spacing:.12em;margin:0 0 12px;color:#d9c4eb}
+  button{background:var(--purple);color:#fff;border:none;border-radius:9px;padding:12px 18px;font-weight:800;letter-spacing:.05em;cursor:pointer;font-size:11px}
+  button.sec{background:transparent;border:1px solid var(--line);color:var(--text)}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  label{display:block;font-size:9.5px;letter-spacing:.09em;color:var(--muted);margin:0 0 5px}
+  input,textarea,select{width:100%;background:#0a0810;border:1px solid var(--line);color:var(--text);border-radius:9px;padding:10px 12px;font:13px/1.5 inherit}
+  textarea{font:11.5px/1.5 ui-monospace,Consolas,monospace;min-height:120px;resize:vertical}
+  .grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));margin-bottom:12px}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:8px}
+  th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-size:9.5px;letter-spacing:.09em;color:var(--muted)}
+  .ok{color:var(--ok)}.err{color:var(--err)}.warn{color:var(--warn)}.mut{color:var(--muted)}
+  .verdict{border-left:3px solid var(--purple);padding:11px 14px;margin-top:12px;background:rgba(141,53,255,.07);border-radius:0 10px 10px 0;font-size:13px;line-height:1.6}
+  .verdict.err{border-left-color:var(--err);background:rgba(255,91,118,.08)}
+  .verdict.ok{border-left-color:var(--ok);background:rgba(80,245,160,.08)}
+  .verdict.warn{border-left-color:var(--warn);background:rgba(255,207,92,.08)}
+  code{background:#0a0810;padding:2px 6px;border-radius:5px;font-size:11.5px}
+  .tag{display:inline-block;font-size:9.5px;letter-spacing:.07em;padding:2px 7px;border-radius:20px;border:1px solid var(--line);margin:0 4px 3px 0}
+  .tag.novo{border-color:var(--ok);color:var(--ok)}
+  .tag.mud{border-color:var(--warn);color:var(--warn)}
+  .tag.sai{border-color:var(--err);color:var(--err)}
+  .cds{font:11px/1.5 ui-monospace,Consolas,monospace;color:#c9b6dd}
+  .scroll{max-height:420px;overflow:auto;margin-top:8px}
+  .hide{display:none}
+  .inv{margin-top:14px;padding:14px;border:1px solid var(--line);border-radius:11px;background:#0a0810}
+  .inv h3{font-size:9.5px;letter-spacing:.11em;margin:0 0 6px;color:#d9c4eb}
+  .inv .tag b{color:var(--text)}
+  .num{font-size:22px;font-weight:800;display:block;line-height:1.2}
+  .kpi{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(120px,1fr))}
+  .kpi div{background:#0a0810;border:1px solid var(--line);border-radius:10px;padding:11px 13px}
+  .kpi span.rot{font-size:9.5px;letter-spacing:.09em;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Importador da planilha</h1>
+  <p class="sub">Lê a aba de blips e coordenadas, mostra o que mudou e grava os QGs da season em um único documento do Firestore.</p>
+
+  <div class="card">
+    <h2>1 · ENTRAR</h2>
+    <button id="login">ENTRAR COM GOOGLE</button>
+    <span id="ident" class="mut" style="margin-left:10px"></span>
+  </div>
+
+  <div class="card">
+    <h2>2 · SEASON</h2>
+    <div class="grid">
+      <div><label>CÓDIGO DA SEASON</label><input id="sId" placeholder="s3" value="s3"></div>
+      <div><label>NOME</label><input id="sNome" placeholder="High Season 3" value="High Season 3"></div>
+      <div><label>ABA DA PLANILHA</label><input id="sAba" value="BLIPS COORDENADAS"></div>
+    </div>
+    <label>LINK DA PLANILHA</label>
+    <input id="sUrl" placeholder="cole aqui o link publicado (…/pubhtml?gid=…) ou o link normal da planilha">
+    <p class="sub" style="margin:8px 0 0">Link <b>publicado na web</b> é servido por um cache do Google e pode atrasar. Link <b>normal</b> com a planilha em “qualquer pessoa com o link pode ver” é lido ao vivo — prefira esse.</p>
+    <div style="margin-top:12px">
+      <button id="ler">LER PLANILHA</button>
+      <button id="verColar" class="sec">COLAR À MÃO</button>
+    </div>
+    <div id="boxColar" class="hide" style="margin-top:12px">
+      <label>COLE AQUI O CONTEÚDO DA ABA (Ctrl+A e Ctrl+C na planilha)</label>
+      <textarea id="colado" placeholder="cole aqui…"></textarea>
+      <button id="lerColado" class="sec" style="margin-top:8px">LER O QUE FOI COLADO</button>
+    </div>
+    <div id="statusLeitura"></div>
+  </div>
+
+  <div class="card hide" id="cardPrevia">
+    <h2>3 · O QUE A PLANILHA TEM</h2>
+    <div class="kpi" id="kpis"></div>
+    <div id="avisosGerais"></div>
+    <div class="scroll"><table id="tabela"></table></div>
+  </div>
+
+  <div class="card hide" id="cardDiff">
+    <h2>4 · O QUE MUDA NO FIREBASE</h2>
+    <div id="diff"></div>
+    <div style="margin-top:14px">
+      <button id="gravar">GRAVAR NO FIREBASE</button>
+      <button id="baixar" class="sec">BAIXAR JSON</button>
+    </div>
+    <div id="statusGravacao"></div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js';
+import { getAuth, GoogleAuthProvider, signInWithPopup } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js';
+import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
+import { parseGrade, parseQgCards, montarQgs, resumoImportacao, inventarioLinhas } from '../assets/modules/planilha-qgs.js';
+
+const firebaseConfig={apiKey:'AIzaSyBKtl3rCA9Id1RDMwGch-yi4hxAs83DraU',authDomain:'high-os.firebaseapp.com',projectId:'high-os',storageBucket:'high-os.firebasestorage.app',messagingSenderId:'471862600170',appId:'1:471862600170:web:ff55af6f7e808ff39'};
+const app=initializeApp(firebaseConfig), auth=getAuth(app), db=getFirestore(app), provider=new GoogleAuthProvider();
+provider.setCustomParameters({prompt:'select_account'});
+const $=s=>document.querySelector(s);
+const esc=v=>String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+let usuario=null, qgsLidos=null, salvoAtual=null, inventario=null;
+
+/* ---------- endereço do CSV ---------- */
+function urlCsv(bruto='',aba=''){
+  const v=String(bruto||'').trim();
+  if(!v)throw new Error('Informe o link da planilha.');
+  const gid=(v.match(/[?#&]gid=(\d+)/)||[])[1]||'';
+
+  // link publicado na web: /spreadsheets/d/e/2PACX-.../pubhtml?gid=N
+  if(/\/spreadsheets\/d\/e\//.test(v)){
+    const base=v.split('/pubhtml')[0].split('/pub')[0];
+    const p=new URLSearchParams({single:'true',output:'csv'});
+    if(gid)p.set('gid',gid);
+    return {url:`${base}/pub?${p}`, tipo:'publicado'};
+  }
+  // link normal: /spreadsheets/d/{id}/edit#gid=N  -> gviz, leitura ao vivo
+  const id=(v.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/)||[])[1];
+  if(!id)throw new Error('Não reconheci esse link como uma planilha do Google.');
+  const p=new URLSearchParams({tqx:'out:csv'});
+  if(gid)p.set('gid',gid); else if(aba)p.set('sheet',aba);
+  return {url:`https://docs.google.com/spreadsheets/d/${id}/gviz/tq?${p}`, tipo:'ao vivo'};
+}
+
+/* ---------- leitura ---------- */
+async function lerDaUrl(){
+  const aba=$('#sAba').value.trim();
+  let alvo;
+  try{ alvo=urlCsv($('#sUrl').value,aba) }
+  catch(e){ return falha(e.message) }
+  $('#statusLeitura').innerHTML=`<div class="verdict">Baixando (${alvo.tipo})…</div>`;
+  try{
+    const r=await fetch(alvo.url+'&_='+Date.now());
+    if(!r.ok)throw new Error('HTTP '+r.status+'. Confirme se a planilha está publicada ou compartilhada por link.');
+    const txt=await r.text();
+    if(/<html/i.test(txt.slice(0,400)))throw new Error('O Google devolveu uma página de login: a planilha não está acessível sem conta.');
+    processar(txt,alvo.tipo);
+  }catch(e){
+    falha(e.message+' — se persistir, use COLAR À MÃO, que não depende de permissão.');
+  }
+}
+
+function falha(msg){ $('#statusLeitura').innerHTML=`<div class="verdict err">${esc(msg)}</div>` }
+
+function processar(texto,origem){
+  const grade=parseGrade(texto);
+  const cards=parseQgCards(grade);
+  qgsLidos=montarQgs(cards);
+  inventario=inventarioLinhas(cards);
+  if(!qgsLidos.length)return falha('Li a aba mas não encontrei nenhum cartão de QG. Confirme se a aba é a de blips e coordenadas — o importador procura pela palavra GROUP.');
+  $('#statusLeitura').innerHTML=`<div class="verdict ok">Leitura ${esc(origem)}: ${grade.length} linhas, ${qgsLidos.length} QGs encontrados.</div>`;
+  mostrarPrevia();
+  compararComSalvo();
+}
+
+/* ---------- prévia ---------- */
+function mostrarPrevia(){
+  const r=resumoImportacao(qgsLidos);
+  $('#cardPrevia').classList.remove('hide');
+  $('#kpis').innerHTML=[
+    ['QGs na planilha',r.total,''],
+    ['Já com GROUP',r.vinculados,'ok'],
+    ['Sem GROUP',r.semGroup,r.semGroup?'warn':''],
+    ['Com aviso',r.comAviso,r.comAviso?'warn':''],
+    ['Tamanho',(r.bytes/1024).toFixed(1)+' KB','']
+  ].map(([rot,v,cls])=>`<div><span class="rot">${rot}</span><span class="num ${cls}">${esc(v)}</span></div>`).join('');
+
+  const setores=r.setores.length?`<p class="sub" style="margin:12px 0 0">Setores: ${r.setores.map(s=>`<span class="tag">${esc(s)}</span>`).join('')}</p>`:'';
+  const inv=inventario?`<div class="inv">
+    <h3>O QUE ESTA ABA OFERECE</h3>
+    <p class="sub" style="margin:0 0 10px">A estrutura da aba está congelada — não se cria linha nova. O painel usa o que existe aqui; o resto é preenchido no cadastro.</p>
+    <p style="margin:0 0 9px"><b class="ok">${inv.disponiveis.length}</b> linha(s) disponíveis: ${inv.disponiveis.map(d=>`<span class="tag">${esc(d.campo)} <b>${d.qtd}</b></span>`).join('')}</p>
+    ${inv.semLinha.length?`<p style="margin:0 0 9px"><b class="mut">${inv.semLinha.length}</b> sem linha na aba (só no painel): <span class="mut">${esc(inv.semLinha.join(', '))}</span></p>`:''}
+    ${inv.rotulosNaoMapeados.length?`<p style="margin:0"><b class="warn">${inv.rotulosNaoMapeados.length}</b> rótulo(s) que não reconheci: ${inv.rotulosNaoMapeados.map(x=>`<span class="tag mud">${esc(x.rotulo)} <b>${x.qtd}</b></span>`).join('')} — se algum desses for dado que o painel deve usar, me avise o nome exato.</p>`:''}
+  </div>`:'';
+  $('#avisosGerais').innerHTML=setores+inv+(r.bytes>700*1024
+    ? `<div class="verdict warn">O pacote passou de 700 KB. O limite de um documento do Firestore é 1 MB — antes de crescer mais, vamos dividir por setor.</div>`:'');
+
+  $('#tabela').innerHTML=`<thead><tr><th>GROUP</th><th>LOCAL</th><th>SETOR</th><th>COORDENADAS</th><th>AVISOS</th></tr></thead><tbody>`+
+    qgsLidos.map(q=>`<tr>
+      <td>${q.group?esc(q.group):'<span class="warn">— sem group —</span>'}</td>
+      <td>${esc(q.local)||'<span class="mut">—</span>'}</td>
+      <td class="mut">${esc(q.setor)||'—'}</td>
+      <td class="cds">${Object.keys(q.cds).length}: ${esc(Object.keys(q.cds).join(', ')).slice(0,120)}</td>
+      <td class="warn">${q.avisos.map(a=>esc(a)).join('<br>')||''}</td>
+    </tr>`).join('')+`</tbody>`;
+}
+
+/* ---------- comparação com o que já está gravado ---------- */
+async function compararComSalvo(){
+  if(!usuario)return $('#diff').innerHTML='<div class="verdict warn">Entre com o Google para comparar e gravar.</div>',$('#cardDiff').classList.remove('hide');
+  const id=$('#sId').value.trim();
+  try{
+    const snap=await getDoc(doc(db,'highos','data','seasons',id));
+    salvoAtual=snap.exists()?snap.data():null;
+  }catch(e){ salvoAtual=null; }
+
+  const antigos=new Map((salvoAtual?.qgs||[]).map(q=>[q.chave,q]));
+  const novos=[],mudados=[],saem=[],iguais=[];
+  for(const q of qgsLidos){
+    const a=antigos.get(q.chave);
+    if(!a){novos.push(q);continue}
+    const mudou=JSON.stringify({g:a.group,l:a.local,s:a.setor,c:a.cds})!==JSON.stringify({g:q.group,l:q.local,s:q.setor,c:q.cds});
+    (mudou?mudados:iguais).push(q);
+    antigos.delete(q.chave);
+  }
+  for(const [,a] of antigos)saem.push(a);
+
+  $('#cardDiff').classList.remove('hide');
+  const linha=(t,arr,cls)=>arr.length?`<p style="margin:0 0 8px"><b class="${cls}">${arr.length}</b> ${t}: ${arr.slice(0,40).map(q=>`<span class="tag ${cls}">${esc(q.group||q.local||q.chave)}</span>`).join('')}${arr.length>40?' …':''}</p>`:'';
+  $('#diff').innerHTML=
+    (salvoAtual?`<p class="sub" style="margin:0 0 12px">Gravado hoje: versão ${esc(salvoAtual.versao||1)}, ${esc((salvoAtual.qgs||[]).length)} QGs.</p>`:`<p class="sub" style="margin:0 0 12px">Ainda não existe nada gravado nessa season. Esta vai ser a primeira carga.</p>`)+
+    linha('entram',novos,'novo')+linha('mudaram',mudados,'mud')+linha('somem da planilha',saem,'sai')+
+    (iguais.length?`<p class="mut" style="margin:0">${iguais.length} seguem iguais.</p>`:'')+
+    (saem.length?`<div class="verdict warn">QGs que somem da planilha serão apagados da season. Se foram só renomeados, o importador vê como “sai um, entra outro” — confira antes de gravar.</div>`:'')+
+    `<div class="verdict">A gravação custa <b>2 escritas</b>: o pacote da season e o índice. Não é uma escrita por QG.</div>`;
+}
+
+/* ---------- gravação ---------- */
+async function gravar(){
+  if(!usuario)return alert('Entre com o Google primeiro.');
+  if(!qgsLidos?.length)return alert('Leia a planilha primeiro.');
+  const id=$('#sId').value.trim(), nome=$('#sNome').value.trim();
+  if(!id)return alert('Informe o código da season.');
+  if(!confirm(`Gravar ${qgsLidos.length} QGs na season "${id}"? Isso substitui o que estiver gravado nela.`))return;
+
+  const versao=Number(salvoAtual?.versao||0)+1;
+  const pacote={
+    id, nome,
+    planilhaUrl:$('#sUrl').value.trim(),
+    aba:$('#sAba').value.trim(),
+    versao, total:qgsLidos.length,
+    qgs:qgsLidos,
+    atualizadaEm:serverTimestamp(),
+    atualizadaPor:usuario.email,
+    criadaEm:salvoAtual?.criadaEm||serverTimestamp()
+  };
+  $('#statusGravacao').innerHTML='<div class="verdict">Gravando…</div>';
+  try{
+    await setDoc(doc(db,'highos','data','seasons',id),pacote);
+
+    /* O indice e o unico documento que o painel le no login: guarda a
+       lista de seasons disponiveis e qual esta ativa. Mantemos as
+       outras entradas intactas para nao apagar season antiga. */
+    let lista=[];
+    try{
+      const ix=await getDoc(doc(db,'highos','season_atual'));
+      lista=Array.isArray(ix.data()?.lista)?ix.data().lista:[];
+    }catch(e){}
+    const entrada={id,nome,versao,total:qgsLidos.length,semGroup:qgsLidos.filter(q=>!q.vinculado).length};
+    const i=lista.findIndex(s=>s.id===id);
+    if(i>=0)lista[i]=entrada; else lista.push(entrada);
+
+    await setDoc(doc(db,'highos','season_atual'),{
+      ...entrada, ativa:id, lista,
+      atualizadaEm:serverTimestamp(), atualizadaPor:usuario.email
+    },{merge:true});
+    salvoAtual={...pacote,qgs:qgsLidos};
+    $('#statusGravacao').innerHTML=`<div class="verdict ok">Gravado. Season <b>${esc(id)}</b> na versão <b>${versao}</b>, ${qgsLidos.length} QGs, 2 escritas usadas.</div>`;
+    compararComSalvo();
+  }catch(e){
+    $('#statusGravacao').innerHTML=`<div class="verdict err">Não gravou: ${esc(e.message)}<br>Se for permissão, publique as regras do Firestore com o trecho de <code>seasons</code>.</div>`;
+  }
+}
+
+function baixarJson(){
+  const blob=new Blob([JSON.stringify({season:$('#sId').value.trim(),qgs:qgsLidos},null,1)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`qgs-${$('#sId').value.trim()||'season'}.json`;
+  a.click();
+}
+
+/* ---------- ligações ---------- */
+$('#login').onclick=async()=>{
+  try{
+    const r=await signInWithPopup(auth,provider);
+    usuario=r.user;
+    $('#ident').innerHTML=`conectado como <code>${esc(usuario.email)}</code>`;
+    if(qgsLidos)compararComSalvo();
+  }catch(e){ alert('Não entrou: '+e.message) }
+};
+$('#ler').onclick=lerDaUrl;
+$('#verColar').onclick=()=>$('#boxColar').classList.toggle('hide');
+$('#lerColado').onclick=()=>{
+  const t=$('#colado').value;
+  if(!t.trim())return falha('Cole o conteúdo da aba primeiro.');
+  processar(t,'colado à mão');
+};
+$('#gravar').onclick=gravar;
+$('#baixar').onclick=baixarJson;
+</script>
+</body>
+</html>

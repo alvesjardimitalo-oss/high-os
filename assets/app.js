@@ -33,6 +33,7 @@ import { painelOcupacaoHtml, painelDisponiveisHtml, ligarPaineis, abrirRevisao }
 import { esc, alvesNorm, fmtDuration, fmtDateMs, fmtMoneyMaybe } from './modules/formatadores.js';
 import { definirGroupsConhecidos, normalizeMetricDate, parseMetricNumber, normalizeMetricSlotKey, metricSlotLabel, metricGroupLabel, parseMetricSheet, parseCsvRows } from './modules/metricas-parser.js';
 import { SEED } from './modules/base-groups.js';
+import { season, lerIndice, carregarSeason, seasonEscolhida, guardarEscolha, esquecerEscolha, filtrarPorSeason, qgsSemVinculo, foraDaPlanilha, resumoSeason } from './modules/season.js';
 import { DEFAULT_DASHBOARD_CONFIG, DEFAULT_SEGMENTS } from './modules/config-defaults.js';
 import { boletimDataBR, boletimParseData, boletimVariacao, boletimPct, boletimPartes } from './modules/boletim-utils.js';
 import { chatTime, chatConversationId, chatParticipants, chatDiaRotulo, chatMinutoDe } from './modules/chat-utils.js';
@@ -648,6 +649,7 @@ userPhotoEl=$('#userPhoto');
   renderSessionClock(email);
   await loadSegmentConfig();
   await loadDashboardConfig();
+  await iniciarSeason();
   await loadFaccoes();
   await loadMetrics();
   startMetricAutoRecovery();
@@ -715,11 +717,79 @@ $('#groupProfileBack')?.addEventListener('click',closeGroupProfilePage);
 
 async function loadFaccoes(){
  try{const qs=await getDocsCached(facCol,'faccoes');
-estado.faccoes=qs.docs.map(d=>({id:d.id,
+/* A lista crua fica guardada inteira; o painel trabalha so com os
+   Groups da season ativa. Filtrar aqui, num lugar so, faz todas as
+   telas respeitarem a season sem precisar mexer em cada uma. */
+estado.faccoesTodas=qs.docs.map(d=>({id:d.id,
 ...d.data()}));
-estado.faccoes.sort((a,b)=>(a.numero||999)-(b.numero||999));
+estado.faccoesTodas.sort((a,b)=>(a.numero||999)-(b.numero||999));
+estado.faccoes=filtrarPorSeason(estado.faccoesTodas);
 renderFaccoes();definirGroupsConhecidos(estado.faccoes);
+renderSeasonBadge();
 renderAvailableFaccoes()}catch(e){$('#facList').innerHTML=`<div class="placeholder"><h3>ERRO AO CARREGAR</h3><p>${e.message}</p></div>`}
+}
+
+/* ============================================================
+   V13 · SEASON ATIVA
+   A planilha de blips e coordenadas e a lista oficial da season:
+   quem nao esta nela nao aparece no painel. Os Groups da season
+   anterior continuam gravados, so saem de vista.
+   ============================================================ */
+async function iniciarSeason(){
+ const {lista}=await lerIndice({getDoc,doc,db});
+ if(!lista.length)return;                       // nenhuma season importada: painel segue inteiro
+ const salva=seasonEscolhida();
+ const valida=lista.find(s=>s.id===salva);
+ if(valida){try{await carregarSeason(valida.id,{getDoc,doc,db});return}catch(e){console.warn('[HIGH OS] season salva falhou:',e.message)}}
+ if(lista.length===1){try{await carregarSeason(lista[0].id,{getDoc,doc,db});guardarEscolha(lista[0].id);return}catch(e){}}
+ await perguntarSeason(lista);
+}
+
+function perguntarSeason(lista){
+ return new Promise(resolve=>{
+  const caixa=document.createElement('div');
+  caixa.className='season-ask';
+  caixa.innerHTML=`<div class="season-ask-box" role="dialog" aria-modal="true" aria-label="Escolher season">
+   <span>HIGH OS</span>
+   <h2>Qual season você vai trabalhar?</h2>
+   <p>O painel mostra apenas os Groups que estão na planilha da season escolhida.</p>
+   <div class="season-ask-list">${lista.map(s=>`<button type="button" data-season="${esc(s.id)}">
+     <b>${esc(s.nome||s.id)}</b>
+     <small>${Number(s.total||0)} QGs${Number(s.semGroup||0)?` • ${Number(s.semGroup)} sem Group vinculado`:''}</small>
+    </button>`).join('')}</div>
+   <p class="season-ask-erro" hidden></p>
+  </div>`;
+  document.body.appendChild(caixa);
+  caixa.querySelectorAll('[data-season]').forEach(b=>b.onclick=async()=>{
+   caixa.querySelectorAll('button').forEach(x=>x.disabled=true);
+   const erro=caixa.querySelector('.season-ask-erro');
+   try{
+    await carregarSeason(b.dataset.season,{getDoc,doc,db});
+    guardarEscolha(b.dataset.season);
+    caixa.remove();
+    resolve(true);
+   }catch(e){
+    erro.hidden=false;
+    erro.textContent=e.message;
+    caixa.querySelectorAll('button').forEach(x=>x.disabled=false);
+   }
+  });
+ });
+}
+
+function renderSeasonBadge(){
+ const el=$('#seasonBadge');
+ if(!el)return;
+ if(!season.carregada){el.hidden=true;return}
+ const r=resumoSeason(estado.faccoesTodas||[]);
+ el.hidden=false;
+ el.innerHTML=`<span><b>${esc(season.nome)}</b><small>${r.noPainel} no painel${r.semVinculo?` • ${r.semVinculo} QG sem Group`:''}</small></span>`;
+ el.title=`${r.qgs} QGs na planilha • ${r.foraDaPlanilha} Group(s) do painel fora da planilha desta season`;
+ el.onclick=async()=>{
+  if(!confirm(`Trocar de season? Agora você está em ${season.nome}.`))return;
+  esquecerEscolha();
+  location.reload();
+ };
 }
 function renderFaccoes(){
  const q=($('#facSearch').value||'').toLowerCase(),
