@@ -565,3 +565,54 @@ button:disabled{opacity:.45 !important}
 .meta-linha.sem .meta-saida b{color:var(--faint)}
 .meta-saida span{display:block;font-size:9.5px;letter-spacing:.08em;color:var(--muted)}
 .meta-saida small{display:block;font-size:11px;color:var(--muted);margin-top:5px;line-height:1.45}
+
+/* =====================================================================
+   V13 · METAS DE RECRUTAMENTO
+   Lista editavel de proposito: definir meta e trabalho de lote.
+   ===================================================================== */
+.meta-resumo{display:grid;gap:9px;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));margin:20px 0 14px}
+.meta-resumo div{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:13px 15px}
+.meta-resumo b{display:block;font-size:24px;font-weight:800;line-height:1.15}
+.meta-resumo b.ok{color:var(--lime)}
+.meta-resumo div.alerta{border-color:rgba(255,201,60,.4)}
+.meta-resumo div.alerta b{color:var(--warn)}
+.meta-resumo span{display:block;font-size:9.5px;letter-spacing:.09em;color:var(--muted);margin-top:3px}
+
+.meta-aviso{border-left:3px solid var(--janela);background:rgba(75,140,240,.07);
+ padding:13px 17px;border-radius:0 11px 11px 0;margin:0 0 16px;font-size:13px;line-height:1.6;color:var(--muted)}
+.meta-aviso b{display:block;color:var(--text);margin-bottom:4px}
+
+.meta-filtros{display:flex;gap:12px;align-items:center;margin:0 0 14px;flex-wrap:wrap}
+.meta-filtros input#metaBusca{flex:1;min-width:220px}
+.meta-check{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);cursor:pointer;white-space:nowrap}
+.meta-check input{width:auto}
+
+.meta-lista{display:grid;gap:7px}
+.meta-cab,.meta-linha{display:grid;gap:11px;align-items:center;
+ grid-template-columns:minmax(0,2.1fr) 92px 125px minmax(0,1.5fr) minmax(0,1.1fr) 92px}
+.meta-cab{padding:0 15px 4px}
+.meta-cab span{font-size:9.5px;letter-spacing:.1em;color:var(--muted)}
+.meta-linha{background:linear-gradient(165deg,var(--panel2),var(--panel));
+ border:1px solid var(--line);border-left:3px solid var(--lime-dim);border-radius:11px;padding:12px 15px}
+.meta-linha.sem{border-left-color:var(--line2)}
+.meta-org b{display:block;font-size:14px}
+.meta-org small{display:block;font-size:11.5px;color:var(--muted);margin-top:2px}
+.meta-org i{font-style:normal;color:var(--faint)}
+.meta-linha input,.meta-linha select{width:100%}
+.meta-dias{display:flex;gap:3px;flex-wrap:wrap}
+.meta-dias[hidden]{display:none}
+.meta-dias button{cursor:pointer;background:#0b0f11;border:1px solid var(--line);color:var(--muted);
+ border-radius:7px;padding:6px 7px;font-size:10.5px;font-weight:700;min-width:30px}
+.meta-dias button.on{border-color:var(--lime);color:var(--lime);background:rgba(160,240,64,.11)}
+.meta-alvo{font-size:12.5px;color:var(--muted)}
+.meta-alvo b{font-size:17px;color:var(--text);font-weight:800}
+.meta-alvo i{font-style:normal;color:var(--faint)}
+.meta-alvo small{display:block;font-size:11px;margin-top:2px}
+.meta-alvo .s-bateu{color:var(--lime)}
+.meta-alvo .s-perto{color:var(--warn)}
+.meta-alvo .s-abaixo,.meta-alvo .s-zerado{color:var(--danger)}
+@media(max-width:1000px){
+ .meta-cab{display:none}
+ .meta-linha{grid-template-columns:1fr 1fr;gap:9px}
+ .meta-org,.meta-dias,.meta-alvo{grid-column:1/-1}
+}
