@@ -153,8 +153,8 @@
   const DURACAO_ALVO_MIN = 20;
   const SAFE_TEMPO = { close1: .25, move1: .08, close2: .20, move2: .08, close3: .17, final: .22 };
   /* Raio de cada fase em fração do raio inicial da safe */
-  const SAFE_RAIOS = [ .60, .35, .15 ];
-  const SAFE_DANO = [ 5, 10, 20 ];
+  const SAFE_RAIOS = [ .70, .48, .28, .12 ];   /* SAFE dinâmica: S1→S4, a última fecha até raio 0 */
+  const SAFE_DANO = [ 5, 10, 20, 35 ];
 
   /* Horas sem retorno da cidade até a zona aparecer como ATRASADA */
   const PRAZO_RETORNO_H = 48;

@@ -1,0 +1,140 @@
+/* =====================================================================
+   HIGH OS V15 · PLANEJADOR DE MISSÕES — nova pele visual
+   Só aparência: fontes maiores, cartões respirando, leitura de CDS sem
+   quebrar palavra, etapas com progresso animado e biblioteca mais clara.
+   Prefixo "body #page-planejador.page" para vencer as camadas antigas.
+   ===================================================================== */
+body #page-planejador.page{
+  --pv-bg:#0d0b13;--pv-card:#14111c;--pv-card2:#181424;--pv-line:rgba(255,255,255,.08);--pv-line2:rgba(168,85,247,.35);
+  --pv-txt:#ece8f3;--pv-mut:#a59db2;--pv-acc:#a855f7;--pv-acc2:#7c3aed;--pv-ok:#4ade80;--pv-warn:#fbbf24;--pv-bad:#f87171;
+  --pv-head:"Chakra Petch",system-ui,sans-serif;
+}
+
+/* ---------- biblioteca (lista de eventos) ---------- */
+body #page-planejador.page .mpc-head{padding:18px 20px!important;border-radius:16px!important;border:1px solid var(--pv-line)!important;background:linear-gradient(120deg,rgba(124,58,237,.16),rgba(20,17,28,.9) 45%)!important;animation:pvUp .45s ease both}
+body #page-planejador.page .mpc-head span{font-size:12px!important;letter-spacing:.12em!important;color:#c4a5f5!important}
+body #page-planejador.page .mpc-head strong{font:700 22px/1.2 var(--pv-head)!important;color:#fff!important}
+body #page-planejador.page .mpc-head small{font-size:12.5px!important}
+body #page-planejador.page .mpk-kpis{gap:12px!important}
+body #page-planejador.page .mpk-kpi{padding:16px 18px!important;border-radius:14px!important;border:1px solid var(--pv-line)!important;background:var(--pv-card)!important;transition:transform .2s ease,border-color .2s,box-shadow .2s;animation:pvUp .45s ease both}
+body #page-planejador.page .mpk-kpi:nth-child(2){animation-delay:.05s}body #page-planejador.page .mpk-kpi:nth-child(3){animation-delay:.1s}
+body #page-planejador.page .mpk-kpi:nth-child(4){animation-delay:.15s}body #page-planejador.page .mpk-kpi:nth-child(5){animation-delay:.2s}
+body #page-planejador.page .mpk-kpi:hover{transform:translateY(-3px);border-color:var(--pv-line2)!important;box-shadow:0 10px 26px rgba(0,0,0,.35)}
+body #page-planejador.page .mpk-kpi b{font:700 32px/1 var(--pv-head)!important}
+body #page-planejador.page .mpk-kpi span{font-size:12px!important;letter-spacing:.06em!important;color:var(--pv-mut)!important;text-transform:uppercase}
+body #page-planejador.page .mpc-toolbar{gap:12px!important;flex-wrap:wrap}
+body #page-planejador.page .mpc-filters{padding:5px!important;border-radius:14px!important;gap:4px!important}
+body #page-planejador.page .mpc-filters button{font-size:14px!important;padding:9px 16px!important;border-radius:10px!important;transition:background .2s,color .2s}
+body #page-planejador.page .mpc-filters button.active{background:linear-gradient(135deg,var(--pv-acc2),var(--pv-acc))!important;color:#fff!important;box-shadow:0 6px 18px rgba(124,58,237,.35)}
+body #page-planejador.page #mpCentralSearch{max-width:300px!important;min-width:240px;height:42px;padding:0 14px 0 38px!important;border-radius:12px!important;border:1px solid var(--pv-line)!important;background:#0f0c16 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%23a59db2' stroke-width='2' viewBox='0 0 24 24'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E") 13px center no-repeat!important;color:#fff!important;font-size:14px!important;opacity:1!important}
+body #page-planejador.page #mpCentralSearch:focus{border-color:var(--pv-acc)!important;box-shadow:0 0 0 3px rgba(168,85,247,.2);outline:none}
+body #page-planejador.page .mpc-event{border-radius:16px!important;border:1px solid var(--pv-line)!important;background:var(--pv-card)!important;overflow:hidden;animation:pvUp .5s ease both;transition:border-color .25s,box-shadow .25s}
+body #page-planejador.page .mpc-event:nth-child(2){animation-delay:.08s}body #page-planejador.page .mpc-event:nth-child(3){animation-delay:.16s}body #page-planejador.page .mpc-event:nth-child(n+4){animation-delay:.22s}
+body #page-planejador.page .mpc-event:hover{border-color:rgba(168,85,247,.28)!important;box-shadow:0 14px 36px rgba(0,0,0,.35)}
+body #page-planejador.page .mpc-event header{padding:16px 18px!important}
+body #page-planejador.page .mpc-event header span{font-size:11.5px!important;letter-spacing:.12em!important;color:#c4a5f5!important}
+body #page-planejador.page .mpc-event header h3{font:700 21px/1.2 var(--pv-head)!important;margin:3px 0!important}
+body #page-planejador.page .mpc-event header small{font-size:13px!important;color:var(--pv-mut)!important}
+body #page-planejador.page .mpc-event-actions button{font-size:13.5px!important;min-height:38px!important;border-radius:10px!important;transition:transform .15s,background .2s,border-color .2s}
+body #page-planejador.page .mpc-event-actions button:hover{transform:translateY(-1px)}
+body #page-planejador.page .mpk-preview{font-size:13px!important;padding:9px 18px!important}
+body #page-planejador.page .mpk-preview span{font-size:11px!important}
+body #page-planejador.page .mpc-zones{gap:10px!important;padding:12px 14px 14px!important}
+body #page-planejador.page .mpc-zone{padding:14px 16px!important;border-radius:12px!important;transition:transform .2s ease,border-color .2s,box-shadow .2s,background .2s}
+body #page-planejador.page .mpc-zone:hover{transform:translateY(-3px);border-color:var(--pv-line2)!important;background:var(--pv-card2)!important;box-shadow:0 10px 24px rgba(0,0,0,.35)}
+body #page-planejador.page .mpc-zone b{font-size:15px!important}
+body #page-planejador.page .mpc-zone small{font-size:12.5px!important}
+body #page-planejador.page .mpk-badge{font-size:11px!important;padding:4px 9px!important}
+body #page-planejador.page .mpk-bar{height:5px!important;border-radius:9px!important;margin-top:8px!important;overflow:hidden}
+body #page-planejador.page .mpk-bar u{animation:pvBar 1s cubic-bezier(.2,.8,.2,1) both;transform-origin:left}
+
+/* ---------- barra do editor ---------- */
+body #page-planejador.page:not(.mp-library-mode) .mp-workspace-bar{height:56px!important;min-height:56px!important;padding:0 10px!important;border-radius:14px!important;border:1px solid var(--pv-line)!important;background:rgba(16,13,22,.94)!important;backdrop-filter:blur(12px);animation:pvDown .35s ease both}
+body #page-planejador.page .mp-workspace-path{display:flex!important;align-items:center;gap:8px!important;font-size:15px!important;min-width:0}
+body #page-planejador.page .mp-workspace-path b{color:var(--pv-mut)!important;font-weight:600!important}
+body #page-planejador.page .mp-workspace-path span{color:var(--pv-acc)!important;font-size:18px}
+body #page-planejador.page .mp-workspace-path strong{font:700 17px/1 var(--pv-head)!important;color:#fff!important}
+body #page-planejador.page:not(.mp-library-mode) #mpBackLibrary,
+body #page-planejador.page:not(.mp-library-mode) .mp-editor-actions button{height:38px!important;padding:0 12px!important;font-size:13.5px!important;border-radius:10px!important;transition:transform .15s,background .2s,border-color .2s}
+body #page-planejador.page:not(.mp-library-mode) .mp-editor-actions button:hover,body #page-planejador.page:not(.mp-library-mode) #mpBackLibrary:hover{transform:translateY(-1px)}
+body #page-planejador.page:not(.mp-library-mode) .mp-cloud-state{font-size:12px!important;padding:5px 10px!important;border-radius:999px!important}
+
+/* ---------- etapas ---------- */
+body #page-planejador.page:not(.mp-library-mode) .mp-tabbar{border-radius:14px!important;overflow:hidden;border:1px solid var(--pv-line)!important;animation:pvDown .4s .05s ease both}
+body #page-planejador.page:not(.mp-library-mode) .mp-tab{position:relative;min-height:62px!important;transition:background .25s}
+body #page-planejador.page:not(.mp-library-mode) .mp-tab::after{content:"";position:absolute;left:0;right:0;bottom:0;height:3px;background:linear-gradient(90deg,var(--pv-acc2),var(--pv-acc),#e879f9);transform:scaleX(0);transform-origin:left;transition:transform .45s cubic-bezier(.2,.8,.2,1)}
+body #page-planejador.page:not(.mp-library-mode) .mp-tab.active::after{transform:scaleX(1)}
+body #page-planejador.page:not(.mp-library-mode) .mp-tab:hover{background:rgba(255,255,255,.035)!important}
+body #page-planejador.page:not(.mp-library-mode) .mp-step-num{width:32px!important;height:32px!important;font:700 15px/32px var(--pv-head)!important;transition:transform .3s,box-shadow .3s}
+body #page-planejador.page:not(.mp-library-mode) .mp-tab.active .mp-step-num{transform:scale(1.08);box-shadow:0 0 0 5px rgba(168,85,247,.18),0 0 18px rgba(168,85,247,.55)}
+body #page-planejador.page:not(.mp-library-mode) .mp-step-txt>span{font:700 16px/1.15 var(--pv-head)!important}
+body #page-planejador.page:not(.mp-library-mode) .mp-step-txt small{font-size:12.5px!important}
+body #page-planejador.page:not(.mp-library-mode) .mp-tab-badge{font-size:12px!important;min-width:26px}
+
+/* ---------- painel lateral ---------- */
+body #page-planejador.page:not(.mp-library-mode) .mission-planner-shell{grid-template-columns:400px minmax(0,1fr)!important;gap:12px!important}
+body #page-planejador.page.mp-gas-operational:not(.mp-library-mode) .mission-planner-shell{grid-template-columns:420px minmax(0,1fr)!important}
+body #page-planejador.page:not(.mp-library-mode) .mission-planner-side{padding:12px!important;border-radius:16px!important;background:var(--pv-bg)!important;border:1px solid var(--pv-line)!important}
+body #page-planejador.page:not(.mp-library-mode) .mp-tabpanel.active{animation:pvIn .35s ease both}
+body #page-planejador.page:not(.mp-library-mode) .mp-card{padding:16px!important;margin-bottom:12px!important;border-radius:14px!important;border:1px solid var(--pv-line)!important;background:linear-gradient(180deg,var(--pv-card2),var(--pv-card))!important;transition:border-color .25s,box-shadow .25s;animation:pvUp .4s ease both}
+body #page-planejador.page:not(.mp-library-mode) .mp-tabpanel.active .mp-card:nth-child(2){animation-delay:.06s}
+body #page-planejador.page:not(.mp-library-mode) .mp-tabpanel.active .mp-card:nth-child(3){animation-delay:.12s}
+body #page-planejador.page:not(.mp-library-mode) .mp-tabpanel.active .mp-card:nth-child(n+4){animation-delay:.18s}
+body #page-planejador.page:not(.mp-library-mode) .mp-card:hover{border-color:rgba(168,85,247,.25)!important}
+body #page-planejador.page:not(.mp-library-mode) .mp-card h3{font:700 17px/1.2 var(--pv-head)!important;letter-spacing:.01em!important;margin:0 0 14px!important;padding:0 0 12px 12px!important;border-bottom:1px solid var(--pv-line)!important;position:relative}
+body #page-planejador.page:not(.mp-library-mode) .mp-card h3::before{content:"";position:absolute;left:0;top:1px;bottom:13px;width:4px;border-radius:4px;background:linear-gradient(180deg,#c084fc,var(--pv-acc2))}
+body #page-planejador.page:not(.mp-library-mode) .mp-card label{font-size:11.5px!important;letter-spacing:.06em!important;color:#b9b1c6!important;gap:6px!important;margin-top:4px}
+body #page-planejador.page:not(.mp-library-mode) .mp-card input,
+body #page-planejador.page:not(.mp-library-mode) .mp-card select{height:42px!important;min-height:42px!important;font-size:14px!important;padding:0 12px!important;border-radius:10px!important;border:1px solid rgba(255,255,255,.1)!important;background:#0c0a12!important;color:#fff!important;transition:border-color .2s,box-shadow .2s}
+body #page-planejador.page:not(.mp-library-mode) .mp-card input[type=range]{height:auto!important;min-height:0!important;padding:0!important;border:0!important;background:transparent!important;accent-color:var(--pv-acc)}
+body #page-planejador.page:not(.mp-library-mode) .mp-card input[type=checkbox],body #page-planejador.page:not(.mp-library-mode) .mp-card input[type=radio]{width:auto!important;height:auto!important;min-height:0!important;accent-color:var(--pv-acc)}
+body #page-planejador.page:not(.mp-library-mode) .mp-card input:disabled,body #page-planejador.page:not(.mp-library-mode) .mp-card select:disabled{color:#d9d3e3!important;opacity:.85}
+body #page-planejador.page:not(.mp-library-mode) .mp-card textarea{font-size:13px!important;line-height:1.55!important;padding:10px 12px!important;border-radius:10px!important;border:1px solid rgba(255,255,255,.1)!important;background:#0c0a12!important}
+body #page-planejador.page:not(.mp-library-mode) .mp-card input:focus,body #page-planejador.page:not(.mp-library-mode) .mp-card select:focus,body #page-planejador.page:not(.mp-library-mode) .mp-card textarea:focus{border-color:var(--pv-acc)!important;box-shadow:0 0 0 3px rgba(168,85,247,.18)!important;outline:none}
+body #page-planejador.page:not(.mp-library-mode) .mp-grid{gap:10px!important}
+body #page-planejador.page:not(.mp-library-mode) .mp-note{font-size:12.5px!important;line-height:1.55!important;color:var(--pv-mut)!important}
+body #page-planejador.page:not(.mp-library-mode) .mp-readout,body #page-planejador.page:not(.mp-library-mode) .mpk-hint{font:500 13px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif!important;word-break:normal!important;overflow-wrap:anywhere;color:#ddd6e8!important;padding:11px 13px!important;border-radius:10px!important;background:rgba(255,255,255,.035)!important;border:1px solid var(--pv-line)!important}
+body #page-planejador.page:not(.mp-library-mode) .mp-readout b,body #page-planejador.page:not(.mp-library-mode) .mp-readout code{font-family:ui-monospace,Consolas,monospace}
+body #page-planejador.page:not(.mp-library-mode) .mp-actions{gap:8px!important;margin-top:12px!important}
+body #page-planejador.page:not(.mp-library-mode) .mp-actions button{min-height:42px!important;font-size:14px!important;border-radius:10px!important;transition:transform .15s,box-shadow .2s,background .2s,border-color .2s}
+body #page-planejador.page:not(.mp-library-mode) .mp-actions button:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 8px 18px rgba(0,0,0,.3)}
+body #page-planejador.page:not(.mp-library-mode) .mp-actions button.primary{background:linear-gradient(135deg,var(--pv-acc2),var(--pv-acc))!important;border-color:transparent!important;color:#fff!important}
+body #page-planejador.page:not(.mp-library-mode) .mp-actions button.primary:hover:not(:disabled){box-shadow:0 10px 24px rgba(124,58,237,.45)}
+body #page-planejador.page:not(.mp-library-mode) .mp-validation-feedback{display:block;margin-top:12px;padding:12px 14px!important;border-radius:10px;font-size:13.5px!important;line-height:1.5;border:1px solid rgba(96,165,250,.28);background:rgba(59,130,246,.08);color:#cfe1ff;animation:pvIn .3s ease both}
+body #page-planejador.page:not(.mp-library-mode) .mp-validation-feedback.ok{border-color:rgba(74,222,128,.3);background:rgba(34,197,94,.09);color:#bbf7d0}
+body #page-planejador.page:not(.mp-library-mode) .mp-validation-feedback.warn,body #page-planejador.page:not(.mp-library-mode) .mp-validation-feedback.error{border-color:rgba(248,113,113,.32);background:rgba(239,68,68,.09);color:#fecaca}
+body #page-planejador.page:not(.mp-library-mode) .mp-details{margin-top:12px;border:1px solid var(--pv-line);border-radius:10px;padding:10px 12px}
+body #page-planejador.page:not(.mp-library-mode) .mp-details summary{cursor:pointer;font:700 13.5px var(--pv-head)!important;color:#d8c7f5}
+body #page-planejador.page:not(.mp-library-mode) .mp-kpi{padding:12px!important;border-radius:12px!important}
+body #page-planejador.page:not(.mp-library-mode) .mp-kpi span{font-size:11px!important;letter-spacing:.06em}
+body #page-planejador.page:not(.mp-library-mode) .mp-kpi b{font:700 24px/1.1 var(--pv-head)!important}
+body #page-planejador.page:not(.mp-library-mode) .mp-point-row{font-size:13px!important;border-radius:9px!important;transition:background .15s}
+body #page-planejador.page:not(.mp-library-mode) .mp-point-row:hover{background:rgba(168,85,247,.08)!important}
+body #page-planejador.page:not(.mp-library-mode) .mp-safe-stage-head>span:first-child b{font-size:13px!important}
+body #page-planejador.page:not(.mp-library-mode) .mp-safe-stage-head small,body #page-planejador.page:not(.mp-library-mode) .mp-safe-stage-summary{font-size:11px!important}
+
+/* botões fixos "Voltar / Próxima etapa" */
+body #page-planejador.page:not(.mp-library-mode) #mpStepNext,body #page-planejador.page:not(.mp-library-mode) #mpStepPrev{min-height:46px!important;font-size:14.5px!important;border-radius:12px!important}
+body #page-planejador.page:not(.mp-library-mode) #mpStepNext:not(:disabled){background:linear-gradient(135deg,var(--pv-acc2),var(--pv-acc),#c026d3)!important;background-size:200% 100%!important;animation:pvShine 4s ease-in-out infinite;box-shadow:0 10px 24px rgba(124,58,237,.35)}
+
+/* ---------- mapa ---------- */
+body #page-planejador.page:not(.mp-library-mode) .mission-planner-mapwrap{border-radius:16px!important;overflow:hidden;border:1px solid var(--pv-line)!important;box-shadow:0 18px 50px rgba(0,0,0,.45);animation:pvIn .5s .1s ease both}
+body #page-planejador.page .mp-map-status{border-radius:12px!important;padding:10px 14px!important;backdrop-filter:blur(10px);gap:14px!important}
+body #page-planejador.page .mp-map-status>b{font:700 13px var(--pv-head)!important;letter-spacing:.12em!important}
+body #page-planejador.page .mp-map-kpis{display:flex!important;gap:16px!important;font-size:13px!important}
+body #page-planejador.page .mp-map-kpis span{display:inline-flex;gap:5px;align-items:baseline}
+body #page-planejador.page .mp-map-kpis b{font:700 15px var(--pv-head)!important;color:#fff}
+
+/* ---------- animações ---------- */
+@keyframes pvUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+@keyframes pvDown{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+@keyframes pvIn{from{opacity:0}to{opacity:1}}
+@keyframes pvBar{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes pvShine{0%,100%{background-position:0 0}50%{background-position:100% 0}}
+
+@media(max-width:1180px){body #page-planejador.page:not(.mp-library-mode) .mission-planner-shell{grid-template-columns:340px minmax(0,1fr)!important}}
+@media(max-width:1050px){body #page-planejador.page:not(.mp-library-mode) .mission-planner-shell{grid-template-columns:1fr!important}}
+@media(prefers-reduced-motion:reduce){body #page-planejador.page *{animation:none!important;transition:none!important}}
+body #page-planejador.page .mp-layer-toggle{font-size:12.5px!important;padding:10px 12px!important}
+body #page-planejador.page .mp-layer-body{font-size:12.5px!important}
+body #page-planejador.page .mp-layer-title{font-size:11px!important;letter-spacing:.08em}

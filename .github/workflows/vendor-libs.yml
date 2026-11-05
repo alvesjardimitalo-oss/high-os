@@ -1,0 +1,30 @@
+name: Bibliotecas locais (Leaflet + html2canvas)
+# Baixa as bibliotecas de CDN para assets/vendor/, para o painel não depender de CDN.
+# Rode manualmente em Actions > "Bibliotecas locais" > Run workflow.
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  vendor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Baixar
+        run: |
+          set -e
+          mkdir -p assets/vendor/leaflet/images
+          base=https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist
+          curl -fsSL $base/leaflet.js -o assets/vendor/leaflet/leaflet.js
+          curl -fsSL $base/leaflet.css -o assets/vendor/leaflet/leaflet.css
+          for f in layers.png layers-2x.png marker-icon.png marker-icon-2x.png marker-shadow.png; do curl -fsSL $base/images/$f -o assets/vendor/leaflet/images/$f; done
+          curl -fsSL https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js -o assets/vendor/html2canvas.min.js
+          head -c 200 assets/vendor/leaflet/leaflet.js | grep -q Leaflet
+          head -c 300 assets/vendor/html2canvas.min.js | grep -qi html2canvas
+          ls -la assets/vendor assets/vendor/leaflet
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add assets/vendor
+          git diff --cached --quiet && echo "nada novo" || (git commit -m "Bibliotecas locais: Leaflet 1.9.4 e html2canvas 1.4.1" && git push)

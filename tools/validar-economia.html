@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="pt-BR">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>High OS Dev • Validação da Economia</title>
+<body>
+<main style="max-width:1400px;margin:24px auto;padding:16px">
+<p>Validação da interface • sem acesso a cadastros reais e sem gravações.</p>
+<div id="fixture">Carregando módulos da Economia Ilegal…</div>
+</main>
+<script type="module">
+import {createActionWorkspace} from '../assets/modules/acoes-workspace.js?v=15';
+import {cleanRegistry} from '../assets/modules/acoes-cadastro.js?v=5';
+try{
+ const url=new URL('../index.html',location.href);
+ const response=await fetch(url,{cache:'no-store'});if(!response.ok)throw Error('HTML indisponível');
+ const source=new DOMParser().parseFromString(await response.text(),'text/html');
+ await Promise.all([...source.querySelectorAll('link[rel="stylesheet"]')].filter(x=>x.getAttribute('href').startsWith('assets/')).map(x=>new Promise(resolve=>{
+  const link=document.createElement('link');link.rel='stylesheet';link.href=new URL(x.getAttribute('href'),url);link.onload=resolve;link.onerror=resolve;document.head.append(link);
+ })));
+ const page=source.querySelector('#page-planejador-acoes');page.classList.add('active');
+ document.getElementById('fixture').replaceChildren(page);
+ const workspace=createActionWorkspace({root:page.querySelector('#actionEconomyPlanner'),getActions:()=>[],getPublished:()=>[],getSelected:()=>'',getCatalog:()=>null,select:()=>{},refresh:()=>{},onReadRegistry:async()=>cleanRegistry(null)});
+ await workspace.load();workspace.paint();
+}catch(error){document.getElementById('fixture').textContent='Falha na validação: '+error.message;console.error(error);}
+</script>
+</body>
+</html>

@@ -20,11 +20,8 @@ export const estado = {
   metricas: [],
   /** Copia usada para comparar o que mudou antes de gravar. */
   metricasCache: [],
-  /** Groups da season ativa - e o que as telas usam. */
+  /** Groups e faccoes carregados do Firestore. */
   faccoes: [],
-  /** Todos os Groups gravados, sem filtro de season. Serve para a
-      administracao enxergar o que ficou de fora da planilha atual. */
-  faccoesTodas: [],
   /** Eventos de auditoria carregados (janela paginada). */
   historico: [],
   /** Organizacoes vinculadas aos Groups. */

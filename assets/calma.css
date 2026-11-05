@@ -154,13 +154,9 @@
 }
 .logs-head input:focus{outline:none;border-color:rgba(141,53,255,.55)}
 .logs-stats{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
-.logs-list{display:grid;gap:6px}
-
-/* =========================================================
+.logs-list{display:grid;gap:6px} /* =========================================================
    CHAT REPAGINADO (V12.2)
-   Bloco por autor, separador de dia, hora só no fim do bloco.
-   ========================================================= */
-.hm-messages{padding:18px 16px!important}
+   Bloco por autor, separador de dia{padding:18px 16px!important}
 
 .chat-dia{display:flex;align-items:center;gap:12px;margin:18px 0 12px}
 .chat-dia::before,.chat-dia::after{content:"";flex:1;height:1px;background:var(--linha)}
@@ -214,13 +210,6 @@
 }
 .chat-bloco:hover .chat-delete{opacity:1}
 .chat-balao .chat-delete:hover{background:#ff5b76;color:#fff;border-color:#ff5b76}
-
-.hm-empty{
-  display:flex;flex-direction:column;align-items:center;justify-content:center;
-  height:100%;min-height:220px;gap:6px;text-align:center;
-}
-.hm-empty b{font-size:14px;color:#fff;font-weight:600}
-.hm-empty span{font-size:12px;color:var(--hm-text-3);max-width:34ch;line-height:1.6}
 
 /* =========================================================
    ORGANIZAÇÕES · TOPO CONSOLIDADO (V12.3.2)
@@ -286,6 +275,76 @@
 .triagem-col.carencia header b{color:#7cc7ff}
 .triagem-col.carencia header span{background:rgba(124,199,255,.16);color:#7cc7ff}
 
+/* V12.6 - TROCA DE GROUP (permissões) */
+.admin-group-toolbar{grid-template-columns:1fr 190px auto}
+.tg-card{width:min(1040px,96vw)}
+.tg-pick{display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:end;margin:16px 0 12px}
+.tg-pick label,.tg-motivo{display:block;font-size:10px;font-weight:900;letter-spacing:.1em;color:#a89daf}
+.tg-pick select,.tg-motivo textarea{width:100%;box-sizing:border-box;margin-top:6px;background:#0d0b12;border:1px solid #30263b;color:#fff;border-radius:9px;padding:11px;font:inherit;font-size:13px;letter-spacing:0}
+.tg-arrow{font-size:22px;color:var(--purple2,#b878ff);padding-bottom:9px}
+.tg-modo{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.tg-modo label{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid #30263b;background:#0b0910;border-radius:10px;cursor:pointer}
+.tg-modo label:has(input:checked){border-color:#8d35ff;background:#170f22}
+.tg-modo input{accent-color:#9a1ee7;margin-top:3px}
+.tg-modo b,.tg-modo small{display:block}.tg-modo b{font-size:11px;letter-spacing:.06em}.tg-modo small{color:#8e8496;font-size:11px;margin-top:3px;line-height:1.4}
+.tg-locais{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tg-local{border:1px solid #342440;background:#0c0911;border-radius:12px;overflow:hidden}
+.tg-local header{padding:10px 12px;border-bottom:1px solid #2a2033;background:#120d18}
+.tg-local header span,.tg-local header b,.tg-local header small{display:block}
+.tg-local header span{font-size:10px;color:#a89daf;font-weight:800}
+.tg-local header b{font-size:15px;margin-top:3px}.tg-local header b i{font-style:normal;color:var(--yellow,#f4ec25);margin:0 4px}
+.tg-local header small{font-size:11px;color:#c99de1;margin-top:3px}
+.tg-local ul{list-style:none;margin:0;padding:6px 0;max-height:260px;overflow:auto}
+.tg-local li{display:grid;grid-template-columns:minmax(110px,.8fr) 1.2fr;gap:2px 10px;padding:6px 12px;font-size:11px;border-bottom:1px solid rgba(255,255,255,.04)}
+.tg-local li span{color:#d8cde0;font-weight:700}
+.tg-local li code{color:#8e8496;font:10px/1.4 ui-monospace,SFMono-Regular,Consolas,monospace;word-break:break-all}
+.tg-local li em{grid-column:1/-1;font-style:normal;color:var(--yellow,#f4ec25);font-size:10px;font-weight:800}
+.tg-local li.tg-craft{background:rgba(244,236,37,.04)}
+.tg-local li.tg-vazio{display:block;color:#8e8496}
+.tg-avisos{display:grid;gap:5px;margin-top:10px}
+.tg-avisos span{font-size:11px;color:#ffd86a;background:#2a2410;border:1px solid #5b4d1c;border-radius:8px;padding:7px 10px}
+.tg-motivo{margin-top:12px}
+.tg-pronto{margin-top:12px;border:1px solid #275a36;background:#0d1a12;border-radius:12px;padding:12px}
+.tg-pronto-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.tg-pronto-head b{color:#78e89c;font-size:12px;letter-spacing:.08em}
+.tg-pronto pre{margin:10px 0 6px;padding:10px;background:#08060c;border:1px solid #30263b;border-radius:9px;white-space:pre-wrap;word-break:break-word;font:11px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;max-height:260px;overflow:auto;color:#e6dbea}
+.tg-pronto small{color:#8e8496;font-size:11px}
+.admin-group-swap{white-space:nowrap}
+@media(max-width:760px){.tg-pick,.tg-modo,.tg-locais{grid-template-columns:1fr}.tg-arrow{display:none}.admin-group-toolbar{grid-template-columns:1fr}}
+
+/* V12.6 - conferência de amenidades da Troca de Group */
+.tg-amen{border:1px solid #342440;background:#0c0911;border-radius:12px;padding:12px;margin-bottom:10px}
+.tg-amen-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:8px}
+.tg-amen-head b{font-size:11px;letter-spacing:.12em}.tg-amen-head span{font-size:11px;color:#c99de1}
+.tg-amen-scroll{overflow-x:auto}
+.tg-amen-tabela{width:100%;border-collapse:collapse;font-size:11px;min-width:640px}
+.tg-amen-tabela th{text-align:left;font-size:10px;letter-spacing:.08em;color:#a89daf;padding:6px 8px;border-bottom:1px solid #2a2033}
+.tg-amen-tabela th small,.tg-amen-tabela td>small,.tg-amen-tabela td b+small{display:block;font-weight:400;color:#8e8496;letter-spacing:0;margin-top:2px}
+.tg-amen-tabela td{padding:6px 8px;border-bottom:1px solid rgba(255,255,255,.04);vertical-align:top}
+.tg-amen-tabela td.tg-nao{color:#5d5566}
+.tg-posse{display:block;width:100%;text-align:left;cursor:pointer;border-radius:8px;padding:5px 8px;border:1px solid #30263b;background:#120e17;color:#fff}
+.tg-posse b{font-size:10px;letter-spacing:.06em}.tg-posse small{display:block;color:#8e8496;font:10px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace;word-break:break-all;margin-top:2px}
+.tg-posse.comprada{border-color:#8d35ff;background:#1a0f27}.tg-posse.comprada b{color:#d6a3ff}
+.tg-posse.base b{color:#9e97a6}
+.tg-res{display:flex;flex-wrap:wrap;gap:4px}
+.tg-acao{font-size:9px;font-weight:900;letter-spacing:.06em;border-radius:999px;padding:4px 7px;border:1px solid #3b3044;white-space:nowrap}
+.tg-acao i{font-style:normal;font-weight:700;opacity:.8}
+.tg-acao.implantar{color:#72e69a;background:#14331f;border-color:#275a36}
+.tg-acao.transferir,.tg-acao.efetivar{color:#9acaff;background:#12293c;border-color:#214966}
+.tg-acao.remover{color:#ff8a91;background:#351a1d;border-color:#6b2b32}
+.tg-acao.manter,.tg-acao.ok{color:#9e97a6;background:#1a1620}
+.tg-amen-nota{display:block;margin-top:8px;color:#8e8496;font-size:11px}
+.tg-detalhe{margin-bottom:6px}.tg-detalhe summary{cursor:pointer;font-size:11px;font-weight:800;letter-spacing:.08em;color:#a89daf;padding:6px 0}
+
+/* V12.6 - vigência das métricas na Troca de Group */
+.tg-metricas{display:grid;grid-template-columns:230px 1fr;gap:12px;align-items:start;border:1px solid #214966;background:#0b1520;border-radius:12px;padding:10px 12px;margin-bottom:10px}
+.tg-metricas label{font-size:10px;font-weight:900;letter-spacing:.08em;color:#9acaff}
+.tg-metricas input{width:100%;box-sizing:border-box;margin-top:6px;background:#0d0b12;border:1px solid #30263b;color:#fff;border-radius:9px;padding:9px;color-scheme:dark}
+.tg-metricas input:disabled{opacity:.45}
+.tg-metricas p{margin:0;font-size:12px;line-height:1.55;color:#d8e8f7}
+.tg-metricas p small{color:#8e9aa6;font-size:11px}
+@media(max-width:760px){.tg-metricas{grid-template-columns:1fr}}
+
 /* ============================================================
    V13 · SEASON
    A escolha da season e a primeira coisa depois do login: define
@@ -314,3 +373,5 @@
 .season-badge:hover{border-color:var(--purple,#8d35ff)}
 .season-badge b{display:block;font-size:11.5px;letter-spacing:.04em}
 .season-badge small{display:block;font-size:9.5px;color:var(--muted,#a79db6)}
+.season-badge.vazia{border-style:dashed}
+.season-badge.vazia b{color:var(--yellow,#ffc93c)}

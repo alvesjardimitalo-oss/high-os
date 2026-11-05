@@ -247,7 +247,7 @@ if (process.argv.includes('--md')) {
       L.push(`| \`${f.nome}\` | ${f.arquivo}:${f.linha} | ${f.linhas} | ${por} | ${f.chama.size} |`);
     }
   }
-  fs.writeFileSync(path.join(raiz, 'INDICE-DO-CODIGO.md'), L.join('\n') + '\n');
-  console.log('\nINDICE-DO-CODIGO.md gravado.');
+  fs.writeFileSync(path.join(raiz, 'docs', 'INDICE-DO-CODIGO.md'), L.join('\n') + '\n');
+  console.log('\ndocs/INDICE-DO-CODIGO.md gravado.');
 }
 console.log('');

@@ -53,7 +53,16 @@ export function ligarPaineis(box, deps, rerender) {
   q('[data-pd-todas]').forEach(b => b.onclick = () => { ui.todas = !ui.todas; rerender(); });
   q('[data-pd-entregar]').forEach(b => b.onclick = () => deps.abrirEntrega(b.dataset.pdEntregar));
   q('[data-po-nova]').forEach(b => b.onclick = () => deps.abrirEntrega(''));
-  q('[data-pd-copy]').forEach(b => b.onclick = async () => { const f = deps.estado.faccoes.find(x => x.group === b.dataset.pdCopy); try { await navigator.clipboard.writeText(deps.anuncioTexto(f)); b.textContent = 'COPIADO ✓'; setTimeout(() => b.textContent = 'ANÚNCIO', 1200); } catch (e) { deps.alert('Não foi possível copiar.'); } });
+  q('[data-pd-copy]').forEach(b => b.onclick = async () => {
+    const f = deps.estado.faccoes.find(x => x.group === b.dataset.pdCopy);
+    try { await navigator.clipboard.writeText(deps.anuncioTexto(f)); b.textContent = 'COPIADO ✓'; } catch (e) { deps.alert('Não foi possível copiar.'); }
+    /* V14.7: também posta o texto + fotos do QG no canal 📋 anúncios-para-copiar do bot */
+    if (!deps.postarAnuncio) { setTimeout(() => b.textContent = 'ANÚNCIO', 1200); return; }
+    b.disabled = true; b.textContent = 'ENVIANDO…';
+    try { const r = await deps.postarAnuncio(f); b.textContent = r && r.images ? `NO DISCORD ✓ ${r.images} FOTO${r.images > 1 ? 'S' : ''}` : 'NO DISCORD ✓'; }
+    catch (e) { b.textContent = 'COPIADO ✓'; deps.alert('Texto copiado, mas não consegui postar no Discord: ' + (e && e.message || e)); }
+    finally { b.disabled = false; setTimeout(() => b.textContent = 'ANÚNCIO', 2500); }
+  });
   q('[data-pd-post]').forEach(b => b.onclick = async () => { b.disabled = true; try { await deps.marcarPostado(b.dataset.pdPost, b.dataset.v === '1'); } finally { rerender(); } });
   q('[data-po-revisar]').forEach(b => b.onclick = () => abrirRevisao(deps));
   q('[data-po-filtro]').forEach(b => b.onclick = () => deps.abrirOrganizacoes(b.dataset.poFiltro));
