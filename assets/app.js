@@ -1890,7 +1890,7 @@ if(page==='economia')setTimeout(()=>loadMarketCatalog(),0);
 if(page==='solicitacoes')setTimeout(()=>loadRequests(),0);
 if(page==='diario')setTimeout(()=>loadOperationalDiary(),0);
 if(page==='qgs')setTimeout(async()=>{try{if(!faccoesLoaded)await loadFaccoes()}catch(e){}renderQgs()},0);
-if(page==='receitas')setTimeout(async()=>{if(!catalogoCarregado)await carregarCatalogo();renderCatalogo()},0);
+if(page==='receitas')setTimeout(async()=>{await carregarCatalogo();renderCatalogo()},0);
 if(['dashboard','metricas','faccoes','organizacoes','disponiveis','entregas','group-profile','group-settings','org-profile'].includes(page)&&!faccoesLoaded)setTimeout(()=>loadFaccoes().catch(e=>console.warn('[FACÇÕES] lazy-load falhou',e)),0);
 if(['dashboard','metricas'].includes(page)&&!metricsLoaded)setTimeout(async()=>{try{if(!faccoesLoaded)await loadFaccoes();await loadMetrics()}catch(e){console.warn('[MÉTRICAS] lazy-load falhou',e)}},0);
 if(page==='planejador')carregarPlanejadorMissoes().then(()=>setTimeout(()=>window.HighMissionPlanner?.activate?.(),60)).catch(err=>{console.error('[PLANEJADOR]',err);const box=document.querySelector('#page-planejador');if(box)box.insertAdjacentHTML('afterbegin','<div class="placeholder"><h3>NÃO FOI POSSÍVEL CARREGAR O PLANEJADOR</h3><p>Recarregue a página.</p></div>')});
@@ -2016,33 +2016,30 @@ async function loadFaccoes(){
    ============================================================ */
 let catalogoCraft={versao:0,segmentos:{}}, catSegAtivo='', catalogoCarregado=false;
 
+/* O panorama e MONTADO a partir dos QGs da season, nao de um catalogo
+   separado: a receita mora no QG, junto das coordenadas. Assim nao ha
+   duas verdades sobre a mesma receita. Custo zero de leitura: a season
+   ja esta carregada. */
 async function carregarCatalogo(){
- try{
-  const snap=await getDoc(doc(db,...catCraft.DOC_CATALOGO));
-  catalogoCraft=catCraft.normalizarCatalogo(snap.exists()?snap.data():{});
- }catch(e){
-  console.warn('[CATÁLOGO] não leu:',e?.message||e);
-  catalogoCraft={versao:0,segmentos:{}};
+ const segmentos={};
+ for(const q of (season.qgs||[])){
+  const receitas=q.craft?.receitas||[];
+  if(!receitas.length)continue;
+  const seg=(q.setor||'SEM SETOR').toUpperCase();
+  (segmentos[seg]=segmentos[seg]||{receitas:[]}).receitas.push(...receitas);
  }
+ catalogoCraft=catCraft.normalizarCatalogo({segmentos});
  catalogoCarregado=true;
  return catalogoCraft;
 }
 
-async function gravarCatalogo(){
- await setDoc(doc(db,...catCraft.DOC_CATALOGO),{
-  ...catalogoCraft,
-  versao:Number(catalogoCraft.versao||0)+1,
-  atualizadoEm:serverTimestamp(),
-  atualizadoPor:currentUser?.email||''
- });
- catalogoCraft.versao=Number(catalogoCraft.versao||0)+1;
-}
+
 
 function renderCatalogo(){
  const box=$('#catalogoBox');
  if(!box)return;
  box.innerHTML=catUi.catalogoHtml({catalogo:catalogoCraft,segmentoAtivo:catSegAtivo,esc,
-  podeEditar:canEditModule('faccoes')});
+  podeEditar:false});
  ligarCatalogo();
 }
 
@@ -2050,219 +2047,152 @@ function ligarCatalogo(){
  const box=$('#catalogoBox');
  if(!box)return;
  box.querySelectorAll('[data-cat-seg]').forEach(b=>b.onclick=()=>{catSegAtivo=b.dataset.catSeg;renderCatalogo()});
- box.querySelectorAll('[data-cat-semear]').forEach(b=>b.onclick=semearCatalogoDoCodigo);
- box.querySelectorAll('[data-cat-novo-seg]').forEach(b=>b.onclick=novoSegmentoCatalogo);
- box.querySelectorAll('[data-cat-nova]').forEach(b=>b.onclick=()=>abrirEditorReceita(b.dataset.catNova,null));
- box.querySelectorAll('[data-cat-editar]').forEach(b=>b.onclick=()=>abrirEditorReceita(catSegAtivo||Object.keys(catalogoCraft.segmentos)[0],b.dataset.catEditar));
 }
 
-/* A primeira carga traz o que ja existe no codigo, para a equipe nao
-   redigitar o que a cidade ja usa. */
-async function semearCatalogoDoCodigo(){
- if(!canEditModule('faccoes'))return permissionDeniedMessage('faccoes',true);
- const fonte={ARMAS:ARMAS_STANDARD_RECIPES,'MUNIÇÃO':MUNICAO_STANDARD_RECIPES,
-  LAVAGEM:LAVAGEM_STANDARD_RECIPES,DESMANCHE:DESMANCHE_STANDARD_RECIPES};
- const semente=catCraft.semearCatalogo(fonte);
- const r=catCraft.resumoCatalogo(semente);
- if(!confirm(`Carregar ${r.receitas} receitas de ${r.segmentos} segmentos que já estão no sistema?\n\nIsso substitui o catálogo atual.`))return;
- try{
-  catalogoCraft={...semente,versao:Number(catalogoCraft.versao||0)};
-  await gravarCatalogo();
-  catSegAtivo='ARMAS';
-  renderCatalogo();
- }catch(e){alert('Não gravou: '+e.message)}
-}
-
-async function novoSegmentoCatalogo(){
- if(!canEditModule('faccoes'))return permissionDeniedMessage('faccoes',true);
- const nome=(prompt('Nome do segmento (como aparece no cadastro do Group):','')||'').trim().toUpperCase();
- if(!nome)return;
- if(catalogoCraft.segmentos[nome])return alert('Esse segmento já existe no catálogo.');
- catalogoCraft.segmentos[nome]={receitas:[]};
- try{await gravarCatalogo();catSegAtivo=nome;renderCatalogo()}
- catch(e){alert('Não gravou: '+e.message)}
-}
-
-function abrirEditorReceita(segmento,receitaId){
- if(!canEditModule('faccoes'))return permissionDeniedMessage('faccoes',true);
- const bloco=catalogoCraft.segmentos[segmento];
- if(!bloco)return;
- const nova=!receitaId;
- const base=nova?catCraft.normalizarReceita({}):bloco.receitas.find(r=>r.id===receitaId);
- if(!base)return;
-
- const modal=document.createElement('div');
- modal.className='modal';
- modal.innerHTML=`<div class="modal-card cat-modal">
-   <button class="modal-x" type="button" aria-label="Fechar">×</button>
-   <div class="eyebrow">${nova?'NOVA RECEITA':'EDITAR RECEITA'} · ${esc(segmento)}</div>
-   <h2 style="margin:4px 0 14px">${esc(base.nome||'Sem nome')}</h2>
-   ${catUi.editorReceitaHtml(base,catalogoCraft,esc)}
-   <div class="modal-actions">
-    ${nova?'':'<button type="button" class="btn-danger" data-apagar>APAGAR RECEITA</button>'}
-    <div style="display:flex;gap:9px;margin-left:auto">
-     <button type="button" class="btn-secondary compact" data-fechar>CANCELAR</button>
-     <button type="button" class="btn-primary compact" data-salvar>SALVAR</button>
-    </div>
-   </div>
-  </div>`;
- document.body.appendChild(modal);
- const fechar=()=>modal.remove();
- modal.querySelector('.modal-x').onclick=fechar;
- modal.querySelector('[data-fechar]').onclick=fechar;
- modal.onclick=e=>{if(e.target===modal)fechar()};
-
- const previa=()=>{
-  const atual=catCraft.normalizarReceita(catUi.lerEditorReceita(modal,base));
-  const alvo=modal.querySelector('[data-previa]');
-  if(alvo)alvo.innerHTML=catUi.previaRota(atual,catalogoCraft,esc);
- };
- const lista=modal.querySelector('[data-ins-lista]');
- modal.querySelector('[data-ins-add]').onclick=()=>{
-  const tpl=modal.querySelector('[data-ins-modelo]');
-  lista.insertAdjacentHTML('beforeend',tpl.innerHTML);
-  ligarLinhas();previa();
- };
- function ligarLinhas(){
-  lista.querySelectorAll('[data-ins-remover]').forEach(b=>b.onclick=()=>{b.closest('.cat-ins-linha').remove();previa()});
-  lista.querySelectorAll('[data-i="origem"]').forEach(s=>s.onchange=()=>{
-   s.closest('.cat-ins-linha').querySelector('.cat-ins-receita').style.display=s.value==='CRAFT'?'':'none';
-   previa();
-  });
-  lista.querySelectorAll('[data-i="origem"]').forEach(s=>{
-   s.closest('.cat-ins-linha').querySelector('.cat-ins-receita').style.display=s.value==='CRAFT'?'':'none';
-  });
- }
- ligarLinhas();
- modal.addEventListener('input',previa);
- previa();
-
- modal.querySelector('[data-apagar]')?.addEventListener('click',async()=>{
-  if(!confirm(`Apagar a receita "${base.nome||base.id}"?`))return;
-  bloco.receitas=bloco.receitas.filter(r=>r.id!==base.id);
-  try{await gravarCatalogo();fechar();renderCatalogo()}
-  catch(e){alert('Não gravou: '+e.message)}
- });
-
- modal.querySelector('[data-salvar]').addEventListener('click',async ev=>{
-  const btn=ev.currentTarget;
-  const atual=catCraft.normalizarReceita(catUi.lerEditorReceita(modal,base));
-  if(!atual.nome||!atual.spawn)return alert('Produto final e spawn são obrigatórios.');
-  btn.disabled=true;btn.textContent='SALVANDO...';
-  const i=bloco.receitas.findIndex(r=>r.id===atual.id);
-  if(i>=0)bloco.receitas[i]=atual; else bloco.receitas.push(atual);
-  try{
-   await gravarCatalogo();
-   await addDoc(histCol,{sessionId:currentSessionId||'',tipo:nova?'RECEITA_CRIADA':'RECEITA_EDITADA',
-    descricao:`${nova?'Criou':'Editou'} a receita "${atual.nome}" em ${segmento}`,
-    usuario:currentUser?.email||'',data:serverTimestamp()}).catch(()=>{});
-   fechar();renderCatalogo();
-  }catch(e){
-   alert('Não gravou: '+e.message);
-   btn.disabled=false;btn.textContent='SALVAR';
-  }
- });
-}
-
-/* ============================================================
-   V13 · QGs DA SEASON
-   O Firebase e o banco: esta tela grava. A planilha semeia e
-   serve de espelho, mas nao manda.
-   ============================================================ */
-let qgFiltro={setor:'',estado:'',busca:''};
-
-function renderQgs(){
- const box=$('#qgsBox');
- if(!box)return;
- box.innerHTML=qgsUi.qgsHtml({season,faccoes:faccoesTodas||[],esc,filtro:qgFiltro});
- ligarQgs();
-}
-
-function ligarQgs(){
- const box=$('#qgsBox');
- if(!box)return;
- box.querySelectorAll('[data-qg-estado]').forEach(b=>b.onclick=()=>{
-  qgFiltro.estado=b.dataset.qgEstado; renderQgs();
- });
- const busca=$('#qgBusca');
- if(busca)busca.oninput=()=>{qgFiltro.busca=busca.value;clearTimeout(busca._t);
-  busca._t=setTimeout(()=>{const pos=busca.selectionStart;renderQgs();
-   const novo=$('#qgBusca');if(novo){novo.focus();novo.setSelectionRange(pos,pos)}},250)};
- const setor=$('#qgSetor');
- if(setor)setor.onchange=()=>{qgFiltro.setor=setor.value;renderQgs()};
-
- box.querySelectorAll('[data-qg-editar]').forEach(b=>b.onclick=()=>abrirEditorQg(b.dataset.qgEditar));
- box.querySelectorAll('[data-qg-vincular]').forEach(b=>b.onclick=()=>vincularQg(b.dataset.qgVincular));
- box.querySelectorAll('[data-qg-desvincular]').forEach(b=>b.onclick=()=>desvincularQg(b.dataset.qgDesvincular));
-}
-
-function qgPorChave(chave){return (season.qgs||[]).find(q=>q.chave===chave)}
-
-async function vincularQg(chave){
- if(!canEditModule('faccoes'))return permissionDeniedMessage('faccoes',true);
- const q=qgPorChave(chave);
- if(!q)return;
- const sugestao=qgsUi.sugerirGroup(q.setor,faccoesTodas||[],season.qgs||[]);
- const nome=prompt(`Vincular um Group a "${q.local||chave}".\n\nSugestão pela convenção do setor:`,sugestao);
- if(nome===null)return;
- try{
-  await vincularGroup(fnsFila(),chave,nome,currentUser?.email||'');
-  await registrarHistoricoQg('QG_VINCULADO',q,`Group ${nome.trim()} vinculado a ${q.local||chave}`);
-  renderQgs(); renderSeasonBadge();
- }catch(e){alert('Não vinculou: '+e.message)}
-}
-
-async function desvincularQg(chave){
- if(!canEditModule('faccoes'))return permissionDeniedMessage('faccoes',true);
- const q=qgPorChave(chave);
- if(!q)return;
- if(!confirm(`Tirar o Group "${q.group}" de "${q.local||chave}"?\n\nO cadastro do Group não é apagado — ele só deixa de ocupar este QG.`))return;
- try{
-  await desvincularGroup(fnsFila(),chave,currentUser?.email||'');
-  await registrarHistoricoQg('QG_DESVINCULADO',q,`Group ${q.group} desvinculado de ${q.local||chave}`);
-  renderQgs(); renderSeasonBadge();
- }catch(e){alert('Não desvinculou: '+e.message)}
-}
-
-function abrirEditorQg(chave){
+/* ------------------------------------------------------------
+   CRAFT E ROTA DO QG
+   A receita e cadastrada no Group, e o Group mora num QG - entao
+   ela fica no proprio registro do QG, junto das coordenadas. Uma
+   leitura traz o lugar, a receita e a rota: e o que a solicitacao
+   precisa, tudo no mesmo documento.
+   ------------------------------------------------------------ */
+function abrirCraftQg(chave){
  const q=qgPorChave(chave);
  if(!q)return;
  const pode=canEditModule('faccoes');
+ /* Catalogo de uma season so: as receitas dos QGs dela, para um insumo
+    poder apontar para a receita de outro QG quando for intermediario. */
+ const catalogoDaSeason=()=>({versao:1,segmentos:{
+  SEASON:{receitas:(season.qgs||[]).flatMap(x=>(x.craft?.receitas||[]))}
+ }});
+
+ let receitas=catCraft.normalizarCatalogo({segmentos:{S:{receitas:q.craft?.receitas||[]}}}).segmentos.S.receitas;
+
  const modal=document.createElement('div');
  modal.className='modal';
- modal.innerHTML=`<div class="modal-card qg-modal">
+ document.body.appendChild(modal);
+
+ function desenhar(){
+  const cat=catalogoDaSeason();
+  const rotaTotal=receitas.flatMap(r=>catCraft.rotaDaReceita(r,cat));
+  const soma=new Map();
+  for(const i of rotaTotal){
+   const k=i.spawn.toLowerCase();
+   const c=soma.get(k)||{spawn:i.spawn,qtd:0,semReceita:false};
+   c.qtd+=i.qtd; if(i.semReceita)c.semReceita=true; soma.set(k,c);
+  }
+  const rota=[...soma.values()].sort((a,b)=>b.qtd-a.qtd);
+
+  modal.innerHTML=`<div class="modal-card cat-modal">
    <button class="modal-x" type="button" aria-label="Fechar">×</button>
-   <div class="eyebrow">COORDENADAS DO QG</div>
+   <div class="eyebrow">CRAFT E ROTA</div>
    <h2 style="margin:4px 0 2px">${esc(q.local||chave)}</h2>
-   <p class="page-subtitle" style="margin:0 0 16px">${esc(q.setor||'sem setor')}${q.group?' · Group '+esc(q.group):' · sem Group'}</p>
-   ${qgsUi.editorHtml(q,esc)}
+   <p class="page-subtitle" style="margin:0 0 16px">${q.group?'Group '+esc(q.group):'<b>sem Group vinculado</b> — a receita fica guardada no QG e segue com ele'}${q.setor?' · '+esc(q.setor):''}</p>
+
+   <div class="cat-layout">
+    <section>
+     <div class="cat-cab"><h3>Receitas</h3>
+      ${pode?'<button type="button" class="mini-btn primaria" data-nova>NOVA RECEITA</button>':''}</div>
+     ${receitas.length?`<div class="cat-receitas">${receitas.map((r,i)=>`
+       <article class="cat-receita">
+        <header><div><h4>${esc(r.nome||'(sem nome)')}</h4>
+         <span>${esc(r.spawn||'sem spawn')}${r.nivel?' · nível '+r.nivel:''}${r.max?' · máx '+r.max:''}</span></div>
+         ${pode?`<button type="button" class="mini-btn" data-edit="${i}">EDITAR</button>`:''}</header>
+        <div class="cat-insumos">${r.insumos.map(x=>`<span class="ins ${x.origem.toLowerCase()}">${esc(x.spawn)} <b>×${x.qtd}</b><i>${esc(catCraft.ORIGENS[x.origem]?.label||x.origem)}</i></span>`).join('')||'<span class="vazio">sem insumos</span>'}</div>
+       </article>`).join('')}</div>`
+      :`<div class="placeholder peq"><h3>SEM RECEITA</h3><p>Cadastre o que este QG fabrica. A rota sai dos insumos.</p></div>`}
+    </section>
+    <aside class="cat-rota">
+     <h3>Rota</h3>
+     <p>O que a facção precisa colher para dar conta das receitas deste QG. Entra na solicitação junto das coordenadas.</p>
+     ${rota.length?`<ul>${rota.map(i=>`<li${i.semReceita?' class="alerta"':''}><b>${esc(i.spawn)}</b><span>×${i.qtd}</span>${i.semReceita?'<small>craft sem receita cadastrada</small>':''}</li>`).join('')}</ul>`
+      :'<p class="vazio">Nada a colher ainda.</p>'}
+    </aside>
+   </div>
+
    <div class="modal-actions">
-    <button type="button" class="btn-secondary" data-fechar>FECHAR</button>
+    <button type="button" class="btn-secondary compact" data-fechar>FECHAR</button>
     ${pode?'<button type="button" class="btn-primary compact" data-salvar>SALVAR NO BANCO</button>':''}
    </div>
   </div>`;
- document.body.appendChild(modal);
- const fechar=()=>modal.remove();
- modal.querySelector('.modal-x').onclick=fechar;
- modal.querySelector('[data-fechar]').onclick=fechar;
- modal.onclick=e=>{if(e.target===modal)fechar()};
- if(!pode)modal.querySelectorAll('input').forEach(i=>i.disabled=true);
 
- modal.querySelector('[data-salvar]')?.addEventListener('click',async ev=>{
+  modal.querySelector('.modal-x').onclick=()=>modal.remove();
+  modal.querySelector('[data-fechar]').onclick=()=>modal.remove();
+  modal.querySelector('[data-nova]')?.addEventListener('click',()=>editarReceitaQg(-1));
+  modal.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>editarReceitaQg(Number(b.dataset.edit)));
+  modal.querySelector('[data-salvar]')?.addEventListener('click',salvar);
+ }
+
+ function editarReceitaQg(idx){
+  const nova=idx<0;
+  const base=nova?catCraft.normalizarReceita({}):receitas[idx];
+  const cat=catalogoDaSeason();
+  const sub=document.createElement('div');
+  sub.className='modal';
+  sub.innerHTML=`<div class="modal-card cat-modal">
+    <button class="modal-x" type="button" aria-label="Fechar">×</button>
+    <div class="eyebrow">${nova?'NOVA RECEITA':'EDITAR RECEITA'}</div>
+    <h2 style="margin:4px 0 14px">${esc(base.nome||'Sem nome')}</h2>
+    ${catUi.editorReceitaHtml(base,cat,esc)}
+    <div class="modal-actions">
+     ${nova?'':'<button type="button" class="btn-danger" data-apagar>APAGAR</button>'}
+     <div style="display:flex;gap:9px;margin-left:auto">
+      <button type="button" class="btn-secondary compact" data-cancelar>CANCELAR</button>
+      <button type="button" class="btn-primary compact" data-ok>OK</button>
+     </div>
+    </div>
+   </div>`;
+  document.body.appendChild(sub);
+  const fecharSub=()=>sub.remove();
+  sub.querySelector('.modal-x').onclick=fecharSub;
+  sub.querySelector('[data-cancelar]').onclick=fecharSub;
+
+  const previa=()=>{
+   const atual=catCraft.normalizarReceita(catUi.lerEditorReceita(sub,base));
+   const alvo=sub.querySelector('[data-previa]');
+   if(alvo)alvo.innerHTML=catUi.previaRota(atual,cat,esc);
+  };
+  const lista=sub.querySelector('[data-ins-lista]');
+  sub.querySelector('[data-ins-add]').onclick=()=>{
+   lista.insertAdjacentHTML('beforeend',sub.querySelector('[data-ins-modelo]').innerHTML);
+   ligar();previa();
+  };
+  function ligar(){
+   lista.querySelectorAll('[data-ins-remover]').forEach(b=>b.onclick=()=>{b.closest('.cat-ins-linha').remove();previa()});
+   lista.querySelectorAll('[data-i="origem"]').forEach(sl=>{
+    const cx=sl.closest('.cat-ins-linha').querySelector('.cat-ins-receita');
+    cx.style.display=sl.value==='CRAFT'?'':'none';
+    sl.onchange=()=>{cx.style.display=sl.value==='CRAFT'?'':'none';previa()};
+   });
+  }
+  ligar(); sub.addEventListener('input',previa); previa();
+
+  sub.querySelector('[data-apagar]')?.addEventListener('click',()=>{
+   if(!confirm(`Apagar "${base.nome||'esta receita'}"?`))return;
+   receitas.splice(idx,1); fecharSub(); desenhar();
+  });
+  sub.querySelector('[data-ok]').onclick=()=>{
+   const atual=catCraft.normalizarReceita(catUi.lerEditorReceita(sub,base));
+   if(!atual.nome||!atual.spawn)return alert('Produto final e spawn são obrigatórios.');
+   if(nova)receitas.push(atual); else receitas[idx]=atual;
+   fecharSub(); desenhar();
+  };
+ }
+
+ async function salvar(ev){
   const btn=ev.currentTarget;
   btn.disabled=true; btn.textContent='SALVANDO...';
   try{
-   const atualizado=qgsUi.lerEditor(modal,q);
-   await salvarQg(fnsFila(),chave,{
-    local:atualizado.local,setor:atualizado.setor,produto:atualizado.produto,cds:atualizado.cds
-   },currentUser?.email||'');
-   await registrarHistoricoQg('QG_EDITADO',q,`Coordenadas de ${atualizado.local||chave} atualizadas no painel`);
-   fechar(); renderQgs();
+   await salvarQg(fnsFila(),chave,{craft:{receitas}},currentUser?.email||'');
+   await registrarHistoricoQg('QG_CRAFT',q,`Craft de ${q.local||chave}: ${receitas.length} receita(s)`);
+   modal.remove(); renderQgs();
   }catch(e){
    alert('Não salvou: '+e.message);
    btn.disabled=false; btn.textContent='SALVAR NO BANCO';
   }
- });
+ }
+
+ desenhar();
 }
 
 /* O historico ja registra tudo que a equipe faz; os QGs entram nele
