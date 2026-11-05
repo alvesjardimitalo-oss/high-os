@@ -122,14 +122,20 @@ function urlCsv(bruto='',aba=''){
     const base=v.split('/pubhtml')[0].split('/pub')[0];
     const p=new URLSearchParams({single:'true',output:'csv'});
     if(gid)p.set('gid',gid);
-    return {url:`${base}/pub?${p}`, tipo:'publicado'};
+    /* No link publicado so da para escolher a aba pelo gid - nao existe
+       parametro de nome. Se o gid for o de outra aba, o leitor nao acha
+       nenhum GROUP e avisa; por isso o aviso vem junto do tipo. */
+    return {url:`${base}/pub?${p}`, tipo:gid?`publicado, gid ${gid}`:'publicado, primeira aba'};
   }
   // link normal: /spreadsheets/d/{id}/edit#gid=N  -> gviz, leitura ao vivo
   const id=(v.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/)||[])[1];
   if(!id)throw new Error('Não reconheci esse link como uma planilha do Google.');
   const p=new URLSearchParams({tqx:'out:csv'});
-  if(gid)p.set('gid',gid); else if(aba)p.set('sheet',aba);
-  return {url:`https://docs.google.com/spreadsheets/d/${id}/gviz/tq?${p}`, tipo:'ao vivo'};
+  /* O nome da aba manda no gid. Um link copiado da barra traz o gid da
+     aba que estava ABERTA (#gid=0, quase sempre a primeira) - obedecer
+     a ele leria a aba errada sem avisar ninguem. */
+  if(aba)p.set('sheet',aba); else if(gid)p.set('gid',gid);
+  return {url:`https://docs.google.com/spreadsheets/d/${id}/gviz/tq?${p}`, tipo:aba?`ao vivo, aba "${aba}"`:'ao vivo'};
 }
 
 /* ---------- leitura ---------- */
@@ -157,7 +163,7 @@ function processar(texto,origem){
   const cards=parseQgCards(grade);
   qgsLidos=montarQgs(cards);
   inventario=inventarioLinhas(cards);
-  if(!qgsLidos.length)return falha('Li a aba mas não encontrei nenhum cartão de QG. Confirme se a aba é a de blips e coordenadas — o importador procura pela palavra GROUP.');
+  if(!qgsLidos.length)return falha('Li a planilha mas não encontrei nenhum cartão de QG — o importador procura pela palavra GROUP. Quase sempre é a aba errada: com link publicado a aba só pode ser escolhida pelo gid, então confira se o gid do link é mesmo o da aba de blips e coordenadas. Com o link normal da planilha, basta o nome da aba estar certo.');
   $('#statusLeitura').innerHTML=`<div class="verdict ok">Leitura ${esc(origem)}: ${grade.length} linhas, ${qgsLidos.length} QGs encontrados.</div>`;
   mostrarPrevia();
   compararComSalvo();
