@@ -3,6 +3,7 @@
    lado, derivada dos insumos. Quem edita ve na hora o que a faccao vai
    ter que colher. */
 
+import {listaDeItens,nomeDoItem} from './itens-conhecidos.js?v=13.0.0';
 import {ORIGENS,rotaDaReceita,rotaDoSegmento,conferirCatalogo,receitasDisponiveis,resumoCatalogo} from './catalogo-craft.js?v=13.1.0';
 
 export function catalogoHtml({catalogo,segmentoAtivo,esc,podeEditar}){
@@ -86,12 +87,14 @@ function cartaoReceita(r,catalogo,esc,podeEditar){
 }
 
 /* ---------- editor ---------- */
-export function editorReceitaHtml(r,catalogo,esc){
+export function editorReceitaHtml(r,catalogo,esc,itensExtra=[]){
  const outras=receitasDisponiveis(catalogo,r.id);
+ const itens=listaDeItens(itensExtra);
  return `<div class="cat-editor">
+  <datalist id="catItens">${itens.map(i=>`<option value="${esc(i.spawn)}">${esc(i.nome&&i.nome!==i.spawn?i.nome:'')}</option>`).join('')}</datalist>
   <div class="cat-editor-topo">
    <label><span>PRODUTO FINAL</span><input data-r="nome" value="${esc(r.nome||'')}" placeholder="AK-74N"></label>
-   <label><span>SPAWN DO PRODUTO</span><input data-r="spawn" value="${esc(r.spawn||'')}" placeholder="WEAPON_ASSAULTRIFLE"></label>
+   <label><span>ITEM FABRICADO (SPAWN)</span><input data-r="spawn" list="catItens" value="${esc(r.spawn||'')}" placeholder="caixa_m_pistola" autocomplete="off"><small class="cat-nome-item">${esc(nomeDoItem(r.spawn)||'')}</small></label>
    <label><span>NÍVEL</span><input data-r="nivel" value="${esc(r.nivel??'')}" placeholder="5"></label>
    <label><span>MÁXIMO</span><input data-r="max" value="${esc(r.max??'')}" placeholder="10"></label>
   </div>
@@ -112,7 +115,7 @@ export function editorReceitaHtml(r,catalogo,esc){
 
 export function linhaInsumo(i,n,outras,esc){
  return `<div class="cat-ins-linha">
-  <label><span>SPAWN</span><input data-i="spawn" value="${esc(i.spawn||'')}" placeholder="riflebody"></label>
+  <label><span>ITEM</span><input data-i="spawn" list="catItens" value="${esc(i.spawn||'')}" placeholder="gunpowder" autocomplete="off"><small class="cat-nome-item">${esc(nomeDoItem(i.spawn)||'')}</small></label>
   <label><span>QTD</span><input data-i="qtd" value="${esc(i.qtd??'')}" placeholder="35"></label>
   <label><span>DE ONDE VEM</span>
    <select data-i="origem">
