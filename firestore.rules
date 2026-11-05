@@ -192,6 +192,18 @@ service cloud.firestore {
       allow write: if canEdit('metricas');
     }
 
+    // ---------- seasons: QGs e coordenadas vindos da planilha ----------
+    // Um documento por season guarda TODOS os QGs. Ler o painel custa
+    // 1 leitura, nao uma por QG. Escrever e so do admin, pelo importador.
+    match /highos/data/seasons/{seasonId} {
+      allow read: if activeUser();
+      allow write: if isAdmin();
+    }
+    match /highos/season_atual {
+      allow read: if activeUser();
+      allow write: if isAdmin();
+    }
+
     // ---------- configuracoes ----------
     match /highos/data/config/segmentos {
       allow read: if activeUser();
