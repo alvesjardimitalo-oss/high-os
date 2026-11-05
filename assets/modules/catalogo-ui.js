@@ -11,9 +11,8 @@ export function catalogoHtml({catalogo,segmentoAtivo,esc,podeEditar}){
  const conf=conferirCatalogo(catalogo);
 
  if(!segs.length){
-  return `<div class="placeholder"><b>◆</b><h3>CATÁLOGO VAZIO</h3>
-   <p>Nenhuma receita cadastrada ainda.${podeEditar?' Use CARREGAR DO SISTEMA para trazer as receitas que já estão no código, ou comece do zero por um segmento.':''}</p>
-   ${podeEditar?'<div class="cat-vazio-acoes"><button type="button" class="btn-primary compact" data-cat-semear>CARREGAR DO SISTEMA</button><button type="button" class="btn-secondary compact" data-cat-novo-seg>NOVO SEGMENTO</button></div>':''}</div>`;
+  return `<div class="placeholder"><b>◆</b><h3>NENHUMA RECEITA AINDA</h3>
+   <p>As receitas são cadastradas no QG, junto das coordenadas — abra <b>QGs da Season</b>, escolha uma favela e clique em CRAFT.<br>Esta tela mostra o panorama da temporada conforme elas forem entrando.</p></div>`;
  }
 
  const ativo=segs.includes(segmentoAtivo)?segmentoAtivo:segs[0];

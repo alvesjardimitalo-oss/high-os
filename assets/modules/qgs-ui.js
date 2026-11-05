@@ -155,6 +155,7 @@ function cartaoQg(q,faccoes,esc){
   </div>
   ${f?`<div class="qg-linha"><span>FACÇÃO</span><b>${esc(f.faccao||'—')}</b></div>`:''}
   ${q.produto?`<div class="qg-linha"><span>PRODUTO</span><b>${esc(q.produto)}</b></div>`:''}
+  <div class="qg-linha"><span>CRAFT</span><b>${(q.craft?.receitas||[]).length?esc(String(q.craft.receitas.length))+' receita(s)':'<i>sem receita</i>'}</b></div>
 
   <div class="qg-cds">
    <div class="qg-barra"><i style="width:${Math.round(n/totalCds*100)}%"></i></div>
@@ -163,6 +164,7 @@ function cartaoQg(q,faccoes,esc){
 
   <div class="qg-acoes">
    <button type="button" class="mini-btn" data-qg-editar="${esc(q.chave)}">COORDENADAS</button>
+   <button type="button" class="mini-btn" data-qg-craft="${esc(q.chave)}">CRAFT${(q.craft?.receitas||[]).length?' ('+(q.craft.receitas.length)+')':''}</button>
    ${q.group
      ?`<button type="button" class="mini-btn" data-qg-desvincular="${esc(q.chave)}">DESVINCULAR</button>`
      :`<button type="button" class="mini-btn primaria" data-qg-vincular="${esc(q.chave)}">VINCULAR GROUP</button>`}
