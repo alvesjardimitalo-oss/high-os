@@ -33,6 +33,7 @@ import * as qgsUi from './modules/qgs-ui.js?v=13.2.0';
 import * as catCraft from './modules/catalogo-craft.js?v=13.1.0';
 import * as catUi from './modules/catalogo-ui.js?v=13.2.0';
 import * as itensUi from './modules/itens-conhecidos.js?v=13.0.0';
+import * as metasUi from './modules/metas-ui.js?v=13.0.0';
 import { season, lerIndice, carregarSeason, seasonEscolhida, guardarEscolha, esquecerEscolha, filtrarPorSeason, qgsSemVinculo, foraDaPlanilha, resumoSeason, salvarQg, vincularGroup, desvincularGroup } from './modules/season.js?v=13.1.0';
 
 const firebaseConfig={apiKey:'AIzaSyBKtl3rCA9Id1RDMwGch-yi4hxAs83DraU',
@@ -1415,6 +1416,7 @@ const INTERNAL_MODULE_PARENT={'planejador-acoes':'economia',
 'disponiveis':'faccoes',
 'qgs':'faccoes',
 'receitas':'faccoes',
+'metas':'faccoes',
 'entregas':'faccoes'};
 
 function normalizePermission(v){v=String(v||'').toUpperCase();
@@ -1891,6 +1893,7 @@ if(page==='economia')setTimeout(()=>loadMarketCatalog(),0);
 if(page==='solicitacoes')setTimeout(()=>loadRequests(),0);
 if(page==='diario')setTimeout(()=>loadOperationalDiary(),0);
 if(page==='qgs')setTimeout(async()=>{try{if(!faccoesLoaded)await loadFaccoes()}catch(e){}renderQgs()},0);
+if(page==='metas')setTimeout(async()=>{try{if(!faccoesLoaded)await loadFaccoes()}catch(e){}renderMetas()},0);
 if(page==='receitas')setTimeout(async()=>{await carregarCatalogo();renderCatalogo()},0);
 if(['dashboard','metricas','faccoes','organizacoes','disponiveis','entregas','group-profile','group-settings','org-profile'].includes(page)&&!faccoesLoaded)setTimeout(()=>loadFaccoes().catch(e=>console.warn('[FACÇÕES] lazy-load falhou',e)),0);
 if(['dashboard','metricas'].includes(page)&&!metricsLoaded)setTimeout(async()=>{try{if(!faccoesLoaded)await loadFaccoes();await loadMetrics()}catch(e){console.warn('[MÉTRICAS] lazy-load falhou',e)}},0);
@@ -2048,6 +2051,98 @@ function ligarCatalogo(){
  const box=$('#catalogoBox');
  if(!box)return;
  box.querySelectorAll('[data-cat-seg]').forEach(b=>b.onclick=()=>{catSegAtivo=b.dataset.catSeg;renderCatalogo()});
+}
+
+/* ============================================================
+   V13 · METAS DE RECRUTAMENTO
+   A meta e negociada na entrega e muda no atendimento, entao
+   mora no cadastro do Group, nao na planilha. A planilha do dev
+   traz o realizado; o alvo e combinado aqui.
+   ============================================================ */
+let metaFiltro={segmento:''};
+
+function renderMetas(){
+ const box=$('#metasBox');
+ if(!box)return;
+ box.innerHTML=metasUi.metasHtml({
+  lista:(faccoes||[]).filter(f=>!f.removido),
+  season,esc,podeEditar:canEditModule('faccoes'),filtro:metaFiltro
+ });
+ ligarMetas();
+}
+
+function ligarMetas(){
+ const box=$('#metasBox');
+ if(!box)return;
+ const seg=$('#metaSegmento');
+ if(seg)seg.onchange=()=>{metaFiltro.segmento=seg.value;renderMetas()};
+
+ /* O alvo semanal muda ao vivo: combinar "1 por dia" em sete dias e
+    pedir 7, e quem combina precisa ver isso antes de salvar. */
+ box.querySelectorAll('.meta-linha').forEach(linha=>{
+  const atualizar=()=>{
+   const m=metasUi.lerLinha(linha);
+   linha.querySelector('[data-meta-alvo]').textContent=m?metasUi.alvoSemanal(m):'—';
+   linha.querySelector('[data-meta-texto]').textContent=metasUi.descreverMeta(m);
+   const per=linha.querySelector('[data-meta="periodo"]')?.value;
+   const dias=linha.querySelector('.meta-dias');
+   if(dias)dias.hidden=per!=='DIA';
+   linha.classList.toggle('sem',!m);
+  };
+  linha.addEventListener('input',atualizar);
+  linha.addEventListener('change',atualizar);
+ });
+
+ box.querySelectorAll('[data-meta-salvar]').forEach(b=>b.onclick=()=>salvarMeta(b.dataset.metaSalvar,b));
+ box.querySelectorAll('[data-meta-lote]').forEach(b=>b.onclick=()=>aplicarMetaEmLote(b.dataset.metaLote));
+}
+
+async function salvarMeta(group,btn){
+ if(!canEditModule('faccoes'))return permissionDeniedMessage('faccoes',true);
+ const linha=document.querySelector(`[data-meta-group="${CSS.escape(group)}"]`);
+ if(!linha)return;
+ const meta=metasUi.lerLinha(linha);
+ const rotulo=btn?.textContent;
+ if(btn){btn.disabled=true;btn.textContent='...'}
+ try{
+  await setDoc(doc(db,'highos','data','faccoes',group),
+   {metaRec:meta,updatedAt:serverTimestamp(),updatedBy:currentUser?.email||''},{merge:true});
+  await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'META_REC',
+   group,season:season.id||'',
+   descricao:meta?`Meta de rec de ${group}: ${metasUi.descreverMeta(meta)}`:`Meta de rec de ${group} removida`,
+   usuario:currentUser?.email||'',data:serverTimestamp()}).catch(()=>{});
+  try{await loadFaccoes()}catch(e){}
+  renderMetas();
+ }catch(e){
+  alert('Não salvou: '+e.message);
+  if(btn){btn.disabled=false;btn.textContent=rotulo}
+ }
+}
+
+/* Combinar a mesma meta com um segmento inteiro e o caso comum na
+   virada de season: todo mundo de ARMAS comeca igual e so depois
+   alguem negocia diferente. */
+async function aplicarMetaEmLote(segmento){
+ if(!canEditModule('faccoes'))return permissionDeniedMessage('faccoes',true);
+ const alvos=(faccoes||[]).filter(f=>!f.removido&&(f.segmento||'SEM SEGMENTO')===segmento);
+ if(!alvos.length)return;
+ const q=Number(prompt(`Meta semanal para os ${alvos.length} Groups de ${segmento}:`,'3'));
+ if(!q||q<0)return;
+ if(!confirm(`Combinar ${q} rec por semana com ${alvos.length} Group(s) de ${segmento}?\n\nIsso substitui a meta de quem já tem.`))return;
+ const meta={quantidade:q,periodo:'SEMANA',dias:[]};
+ let erros=0;
+ for(const f of alvos){
+  try{
+   await setDoc(doc(db,'highos','data','faccoes',f.group),
+    {metaRec:meta,updatedAt:serverTimestamp(),updatedBy:currentUser?.email||''},{merge:true});
+  }catch(e){erros++}
+ }
+ await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'META_REC_LOTE',season:season.id||'',
+  descricao:`Meta de ${q}/semana aplicada a ${alvos.length-erros} Group(s) de ${segmento}`,
+  usuario:currentUser?.email||'',data:serverTimestamp()}).catch(()=>{});
+ try{await loadFaccoes()}catch(e){}
+ renderMetas();
+ if(erros)alert(`${erros} de ${alvos.length} não salvaram. Tente de novo nos que ficaram sem meta.`);
 }
 
 /* ============================================================

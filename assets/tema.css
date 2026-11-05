@@ -529,3 +529,39 @@ button:disabled{opacity:.45 !important}
 .qg-definir-aviso.alerta{color:var(--warn)}
 @media(max-width:520px){.qg-definir-grade{grid-template-columns:1fr}}
 .cat-nome-item{display:block;font-size:10.5px;color:var(--lime);margin-top:3px;min-height:13px}
+
+/* =====================================================================
+   V13 · METAS DE RECRUTAMENTO
+   ===================================================================== */
+.metas-barra{display:flex;gap:10px;align-items:center;margin:16px 0;flex-wrap:wrap}
+.metas-barra select{max-width:280px}
+.metas-lista{display:grid;gap:10px}
+.meta-linha{display:grid;gap:14px;align-items:center;
+ grid-template-columns:minmax(0,1.3fr) minmax(0,1.5fr) 118px auto;
+ background:linear-gradient(165deg,var(--panel2),var(--panel));
+ border:1px solid var(--line);border-left:3px solid var(--lime-dim);
+ border-radius:13px;padding:14px 16px}
+.meta-linha.sem{border-left-color:var(--warn)}
+@media(max-width:900px){.meta-linha{grid-template-columns:1fr;gap:11px}}
+
+.meta-id b{display:block;font-size:15px}
+.meta-id span{display:block;font-size:12px;color:var(--muted);margin-top:2px}
+.meta-id small{display:block;font-size:11.5px;color:var(--faint);margin-top:4px}
+.meta-id small i{font-style:normal}
+
+.meta-campos{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.meta-campos>label{display:block}
+.meta-campos>label>span{display:block;font-size:9px;letter-spacing:.1em;color:var(--muted);margin:0 0 4px}
+.meta-campos input[type=number]{width:72px}
+.meta-campos select{width:104px}
+.meta-dias{display:flex;gap:4px;flex-wrap:wrap}
+.meta-dias .dia{display:flex;align-items:center;gap:4px;font-size:10px;letter-spacing:.04em;
+ background:#0b0f11;border:1px solid var(--line);border-radius:7px;padding:6px 7px;cursor:pointer}
+.meta-dias .dia input{margin:0}
+.meta-dias .dia:has(input:checked){border-color:var(--lime-dim);color:var(--lime)}
+
+.meta-saida{text-align:right}
+.meta-saida b{display:block;font-size:24px;font-weight:800;color:var(--lime);line-height:1.1}
+.meta-linha.sem .meta-saida b{color:var(--faint)}
+.meta-saida span{display:block;font-size:9.5px;letter-spacing:.08em;color:var(--muted)}
+.meta-saida small{display:block;font-size:11px;color:var(--muted);margin-top:5px;line-height:1.45}
