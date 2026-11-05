@@ -28,6 +28,7 @@ import { situacaoGroup, ocupado as ocupadoV14, inconsistencias } from './modules
 import { syncBlipsCoordinates, valuesFor as blipsValuesFor } from './modules/blips-sheet-sync.js?v=1.2.0';
 import { montarLinhaDoTempo, atribuirLinhas, coletaDoDia, rotuloColeta, msDe, chaveGroup, descartarColetasVazias } from './modules/metricas-motor.js?v=14.8.2';
 import { painelOcupacaoHtml, painelDisponiveisHtml, ligarPaineis, abrirRevisao } from './modules/painel-ocupacao.js?v=14.7.0';
+import * as fila from './modules/fila-bot.js?v=13.0.0';
 import { season, lerIndice, carregarSeason, seasonEscolhida, guardarEscolha, esquecerEscolha, filtrarPorSeason, qgsSemVinculo, foraDaPlanilha, resumoSeason } from './modules/season.js?v=13.0.0';
 
 const firebaseConfig={apiKey:'AIzaSyBKtl3rCA9Id1RDMwGch-yi4hxAs83DraU',
@@ -57,9 +58,29 @@ const HIGH_OS_DISCORD_API=String(window.HIGH_OS_API_URL||'https://desktop-a2oor0
 // Acesso de contingência: requer cadastro ativo validado no Firestore e é sempre somente leitura.
 // A API Discord continua sendo a fonte operacional canônica, sem simular gravações.
 let highOsEmergencyReadOnly=false;
+/* V13 - ferramentas do Firestore repassadas aos modulos, para eles nao
+   abrirem conexao propria. */
+const fnsFila={db,doc,collection,getDoc,getDocs,setDoc,serverTimestamp,writeBatch,query,where,orderBy,limit};
+
 async function highOsDiscordRequest(path,options={}){
  if(!currentUser)throw new Error('Sessão expirada. Entre novamente.');
- if(highOsEmergencyReadOnly)throw new Error('API do Discord offline. Modo de contingência: somente leitura.');
+ if(highOsEmergencyReadOnly){
+  /* V13 - API fora do ar. Leitura continua recusada (o cache ja cobre
+     isso); ESCRITA vai para a fila e e reenviada quando o PC voltar.
+     Nada aqui finge que o bot recebeu: o retorno diz "enfileirado". */
+  const metodo=String(options.method||'GET').toUpperCase();
+  if(!fila.mutacao(metodo))throw new Error('API do Discord offline. Modo de contingência: somente leitura.');
+  let corpo=null;
+  try{corpo=options.body?JSON.parse(options.body):null}catch(e){corpo=options.body??null}
+  const id=await fila.enfileirar(fnsFila,{
+   caminho:path,metodo,corpo,
+   resumo:fila.resumirOperacao(path,metodo,corpo),
+   usuario:currentUser.email||''
+  });
+  await atualizarSeloFila();
+  return {enfileirado:true,filaId:id,
+   aviso:'O bot está offline. A alteração ficou na fila e será enviada quando o PC ligar.'};
+ }
  const token=await currentUser.getIdToken();
  const res=await fetch(HIGH_OS_DISCORD_API+path,{...options,headers:{'content-type':'application/json','authorization':'Bearer '+token,...(options.headers||{})}});
  const data=await res.json().catch(()=>({}));
@@ -1598,6 +1619,7 @@ userPhotoEl=$('#userPhoto');
   if(needsSegments)await loadSegmentConfig();
   if(initialPage==='dashboard')await loadDashboardConfig();
   await iniciarSeason();
+  await iniciarFila();
   if(needsSegments&&(!highOsEmergencyReadOnly||canViewModule('faccoes'))){
    try{await loadFaccoes()}catch(e){
     if(!highOsEmergencyReadOnly)throw e;
@@ -1970,6 +1992,81 @@ async function loadFaccoes(){
  finally{faccoesLoadPromise=null}
 }
 /* ============================================================
+   V13 · FILA DE ATUALIZAÇÕES PARA O BOT
+   O bot roda no PC de casa. Com a máquina desligada, o que
+   antes era recusado agora fica guardado e é reenviado na
+   ordem quando ela volta.
+   ============================================================ */
+let filaPendentes=null;         // null = ainda não consultado
+
+/* Uma leitura só, no login: o documento contador. Se não há
+   pendência, a coleção da fila não é tocada. */
+async function iniciarFila(){
+ const st=await fila.lerStatusFila(fnsFila);
+ filaPendentes=st.pendentes;
+ atualizarSeloFila();
+ /* API de volta e fila com itens: oferece drenar, não drena sozinho.
+    Reenviar sem a pessoa saber poderia sobrescrever algo que mudou
+    na cidade enquanto o PC estava fora. */
+ if(!highOsEmergencyReadOnly && Number(filaPendentes)>0)setTimeout(oferecerDrenagem,1200);
+}
+
+function atualizarSeloFila(){
+ const el=$('#filaBadge');
+ if(!el)return;
+ const n=filaPendentes;
+ if(n===null){el.hidden=true;return}
+ if(n===0&&!highOsEmergencyReadOnly){el.hidden=true;return}
+ el.hidden=false;
+ el.classList.toggle('offline',highOsEmergencyReadOnly);
+ el.innerHTML=`<span><b>${n===null?'—':n} NA FILA</b><small>${highOsEmergencyReadOnly?'bot offline':'pronto para enviar'}</small></span>`;
+ el.title=highOsEmergencyReadOnly
+  ? 'O bot está offline. As alterações ficam aqui e são enviadas quando o PC ligar.'
+  : 'Há alterações feitas com o bot offline esperando para ser enviadas. Clique para revisar.';
+ el.onclick=abrirFila;
+}
+
+async function abrirFila(){
+ let itens=[];
+ try{itens=await fila.listarPendentes(fnsFila)}
+ catch(e){return alert('Não consegui ler a fila: '+e.message)}
+ if(!itens.length){filaPendentes=0;atualizarSeloFila();return alert('A fila está vazia.')}
+
+ const lista=itens.map((x,i)=>`${i+1}. ${x.resumo}`).join('\n');
+ if(highOsEmergencyReadOnly)
+  return alert(`${itens.length} alteração(ões) esperando o bot ligar:\n\n${lista}\n\nQuando o PC estiver ligado, abra o painel e envie por aqui.`);
+
+ if(!confirm(`Enviar ${itens.length} alteração(ões) ao bot, na ordem em que foram feitas?\n\n${lista}\n\nSe alguma falhar, o envio para ali — para não aplicar as seguintes sobre um estado já divergente.`))return;
+ await drenarFila();
+}
+
+function oferecerDrenagem(){
+ if(!confirm(`O bot está no ar e há ${filaPendentes} alteração(ões) na fila feitas enquanto ele estava fora.\n\nRevisar e enviar agora?`))return;
+ abrirFila();
+}
+
+async function drenarFila(){
+ const r=await fila.drenar(fnsFila,async item=>{
+  const res=await fetch(HIGH_OS_DISCORD_API+item.caminho,{
+   method:item.metodo,
+   headers:{'content-type':'application/json','authorization':'Bearer '+(await currentUser.getIdToken())},
+   body:item.corpo==null?undefined:JSON.stringify(item.corpo)
+  });
+  const data=await res.json().catch(()=>({}));
+  if(!res.ok)throw new Error(data.error||('HTTP '+res.status));
+  return data;
+ });
+ filaPendentes=Math.max(0,r.total-r.enviados);
+ atualizarSeloFila();
+ if(r.falhou){
+  alert(`Enviadas ${r.enviados} de ${r.total}.\n\nParou em "${r.parouEm?.resumo||'?'}": ${r.falhou}\n\nAs seguintes continuam na fila. Corrija o motivo e envie de novo.`);
+ }else{
+  alert(`Fila enviada: ${r.enviados} alteração(ões) aplicadas no bot.`);
+  try{await loadFaccoes()}catch(e){}
+ }
+}
+
+/* ============================================================
    V13 · SEASON ATIVA
    A planilha de blips e coordenadas e a lista oficial da season:
    quem nao esta nela nao aparece no painel. Os Groups da season
@@ -1983,11 +2080,10 @@ async function iniciarSeason(){
   avisarSeasonAusente();
   return;
  }
- const salva=seasonEscolhida();
- const valida=lista.find(s=>s.id===salva);
- if(valida){try{await carregarSeason(valida.id,{getDoc,doc,db});return}catch(e){console.warn('[HIGH OS] season salva falhou:',e.message)}}
- if(lista.length===1){try{await carregarSeason(lista[0].id,{getDoc,doc,db});guardarEscolha(lista[0].id);return}catch(e){}}
- await perguntarSeason(lista);
+ /* A escolha aparece SEMPRE no login, mesmo com uma season so: saber em
+    qual temporada se esta trabalhando e parte de abrir o painel, nao um
+    detalhe a ser adivinhado. A ultima escolhida vem marcada. */
+ await perguntarSeason(lista,seasonEscolhida());
 }
 
 function avisarSeasonAusente(){
@@ -2000,7 +2096,7 @@ function avisarSeasonAusente(){
  el.onclick=()=>alert('Nenhuma season importada ainda.\n\nO painel esta mostrando TODOS os Groups gravados. Para limitar o painel aos QGs da season, importe a aba de blips e coordenadas em tools/importador-planilha.html.');
 }
 
-function perguntarSeason(lista){
+function perguntarSeason(lista,atual=''){
  return new Promise(resolve=>{
   const caixa=document.createElement('div');
   caixa.className='season-ask';
@@ -2008,9 +2104,9 @@ function perguntarSeason(lista){
    <span>HIGH OS</span>
    <h2>Qual season você vai trabalhar?</h2>
    <p>O painel mostra apenas os Groups que estão na planilha da season escolhida.</p>
-   <div class="season-ask-list">${lista.map(s=>`<button type="button" data-season="${esc(s.id)}">
+   <div class="season-ask-list">${lista.map(s=>`<button type="button" data-season="${esc(s.id)}"${s.id===atual?' class="atual"':''}>
      <b>${esc(s.nome||s.id)}</b>
-     <small>${Number(s.total||0)} QGs${Number(s.semGroup||0)?` • ${Number(s.semGroup)} sem Group vinculado`:''}</small>
+     <small>${Number(s.total||0)} QGs${Number(s.semGroup||0)?` • ${Number(s.semGroup)} sem Group vinculado`:''}${s.id===atual?' • última usada':''}</small>
     </button>`).join('')}</div>
    <p class="season-ask-erro" hidden></p>
   </div>`;

@@ -375,3 +375,7 @@
 .season-badge small{display:block;font-size:9.5px;color:var(--muted,#a79db6)}
 .season-badge.vazia{border-style:dashed}
 .season-badge.vazia b{color:var(--yellow,#ffc93c)}
+.season-ask-list button.atual{border-color:var(--lime-dim,#6f9e35)}
+.season-ask-list button.atual small{color:var(--lime,#a0f040)}
+.fila-badge.offline{border-style:dashed}
+.fila-badge.offline b{color:var(--yellow,#ffc93c)}
