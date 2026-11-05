@@ -29,7 +29,8 @@ import { syncBlipsCoordinates, valuesFor as blipsValuesFor } from './modules/bli
 import { montarLinhaDoTempo, atribuirLinhas, coletaDoDia, rotuloColeta, msDe, chaveGroup, descartarColetasVazias } from './modules/metricas-motor.js?v=14.8.2';
 import { painelOcupacaoHtml, painelDisponiveisHtml, ligarPaineis, abrirRevisao } from './modules/painel-ocupacao.js?v=14.7.0';
 import * as fila from './modules/fila-bot.js?v=13.0.0';
-import { season, lerIndice, carregarSeason, seasonEscolhida, guardarEscolha, esquecerEscolha, filtrarPorSeason, qgsSemVinculo, foraDaPlanilha, resumoSeason } from './modules/season.js?v=13.0.0';
+import * as qgsUi from './modules/qgs-ui.js?v=13.0.0';
+import { season, lerIndice, carregarSeason, seasonEscolhida, guardarEscolha, esquecerEscolha, filtrarPorSeason, qgsSemVinculo, foraDaPlanilha, resumoSeason, salvarQg, vincularGroup, desvincularGroup } from './modules/season.js?v=13.1.0';
 
 const firebaseConfig={apiKey:'AIzaSyBKtl3rCA9Id1RDMwGch-yi4hxAs83DraU',
 authDomain:'high-os.firebaseapp.com',
@@ -69,7 +70,7 @@ let highOsEmergencyReadOnly=false;
    fila, o app todo. */
 let _fnsFila=null;
 function fnsFila(){
- return _fnsFila||(_fnsFila={db,doc,collection,getDoc,getDocs,setDoc,serverTimestamp,writeBatch,query,where,orderBy,limit});
+ return _fnsFila||(_fnsFila={db,doc,collection,getDoc,getDocs,setDoc,serverTimestamp,writeBatch,runTransaction,query,where,orderBy,limit});
 }
 
 async function highOsDiscordRequest(path,options={}){
@@ -1409,6 +1410,7 @@ const INTERNAL_MODULE_PARENT={'planejador-acoes':'economia',
 'organizacoes':'faccoes',
 'org-profile':'faccoes',
 'disponiveis':'faccoes',
+'qgs':'faccoes',
 'entregas':'faccoes'};
 
 function normalizePermission(v){v=String(v||'').toUpperCase();
@@ -1884,6 +1886,7 @@ if(page==='dashboard')setTimeout(()=>loadDashboardConfig(),0);
 if(page==='economia')setTimeout(()=>loadMarketCatalog(),0);
 if(page==='solicitacoes')setTimeout(()=>loadRequests(),0);
 if(page==='diario')setTimeout(()=>loadOperationalDiary(),0);
+if(page==='qgs')setTimeout(async()=>{try{if(!faccoesLoaded)await loadFaccoes()}catch(e){}renderQgs()},0);
 if(['dashboard','metricas','faccoes','organizacoes','disponiveis','entregas','group-profile','group-settings','org-profile'].includes(page)&&!faccoesLoaded)setTimeout(()=>loadFaccoes().catch(e=>console.warn('[FACÇÕES] lazy-load falhou',e)),0);
 if(['dashboard','metricas'].includes(page)&&!metricsLoaded)setTimeout(async()=>{try{if(!faccoesLoaded)await loadFaccoes();await loadMetrics()}catch(e){console.warn('[MÉTRICAS] lazy-load falhou',e)}},0);
 if(page==='planejador')carregarPlanejadorMissoes().then(()=>setTimeout(()=>window.HighMissionPlanner?.activate?.(),60)).catch(err=>{console.error('[PLANEJADOR]',err);const box=document.querySelector('#page-planejador');if(box)box.insertAdjacentHTML('afterbegin','<div class="placeholder"><h3>NÃO FOI POSSÍVEL CARREGAR O PLANEJADOR</h3><p>Recarregue a página.</p></div>')});
@@ -2002,6 +2005,117 @@ async function loadFaccoes(){
  try{return await faccoesLoadPromise}
  finally{faccoesLoadPromise=null}
 }
+/* ============================================================
+   V13 · QGs DA SEASON
+   O Firebase e o banco: esta tela grava. A planilha semeia e
+   serve de espelho, mas nao manda.
+   ============================================================ */
+let qgFiltro={setor:'',estado:'',busca:''};
+
+function renderQgs(){
+ const box=$('#qgsBox');
+ if(!box)return;
+ box.innerHTML=qgsUi.qgsHtml({season,faccoes:faccoesTodas||[],esc,filtro:qgFiltro});
+ ligarQgs();
+}
+
+function ligarQgs(){
+ const box=$('#qgsBox');
+ if(!box)return;
+ box.querySelectorAll('[data-qg-estado]').forEach(b=>b.onclick=()=>{
+  qgFiltro.estado=b.dataset.qgEstado; renderQgs();
+ });
+ const busca=$('#qgBusca');
+ if(busca)busca.oninput=()=>{qgFiltro.busca=busca.value;clearTimeout(busca._t);
+  busca._t=setTimeout(()=>{const pos=busca.selectionStart;renderQgs();
+   const novo=$('#qgBusca');if(novo){novo.focus();novo.setSelectionRange(pos,pos)}},250)};
+ const setor=$('#qgSetor');
+ if(setor)setor.onchange=()=>{qgFiltro.setor=setor.value;renderQgs()};
+
+ box.querySelectorAll('[data-qg-editar]').forEach(b=>b.onclick=()=>abrirEditorQg(b.dataset.qgEditar));
+ box.querySelectorAll('[data-qg-vincular]').forEach(b=>b.onclick=()=>vincularQg(b.dataset.qgVincular));
+ box.querySelectorAll('[data-qg-desvincular]').forEach(b=>b.onclick=()=>desvincularQg(b.dataset.qgDesvincular));
+}
+
+function qgPorChave(chave){return (season.qgs||[]).find(q=>q.chave===chave)}
+
+async function vincularQg(chave){
+ if(!canEditModule('faccoes'))return permissionDeniedMessage('faccoes',true);
+ const q=qgPorChave(chave);
+ if(!q)return;
+ const sugestao=qgsUi.sugerirGroup(q.setor,faccoesTodas||[],season.qgs||[]);
+ const nome=prompt(`Vincular um Group a "${q.local||chave}".\n\nSugestão pela convenção do setor:`,sugestao);
+ if(nome===null)return;
+ try{
+  await vincularGroup(fnsFila(),chave,nome,currentUser?.email||'');
+  await registrarHistoricoQg('QG_VINCULADO',q,`Group ${nome.trim()} vinculado a ${q.local||chave}`);
+  renderQgs(); renderSeasonBadge();
+ }catch(e){alert('Não vinculou: '+e.message)}
+}
+
+async function desvincularQg(chave){
+ if(!canEditModule('faccoes'))return permissionDeniedMessage('faccoes',true);
+ const q=qgPorChave(chave);
+ if(!q)return;
+ if(!confirm(`Tirar o Group "${q.group}" de "${q.local||chave}"?\n\nO cadastro do Group não é apagado — ele só deixa de ocupar este QG.`))return;
+ try{
+  await desvincularGroup(fnsFila(),chave,currentUser?.email||'');
+  await registrarHistoricoQg('QG_DESVINCULADO',q,`Group ${q.group} desvinculado de ${q.local||chave}`);
+  renderQgs(); renderSeasonBadge();
+ }catch(e){alert('Não desvinculou: '+e.message)}
+}
+
+function abrirEditorQg(chave){
+ const q=qgPorChave(chave);
+ if(!q)return;
+ const pode=canEditModule('faccoes');
+ const modal=document.createElement('div');
+ modal.className='modal';
+ modal.innerHTML=`<div class="modal-card qg-modal">
+   <button class="modal-x" type="button" aria-label="Fechar">×</button>
+   <div class="eyebrow">COORDENADAS DO QG</div>
+   <h2 style="margin:4px 0 2px">${esc(q.local||chave)}</h2>
+   <p class="page-subtitle" style="margin:0 0 16px">${esc(q.setor||'sem setor')}${q.group?' · Group '+esc(q.group):' · sem Group'}</p>
+   ${qgsUi.editorHtml(q,esc)}
+   <div class="modal-actions">
+    <button type="button" class="btn-secondary" data-fechar>FECHAR</button>
+    ${pode?'<button type="button" class="btn-primary compact" data-salvar>SALVAR NO BANCO</button>':''}
+   </div>
+  </div>`;
+ document.body.appendChild(modal);
+ const fechar=()=>modal.remove();
+ modal.querySelector('.modal-x').onclick=fechar;
+ modal.querySelector('[data-fechar]').onclick=fechar;
+ modal.onclick=e=>{if(e.target===modal)fechar()};
+ if(!pode)modal.querySelectorAll('input').forEach(i=>i.disabled=true);
+
+ modal.querySelector('[data-salvar]')?.addEventListener('click',async ev=>{
+  const btn=ev.currentTarget;
+  btn.disabled=true; btn.textContent='SALVANDO...';
+  try{
+   const atualizado=qgsUi.lerEditor(modal,q);
+   await salvarQg(fnsFila(),chave,{
+    local:atualizado.local,setor:atualizado.setor,produto:atualizado.produto,cds:atualizado.cds
+   },currentUser?.email||'');
+   await registrarHistoricoQg('QG_EDITADO',q,`Coordenadas de ${atualizado.local||chave} atualizadas no painel`);
+   fechar(); renderQgs();
+  }catch(e){
+   alert('Não salvou: '+e.message);
+   btn.disabled=false; btn.textContent='SALVAR NO BANCO';
+  }
+ });
+}
+
+/* O historico ja registra tudo que a equipe faz; os QGs entram nele
+   para a trilha de niveis poder ser lida dali depois. */
+async function registrarHistoricoQg(tipo,q,descricao){
+ try{
+  await addDoc(histCol,{sessionId:currentSessionId||'',tipo,
+   group:q.group||'',qg:q.local||q.chave,season:season.id,
+   descricao,usuario:currentUser?.email||'',data:serverTimestamp()});
+ }catch(e){console.warn('[QG] histórico não gravou:',e?.message||e)}
+}
+
 /* ============================================================
    V13 · FILA DE ATUALIZAÇÕES PARA O BOT
    O bot roda no PC de casa. Com a máquina desligada, o que

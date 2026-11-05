@@ -364,3 +364,70 @@ button:disabled{opacity:.45 !important}
 .season-ask-list button.atual small{color:var(--lime,#a0f040)}
 .fila-badge.offline{border-style:dashed}
 .fila-badge.offline b{color:var(--yellow,#ffc93c)}
+
+/* =====================================================================
+   V13 · QGs DA SEASON
+   O inventario da temporada. Cada cartao e uma favela mapeada; a cor da
+   borda diz em que ponto do caminho ela esta.
+   ===================================================================== */
+.qg-resumo{display:grid;gap:9px;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));margin:20px 0 14px}
+.qg-kpi{cursor:pointer;text-align:left;background:var(--panel);border:1px solid var(--line);
+ border-radius:12px;padding:13px 15px;color:inherit;transition:border-color .15s,background .15s}
+.qg-kpi:hover{border-color:var(--lime-dim)}
+.qg-kpi.on{border-color:var(--lime);background:rgba(160,240,64,.08)}
+.qg-kpi b{display:block;font-size:25px;line-height:1.15;font-weight:800}
+.qg-kpi.on b{color:var(--lime)}
+.qg-kpi span{display:block;font-size:9.5px;letter-spacing:.1em;color:var(--muted);margin-top:3px}
+
+.qg-filtros{display:grid;gap:10px;grid-template-columns:minmax(0,2fr) minmax(170px,1fr);margin:0 0 18px}
+@media(max-width:640px){.qg-filtros{grid-template-columns:1fr}}
+
+.qg-grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(292px,1fr))}
+.qg-card{background:linear-gradient(165deg,var(--panel2),var(--panel));
+ border:1px solid var(--line);border-left:3px solid var(--line2);
+ border-radius:13px;padding:16px 17px;transition:border-color .15s,transform .15s}
+.qg-card:hover{transform:translateY(-2px)}
+.qg-card.mapeado{border-left-color:var(--warn)}
+.qg-card.comgroup{border-left-color:var(--violet)}
+.qg-card.disponivel{border-left-color:var(--janela)}
+.qg-card.entregue{border-left-color:var(--lime)}
+.qg-card.incompleto{border-left-color:var(--danger)}
+
+.qg-card header{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;margin-bottom:12px}
+.qg-setor{display:block;font-size:9.5px;letter-spacing:.11em;color:var(--muted)}
+.qg-card h3{margin:3px 0 0;font-size:17px;line-height:1.25}
+.qg-estado{flex:0 0 auto;font-size:9px;font-weight:800;letter-spacing:.08em;
+ padding:5px 9px;border-radius:999px;border:1px solid var(--line2);color:var(--muted);white-space:nowrap}
+.qg-estado.mapeado{color:var(--warn);border-color:rgba(255,201,60,.4);background:rgba(255,201,60,.09)}
+.qg-estado.comgroup{color:#c79bff;border-color:rgba(160,96,240,.4);background:rgba(160,96,240,.1)}
+.qg-estado.disponivel{color:#9dc3ff;border-color:rgba(75,140,240,.4);background:rgba(75,140,240,.1)}
+.qg-estado.entregue{color:var(--lime);border-color:rgba(160,240,64,.4);background:rgba(160,240,64,.1)}
+.qg-estado.incompleto{color:#ff92a3;border-color:rgba(255,83,112,.4);background:rgba(255,83,112,.1)}
+
+.qg-linha{display:flex;justify-content:space-between;gap:10px;align-items:baseline;
+ padding:5px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:13.5px}
+.qg-linha span{font-size:9.5px;letter-spacing:.1em;color:var(--muted)}
+.qg-linha b{font-weight:700;text-align:right}
+.qg-linha i{color:var(--faint);font-style:normal;font-weight:400}
+
+.qg-cds{margin:13px 0 14px}
+.qg-barra{height:5px;border-radius:5px;background:rgba(255,255,255,.07);overflow:hidden}
+.qg-barra i{display:block;height:100%;background:linear-gradient(90deg,var(--lime-dim),var(--lime))}
+.qg-cds small{display:block;margin-top:7px;font-size:11.5px;color:var(--muted);line-height:1.5}
+
+.qg-acoes{display:flex;gap:7px}
+.qg-acoes .mini-btn{flex:1}
+.qg-acoes .mini-btn.primaria{background:rgba(160,240,64,.13) !important;
+ border-color:var(--lime-dim) !important;color:var(--lime) !important;font-weight:800}
+.qg-acoes .mini-btn.primaria:hover{background:rgba(160,240,64,.2) !important}
+
+/* ---------- editor ---------- */
+.qg-modal{width:min(880px,96vw)}
+.qg-editor-ajuda{font-size:12.5px;color:var(--muted);line-height:1.6;margin:0 0 14px}
+.qg-editor-topo{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));margin:0 0 16px}
+.qg-editor-grade{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(248px,1fr))}
+.qg-editor label{display:block}
+.qg-editor label span{display:block;font-size:9.5px;letter-spacing:.09em;color:var(--muted);margin:0 0 4px}
+.qg-editor label.essencial span{color:var(--lime)}
+.qg-editor input{width:100%;font:13px ui-monospace,Consolas,monospace}
+.qg-editor-grade+.qg-editor-ajuda{margin:14px 0 0}

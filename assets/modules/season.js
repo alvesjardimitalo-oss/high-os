@@ -126,3 +126,69 @@ export function resumoSeason(listaFaccoes=[]){
   foraDaPlanilha:foraDaPlanilha(listaFaccoes).length
  };
 }
+
+/* =====================================================================
+   V13 · ESCRITA — o Firebase e o banco
+   ---------------------------------------------------------------------
+   A planilha semeia a season e serve de espelho para a equipe alimentar
+   quando quiser, mas quem manda e o que esta gravado aqui. Entao o
+   painel precisa poder gravar, nao so ler.
+
+   Todas as gravacoes passam por transacao: a season inteira mora em UM
+   documento, entao duas pessoas editando QGs diferentes ao mesmo tempo
+   se sobrescreveriam sem isso. A transacao le, aplica e grava de uma
+   vez; se outro gravou no meio, o Firestore repete sozinho.
+
+   Custo: 1 leitura + 1 escrita por alteracao, independente de quantos
+   QGs a season tenha.
+   ===================================================================== */
+
+export async function salvarQg(fns,chave,mudancas,usuario=''){
+ const {db,doc,runTransaction,serverTimestamp}=fns;
+ if(!season.id)throw new Error('Nenhuma season ativa.');
+ const ref=doc(db,'highos','data','seasons',season.id);
+ let novoQg=null;
+
+ await runTransaction(db,async tx=>{
+  const snap=await tx.get(ref);
+  if(!snap.exists())throw new Error('A season sumiu do banco.');
+  const d=snap.data();
+  const qgs=Array.isArray(d.qgs)?[...d.qgs]:[];
+  const i=qgs.findIndex(q=>q.chave===chave);
+  if(i<0)throw new Error(`QG "${chave}" não existe nesta season.`);
+  novoQg={...qgs[i],...mudancas};
+  novoQg.vinculado=!!String(novoQg.group||'').trim();
+  novoQg.cds=novoQg.cds||{};
+  qgs[i]=novoQg;
+  tx.set(ref,{...d,qgs,versao:Number(d.versao||1)+1,
+   atualizadaEm:serverTimestamp(),atualizadaPor:usuario},{merge:false});
+ });
+
+ /* O espelho local guarda por versao; depois de gravar ele esta velho.
+    Limpamos para a proxima leitura vir do banco. */
+ try{localStorage.removeItem(CHAVE_PACOTE+season.id)}catch(e){}
+ aplicarLocal(chave,novoQg);
+ return novoQg;
+}
+
+/* Atualiza o estado em memoria sem reler o Firestore. */
+function aplicarLocal(chave,novoQg){
+ const i=season.qgs.findIndex(q=>q.chave===chave);
+ if(i>=0)season.qgs[i]=novoQg;
+ season.versao++;
+ season.groups=new Set(season.qgs.map(q=>String(q.group||'')
+  .normalize('NFD').replace(/[̀-ͯ]/g,'').trim().toUpperCase()).filter(Boolean));
+}
+
+export async function vincularGroup(fns,chave,group,usuario=''){
+ const g=String(group||'').trim();
+ if(!g)throw new Error('Informe o nome do Group.');
+ const jaUsado=season.qgs.find(q=>q.chave!==chave&&
+  String(q.group||'').trim().toUpperCase()===g.toUpperCase());
+ if(jaUsado)throw new Error(`O Group "${g}" já está no QG "${jaUsado.local||jaUsado.chave}".`);
+ return salvarQg(fns,chave,{group:g},usuario);
+}
+
+export async function desvincularGroup(fns,chave,usuario=''){
+ return salvarQg(fns,chave,{group:''},usuario);
+}
