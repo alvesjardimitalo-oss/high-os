@@ -166,8 +166,8 @@ function cartaoQg(q,faccoes,esc){
    <button type="button" class="mini-btn" data-qg-editar="${esc(q.chave)}">COORDENADAS</button>
    <button type="button" class="mini-btn" data-qg-craft="${esc(q.chave)}">CRAFT${f?.perfilTecnico?.craft?.receitas?.length?' ('+f.perfilTecnico.craft.receitas.length+')':''}</button>
    ${q.group
-     ?`<button type="button" class="mini-btn" data-qg-desvincular="${esc(q.chave)}">DESVINCULAR</button>`
-     :`<button type="button" class="mini-btn primaria" data-qg-vincular="${esc(q.chave)}">VINCULAR GROUP</button>`}
+     ?`<button type="button" class="mini-btn" data-qg-abrir="${esc(q.group)}">ABRIR GROUP</button>`
+     :`<button type="button" class="mini-btn primaria" data-qg-vincular="${esc(q.chave)}">DEFINIR GROUP</button>`}
   </div>
  </article>`;
 }
