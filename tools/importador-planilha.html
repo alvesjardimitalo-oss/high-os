@@ -220,9 +220,9 @@ async function compararComSalvo(){
   const linha=(t,arr,cls)=>arr.length?`<p style="margin:0 0 8px"><b class="${cls}">${arr.length}</b> ${t}: ${arr.slice(0,40).map(q=>`<span class="tag ${cls}">${esc(q.group||q.local||q.chave)}</span>`).join('')}${arr.length>40?' …':''}</p>`:'';
   $('#diff').innerHTML=
     (salvoAtual?`<p class="sub" style="margin:0 0 12px">Gravado hoje: versão ${esc(salvoAtual.versao||1)}, ${esc((salvoAtual.qgs||[]).length)} QGs.</p>`:`<p class="sub" style="margin:0 0 12px">Ainda não existe nada gravado nessa season. Esta vai ser a primeira carga.</p>`)+
-    linha('entram',novos,'novo')+linha('mudaram',mudados,'mud')+linha('somem da planilha',saem,'sai')+
+    linha('entram',novos,'novo')+linha('mudaram',mudados,'mud')+linha('não estão nesta planilha (mantidos)',saem,'sai')+
     (iguais.length?`<p class="mut" style="margin:0">${iguais.length} seguem iguais.</p>`:'')+
-    (saem.length?`<div class="verdict warn">QGs que somem da planilha serão apagados da season. Se foram só renomeados, o importador vê como “sai um, entra outro” — confira antes de gravar.</div>`:'')+
+    (saem.length?`<div class="verdict">QGs que não estão nesta planilha serão <b>mantidos</b>: o painel é o banco, sumir de uma aba não é ordem de exclusão. Para remover um QG de verdade, faça isso no painel.</div>`:'')+
     `<div class="verdict">A gravação custa <b>2 escritas</b>: o pacote da season e o índice. Não é uma escrita por QG.</div>`;
 }
 
@@ -235,12 +235,39 @@ async function gravar(){
   if(!confirm(`Gravar ${qgsLidos.length} QGs na season "${id}"? Isso substitui o que estiver gravado nela.`))return;
 
   const versao=Number(salvoAtual?.versao||0)+1;
+
+  /* MESCLA, nao substitui. O Firebase e o banco: a planilha semeia e
+     acrescenta, mas nao manda apagar o que foi feito no painel.
+     - o Group vinculado no painel e preservado quando a planilha vem
+       com a coluna GROUP vazia, que e o caso normal;
+     - coordenada corrigida no painel so e trocada se a planilha
+       realmente tiver algo naquele campo;
+     - QG que existe no banco e sumiu da planilha PERMANECE. Sumir de
+       uma aba nao e ordem de exclusao: pode ser linha removida por
+       engano, e apagar um QG levaria junto o vinculo do Group. */
+  const salvos=new Map((salvoAtual?.qgs||[]).map(q=>[q.chave,q]));
+  const mesclados=qgsLidos.map(novoQg=>{
+    const antigo=salvos.get(novoQg.chave);
+    if(!antigo)return novoQg;
+    salvos.delete(novoQg.chave);
+    return {
+      ...antigo,
+      ...novoQg,
+      group:novoQg.group||antigo.group||'',
+      produto:novoQg.produto||antigo.produto||'',
+      setor:novoQg.setor||antigo.setor||'',
+      vinculado:!!(novoQg.group||antigo.group),
+      cds:{...(antigo.cds||{}),...(novoQg.cds||{})}
+    };
+  });
+  for(const [,sobra] of salvos)mesclados.push({...sobra,foraDaPlanilha:true});
+
   const pacote={
     id, nome,
     planilhaUrl:$('#sUrl').value.trim(),
     aba:$('#sAba').value.trim(),
-    versao, total:qgsLidos.length,
-    qgs:qgsLidos,
+    versao, total:mesclados.length,
+    qgs:mesclados,
     atualizadaEm:serverTimestamp(),
     atualizadaPor:usuario.email,
     criadaEm:salvoAtual?.criadaEm||serverTimestamp()
@@ -257,7 +284,7 @@ async function gravar(){
       const ix=await getDoc(doc(db,'highos','season_atual'));
       lista=Array.isArray(ix.data()?.lista)?ix.data().lista:[];
     }catch(e){}
-    const entrada={id,nome,versao,total:qgsLidos.length,semGroup:qgsLidos.filter(q=>!q.vinculado).length};
+    const entrada={id,nome,versao,total:mesclados.length,semGroup:mesclados.filter(q=>!q.vinculado).length};
     const i=lista.findIndex(s=>s.id===id);
     if(i>=0)lista[i]=entrada; else lista.push(entrada);
 
@@ -265,8 +292,9 @@ async function gravar(){
       ...entrada, ativa:id, lista,
       atualizadaEm:serverTimestamp(), atualizadaPor:usuario.email
     },{merge:true});
-    salvoAtual={...pacote,qgs:qgsLidos};
-    $('#statusGravacao').innerHTML=`<div class="verdict ok">Gravado. Season <b>${esc(id)}</b> na versão <b>${versao}</b>, ${qgsLidos.length} QGs, 2 escritas usadas.</div>`;
+    salvoAtual={...pacote,qgs:mesclados};
+    const preservados=mesclados.filter(q=>q.foraDaPlanilha).length;
+    $('#statusGravacao').innerHTML=`<div class="verdict ok">Gravado. Season <b>${esc(id)}</b> na versão <b>${versao}</b>, ${mesclados.length} QGs no total, 2 escritas usadas.${preservados?` <br>${preservados} QG(s) que não estão na planilha foram mantidos — o painel é o banco.`:''}</div>`;
     compararComSalvo();
   }catch(e){
     $('#statusGravacao').innerHTML=`<div class="verdict err">Não gravou: ${esc(e.message)}<br>Se for permissão, publique as regras do Firestore com o trecho de <code>seasons</code>.</div>`;
