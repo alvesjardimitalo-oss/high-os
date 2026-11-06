@@ -6958,6 +6958,14 @@ try{await navigator.clipboard.writeText(text);
 const o=btn.textContent;
 btn.textContent='COPIADO ✓';
 setTimeout(()=>btn.textContent=o,1300)}catch(e){alert('Não foi possível copiar automaticamente.')}}
+/* Promessa que nao volta e pior que promessa que falha: a tela fica
+   viva e o botao morto. Aqui toda espera externa tem prazo. */
+function comPrazo(promessa,ms,recado){
+ let t; return Promise.race([
+  Promise.resolve(promessa).finally(()=>clearTimeout(t)),
+  new Promise((_,rej)=>{t=setTimeout(()=>rej(new Error(recado)),ms)})
+ ]);
+}
 let deliverySaveInFlight=false;
 /* V14: troca de ocupante = recolhimento da anterior (o bot anuncia) + entrega da nova */
 async function recolherParaTrocaV14(f,novaFaccao,justificativa){
@@ -6988,9 +6996,11 @@ if(!$('#dLider').value.trim())return alert('Informe o líder (passaporte e nome)
    se nao der, grava assim mesmo e marca a planilha como pendente. */
 let planilhaPendente='';
 if(!facSheetAccessToken){
- try{await facSheetAuthorize()}catch(error){
-  planilhaPendente=String(error?.message||error);
- }
+ /* A autorizacao do Google nao rejeita quando o popup e bloqueado:
+    ela fica pendurada. Sem prazo, a entrega trava em "salvando" e
+    todo clique seguinte e ignorado calado. */
+ try{await comPrazo(facSheetAuthorize(),20000,'A janela de autorizacao do Google nao respondeu.')}
+ catch(error){planilhaPendente=String(error?.message||error)}
 }
 const pendentes=deliveryMissingData();
 if(pendentes.length)return alert('Faltam dados para solicitar os benefícios que ainda não existem no Group:\n\n• '+pendentes.join('\n• ')+'\n\nPreencha os campos ou desmarque o benefício.');
@@ -7012,7 +7022,7 @@ let trocaParaExecutar=null;
 if(!$('#dData').value.trim())$('#dData').value=new Date().toLocaleDateString('pt-BR',{timeZone:'America/Sao_Paulo'});
 /* Mesma regra do acesso acima: a planilha nao decide se a entrega
    acontece. Falhou, anota a pendencia e segue. */
-try{await dlvSaveVipSheet({fromDelivery:true,silent:true})}
+try{await comPrazo(dlvSaveVipSheet({fromDelivery:true,silent:true}),20000,'A planilha nao respondeu a tempo.')}
 catch(error){if(!planilhaPendente)planilhaPendente=String(error?.message||error)}
 if(trocaParaExecutar){
  try{await recolherParaTrocaV14(trocaParaExecutar.f,trocaParaExecutar.faccao,trocaParaExecutar.justificativa)}
