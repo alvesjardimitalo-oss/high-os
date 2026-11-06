@@ -2366,6 +2366,74 @@ function idFac(nomeOuId){
 }
 
 /* ------------------------------------------------------------
+   ADMINISTRACAO > PARADISE
+   A sessao do Paradise expira sozinha e, enquanto o aviso morava
+   no log, as metricas ficavam dias paradas sem ninguem ver.
+   ------------------------------------------------------------ */
+function paradisePintar(d){
+  const badge=document.getElementById('paradiseBadge');
+  if(!badge)return;
+  const ok=d?.configurado&&!d?.status?.erro;
+  badge.className='sheet-sync-badge'+(ok?' online':' offline');
+  badge.textContent=d?.erroRota?'BOT ANTIGO':(ok?'ATIVO':(d?.configurado?'COM ERRO':'SEM SESSÃO'));
+  const q=id=>document.getElementById(id);
+  const quando=v=>v?new Date(v).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'}):'—';
+  if(q('paradiseUltimo'))q('paradiseUltimo').textContent=quando(d?.status?.ultimoSucesso);
+  if(q('paradiseOrigem'))q('paradiseOrigem').textContent=
+    d?.erroRota?'Atualize o bot para usar este painel.'
+    :(d?.origem==='painel'?'Sessao definida pelo painel.'
+      :d?.origem==='env'?'Sessao vinda do .env do PC.'
+      :'Nenhuma sessao guardada.');
+  if(q('paradiseLinhas'))q('paradiseLinhas').textContent=
+    d?.status?.linhas?(d.status.linhas+' linhas na ultima coleta'):'Sem coleta ainda';
+  if(q('paradiseErro'))q('paradiseErro').textContent=d?.erroRota||d?.status?.erro||'Sem erro.';
+}
+async function renderParadise(){
+  if(!document.getElementById('paradiseBadge'))return;
+  try{paradisePintar(await highOsDiscordRequest('/v1/paradise'))}
+  catch(e){
+    const m=String(e?.message||e);
+    paradisePintar({erroRota:/404/.test(m)?'O bot ainda nao tem a rota do Paradise.':m});
+  }
+}
+async function paradiseLogin(btn){
+  if(!confirm('Vai abrir uma janela de navegador NO PC ONDE O BOT RODA.\n\nFaca o login com Discord por ela. Voce tem 3 minutos.'))return;
+  btn.disabled=true; const antes=btn.textContent; btn.textContent='JANELA ABERTA NO PC...';
+  try{
+    await highOsDiscordRequest('/v1/paradise/login',{method:'POST',body:'{}'});
+    await renderParadise();
+    alert('Sessao do Paradise renovada. A coleta ja foi disparada.');
+  }catch(e){
+    const m=String(e?.message||e);
+    alert(/SEM_PLAYWRIGHT|navegador do bot/i.test(m)
+      ? 'O navegador do bot nao esta instalado.\n\nNa pasta do bot, rode:\nnpm install playwright\nnpx playwright install chromium'
+      : /login_nao_concluido|408/.test(m)
+        ? 'A janela fechou ou o login nao terminou em 3 minutos. Tente de novo.'
+        : 'Nao deu certo: '+m);
+  }finally{btn.disabled=false; btn.textContent=antes}
+}
+async function paradiseColar(btn){
+  const cookie=prompt('Cole aqui o cabecalho Cookie inteiro do Paradise (F12 > Network > uma chamada para apidash > Request Headers):','');
+  if(!cookie||!cookie.trim())return;
+  btn.disabled=true; const antes=btn.textContent; btn.textContent='TESTANDO...';
+  try{
+    await highOsDiscordRequest('/v1/paradise',{method:'PUT',body:JSON.stringify({cookie:cookie.trim()})});
+    await renderParadise();
+    alert('Cookie aceito e guardado. A coleta ja foi disparada.');
+  }catch(e){
+    const m=String(e?.message||e);
+    alert(/cookie_recusado/.test(m)
+      ? 'O Paradise recusou esse cookie. Confira se copiou o cabecalho inteiro, e se ainda esta logado no site.'
+      : 'Nao deu certo: '+m);
+  }finally{btn.disabled=false; btn.textContent=antes}
+}
+document.addEventListener('click',ev=>{
+  if(ev.target?.closest?.('[data-admin-tab="integracoes"]'))setTimeout(renderParadise,60);
+  const l=ev.target?.closest?.('#paradiseLoginBtn'); if(l){ev.preventDefault();paradiseLogin(l)}
+  const c=ev.target?.closest?.('#paradiseColarBtn'); if(c){ev.preventDefault();paradiseColar(c)}
+});
+
+/* ------------------------------------------------------------
    ADMINISTRACAO > SEASONS
    A virada de season deixa de ser trabalho manual no codigo:
    qual season o bot assina, que Groups ja existem sem favela, e

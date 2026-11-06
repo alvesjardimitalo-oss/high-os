@@ -881,7 +881,13 @@
               <div class="sheet-sync-actions"><button type="button" id="facSheetConnectBtn" class="btn-primary compact">CONECTAR GOOGLE SHEETS</button><button type="button" id="facSheetCheckBtn" class="btn-secondary compact">VERIFICAR ALTERAÇÕES DA PLANILHA</button><button type="button" id="facSheetPushAllBtn" class="btn-secondary compact">ENVIAR HIGH OS → PLANILHA</button><button type="button" id="blipsSyncAllBtn" class="btn-secondary compact">SINCRONIZAR BLIPS E COORDENADAS</button></div>
               <div class="sheet-sync-note">Campos sincronizados: nº, CDS, anúncio, nome do QG, Group, produto, facção, status, líder, staff responsável, data de entrega e observações. A aba BLIPS COORDENADAS da planilha Ilegal - High Season 2 recebe os dados técnicos do Group na categoria correta. Receitas de craft, farm, métricas e histórico permanecem no High OS.</div>
             </div>
-            
+
+            <div class="sheet-sync-admin-card">
+              <div class="sheet-sync-head"><div><div class="eyebrow">PARADISE • MÉTRICAS DA CIDADE</div><h3>SESSÃO DO PARADISE</h3><p>É de onde vem o pico diário por Group, a cada 15 minutos. A sessão expira sozinha; quando isso acontece as métricas param de entrar e o bot avisa no canal de métricas.</p></div><div id="paradiseBadge" class="sheet-sync-badge offline">VERIFICANDO</div></div>
+              <div class="sheet-sync-meta"><div><span>ÚLTIMA COLETA COM SUCESSO</span><b id="paradiseUltimo">—</b><small id="paradiseOrigem">—</small></div><div><span>SITUAÇÃO</span><b id="paradiseLinhas">—</b><small id="paradiseErro">—</small></div></div>
+              <div class="sheet-sync-actions"><button type="button" id="paradiseLoginBtn" class="btn-primary compact">ENTRAR COM DISCORD</button><button type="button" id="paradiseColarBtn" class="btn-secondary compact">COLAR COOKIE NA MÃO</button></div>
+              <div class="sheet-sync-note">ENTRAR COM DISCORD abre uma janela de navegador <b>no PC onde o bot roda</b>. Faça o login por ela: o bot guarda a sessão dele e passa a renovar sozinho enquanto o Discord deixar. Só volta a pedir login quando a sessão for realmente derrubada.</div>
+            </div>
           </div>
 
           <div class="admin-tab-panel" data-admin-panel="estrutura">
@@ -1218,7 +1224,7 @@
   <!-- V15.6.3: eventos-painel, mission-planner e mission-planner-nav carregam só ao abrir o Planejador (app.js) -->
   <script src="assets/anim-v15.js?v=15.0.0" defer></script>
   <script src="assets/api-config.js?v=2"></script>
-  <script type="module" src="assets/app.js?v=17.11.0"></script>
+  <script type="module" src="assets/app.js?v=17.12.0"></script>
 
 <div id="newDeliveryModal" class="modal hidden"><div class="modal-card delivery-modal-v5"><button class="modal-x" id="newDeliveryClose">×</button>
   <div class="eyebrow">NOVA OCUPAÇÃO</div><h2>ENTREGA DE GROUP</h2><p class="delivery-help">O Group traz sua estrutura instalada. Personalize apenas o que será ativado para a nova facção.</p>
