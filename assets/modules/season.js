@@ -109,15 +109,18 @@ export function noElenco(group=''){
    nome: e o unico sinal que eles tem. */
 export function filtrarPorSeason(lista=[]){
  if(!season.carregada)return lista;
- /* Um registro antigo sem seasonId so entra pelo nome se nenhum
-    registro desta season ja usa esse nome - senao o Armas01 da
-    season passada apareceria ao lado do Armas01 desta. */
+ /* Registro sem seasonId e de antes de existir season. Ele pertence a
+    UMA season: a mais antiga. Enquanto entrava em qualquer season que
+    citasse o nome dele, o Armas01 da season passada aparecia na nova so
+    porque a planilha nova mencionava ARMAS01 por engano. */
+ const legado=ehSeasonLegado();
  const daSeason=new Set(lista
   .filter(f=>String(f.seasonId||'').trim()===String(season.id||''))
   .map(f=>norm(f.group)));
  return lista.filter(f=>{
   const sid=String(f.seasonId||'').trim();
   if(sid)return sid===String(season.id||'');
+  if(!legado)return false;
   const nm=norm(f.group);
   return season.groups.has(nm)&&!daSeason.has(nm);
  });
@@ -146,6 +149,29 @@ export function chaveFaccao(group='',seasonId=''){
  * Sem data de inicio na season, nao filtra - esconder tudo em silencio
  * seria pior que mostrar demais.
  */
+/**
+ * Esta season e a dona dos registros antigos?
+ *
+ * Registro sem seasonId foi criado antes de existir season. Ele tem que
+ * pertencer a exatamente uma, senao aparece em todas: a mais antiga do
+ * indice. Sem indice, assume que sim - nao esconder nada e mais seguro
+ * que esconder a season inteira.
+ */
+export function ehSeasonLegado(){
+ const idx=season.indice||[];
+ if(idx.length<2)return true;
+ const comData=idx.filter(x=>String(x.inicio||'').trim());
+ if(comData.length){
+  const maisAntiga=comData.slice().sort((a,b)=>String(a.inicio).localeCompare(String(b.inicio)))[0];
+  /* Season sem data e anterior a qualquer uma com data: a data so passou
+     a ser preenchida agora. */
+  const semData=idx.filter(x=>!String(x.inicio||'').trim());
+  if(semData.length)return semData.some(x=>x.id===season.id);
+  return maisAntiga.id===season.id;
+ }
+ return idx[idx.length-1]?.id===season.id;
+}
+
 export function metricaDaSeason(dataISO=''){
  if(!season.carregada||!season.inicio)return true;
  const d=String(dataISO||'').slice(0,10);

@@ -35,7 +35,7 @@ import * as catUi from './modules/catalogo-ui.js?v=13.2.0';
 import * as itensUi from './modules/itens-conhecidos.js?v=13.0.0';
 import * as metasUi from './modules/metas-ui.js?v=13.1.0';
 import * as avisos from './modules/avisos-discord.js?v=13.0.0';
-import { season, lerIndice, carregarSeason, seasonEscolhida, guardarEscolha, esquecerEscolha, filtrarPorSeason, qgsSemVinculo, foraDaPlanilha, resumoSeason, salvarQg, vincularGroup, desvincularGroup, chaveFaccao, noElenco, metricaDaSeason, seasonComecou } from './modules/season.js?v=17.13.0';
+import { season, lerIndice, carregarSeason, seasonEscolhida, guardarEscolha, esquecerEscolha, filtrarPorSeason, qgsSemVinculo, foraDaPlanilha, resumoSeason, salvarQg, vincularGroup, desvincularGroup, chaveFaccao, noElenco, metricaDaSeason, seasonComecou } from './modules/season.js?v=17.15.0';
 
 const firebaseConfig={apiKey:'AIzaSyBKtl3rCA9Id1RDMwGch-yi4hxAs83DraU',
 authDomain:'high-os.firebaseapp.com',
@@ -2597,9 +2597,12 @@ function qgsLivres(){
  return (season.qgs||[]).filter(q=>!ocupadas.has(String(q.chave)));
 }
 function groupsSemQg(){
- return (faccoesTodas||[])
-  .filter(x=>!x.removido&&String(x.group||'').trim()&&!String(x.qgChave||'').trim())
-  .filter(x=>!season.id||!x.seasonId||x.seasonId===season.id);
+ /* "!x.seasonId" deixava passar todo registro antigo: os Groups da season
+    anterior nao tem seasonId, entao a Season 3 listava IlegalMechanic02,
+    Municao08, Manicomio e companhia como se fossem elenco dela.
+    Usa o mesmo filtro das outras telas, que ja sabe separar legado. */
+ return filtrarPorSeason((faccoesTodas||[])
+  .filter(x=>!x.removido&&String(x.group||'').trim()&&!String(x.qgChave||'').trim()));
 }
 
 function dialogo(html,aoAbrir){
