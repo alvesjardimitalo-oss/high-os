@@ -35,7 +35,7 @@ import * as catUi from './modules/catalogo-ui.js?v=13.2.0';
 import * as itensUi from './modules/itens-conhecidos.js?v=13.0.0';
 import * as metasUi from './modules/metas-ui.js?v=13.1.0';
 import * as avisos from './modules/avisos-discord.js?v=13.0.0';
-import { season, lerIndice, carregarSeason, seasonEscolhida, guardarEscolha, esquecerEscolha, filtrarPorSeason, qgsSemVinculo, foraDaPlanilha, resumoSeason, salvarQg, vincularGroup, desvincularGroup, chaveFaccao } from './modules/season.js?v=17.10.0';
+import { season, lerIndice, carregarSeason, seasonEscolhida, guardarEscolha, esquecerEscolha, filtrarPorSeason, qgsSemVinculo, foraDaPlanilha, resumoSeason, salvarQg, vincularGroup, desvincularGroup, chaveFaccao, noElenco } from './modules/season.js?v=17.10.0';
 
 const firebaseConfig={apiKey:'AIzaSyBKtl3rCA9Id1RDMwGch-yi4hxAs83DraU',
 authDomain:'high-os.firebaseapp.com',
@@ -2363,6 +2363,109 @@ function idFac(nomeOuId){
  const legado=todos.find(x=>String(x.group||'').toUpperCase()===alvo && !String(x.seasonId||'').trim());
  if(legado)return legado.id;
  return chaveFaccao(n,season.id);
+}
+
+/* ------------------------------------------------------------
+   ADMINISTRACAO > SEASONS
+   A virada de season deixa de ser trabalho manual no codigo:
+   qual season o bot assina, que Groups ja existem sem favela, e
+   os registros que sobraram de tentativa errada.
+   ------------------------------------------------------------ */
+async function seasonBotLer(){
+ try{return await highOsDiscordRequest('/v1/season')}
+ catch(e){return {erro:String(e?.message||e)}}
+}
+function faccoesOrfas(){
+ /* Orfao = nao pertence a season nenhuma E nao esta no elenco de nenhuma
+    planilha. Nunca foi entregue, senao nao seria descartavel. */
+ return (faccoesTodas||[]).filter(f=>{
+  if(f.removido)return false;
+  if(String(f.seasonId||'').trim())return false;
+  if(String(f.faccao||'').trim())return false;
+  return noElenco(f.group)===false;
+ });
+}
+async function renderSeasonsAdmin(){
+ const estado=document.getElementById('seasonBotEstado');
+ const elenco=document.getElementById('seasonElenco');
+ const orfaos=document.getElementById('seasonOrfaos');
+ if(!estado)return;
+
+ const r=await seasonBotLer();
+ if(r?.erro){
+  estado.className='admin-season-estado erro';
+  estado.textContent=/404/.test(r.erro)
+   ? 'O bot ainda esta rodando a versao antiga: ele nao conhece season. Atualize o bot e recarregue.'
+   : 'Nao deu pra falar com o bot: '+r.erro;
+ }else{
+  const sa=r.season||{};
+  estado.className='admin-season-estado'+(sa.id?' ok':' alerta');
+  estado.innerHTML=sa.id
+   ? 'O bot assina <b>'+esc(sa.label||'')+'</b> <i>('+esc(sa.id)+')</i>'
+   : 'O bot ainda nao tem season definida. Os anuncios saem com <b>'+esc(sa.label||'')+'</b>.';
+  const ci=document.getElementById('seasonBotId'), cl=document.getElementById('seasonBotLabel');
+  if(ci&&!ci.value)ci.value=sa.id||season.id||'';
+  if(cl&&!cl.value)cl.value=sa.label||(season.nome?('Ilegal High '+season.nome):'');
+ }
+
+ if(elenco){
+  const sem=groupsSemQg();
+  elenco.innerHTML=sem.length
+   ? '<div class="admin-season-chips">'+sem.map(f=>'<span class="chip">'+esc(f.group)+
+     (f.segmento?'<i>'+esc(f.segmento)+'</i>':'')+'</span>').join('')+'</div>'+
+     '<p class="cat-ajuda">'+sem.length+' Group(s) esperando favela.</p>'
+   : '<p class="cat-ajuda">Nenhum Group solto: ou a season ainda nao tem elenco, ou todos ja estao numa favela.</p>';
+ }
+
+ if(orfaos){
+  const lista=faccoesOrfas();
+  orfaos.innerHTML=lista.length
+   ? '<div class="admin-season-chips">'+lista.map(f=>'<span class="chip orfao" data-orfao="'+esc(f.id||f.group)+'">'+
+     esc(f.group)+'</span>').join('')+'</div>'+
+     '<div class="modal-actions" style="margin-top:12px"><button type="button" class="btn-secondary compact" data-limpar-orfaos>REMOVER OS '+lista.length+'</button></div>'
+   : '<p class="cat-ajuda">Nenhum registro orfao.</p>';
+  const btn=orfaos.querySelector('[data-limpar-orfaos]');
+  if(btn)btn.onclick=()=>removerOrfaos(lista,btn);
+ }
+}
+async function removerOrfaos(lista,btn){
+ if(!confirm('Remover '+lista.length+' registro(s) de Group que nao pertencem a season nenhuma?\n\nNenhum deles tem faccao ocupando.'))return;
+ btn.disabled=true;
+ let feitos=0, falhas=[];
+ for(const f of lista){
+  const chave=f.id||f.group;
+  btn.textContent='REMOVENDO '+(feitos+1)+'/'+lista.length;
+  try{
+   await highOsDiscordRequest('/v1/factions-remove/'+encodeURIComponent(chave),{method:'DELETE'});
+   feitos++;
+  }catch(e){falhas.push(f.group+': '+(e?.message||e))}
+ }
+ try{invalidarCacheRef(facCol)}catch(e){}
+ try{await loadFaccoes()}catch(e){}
+ btn.disabled=false; btn.textContent='REMOVER';
+ renderSeasonsAdmin();
+ if(falhas.length)alert('Removidos '+feitos+'. Falharam '+falhas.length+':\n\n'+falhas.slice(0,6).join('\n'));
+ else alert(feitos+' registro(s) removido(s).');
+}
+document.addEventListener('click',ev=>{
+ const t=ev.target?.closest?.('[data-admin-tab="seasons"]');
+ if(t)setTimeout(renderSeasonsAdmin,60);
+ const b=ev.target?.closest?.('#seasonBotSalvar');
+ if(b)salvarSeasonNoBot(b);
+});
+async function salvarSeasonNoBot(btn){
+ const id=document.getElementById('seasonBotId')?.value.trim();
+ const label=document.getElementById('seasonBotLabel')?.value.trim();
+ if(!id)return alert('Informe o ID da season (ex.: S3). E ele que separa um Armas01 do outro.');
+ if(!label)return alert('Informe o nome exibido: e o que vai no rodape dos anuncios.');
+ if(!confirm('Definir "'+label+'" ('+id+') como season ativa do bot?\n\nMuda o rodape de todo anuncio no Discord.'))return;
+ btn.disabled=true; const antes=btn.textContent; btn.textContent='DEFININDO...';
+ try{
+  await highOsDiscordRequest('/v1/season',{method:'PUT',body:JSON.stringify({id,label})});
+  await renderSeasonsAdmin();
+  alert('Season ativa do bot: '+label+'.');
+ }catch(e){alert('Nao definiu: '+(e?.message||e))}
+ finally{btn.disabled=false; btn.textContent=antes}
 }
 
 function qgsLivres(){

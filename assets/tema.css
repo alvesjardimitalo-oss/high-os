@@ -646,3 +646,23 @@ button:disabled{opacity:.45 !important}
 .qg-definir-usar select{width:100%;background:#0b0f11;border:1px solid var(--line);
  border-radius:8px;padding:9px 11px;color:var(--text);font:14px/1.5 inherit}
 .qg-definir-grade input:disabled,.qg-definir-grade select:disabled{opacity:.55;cursor:not-allowed}
+
+/* ---------- Administração > Seasons ---------- */
+.admin-season-estado{padding:12px 15px;border-radius:0 10px 10px 0;margin:0 0 16px;font-size:14px;
+ border-left:3px solid var(--line2);background:rgba(255,255,255,.03)}
+.admin-season-estado.ok{border-left-color:var(--lime);background:rgba(160,240,64,.07)}
+.admin-season-estado.alerta{border-left-color:var(--warn);background:rgba(255,201,60,.07)}
+.admin-season-estado.erro{border-left-color:var(--danger);background:rgba(240,64,96,.07)}
+.admin-season-estado i{font-style:normal;color:var(--muted)}
+.admin-season-form{display:grid;grid-template-columns:140px 1fr auto;gap:12px;align-items:end}
+.admin-season-form label{display:flex;flex-direction:column;gap:5px}
+.admin-season-form label>span{font-size:10.5px;letter-spacing:.09em;font-weight:800;color:var(--muted)}
+.admin-season-form input{width:100%;background:#0b0f11;border:1px solid var(--line);border-radius:8px;
+ padding:9px 11px;color:var(--text);font:14px/1.5 inherit}
+.admin-season-form input:focus{outline:none;border-color:var(--violet)}
+.admin-season-chips{display:flex;flex-wrap:wrap;gap:7px}
+.admin-season-chips .chip{display:inline-flex;align-items:center;gap:6px;background:#0b0f11;
+ border:1px solid var(--line);border-radius:999px;padding:5px 12px;font-size:12.5px;font-weight:700}
+.admin-season-chips .chip i{font-style:normal;font-weight:600;color:var(--muted);font-size:11px}
+.admin-season-chips .chip.orfao{border-color:rgba(240,64,96,.45);color:#ffb4c2}
+@media(max-width:760px){.admin-season-form{grid-template-columns:1fr}}
