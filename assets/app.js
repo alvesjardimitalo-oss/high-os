@@ -35,7 +35,7 @@ import * as catUi from './modules/catalogo-ui.js?v=13.2.0';
 import * as itensUi from './modules/itens-conhecidos.js?v=13.0.0';
 import * as metasUi from './modules/metas-ui.js?v=13.1.0';
 import * as avisos from './modules/avisos-discord.js?v=13.0.0';
-import { season, lerIndice, carregarSeason, seasonEscolhida, guardarEscolha, esquecerEscolha, filtrarPorSeason, qgsSemVinculo, foraDaPlanilha, resumoSeason, salvarQg, vincularGroup, desvincularGroup, chaveFaccao } from './modules/season.js?v=17.9.0';
+import { season, lerIndice, carregarSeason, seasonEscolhida, guardarEscolha, esquecerEscolha, filtrarPorSeason, qgsSemVinculo, foraDaPlanilha, resumoSeason, salvarQg, vincularGroup, desvincularGroup, chaveFaccao } from './modules/season.js?v=17.10.0';
 
 const firebaseConfig={apiKey:'AIzaSyBKtl3rCA9Id1RDMwGch-yi4hxAs83DraU',
 authDomain:'high-os.firebaseapp.com',
@@ -3182,7 +3182,11 @@ async function discordFactionPatch(id,patch={}){
   if(pt==='segmento'){p.segment=String(p.segmento||'').trim();continue;}
   delete p[nat];
  }
- return highOsDiscordRequest('/v1/factions/'+encodeURIComponent(id),{method:'PUT',body:JSON.stringify({...p,group:id})});
+ /* A URL leva a CHAVE; o corpo leva o NOME. Enquanto os dois eram a mesma
+    coisa, o nome do Group virava a chave e duas seasons nao podiam ter um
+    Armas01 cada. */
+ const nome=String(p.group||'').trim()||id;
+ return highOsDiscordRequest('/v1/factions/'+encodeURIComponent(id),{method:'PUT',body:JSON.stringify({...p,group:nome})});
 }
 const setDoc=async(ref,data,opts={})=>{
  const ds=discordStoreRef(ref);
@@ -3435,7 +3439,9 @@ return comoSnapshot(mem.rows)}
    let rows;
    if(ds.scope==='faccoes'){const r=await highOsDiscordRequest('/v1/factions');rows=(r.records||[]).map(x=>({
     ...x,
-    id:x.group||x.id,
+    /* key e a chave do registro no bot. Com dois Armas01 (um por season) o
+       nome sozinho nao identifica registro nenhum. */
+    id:x.key||x.group||x.id,
     group:x.group||x.id||'',
     segmento:x.segmento||x.segment||'',
     qg:x.qg||x.location||'',
