@@ -16028,7 +16028,7 @@ if($('#facStats'))$('#facStats').textContent=`${rows.length} exibida(s) de ${all
 
  const box=$('#facList');
 if(!box)return;
-if(!rows.length){box.innerHTML='vazioDeGroups()';
+if(!rows.length){box.innerHTML=vazioDeGroups();
 return}
  const ordered=rows.slice().sort((a,b)=>String(a.__orgSegment).localeCompare(String(b.__orgSegment),'pt-BR')||String(a.group||'').localeCompare(String(b.group||''),'pt-BR',{numeric:true}));
 
@@ -16312,7 +16312,7 @@ renderFaccoes=function(){
 
  const box=$('#facList');if(!box)return;
  document.querySelectorAll('#orgV92Audit').forEach(el=>el.remove());
- if(!rows.length){box.innerHTML='vazioDeGroups()';return}
+ if(!rows.length){box.innerHTML=vazioDeGroups();return}
  const ordered=org15Ordenar(rows,res);
  box.innerHTML=org15.view==='mapa'?org15Mapa(ordered,res,dias,max):org15Lista(ordered,res,max,r0);
 
