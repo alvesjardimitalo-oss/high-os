@@ -6982,11 +6982,14 @@ const faccao=$('#dFaccao').value.trim();
 if(!faccao)return alert('Informe a facção que está assumindo.');
 // O bot recusa entrega sem líder (passaporte + nome); avisa aqui antes de enviar.
 if(!$('#dLider').value.trim())return alert('Informe o líder (passaporte e nome) da facção que está assumindo.');
-// A entrada de Group só é iniciada após conceder acesso de escrita à planilha.
-// Não altera o cadastro do outro ocupante se a autorização falhar.
+/* O banco e o Firebase; a planilha e adicional. Entrega nao pode
+   deixar de ser gravada porque o Google nao autorizou - antes, uma
+   recusa de popup derrubava a entrega inteira. Tenta sincronizar;
+   se nao der, grava assim mesmo e marca a planilha como pendente. */
+let planilhaPendente='';
 if(!facSheetAccessToken){
  try{await facSheetAuthorize()}catch(error){
-  return alert('Não foi possível autorizar a sincronização com a planilha. Entrega não iniciada.\n\n'+(error?.message||error));
+  planilhaPendente=String(error?.message||error);
  }
 }
 const pendentes=deliveryMissingData();
@@ -7006,10 +7009,11 @@ let trocaParaExecutar=null;
   trocaParaExecutar={f,faccao,justificativa:just.trim()};
  }}
 
-// A planilha é a base de dados: salvar status/IDs realmente confirmados antes de registrar entrega.
 if(!$('#dData').value.trim())$('#dData').value=new Date().toLocaleDateString('pt-BR',{timeZone:'America/Sao_Paulo'});
+/* Mesma regra do acesso acima: a planilha nao decide se a entrega
+   acontece. Falhou, anota a pendencia e segue. */
 try{await dlvSaveVipSheet({fromDelivery:true,silent:true})}
-catch(error){return alert('A entrega não foi concluída: checklist VIP não pôde ser salvo na planilha. '+(error?.message||error))}
+catch(error){if(!planilhaPendente)planilhaPendente=String(error?.message||error)}
 if(trocaParaExecutar){
  try{await recolherParaTrocaV14(trocaParaExecutar.f,trocaParaExecutar.faccao,trocaParaExecutar.justificativa)}
  catch(err){return alert('Não foi possível recolher a facção anterior: '+err.message)}
@@ -7080,7 +7084,9 @@ createdBy:currentUser.email};
   queryFreshAt.set('faccoes',Date.now());queryFreshAt.set('entregas',Date.now());
   cacheEscrever('entregas_resumo',entregas);
   renderFaccoes();renderDeliveries();renderOrganizations();
-  alert(sheetSynced?'Entrega registrada no High OS Discord e sincronizada com as planilhas.':'Entrega registrada no High OS Discord, mas a planilha NÃO foi sincronizada. Conecte o Google Sheets e sincronize novamente.');
+  alert(sheetSynced&&!planilhaPendente
+   ?'Entrega registrada e sincronizada com as planilhas.'
+   :'Entrega registrada. A planilha NAO foi sincronizada - conecte o Google Sheets e sincronize quando puder.'+(planilhaPendente?'\n\n'+planilhaPendente:''));
   /* O aviso sai agora, com a entrega fresca na cabeca de quem fez. */
   try{abrirAvisoEntrega(deliveredGroup,{responsavel:currentUser?.email||'',oferta:payload?.plano||''})}catch(e){console.warn('[AVISO]',e?.message||e)}
 
