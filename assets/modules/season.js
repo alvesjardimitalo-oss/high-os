@@ -97,9 +97,33 @@ export function noElenco(group=''){
  if(!season.carregada)return true;
  return season.groups.has(norm(group));
 }
+/* A season de um registro e o seasonId dele, nao o nome do Group.
+   Enquanto a separacao era por nome, duas seasons nao podiam ter um
+   Armas01 cada - eram o mesmo registro aos olhos do filtro.
+   Registros antigos, de antes do seasonId, continuam entrando pelo
+   nome: e o unico sinal que eles tem. */
 export function filtrarPorSeason(lista=[]){
  if(!season.carregada)return lista;
- return lista.filter(f=>season.groups.has(norm(f.group)));
+ /* Um registro antigo sem seasonId so entra pelo nome se nenhum
+    registro desta season ja usa esse nome - senao o Armas01 da
+    season passada apareceria ao lado do Armas01 desta. */
+ const daSeason=new Set(lista
+  .filter(f=>String(f.seasonId||'').trim()===String(season.id||''))
+  .map(f=>norm(f.group)));
+ return lista.filter(f=>{
+  const sid=String(f.seasonId||'').trim();
+  if(sid)return sid===String(season.id||'');
+  const nm=norm(f.group);
+  return season.groups.has(nm)&&!daSeason.has(nm);
+ });
+}
+/* Chave de armazenamento do Group. O nome e so o rotulo; quem separa
+   e a season. Registro antigo sem season mantem a chave antiga para
+   nao virar um registro novo e orfao. */
+export function chaveFaccao(group='',seasonId=''){
+ const g=String(group||'').trim();
+ const s=String(seasonId||'').trim();
+ return s?`${s}__${g}`:g;
 }
 
 /* QGs da planilha que ainda nao tem Group vinculado: a fila de trabalho

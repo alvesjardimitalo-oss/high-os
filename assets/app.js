@@ -35,7 +35,7 @@ import * as catUi from './modules/catalogo-ui.js?v=13.2.0';
 import * as itensUi from './modules/itens-conhecidos.js?v=13.0.0';
 import * as metasUi from './modules/metas-ui.js?v=13.1.0';
 import * as avisos from './modules/avisos-discord.js?v=13.0.0';
-import { season, lerIndice, carregarSeason, seasonEscolhida, guardarEscolha, esquecerEscolha, filtrarPorSeason, qgsSemVinculo, foraDaPlanilha, resumoSeason, salvarQg, vincularGroup, desvincularGroup } from './modules/season.js?v=13.1.0';
+import { season, lerIndice, carregarSeason, seasonEscolhida, guardarEscolha, esquecerEscolha, filtrarPorSeason, qgsSemVinculo, foraDaPlanilha, resumoSeason, salvarQg, vincularGroup, desvincularGroup, chaveFaccao } from './modules/season.js?v=17.9.0';
 
 const firebaseConfig={apiKey:'AIzaSyBKtl3rCA9Id1RDMwGch-yi4hxAs83DraU',
 authDomain:'high-os.firebaseapp.com',
@@ -1969,7 +1969,7 @@ async function recuperarTelaoIlegalMechanic02(facList=[]){
   telaoPostit:telao.postit,telaoCds:telao.cds,telaoSons:[...sons],
   ...Object.fromEntries(sons.map((v,i)=>['telaoCaixa'+(i+1),v]))};
  const perfilTecnico={...p,operacional:{...o,telao}};
- await setDoc(doc(db,'highos','data','faccoes',f.group),{
+ await setDoc(doc(db,'highos','data','faccoes',idFac(f.group)),{
   beneficios,perfilTecnico,recuperacaoTelao20261020:true,
   updatedAt:serverTimestamp(),updatedBy:currentUser.email});
  Object.assign(f,{beneficios,perfilTecnico,recuperacaoTelao20261020:true});
@@ -2228,7 +2228,7 @@ async function salvarMeta(group,btn){
 
  btn.disabled=true; const rotulo=btn.textContent; btn.textContent='...';
  try{
-  await setDoc(doc(db,'highos','data','faccoes',f.group),{
+  await setDoc(doc(db,'highos','data','faccoes',idFac(f.group)),{
    metaRec:meta,  /* null limpa a meta: combinar zero nao e um acordo */
    updatedAt:serverTimestamp(), updatedBy:currentUser?.email||''
   },{merge:true});
@@ -2338,6 +2338,33 @@ function qgPorChave(chave){return (season.qgs||[]).find(q=>q.chave===chave)}
    com o elenco de Groups definido e as favelas ainda vazias, e o
    vinculo e feito quando se decide quem produz onde.
    ------------------------------------------------------------ */
+/* O nome do Group e rotulo, nao chave. Duas seasons podem ter um
+   Armas01 cada, e sao registros diferentes. Este e o unico lugar
+   que decide em que documento um Group e gravado:
+   - ja carregado  -> o id real dele, seja novo ou herdado
+   - novo          -> chave com a season na frente
+   Sem isso, gravar o Armas01 da season nova escreveria por cima do
+   Armas01 da anterior. */
+function idFac(nomeOuId){
+ const n=String(nomeOuId||'').trim();
+ if(!n)return n;
+ const todos=faccoesTodas||[];
+ const porId=todos.find(x=>x.id===n);
+ if(porId)return porId.id;
+ const alvo=n.toUpperCase();
+ const daSeason=todos.find(x=>String(x.group||'').toUpperCase()===alvo
+  && String(x.seasonId||'')===String(season.id||''));
+ if(daSeason)return daSeason.id;
+ if(!season.id){
+  const qualquer=todos.find(x=>String(x.group||'').toUpperCase()===alvo);
+  if(qualquer)return qualquer.id;
+  return n;
+ }
+ const legado=todos.find(x=>String(x.group||'').toUpperCase()===alvo && !String(x.seasonId||'').trim());
+ if(legado)return legado.id;
+ return chaveFaccao(n,season.id);
+}
+
 function qgsLivres(){
  const ocupadas=new Set((faccoesTodas||[])
   .filter(x=>!x.removido&&String(x.qgChave||'').trim())
@@ -2375,7 +2402,9 @@ document.addEventListener('click',ev=>{
 async function criarGroupSemQg(){
  if(!canEditModule('faccoes'))return permissionDeniedMessage('faccoes',true);
  const segs=segmentDefs().map(s=>s.nome).filter(Boolean);
- const existentes=(faccoesTodas||[]).map(x=>String(x.group||'').toUpperCase());
+ /* O nome so precisa ser unico dentro da season: Armas01 da season
+    passada nao impede o Armas01 desta. */
+ const existentes=(faccoes||[]).map(x=>String(x.group||'').toUpperCase());
  dialogo(`<div class="modal-card qg-definir">
    <button class="modal-x" type="button" aria-label="Fechar">\u00d7</button>
    <div class="eyebrow">NOVO GROUP</div>
@@ -2426,7 +2455,7 @@ async function criarGroupSemQg(){
    nao divergem no formato do registro. */
 async function gravarGroup(g,{segmento,produto,qg='',qgChave=''}){
  const jaExiste=(faccoesTodas||[]).some(x=>String(x.group||'').toUpperCase()===g.toUpperCase());
- await setDoc(doc(db,'highos','data','faccoes',g),{
+ await setDoc(doc(db,'highos','data','faccoes',idFac(g)),{
   group:g, segmento, produto:produto||segmento, qg, qgChave,
   status:'INATIVA', faccao:'', lider:'', staff:'',
   seasonId:season.id||'',
@@ -2484,7 +2513,9 @@ async function vincularQg(chave){
     aquele lugar passa a produzir. Sem segmento o sistema nao sabe que
     receita padrao oferecer, nem onde o Group entra nos relatorios. */
  const segs=segmentDefs().map(s=>s.nome).filter(Boolean);
- const existentes=(faccoesTodas||[]).map(x=>String(x.group||'').toUpperCase());
+ /* O nome so precisa ser unico dentro da season: Armas01 da season
+    passada nao impede o Armas01 desta. */
+ const existentes=(faccoes||[]).map(x=>String(x.group||'').toUpperCase());
 
  const modal=document.createElement('div');
  modal.className='modal';
@@ -2572,7 +2603,7 @@ async function vincularQg(chave){
   btn.disabled=true; btn.textContent='DEFININDO...';
   try{
    const jaExiste=existentes.includes(g.toUpperCase());
-   await setDoc(doc(db,'highos','data','faccoes',g),{
+   await setDoc(doc(db,'highos','data','faccoes',idFac(g)),{
     group:g, segmento:seg, qg:q.local||'', produto:prod,
     status:'INATIVA', faccao:'', lider:'', staff:'',
     seasonId:season.id||'', qgChave:q.chave,
@@ -2801,7 +2832,7 @@ function abrirCraftQg(chave){
   try{
    const perfil={...(grp.perfilTecnico||{})};
    perfil.craft={...(perfil.craft||{}),receitas};
-   await setDoc(doc(db,'highos','data','faccoes',grp.group),
+   await setDoc(doc(db,'highos','data','faccoes',idFac(grp.group)),
     {perfilTecnico:perfil,updatedAt:serverTimestamp(),updatedBy:currentUser?.email||''},{merge:true});
    await registrarHistoricoQg('GROUP_CRAFT',q,`Craft do Group ${grp.group}: ${receitas.length} receita(s)`);
    try{await loadFaccoes()}catch(e){}
@@ -3470,7 +3501,7 @@ return}
  if(!confirm(`Importar as ${SEED.length} posições do Documento das Facções para o Discord Storage?`))return;
 
  try{const batch=writeBatch(db);
-SEED.forEach(f=>batch.set(doc(db,'highos','data','faccoes',f.group),{...f,
+SEED.forEach(f=>batch.set(doc(db,'highos','data','faccoes',idFac(f.group)),{...f,
 updatedAt:serverTimestamp(),
 updatedBy:currentUser.email}));
 await batch.commit();
@@ -4055,7 +4086,7 @@ return}
   return;
  }
  try{const generated=autoDeliveryRequests(data);
-await setDoc(doc(db,'highos','data','faccoes',group),data);
+await setDoc(doc(db,'highos','data','faccoes',idFac(group)),data);
 const localIndex=faccoes.findIndex(x=>x.group===group);
 if(localIndex>=0)faccoes[localIndex]={...faccoes[localIndex],
 ...clonePlain(data)};
@@ -4234,7 +4265,7 @@ createdBy:currentUser.email});evidenceId=evidenceRef.id}recolhimento.evidenciaId
 /* O bot posta o extrato (e o print, no baixo contingente) no tópico do Group
    e no canal de recolhidas do Discord do Ilegal. Só vai no PUT; não fica no registro local. */
 const [tituloRec,...corpoRec]=String(recolhimento.extrato||'').split('\n');
-recollectBatch.set(doc(db,'highos','data','faccoes',group),{...data,anuncioRecolhimento:{title:tituloRec,description:corpoRec.join('\n').trim(),imageDataUrl:recollectPanelImage||'',
+recollectBatch.set(doc(db,'highos','data','faccoes',idFac(group)),{...data,anuncioRecolhimento:{title:tituloRec,description:corpoRec.join('\n').trim(),imageDataUrl:recollectPanelImage||'',
  /* webhook: modelo novo (embed com arte, cor e rodape da Ilegal) montado
     do mesmo formulario de recolhimento. title/description ficam para o
     bot que ainda nao le o campo novo. */
@@ -5102,7 +5133,7 @@ nextT.rota.atualizadoEm=new Date().toISOString();
 
  try{
   const routeBatch=writeBatch(db);
-  routeBatch.set(doc(db,'highos','data','faccoes',group),{perfilTecnico:nextT,
+  routeBatch.set(doc(db,'highos','data','faccoes',idFac(group)),{perfilTecnico:nextT,
 beneficios:benefits,
 updatedAt:serverTimestamp(),
 updatedBy:currentUser.email},{merge:true});
@@ -5292,7 +5323,7 @@ f=faccoes.find(x=>x.group===group);
   if(group&&f){const mut=manualRequestMutation(tipo,d,f);
 if(mut.changed){const yes=confirm(`Essa solicitação vai gerar modificações no Group ${group}.\n\nAlteração detectada: ${mut.descricao||requestTypeName(tipo)}.\n\nDeseja que as mesmas sejam cadastradas no Group?`);
 if(yes){const previousGroup=clonePlain(f);
-await setDoc(doc(db,'highos','data','faccoes',group),{perfilTecnico:mut.perfilTecnico,
+await setDoc(doc(db,'highos','data','faccoes',idFac(group)),{perfilTecnico:mut.perfilTecnico,
 beneficios:mut.beneficios,
 updatedAt:serverTimestamp(),
 updatedBy:currentUser?.email||''},{merge:true});
@@ -6209,7 +6240,7 @@ async function reconcileActiveDeliveriesToGroups(){
  if(!isAdmin())return;
  try{
   const batch=writeBatch(db);
-  fixes.forEach(({f,d})=>batch.set(doc(db,'highos','data','faccoes',f.group),{
+  fixes.forEach(({f,d})=>batch.set(doc(db,'highos','data','faccoes',idFac(f.group)),{
    status:'ATIVA',
    faccao:String(d.faccao||'').trim(),
    lider:d.lider||f.lider||'',
@@ -7141,7 +7172,7 @@ async function recolherParaTrocaV14(f,novaFaccao,justificativa){
  const recolhimento={motivo:'TROCA_OCUPANTE',motivoLabel:'Troca de ocupante',responsavel,data,hora,justificativa,baixoContingente:null,extrato,createdAtText:agora.toISOString(),createdBy:currentUser.email,troca:true,novaFaccao};
  const vago={...f,status:'INATIVA',faccao:'',lider:'',staff:'',dataEntrega:'',ocupacaoAtual:null,ultimoRecolhimento:{...recolhimento,possuiEvidencia:false},updatedBy:currentUser.email};
  const [titulo,...corpo]=extrato.split('\n');
- await setDoc(doc(db,'highos','data','faccoes',f.group),{...vago,anuncioRecolhimento:{title:titulo,description:corpo.join('\n').trim(),imageDataUrl:'',
+ await setDoc(doc(db,'highos','data','faccoes',idFac(f.group)),{...vago,anuncioRecolhimento:{title:titulo,description:corpo.join('\n').trim(),imageDataUrl:'',
   webhook:avisoRecolhimentoWebhook(f,{motivoLabel:'Encerramento de season',responsavel:currentUser?.email||'',justificativa:'Virada de season.'})}});
  try{await setDoc(doc(db,'highos','data','organizacoes',orgKey(f.faccao)),{nome:f.faccao,status:'SEM_GROUP',groupAtual:'',segmentoAtual:f.segmento||'',qgAtual:'',ultimoRecolhimento:recolhimento,updatedBy:currentUser.email},{merge:true})}catch(e){}
  entregas=entregas.map(d=>d.group===f.group&&d.status==='ATIVA'?{...d,status:'RECOLHIDA',recolhidaPor:currentUser.email,recolhimento}:d);
@@ -7245,7 +7276,7 @@ createdBy:currentUser.email};
 
   // O bot cria o tópico em facs-entregues e posta o extrato como anúncio.
   const [titulo,...corpo]=extract.split('\n');
-  await setDoc(doc(db,'highos','data','faccoes',f.group),{
+  await setDoc(doc(db,'highos','data','faccoes',idFac(f.group)),{
    ...deliveredGroup,
    anuncioEntrega:{title:titulo,description:corpo.join('\n').trim()}
   });
@@ -10535,7 +10566,7 @@ for(const [sourceGroup,
 src] of entries){const f=(faccoes||[]).find(x=>alvesNorm(x.group).replace(/\s+/g,'')===alvesNorm(sourceGroup).replace(/\s+/g,''));
 if(!f){missing++;
 continue}const patch=sourceToGroupPatch(f,src);
-batch.set(doc(db,'highos','data','faccoes',f.group),{...patch,
+batch.set(doc(db,'highos','data','faccoes',idFac(f.group)),{...patch,
 updatedAt:serverTimestamp(),
 updatedBy:currentUser.email},{merge:true});
 updated++;
@@ -12349,8 +12380,8 @@ $('#movementConfirm')?.addEventListener('click', async () => {
     b.updatedBy = currentUser.email;
 
     const batch = writeBatch(db);
-    batch.set(doc(db,'highos','data','faccoes',src.group), a);
-    batch.set(doc(db,'highos','data','faccoes',dst.group), b);
+    batch.set(doc(db,'highos','data','faccoes',idFac(src.group)), a);
+    batch.set(doc(db,'highos','data','faccoes',idFac(dst.group)), b);
 
     // Guardar log e vínculos junto com as alterações principais.
     batch.set(doc(histCol), {
@@ -12737,7 +12768,7 @@ group:d.current.group,
 updatedAt:serverTimestamp(),
 updatedBy:currentUser.email,
 syncSource:'GOOGLE_SHEETS'};
-batch.set(doc(db,'highos','data','faccoes',d.current.group),next,{merge:true})}await batch.commit();
+batch.set(doc(db,'highos','data','faccoes',idFac(d.current.group)),next,{merge:true})}await batch.commit();
 for(const d of facSheetPendingDiffs){const oldName=String(d.current.faccao||'').trim(),
 newName=String(d.patch.faccao||'').trim();
 if(oldName&&facSheetNorm(oldName)!==facSheetNorm(newName)){await setDoc(doc(db,'highos','data','organizacoes',orgKey(oldName)),{nome:oldName,
@@ -13194,7 +13225,7 @@ old=b?.textContent||'COPIAR SOLICITAÇÃO';
 async function persistCurrentTechProfile(group, {reload=true}={}){
  if(!group)throw new Error('Group não identificado.');
 
- const ref=doc(db,'highos','data','faccoes',group);
+ const ref=doc(db,'highos','data','faccoes',idFac(group));
 
  const perfilTecnico=getTechProfileFromForm();
  const local=faccoes.find(x=>x.group===group);
@@ -13384,7 +13415,7 @@ setTimeout(()=>button.textContent=t,900)}return}
  try{
   if(button){button.disabled=true;
 button.textContent='SALVANDO...'}
-  await setDoc(doc(db,'highos','data','faccoes',group),{imagemAnuncio:url,
+  await setDoc(doc(db,'highos','data','faccoes',idFac(group)),{imagemAnuncio:url,
 updatedAt:serverTimestamp(),
 updatedBy:currentUser.email},{merge:true});
 
@@ -13427,7 +13458,7 @@ contingenteMax:Number(f.contingenteMax||28)};
  try{
   if(button){button.disabled=true;
 button.textContent='SALVANDO...'}
-  await setDoc(doc(db,'highos','data','faccoes',group),{contingenteMin:min,
+  await setDoc(doc(db,'highos','data','faccoes',idFac(group)),{contingenteMin:min,
 contingenteMax:max,
 updatedAt:serverTimestamp(),
 updatedBy:currentUser.email},{merge:true});
@@ -13548,7 +13579,7 @@ naoPostadoEm:now.toISOString(),
 responsavel:currentProfile?.name||currentUser?.displayName||currentUser.email,
 confirmadoPor:currentUser.email};
 
- try{await setDoc(doc(db,'highos','data','faccoes',group),{anuncioDiscordStatus:status,
+ try{await setDoc(doc(db,'highos','data','faccoes',idFac(group)),{anuncioDiscordStatus:status,
 updatedAt:serverTimestamp(),
 updatedBy:currentUser.email},{merge:true});
 await addDoc(histCol,{sessionId:currentSessionId||'',
@@ -13796,7 +13827,7 @@ if(registrySame){editingSegmentName='';if($('#segmentCreateBtn'))$('#segmentCrea
 const renamed=segmentKey(nome)!==segmentKey(oldName);
 if(renamed){linksChanged=true;
  const batch=writeBatch(db);
- faccoes.filter(f=>segmentKey(f.segmento)===segmentKey(oldName)).forEach(f=>batch.set(doc(db,'highos','data','faccoes',f.group),{segmento:nome,
+ faccoes.filter(f=>segmentKey(f.segmento)===segmentKey(oldName)).forEach(f=>batch.set(doc(db,'highos','data','faccoes',idFac(f.group)),{segmento:nome,
  updatedAt:serverTimestamp(),
  updatedBy:currentUser.email},{merge:true}));
  organizacoes.filter(o=>segmentKey(orgSegmentValue(o))===segmentKey(oldName)).forEach(o=>batch.set(doc(db,'highos','data','organizacoes',o.id||orgKey(o.nome)),{segmentoAtual:nome,
@@ -13851,7 +13882,7 @@ const groupSame=segmentKey(f.segmento)===segmentKey(target);
 const orgSame=!f.faccao||(segmentKey(org?.segmentoAtual)===segmentKey(target)&&segmentKey(org?.segmentoVinculado)===segmentKey(target));
 if(groupSame&&orgSame){renderSegmentAdmin();return}
 const batch=writeBatch(db);
-if(!groupSame)batch.set(doc(db,'highos','data','faccoes',f.group),{segmento:target,
+if(!groupSame)batch.set(doc(db,'highos','data','faccoes',idFac(f.group)),{segmento:target,
 updatedAt:serverTimestamp(),
 updatedBy:currentUser.email},{merge:true});
 if(f.faccao&&!orgSame)batch.set(doc(db,'highos','data','organizacoes',orgKey(f.faccao)),{segmentoAtual:target,
@@ -13893,7 +13924,7 @@ if((u.groups||u.orgs)&&!replacement)return alert(`O segmento ${name} está em us
 if(!confirm(`Apagar o segmento ${name}?${replacement?`\n\nTodos os vínculos serão transferidos para ${replacement}.`:''}`))return;
 
  try{if(replacement){const batch=writeBatch(db);
-faccoes.filter(f=>segmentKey(f.segmento)===segmentKey(name)).forEach(f=>batch.set(doc(db,'highos','data','faccoes',f.group),{segmento:replacement,
+faccoes.filter(f=>segmentKey(f.segmento)===segmentKey(name)).forEach(f=>batch.set(doc(db,'highos','data','faccoes',idFac(f.group)),{segmento:replacement,
 updatedAt:serverTimestamp(),
 updatedBy:currentUser.email},{merge:true}));
 organizacoes.filter(o=>segmentKey(orgSegmentValue(o))===segmentKey(name)).forEach(o=>batch.set(doc(db,'highos','data','organizacoes',o.id||orgKey(o.nome)),{segmentoAtual:replacement,
@@ -13932,7 +13963,7 @@ IlegalMecanic01:'APOIO'};
 const needs=faccoes.filter(f=>rules[f.group]&&segmentKey(f.segmento)!==segmentKey(rules[f.group]));
 if(!needs.length)return;
 try{const batch=writeBatch(db);
-needs.forEach(f=>{const seg=rules[f.group];batch.set(doc(db,'highos','data','faccoes',f.group),{segmento:seg,
+needs.forEach(f=>{const seg=rules[f.group];batch.set(doc(db,'highos','data','faccoes',idFac(f.group)),{segmento:seg,
 updatedAt:serverTimestamp(),
 updatedBy:currentUser.email},{merge:true});if(f.faccao)batch.set(doc(db,'highos','data','organizacoes',orgKey(f.faccao)),{segmentoAtual:seg,
 segmentoVinculado:seg,
@@ -14015,8 +14046,8 @@ delete payload.id;
   /* V10.40 - renomeação atômica: novo Group, remoção do documento antigo
      e vínculos das organizações são confirmados juntos. */
   const renameBatch=writeBatch(db);
-  renameBatch.set(doc(db,'highos','data','faccoes',next),payload,{merge:false});
-  renameBatch.delete(doc(db,'highos','data','faccoes',current.id||current.group));
+  renameBatch.set(doc(db,'highos','data','faccoes',idFac(next)),payload,{merge:false});
+  renameBatch.delete(doc(db,'highos','data','faccoes',idFac(current.id||current.group)));
 
   const linked=organizacoes.filter(o=>alvesNorm(o.groupAtual)===alvesNorm(current.group));
   for(const o of linked)renameBatch.set(doc(db,'highos','data','organizacoes',o.id||orgKey(o.nome)),{groupAtual:next,
@@ -14089,7 +14120,7 @@ async function createAdminNewGroup(event){
   // Verificação remota evita sobrescrever um Group criado por outro admin.
   const latest=await highOsDiscordRequest('/v1/factions');
   if((latest.records||[]).some(f=>String(f.group||'').toLowerCase()===group.toLowerCase()))return alert('Este Group já existe no cadastro. Atualize a lista.');
-  await setDoc(doc(db,'highos','data','faccoes',group),{
+  await setDoc(doc(db,'highos','data','faccoes',idFac(group)),{
    group,segmento,qg,status:'DISPONIVEL',faccao:'',lider:'',staff:'',
    dataEntrega:'',contingenteMin:min,contingenteMax:max,observacoes
   });
@@ -14163,7 +14194,7 @@ status:hit.wanted}:f});
  if(isAdmin()){
   try{const batch=writeBatch(db);
 changes.forEach(({f,
-wanted})=>batch.set(doc(db,'highos','data','faccoes',f.group),{status:wanted,
+wanted})=>batch.set(doc(db,'highos','data','faccoes',idFac(f.group)),{status:wanted,
 updatedAt:serverTimestamp(),
 updatedBy:currentUser.email},{merge:true}));
 await batch.commit();
@@ -14419,7 +14450,7 @@ atualizadoEm:new Date().toISOString()};
 const benefits={...(f.beneficios||{}),
 rotaExclusiva:true,
 rotaBlips:t.rota.pontos};
-try{await setDoc(doc(db,'highos','data','faccoes',group),{perfilTecnico:t,
+try{await setDoc(doc(db,'highos','data','faccoes',idFac(group)),{perfilTecnico:t,
 beneficios:benefits,
 updatedAt:serverTimestamp(),
 updatedBy:currentUser.email},{merge:true});
@@ -14464,7 +14495,7 @@ t.rota={...(t.rota||{}),
 status:'AGUARDANDO_REMOCAO',
 remocaoSolicitadaEm:new Date().toISOString(),
 remocaoSolicitadaPor:currentUser.email};
-try{await setDoc(doc(db,'highos','data','faccoes',group),{perfilTecnico:t,
+try{await setDoc(doc(db,'highos','data','faccoes',idFac(group)),{perfilTecnico:t,
 updatedAt:serverTimestamp(),
 updatedBy:currentUser.email},{merge:true});
 await addDoc(histCol,{sessionId:currentSessionId||'',
@@ -14623,7 +14654,7 @@ remocaoConfirmadaPor:currentUser.email};
 rotaExclusiva:false,
 rotaBlips:''};
 
- try{await setDoc(doc(db,'highos','data','faccoes',group),{perfilTecnico:t,
+ try{await setDoc(doc(db,'highos','data','faccoes',idFac(group)),{perfilTecnico:t,
 beneficios,
 updatedAt:serverTimestamp(),
 updatedBy:currentUser.email},{merge:true});
@@ -14778,7 +14809,7 @@ getTechProfileFromForm();
 techDraft.estruturaCatalogo=gsRows();
 const next=clonePlain(techDraft);
 if(JSON.stringify(before)===JSON.stringify(next))return alert('Nenhuma alteração na estrutura para salvar.');
-try{await setDoc(doc(db,'highos','data','faccoes',group),{perfilTecnico:next,
+try{await setDoc(doc(db,'highos','data','faccoes',idFac(group)),{perfilTecnico:next,
 updatedAt:serverTimestamp(),
 updatedBy:currentUser.email},{merge:true});
 await addDoc(histCol,{sessionId:currentSessionId||'',
@@ -15094,7 +15125,7 @@ const after=gsRows().map(gsCleanRow);
    Evita gravar o Group e criar Histórico quando o catálogo não mudou. */
 if(JSON.stringify(before)===JSON.stringify(after))return true;
 try{techDraft.estruturaCatalogo=after;
-await setDoc(doc(db,'highos','data','faccoes',group),{perfilTecnico:clonePlain(techDraft),
+await setDoc(doc(db,'highos','data','faccoes',idFac(group)),{perfilTecnico:clonePlain(techDraft),
 updatedAt:serverTimestamp(),
 updatedBy:currentUser.email},{merge:true});
 await addDoc(histCol,{sessionId:currentSessionId||'',
@@ -15526,7 +15557,7 @@ const before=v9Clone(v9StructureOriginal),
 after=v9Clone(gsRows()),
 diff=v9Diff(before,after);
 try{techDraft.estruturaCatalogo=v9Clone(after);
-await setDoc(doc(db,'highos','data','faccoes',group),{perfilTecnico:clonePlain(techDraft),
+await setDoc(doc(db,'highos','data','faccoes',idFac(group)),{perfilTecnico:clonePlain(techDraft),
 updatedAt:serverTimestamp(),
 updatedBy:currentUser.email},{merge:true});
 const local=faccoes.find(x=>x.group===group);
@@ -15600,7 +15631,7 @@ async function v909CommitStructure(beforeRows, descricao='Estrutura atualizada')
 
   techDraft.estruturaCatalogo=v9Clone(after);
 
-  const ref=doc(db,'highos','data','faccoes',group);
+  const ref=doc(db,'highos','data','faccoes',idFac(group));
 
   // V9: grava uma cópia canônica no nível raiz + compatibilidade no perfilTecnico.
   // Assim nenhuma consolidação legada consegue apagar Post-it/caixas de som na leitura seguinte.
@@ -15796,7 +15827,7 @@ async function v9010CommitStructure(beforeRows, descricao='Estrutura atualizada'
 
   const scrollY=window.scrollY;
 
-  const ref=doc(db,'highos','data','faccoes',group);
+  const ref=doc(db,'highos','data','faccoes',idFac(group));
 
   techDraft=techDraft||mergedTechProfile(current);
 
