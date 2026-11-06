@@ -27,15 +27,16 @@ jobs:
           node tools/versoes.mjs origin/main
       - name: Sintaxe dos módulos críticos
         run: |
-          node --check assets/app.js
-          node --check assets/mission-planner.js
-          node --check assets/modules/blips-sheet-sync.js
-          node --check assets/modules/metricas-parser.js
-          node --check assets/modules/acoes-core.js
-          node --check assets/modules/acoes-sheet-sync.js
-          node --check assets/modules/acoes-planejador-ui.js
-          node --check assets/modules/metricas-motor.js
-          node --check assets/modules/ocupacao.js
+          # node --check trata .js como script: declaracao duplicada de
+          # import ou de let no escopo de modulo NAO e acusada. Ja passou
+          # um "import * as metasUi" repetido que derrubou o painel
+          # inteiro. Checando como .mjs o Node aplica as regras de modulo.
+          set -e
+          for f in assets/app.js assets/mission-planner.js assets/modules/*.js; do
+            cp "$f" "/tmp/$(basename "$f" .js).mjs"
+            node --check "/tmp/$(basename "$f" .js).mjs" || { echo "FALHOU: $f"; exit 1; }
+          done
+          echo "Sintaxe de módulo OK em $(ls assets/modules/*.js | wc -l) módulos + app.js"
       - name: Regressão de dados e transações
         run: node --test tests/*.test.mjs
       - name: Integridade das funções do High OS

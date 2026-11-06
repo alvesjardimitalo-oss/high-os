@@ -34,7 +34,6 @@ import * as catCraft from './modules/catalogo-craft.js?v=13.1.0';
 import * as catUi from './modules/catalogo-ui.js?v=13.2.0';
 import * as itensUi from './modules/itens-conhecidos.js?v=13.0.0';
 import * as metasUi from './modules/metas-ui.js?v=13.1.0';
-import * as metasUi from './modules/metas-ui.js?v=13.1.0';
 import { season, lerIndice, carregarSeason, seasonEscolhida, guardarEscolha, esquecerEscolha, filtrarPorSeason, qgsSemVinculo, foraDaPlanilha, resumoSeason, salvarQg, vincularGroup, desvincularGroup } from './modules/season.js?v=13.1.0';
 
 const firebaseConfig={apiKey:'AIzaSyBKtl3rCA9Id1RDMwGch-yi4hxAs83DraU',
@@ -2126,105 +2125,6 @@ function ligarCatalogo(){
  const box=$('#catalogoBox');
  if(!box)return;
  box.querySelectorAll('[data-cat-seg]').forEach(b=>b.onclick=()=>{catSegAtivo=b.dataset.catSeg;renderCatalogo()});
-}
-
-/* ============================================================
-   V13 · METAS DE RECRUTAMENTO
-   A meta e negociada na entrega e muda no atendimento, entao
-   mora no cadastro do Group, nao na planilha. A planilha do dev
-   traz o realizado; o alvo e combinado aqui.
-   ============================================================ */
-let metaFiltro={segmento:''};
-
-function renderMetas(){
- const box=$('#metasBox');
- if(!box)return;
- box.innerHTML=metasUi.metasHtml({
-  lista:(faccoes||[]).filter(f=>!f.removido).map(f=>({...f,metaRec:f.perfilTecnico?.metaRec??f.metaRec})),
-  season,esc,podeEditar:canEditModule('faccoes'),filtro:metaFiltro
- });
- ligarMetas();
-}
-
-function ligarMetas(){
- const box=$('#metasBox');
- if(!box)return;
- const seg=$('#metaSegmento');
- if(seg)seg.onchange=()=>{metaFiltro.segmento=seg.value;renderMetas()};
-
- /* O alvo semanal muda ao vivo: combinar "1 por dia" em sete dias e
-    pedir 7, e quem combina precisa ver isso antes de salvar. */
- box.querySelectorAll('.meta-linha').forEach(linha=>{
-  const atualizar=()=>{
-   const m=metasUi.lerLinha(linha);
-   linha.querySelector('[data-meta-alvo]').textContent=m?metasUi.alvoSemanal(m):'—';
-   linha.querySelector('[data-meta-texto]').textContent=metasUi.descreverMeta(m);
-   const per=linha.querySelector('[data-meta="periodo"]')?.value;
-   const dias=linha.querySelector('.meta-dias');
-   if(dias)dias.hidden=per!=='DIA';
-   linha.classList.toggle('sem',!m);
-  };
-  linha.addEventListener('input',atualizar);
-  linha.addEventListener('change',atualizar);
- });
-
- box.querySelectorAll('[data-meta-salvar]').forEach(b=>b.onclick=()=>salvarMeta(b.dataset.metaSalvar,b));
- box.querySelectorAll('[data-meta-lote]').forEach(b=>b.onclick=()=>aplicarMetaEmLote(b.dataset.metaLote));
-}
-
-async function salvarMeta(group,btn){
- if(!canEditModule('faccoes'))return permissionDeniedMessage('faccoes',true);
- const linha=document.querySelector(`[data-meta-group="${CSS.escape(group)}"]`);
- if(!linha)return;
- const meta=metasUi.lerLinha(linha);
- const rotulo=btn?.textContent;
- if(btn){btn.disabled=true;btn.textContent='...'}
- try{
-  /* A meta vai DENTRO do perfil tecnico: o backend do bot descarta campo
-     de primeiro nivel que ele nao conhece, e perfilTecnico ele guarda
-     inteiro - foi por ali que a receita sobreviveu. Gravar em metaRec
-     solto falhava calado: a tela mostrava salvo e o dado nao existia. */
-  const atual=(faccoes||[]).find(x=>x.group===group);
-  const perfil={...(atual?.perfilTecnico||{}),metaRec:meta};
-  await setDoc(doc(db,'highos','data','faccoes',group),
-   {perfilTecnico:perfil,updatedAt:serverTimestamp(),updatedBy:currentUser?.email||''},{merge:true});
-  await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'META_REC',
-   group,season:season.id||'',
-   descricao:meta?`Meta de rec de ${group}: ${metasUi.descreverMeta(meta)}`:`Meta de rec de ${group} removida`,
-   usuario:currentUser?.email||'',data:serverTimestamp()}).catch(()=>{});
-  try{await loadFaccoes()}catch(e){}
-  renderMetas();
- }catch(e){
-  alert('Não salvou: '+e.message);
-  if(btn){btn.disabled=false;btn.textContent=rotulo}
- }
-}
-
-/* Combinar a mesma meta com um segmento inteiro e o caso comum na
-   virada de season: todo mundo de ARMAS comeca igual e so depois
-   alguem negocia diferente. */
-async function aplicarMetaEmLote(segmento){
- if(!canEditModule('faccoes'))return permissionDeniedMessage('faccoes',true);
- const alvos=(faccoes||[]).filter(f=>!f.removido&&(f.segmento||'SEM SEGMENTO')===segmento);
- if(!alvos.length)return;
- const q=Number(prompt(`Meta semanal para os ${alvos.length} Groups de ${segmento}:`,'3'));
- if(!q||q<0)return;
- if(!confirm(`Combinar ${q} rec por semana com ${alvos.length} Group(s) de ${segmento}?\n\nIsso substitui a meta de quem já tem.`))return;
- const meta={quantidade:q,periodo:'SEMANA',dias:[]};
- let erros=0;
- for(const f of alvos){
-  try{
-   await setDoc(doc(db,'highos','data','faccoes',f.group),
-    {perfilTecnico:{...(f.perfilTecnico||{}),metaRec:meta},
-     updatedAt:serverTimestamp(),updatedBy:currentUser?.email||''},{merge:true});
-  }catch(e){erros++}
- }
- await addDoc(histCol,{sessionId:currentSessionId||'',tipo:'META_REC_LOTE',season:season.id||'',
-  descricao:`Meta de ${q}/semana aplicada a ${alvos.length-erros} Group(s) de ${segmento}`,
-  usuario:currentUser?.email||'',data:serverTimestamp()}).catch(()=>{});
- try{await loadFaccoes()}catch(e){}
- renderMetas();
- if(erros)alert(`${erros} de ${alvos.length} não salvaram. Tente de novo nos que ficaram sem meta.`);
 }
 
 /* ============================================================
