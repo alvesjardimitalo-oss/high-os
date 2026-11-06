@@ -102,6 +102,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.2.1/firebas
 import { getAuth, GoogleAuthProvider, signInWithPopup } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js';
 import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
 import { parseGrade, parseQgCards, montarQgs, resumoImportacao, inventarioLinhas } from '../assets/modules/planilha-qgs.js';
+import { collection, getDocs } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
 
 const firebaseConfig={apiKey:'AIzaSyBKtl3rCA9Id1RDMwGch-yi4hxAs83DraU',authDomain:'high-os.firebaseapp.com',projectId:'high-os',storageBucket:'high-os.firebasestorage.app',messagingSenderId:'471862600170',appId:'1:471862600170:web:ff55af6f7e808ff39'};
 const app=initializeApp(firebaseConfig), auth=getAuth(app), db=getFirestore(app), provider=new GoogleAuthProvider();
@@ -197,6 +198,38 @@ function mostrarPrevia(){
 }
 
 /* ---------- comparação com o que já está gravado ---------- */
+/* Um GROUP escrito na planilha pode ser o nome de um Group de OUTRA
+   season - e foi o que aconteceu: "Armas01" ficou numa celula da aba da
+   Season 3 e a importacao vinculou, trazendo junto a faccao ativa da
+   Season 2 para dentro da temporada nova, em silencio.
+   Antes de adotar um nome vindo da planilha, conferimos a quem ele
+   pertence. Pertencendo a outra season, o QG entra SEM vinculo e o
+   conflito e mostrado - adotar seria mover a faccao de lugar sem
+   ninguem pedir. */
+async function separarGroupsDeOutraSeason(id){
+  if(!usuario)return [];
+  let cadastro=[];
+  try{
+    const qs=await getDocs(collection(db,'highos','data','faccoes'));
+    cadastro=qs.docs.map(d=>({id:d.id,...d.data()}));
+  }catch(e){ return [] }
+  const porNome=new Map(cadastro.map(f=>[String(f.group||'').toUpperCase(),f]));
+  const conflitos=[];
+  for(const q of qgsLidos){
+    if(!q.group)continue;
+    const f=porNome.get(q.group.toUpperCase());
+    if(!f)continue;
+    const dono=String(f.seasonId||'').trim();
+    if(dono&&dono===id)continue;              // e desta season: tudo bem
+    if(!dono&&!String(f.faccao||'').trim())continue; // group solto, sem dono
+    conflitos.push({chave:q.chave,local:q.local,group:q.group,
+      faccao:f.faccao||'',status:f.status||'',season:dono||'anterior'});
+    q.group=''; q.vinculado=false;
+    q.avisos=[...(q.avisos||[]),`GROUP "${f.group}" pertence a outra season — não vinculado.`];
+  }
+  return conflitos;
+}
+
 async function compararComSalvo(){
   if(!usuario)return $('#diff').innerHTML='<div class="verdict warn">Entre com o Google para comparar e gravar.</div>',$('#cardDiff').classList.remove('hide');
   const id=$('#sId').value.trim();
@@ -204,6 +237,9 @@ async function compararComSalvo(){
     const snap=await getDoc(doc(db,'highos','data','seasons',id));
     salvoAtual=snap.exists()?snap.data():null;
   }catch(e){ salvoAtual=null; }
+
+  const conflitos=await separarGroupsDeOutraSeason(id);
+  if(conflitos.length)mostrarPrevia();
 
   const antigos=new Map((salvoAtual?.qgs||[]).map(q=>[q.chave,q]));
   const novos=[],mudados=[],saem=[],iguais=[];
@@ -218,7 +254,13 @@ async function compararComSalvo(){
 
   $('#cardDiff').classList.remove('hide');
   const linha=(t,arr,cls)=>arr.length?`<p style="margin:0 0 8px"><b class="${cls}">${arr.length}</b> ${t}: ${arr.slice(0,40).map(q=>`<span class="tag ${cls}">${esc(q.group||q.local||q.chave)}</span>`).join('')}${arr.length>40?' …':''}</p>`:'';
-  $('#diff').innerHTML=
+  const avisoConflito=conflitos.length?`<div class="verdict err">
+    <b>${conflitos.length} GROUP da planilha pertence(m) a outra season — não foram vinculados.</b><br>
+    ${conflitos.map(c=>`“${esc(c.group)}” em <b>${esc(c.local)}</b> já é da season ${esc(c.season)}${c.faccao?`, com a facção ${esc(c.faccao)} (${esc(c.status)})`:''}.`).join('<br>')}
+    <br><br>Vincular aqui moveria essa facção de lugar sem ninguém pedir. Limpe a célula GROUP na planilha, ou defina o Group pelo painel com outro nome.
+   </div>`:'';
+
+  $('#diff').innerHTML=avisoConflito+
     (salvoAtual?`<p class="sub" style="margin:0 0 12px">Gravado hoje: versão ${esc(salvoAtual.versao||1)}, ${esc((salvoAtual.qgs||[]).length)} QGs.</p>`:`<p class="sub" style="margin:0 0 12px">Ainda não existe nada gravado nessa season. Esta vai ser a primeira carga.</p>`)+
     linha('entram',novos,'novo')+linha('mudaram',mudados,'mud')+linha('não estão nesta planilha (mantidos)',saem,'sai')+
     (iguais.length?`<p class="mut" style="margin:0">${iguais.length} seguem iguais.</p>`:'')+
