@@ -2365,10 +2365,13 @@ function dialogo(html,aoAbrir){
 
 /* Cria o Group sem lugar nenhum. E o caminho normal de abertura de
    season: define-se o elenco antes de saber que favela cada um pega. */
-function ligarNovoGroup(){
- const b=document.getElementById('btnNovoGroup');
- if(b&&!b._ligado){b._ligado=true;b.onclick=()=>criarGroupSemQg()}
-}
+/* Delegacao no documento: renderFaccoes e reatribuida varias vezes
+   ao longo do arquivo, entao ligar o botao dentro de um render
+   especifico so funciona ate o proximo redesenho. */
+document.addEventListener('click',ev=>{
+ const b=ev.target?.closest?.('#btnNovoGroup');
+ if(b){ev.preventDefault();criarGroupSemQg()}
+});
 async function criarGroupSemQg(){
  if(!canEditModule('faccoes'))return permissionDeniedMessage('faccoes',true);
  const segs=segmentDefs().map(s=>s.nome).filter(Boolean);
@@ -3013,7 +3016,6 @@ async function trocarSeason(){
 }
 
 function renderFaccoes(){
- ligarNovoGroup();
  const q=($('#facSearch').value||'').toLowerCase(),
 seg=$('#facSegment').value,
 st=$('#facStatus').value;
