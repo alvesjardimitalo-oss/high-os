@@ -121,9 +121,11 @@ export function filtrarPorSeason(lista=[]){
    e a season. Registro antigo sem season mantem a chave antiga para
    nao virar um registro novo e orfao. */
 export function chaveFaccao(group='',seasonId=''){
- const g=String(group||'').trim();
- const s=String(seasonId||'').trim();
- return s?`${s}__${g}`:g;
+ const g=String(group||'').trim().toLowerCase();
+ const s=String(seasonId||'').trim().toLowerCase();
+ /* Mesmo formato que o bot usa (src/season.js). Os dois tem que compor a
+    chave igual, senao o painel grava num registro e le de outro. */
+ return s?`${s}::${g}`:g;
 }
 
 /* QGs da planilha que ainda nao tem Group vinculado: a fila de trabalho
