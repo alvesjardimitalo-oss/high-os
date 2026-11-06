@@ -846,6 +846,18 @@
             </div>
 
             <div class="dashboard-config-card">
+              <div class="eyebrow">INÍCIO DA SEASON</div>
+              <h3 style="margin:4px 0 6px">A partir de quando as métricas contam</h3>
+              <p class="page-subtitle" style="margin:0 0 16px">A métrica é guardada pelo nome do Group, e duas seasons podem ter um <b>Armas01</b> cada. Esta data é o que separa uma da outra: coleta anterior a ela pertence à season passada. Sem data, o painel não esconde nada.</p>
+              <div id="seasonInicioEstado" class="admin-season-estado">—</div>
+              <div class="admin-season-form">
+                <label><span>SEASON</span><input id="seasonInicioId" readonly></label>
+                <label><span>COMEÇA EM</span><input id="seasonInicioData" type="date"></label>
+                <button type="button" id="seasonInicioSalvar" class="btn-primary compact">SALVAR DATA</button>
+              </div>
+            </div>
+
+            <div class="dashboard-config-card">
               <div class="eyebrow">ELENCO DA SEASON</div>
               <h3 style="margin:4px 0 6px">Groups sem favela</h3>
               <p class="page-subtitle" style="margin:0 0 14px">A season abre com o elenco definido e as favelas ainda vazias. O vínculo é feito depois, em QGs da Season.</p>
@@ -1224,7 +1236,7 @@
   <!-- V15.6.3: eventos-painel, mission-planner e mission-planner-nav carregam só ao abrir o Planejador (app.js) -->
   <script src="assets/anim-v15.js?v=15.0.0" defer></script>
   <script src="assets/api-config.js?v=2"></script>
-  <script type="module" src="assets/app.js?v=17.12.0"></script>
+  <script type="module" src="assets/app.js?v=17.13.0"></script>
 
 <div id="newDeliveryModal" class="modal hidden"><div class="modal-card delivery-modal-v5"><button class="modal-x" id="newDeliveryClose">×</button>
   <div class="eyebrow">NOVA OCUPAÇÃO</div><h2>ENTREGA DE GROUP</h2><p class="delivery-help">O Group traz sua estrutura instalada. Personalize apenas o que será ativado para a nova facção.</p>

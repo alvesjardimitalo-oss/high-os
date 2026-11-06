@@ -35,7 +35,7 @@ import * as catUi from './modules/catalogo-ui.js?v=13.2.0';
 import * as itensUi from './modules/itens-conhecidos.js?v=13.0.0';
 import * as metasUi from './modules/metas-ui.js?v=13.1.0';
 import * as avisos from './modules/avisos-discord.js?v=13.0.0';
-import { season, lerIndice, carregarSeason, seasonEscolhida, guardarEscolha, esquecerEscolha, filtrarPorSeason, qgsSemVinculo, foraDaPlanilha, resumoSeason, salvarQg, vincularGroup, desvincularGroup, chaveFaccao, noElenco } from './modules/season.js?v=17.10.0';
+import { season, lerIndice, carregarSeason, seasonEscolhida, guardarEscolha, esquecerEscolha, filtrarPorSeason, qgsSemVinculo, foraDaPlanilha, resumoSeason, salvarQg, vincularGroup, desvincularGroup, chaveFaccao, noElenco, metricaDaSeason, seasonComecou } from './modules/season.js?v=17.13.0';
 
 const firebaseConfig={apiKey:'AIzaSyBKtl3rCA9Id1RDMwGch-yi4hxAs83DraU',
 authDomain:'high-os.firebaseapp.com',
@@ -2453,6 +2453,34 @@ function faccoesOrfas(){
   return noElenco(f.group)===false;
  });
 }
+/* A data de inicio mora no indice de seasons, nao no documento da season:
+   o indice e lido no login, entao o corte de metrica ja vale na primeira
+   tela sem custar leitura extra. */
+async function salvarInicioSeason(btn){
+ const data=document.getElementById('seasonInicioData')?.value||'';
+ if(!data)return alert('Escolha a data em que esta season passa a valer.');
+ if(!confirm('Definir '+formatarDataBR(data)+' como inicio da '+(season.nome||season.id)+'?\n\nColeta anterior a essa data deixa de aparecer nesta season.'))return;
+ btn.disabled=true; const antes=btn.textContent; btn.textContent='SALVANDO...';
+ try{
+  const ref=doc(db,'highos','season_atual');
+  const snap=await getDoc(ref);
+  const d=snap.exists()?snap.data():{};
+  const lista=(Array.isArray(d.lista)?d.lista:[]).map(x=>
+   x.id===season.id?{...x,inicio:data}:x);
+  if(!lista.some(x=>x.id===season.id))lista.push({id:season.id,nome:season.nome||season.id,inicio:data});
+  await setDoc(ref,{...d,lista},{merge:true});
+  season.inicio=data; season.indice=lista;
+  try{reatribuirMetricas()}catch(e){}
+  try{renderMetrics()}catch(e){}
+  await renderSeasonsAdmin();
+  alert('Inicio da season definido. As metricas desta season passam a contar de '+formatarDataBR(data)+'.');
+ }catch(e){alert('Nao salvou: '+(e?.message||e))}
+ finally{btn.disabled=false; btn.textContent=antes}
+}
+document.addEventListener('click',ev=>{
+ const b=ev.target?.closest?.('#seasonInicioSalvar');
+ if(b){ev.preventDefault();salvarInicioSeason(b)}
+});
 async function renderSeasonsAdmin(){
  const estado=document.getElementById('seasonBotEstado');
  const elenco=document.getElementById('seasonElenco');
@@ -2474,6 +2502,21 @@ async function renderSeasonsAdmin(){
   const ci=document.getElementById('seasonBotId'), cl=document.getElementById('seasonBotLabel');
   if(ci&&!ci.value)ci.value=sa.id||season.id||'';
   if(cl&&!cl.value)cl.value=sa.label||(season.nome?('Ilegal High '+season.nome):'');
+ }
+
+ const ci=document.getElementById('seasonInicioId');
+ const cd=document.getElementById('seasonInicioData');
+ const ce=document.getElementById('seasonInicioEstado');
+ if(ci)ci.value=season.nome||season.id||'';
+ if(cd&&!cd.value)cd.value=season.inicio||'';
+ if(ce){
+  const comecou=seasonComecou();
+  ce.className='admin-season-estado'+(season.inicio?(comecou?' ok':' alerta'):'');
+  ce.innerHTML=!season.inicio
+   ? 'Sem data definida: esta season mostra <b>todas</b> as metricas, inclusive as da anterior.'
+   : comecou
+     ? 'Contando metricas desde <b>'+esc(formatarDataBR(season.inicio))+'</b>.'
+     : 'Ainda nao comecou. Comeca em <b>'+esc(formatarDataBR(season.inicio))+'</b>, e ate la a tela de metricas fica vazia de proposito.';
  }
 
  if(elenco){
@@ -7884,7 +7927,24 @@ function metricasAtribuidas(rows=[]){
   metricSemOcupante=r.semOcupante;return r.linhas;
  }catch(e){console.warn('[MÉTRICAS] atribuição por facção falhou; exibindo por Group',e);metricSemOcupante=[];return rows.slice()}
 }
-function reatribuirMetricas(){if(!metricasCache?.length)return false;metricas=metricasAtribuidas(metricasCache);return true}
+/* A metrica e guardada por NOME do Group, e duas seasons podem ter um
+   Armas01 cada. Sem este corte, o pico da season passada apareceria como
+   se fosse do Group novo - e a Season 3, que nem comecou, exibiria os
+   numeros da 2. O corte e por data da coleta. */
+function formatarDataBR(iso=''){
+ const m=String(iso).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+ return m?`${m[3]}/${m[2]}/${m[1]}`:String(iso||'—');
+}
+function metricasDaSeason(rows=[]){
+ if(!season.carregada||!season.inicio)return rows;
+ return rows.filter(m=>{
+  const d=metricDateValue(m);
+  if(!d||isNaN(d))return true;
+  const iso=new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10);
+  return metricaDaSeason(iso);
+ });
+}
+function reatribuirMetricas(){if(!metricasCache?.length)return false;metricas=metricasAtribuidas(metricasDaSeason(metricasCache));return true}
 async function carregarTransferenciasMetricas(){
  try{const rows=await highOsStoreList('historico');metricTransferencias=rows.filter(h=>h.tipo==='TRANSFERENCIA_PAINEL')}catch(e){metricTransferencias=[]}
 }
@@ -8389,7 +8449,7 @@ function applyMetricSnapshot(qs,{realtime=false}={}){
  metricasCache=qs.docs.map(d=>({id:d.id,
 ...d.data()}));
 
- metricas=metricasAtribuidas(metricasCache);
+ metricas=metricasAtribuidas(metricasDaSeason(metricasCache));
 
  metricPeriodKey=previousKey;
 
@@ -9260,6 +9320,16 @@ function renderBoletim(){
 function renderMetrics(err=null){
  const box=$('#metricRanking');
 if(err instanceof Event)err=null;
+
+ /* Season que ainda nao comecou nao tem metrica - e isso tem que ser dito,
+    nao deixado como tela vazia que parece defeito. */
+ if(box&&season.carregada&&!seasonComecou()){
+  box.innerHTML=`<div class="placeholder"><b>◷</b>
+   <h3>${esc(season.nome||season.id)} AINDA NÃO COMEÇOU</h3>
+   <p>As métricas que existem hoje são da season anterior e não valem para esta.
+      A coleta desta season começa em ${esc(formatarDataBR(season.inicio))}.</p></div>`;
+  return;
+ }
 
  const q=alvesNorm($('#metricSearch')?.value||''),
 seg=$('#metricSegment')?.value||'';
