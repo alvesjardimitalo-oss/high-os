@@ -16,6 +16,10 @@ export const season={
  id:'',
  nome:'',
  versao:0,
+ /* Data em que a season passou a valer (AAAA-MM-DD). E ela que separa
+    metrica de uma season da outra: o pico de ontem e da season que
+    estava rodando ontem, nao da que comecou hoje. Vazia = sem corte. */
+ inicio:'',
  qgs:[],
  groups:new Set(),
  carregada:false,
@@ -77,7 +81,7 @@ export async function carregarSeason(id,{getDoc,doc,db}){
  const d=snap.data();
  const qgs=Array.isArray(d.qgs)?d.qgs:[];
  gravarEspelho(id,d.versao||meta.versao||1,qgs);
- aplicar(id,{...meta,nome:d.nome||meta.nome,versao:d.versao||1},qgs);
+ aplicar(id,{...meta,nome:d.nome||meta.nome,versao:d.versao||1,inicio:d.inicio||meta.inicio||''},qgs);
  return {qgs,origem:'firestore',leituras:1};
 }
 
@@ -85,6 +89,7 @@ function aplicar(id,meta,qgs){
  season.id=id;
  season.nome=meta.nome||id;
  season.versao=Number(meta.versao||0);
+ season.inicio=String(meta.inicio||'').trim();
  season.qgs=qgs;
  season.groups=new Set(qgs.map(q=>norm(q.group)).filter(Boolean));
  season.carregada=true;
@@ -126,6 +131,42 @@ export function chaveFaccao(group='',seasonId=''){
  /* Mesmo formato que o bot usa (src/season.js). Os dois tem que compor a
     chave igual, senao o painel grava num registro e le de outro. */
  return s?`${s}::${g}`:g;
+}
+
+/**
+ * Uma linha de metrica pertence a esta season?
+ *
+ * A metrica e guardada por NOME do Group, e dois Armas01 de seasons
+ * diferentes tem o mesmo nome. Sem este corte, o pico da season passada
+ * apareceria como se fosse do Group novo.
+ *
+ * O corte e por data, nao por nome: a data da coleta ja existe em toda
+ * linha e nao exige reindexar nada do historico.
+ *
+ * Sem data de inicio na season, nao filtra - esconder tudo em silencio
+ * seria pior que mostrar demais.
+ */
+export function metricaDaSeason(dataISO=''){
+ if(!season.carregada||!season.inicio)return true;
+ const d=String(dataISO||'').slice(0,10);
+ if(!d)return true;
+ if(d<season.inicio)return false;
+ const prox=proximaSeasonDepois(season.inicio);
+ return prox?d<prox:true;
+}
+/* Fim da season e o inicio da seguinte: evita que a season antiga
+   continue colhendo metrica depois que a nova entrou. */
+function proximaSeasonDepois(inicio=''){
+ const datas=(season.indice||[])
+  .map(s=>String(s.inicio||'').trim())
+  .filter(d=>d&&d>inicio)
+  .sort();
+ return datas[0]||'';
+}
+export function seasonComecou(){
+ if(!season.carregada||!season.inicio)return true;
+ const hoje=new Date().toISOString().slice(0,10);
+ return hoje>=season.inicio;
 }
 
 /* QGs da planilha que ainda nao tem Group vinculado: a fila de trabalho
