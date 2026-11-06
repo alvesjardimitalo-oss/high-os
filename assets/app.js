@@ -34,6 +34,7 @@ import * as catCraft from './modules/catalogo-craft.js?v=13.1.0';
 import * as catUi from './modules/catalogo-ui.js?v=13.2.0';
 import * as itensUi from './modules/itens-conhecidos.js?v=13.0.0';
 import * as metasUi from './modules/metas-ui.js?v=13.1.0';
+import * as avisos from './modules/avisos-discord.js?v=13.0.0';
 import { season, lerIndice, carregarSeason, seasonEscolhida, guardarEscolha, esquecerEscolha, filtrarPorSeason, qgsSemVinculo, foraDaPlanilha, resumoSeason, salvarQg, vincularGroup, desvincularGroup } from './modules/season.js?v=13.1.0';
 
 const firebaseConfig={apiKey:'AIzaSyBKtl3rCA9Id1RDMwGch-yi4hxAs83DraU',
@@ -2015,6 +2016,64 @@ async function loadFaccoes(){
  try{return await faccoesLoadPromise}
  finally{faccoesLoadPromise=null}
 }
+
+/* ------------------------------------------------------------
+   AVISO DO DISCORD NO FIM DA ENTREGA
+   Os modelos e as 22 artes ja existem; o que faltava era eles
+   aparecerem na hora certa. Abrir outra ferramenta para montar
+   o aviso logo depois de entregar e o tipo de passo que a
+   equipe esquece.
+   O bot ainda nao tem endpoint para postar entrega e
+   recolhimento - so para faccao livre. Entao aqui o aviso sai
+   pronto para colar, e o botao de postar aparece sozinho
+   quando o endpoint existir.
+   ------------------------------------------------------------ */
+function abrirAvisoEntrega(f,extra={}){
+ const dados=avisos.dadosDaFaccao(f,extra);
+ mostrarAviso(avisos.avisoEntrega(dados),'entrega',f);
+}
+function abrirAvisoRecolhimento(f,extra={}){
+ const dados=avisos.dadosDaFaccao(f,extra);
+ mostrarAviso(avisos.avisoRecolhimento(dados),'recolhimento',f);
+}
+
+function mostrarAviso(aviso,tipo,f){
+ const modal=document.createElement('div');
+ modal.className='modal';
+ modal.innerHTML=`<div class="modal-card aviso-modal">
+   <button class="modal-x" type="button" aria-label="Fechar">×</button>
+   <div class="eyebrow">AVISO DO DISCORD · ${tipo==='entrega'?'ENTREGA':'RECOLHIMENTO'}</div>
+   <h2 style="margin:4px 0 14px">${esc(f?.group||'')}</h2>
+   <p class="cat-ajuda">Confira e complete o que estiver entre colchetes antes de postar. O texto já vem com a arte do rodapé certa.</p>
+   <div class="aviso-previa">
+    <h3>${esc(aviso.titulo)}</h3>
+    <pre>${esc(aviso.embed.description)}</pre>
+    <img src="${esc(aviso.embed.image.url)}" alt="" onerror="this.style.display='none'">
+    <div class="aviso-rodape">${esc(aviso.embed.footer.text)}</div>
+   </div>
+   <div class="modal-actions">
+    <button type="button" class="btn-secondary compact" data-fechar>FECHAR</button>
+    <div style="display:flex;gap:9px;margin-left:auto">
+     <button type="button" class="btn-secondary compact" data-json>COPIAR JSON</button>
+     <button type="button" class="btn-primary compact" data-texto>COPIAR TEXTO</button>
+    </div>
+   </div>
+  </div>`;
+ document.body.appendChild(modal);
+ const fechar=()=>modal.remove();
+ modal.querySelector('.modal-x').onclick=fechar;
+ modal.querySelector('[data-fechar]').onclick=fechar;
+ modal.onclick=e=>{if(e.target===modal)fechar()};
+ const copiar=async(txt,btn,rot)=>{
+  try{await navigator.clipboard.writeText(txt)}
+  catch(e){const t=document.createElement('textarea');t.value=txt;document.body.appendChild(t);t.select();document.execCommand('copy');t.remove()}
+  const antes=btn.textContent; btn.textContent='COPIADO';
+  setTimeout(()=>btn.textContent=antes,1600);
+ };
+ modal.querySelector('[data-texto]').onclick=e=>copiar(aviso.texto,e.currentTarget);
+ modal.querySelector('[data-json]').onclick=e=>copiar(JSON.stringify(avisos.corpoWebhook(aviso),null,2),e.currentTarget);
+}
+
 /* ============================================================
    V13 · METAS DE RECRUTAMENTO
    A meta e o acordo da entrega ("Vip Org Ultra caso bater a
@@ -6900,6 +6959,8 @@ createdBy:currentUser.email};
   cacheEscrever('entregas_resumo',entregas);
   renderFaccoes();renderDeliveries();renderOrganizations();
   alert(sheetSynced?'Entrega registrada no High OS Discord e sincronizada com as planilhas.':'Entrega registrada no High OS Discord, mas a planilha NÃO foi sincronizada. Conecte o Google Sheets e sincronize novamente.');
+  /* O aviso sai agora, com a entrega fresca na cabeca de quem fez. */
+  try{abrirAvisoEntrega(deliveredGroup,{responsavel:currentUser?.email||'',oferta:payload?.plano||'',metaRec:''})}catch(e){console.warn('[AVISO]',e?.message||e)}
 
 
  }catch(err){alert('Erro ao concluir entrega: '+err.message)}

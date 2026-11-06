@@ -616,3 +616,12 @@ button:disabled{opacity:.45 !important}
  .meta-linha{grid-template-columns:1fr 1fr;gap:9px}
  .meta-org,.meta-dias,.meta-alvo{grid-column:1/-1}
 }
+
+/* ---------- aviso do Discord ---------- */
+.aviso-modal{width:min(620px,96vw)}
+.aviso-previa{background:#2b2d31;border-radius:7px;border-left:4px solid var(--violet);
+ padding:16px;margin:0 0 4px}
+.aviso-previa h3{margin:0 0 10px;font-size:16px;font-weight:700;color:#fff}
+.aviso-previa pre{margin:0;white-space:pre-wrap;font:13.5px/1.55 system-ui,Segoe UI,sans-serif;color:#dbdee1}
+.aviso-previa img{width:100%;display:block;border-radius:4px;margin-top:14px}
+.aviso-rodape{color:#949ba4;font-size:11.5px;margin-top:9px}
