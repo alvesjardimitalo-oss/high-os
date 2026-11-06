@@ -2331,6 +2331,146 @@ function ligarQgs(){
 
 function qgPorChave(chave){return (season.qgs||[]).find(q=>q.chave===chave)}
 
+/* ------------------------------------------------------------
+   GROUP SOLTO E VINCULO COM O QG
+   O Group e a identidade produtiva (segmento, produto, receita);
+   o QG e o lugar fisico. Os dois nascem separados: a season abre
+   com o elenco de Groups definido e as favelas ainda vazias, e o
+   vinculo e feito quando se decide quem produz onde.
+   ------------------------------------------------------------ */
+function qgsLivres(){
+ const ocupadas=new Set((faccoesTodas||[])
+  .filter(x=>!x.removido&&String(x.qgChave||'').trim())
+  .map(x=>String(x.qgChave)));
+ return (season.qgs||[]).filter(q=>!ocupadas.has(String(q.chave)));
+}
+function groupsSemQg(){
+ return (faccoesTodas||[])
+  .filter(x=>!x.removido&&String(x.group||'').trim()&&!String(x.qgChave||'').trim())
+  .filter(x=>!season.id||!x.seasonId||x.seasonId===season.id);
+}
+
+function dialogo(html,aoAbrir){
+ const modal=document.createElement('div');
+ modal.className='modal';
+ modal.innerHTML=html;
+ document.body.appendChild(modal);
+ const fechar=()=>modal.remove();
+ modal.querySelector('.modal-x')?.addEventListener('click',fechar);
+ modal.querySelector('[data-cancelar]')?.addEventListener('click',fechar);
+ modal.onclick=e=>{if(e.target===modal)fechar()};
+ aoAbrir(modal,fechar);
+ return modal;
+}
+
+/* Cria o Group sem lugar nenhum. E o caminho normal de abertura de
+   season: define-se o elenco antes de saber que favela cada um pega. */
+function ligarNovoGroup(){
+ const b=document.getElementById('btnNovoGroup');
+ if(b&&!b._ligado){b._ligado=true;b.onclick=()=>criarGroupSemQg()}
+}
+async function criarGroupSemQg(){
+ if(!canEditModule('faccoes'))return permissionDeniedMessage('faccoes',true);
+ const segs=segmentDefs().map(s=>s.nome).filter(Boolean);
+ const existentes=(faccoesTodas||[]).map(x=>String(x.group||'').toUpperCase());
+ dialogo(`<div class="modal-card qg-definir">
+   <button class="modal-x" type="button" aria-label="Fechar">\u00d7</button>
+   <div class="eyebrow">NOVO GROUP</div>
+   <h2 style="margin:4px 0 2px">Criar Group sem QG</h2>
+   <p class="page-subtitle" style="margin:0 0 18px">O Group guarda o segmento, o produto e a receita. A favela e a fac\u00e7\u00e3o entram depois.</p>
+   <div class="qg-definir-grade">
+    <label><span>SEGMENTO</span>
+     <select data-d="segmento"><option value="">\u2014 escolha \u2014</option>
+      ${segs.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('')}</select></label>
+    <label><span>NOME DO GROUP</span>
+     <input data-d="group" placeholder="MUNICAO01" autocomplete="off"></label>
+    <label class="larga"><span>PRODUTO</span>
+     <input data-d="produto" placeholder="Muni\u00e7\u00f5es e Explosivos"></label>
+   </div>
+   <p class="qg-definir-aviso" data-aviso></p>
+   <div class="modal-actions">
+    <button type="button" class="btn-secondary compact" data-cancelar>CANCELAR</button>
+    <button type="button" class="btn-primary compact" data-ok>CRIAR</button>
+   </div></div>`,(modal,fechar)=>{
+  const campo=k=>modal.querySelector(`[data-d="${k}"]`);
+  const aviso=modal.querySelector('[data-aviso]');
+  const conferir=()=>{
+   const g=campo('group').value.trim().toUpperCase();
+   const rep=g&&existentes.includes(g);
+   aviso.textContent=rep?`J\u00e1 existe um Group chamado "${g}".`:'';
+   aviso.className='qg-definir-aviso'+(rep?' alerta':'');
+   return !rep;
+  };
+  campo('group').oninput=conferir;
+  campo('segmento').onchange=()=>{if(!campo('produto').value.trim())campo('produto').value=campo('segmento').value};
+  modal.querySelector('[data-ok]').onclick=async ev=>{
+   const g=campo('group').value.trim(), seg=campo('segmento').value;
+   if(!seg)return alert('Escolha o segmento.');
+   if(!g)return alert('D\u00ea um nome ao Group.');
+   if(!conferir())return alert('Esse nome j\u00e1 est\u00e1 em uso.');
+   const btn=ev.currentTarget; btn.disabled=true; btn.textContent='CRIANDO...';
+   try{
+    await gravarGroup(g,{segmento:seg,produto:campo('produto').value.trim()});
+    try{await loadFaccoes()}catch(e){}
+    fechar(); renderFaccoes(); renderQgs(); renderSeasonBadge();
+   }catch(e){alert('N\u00e3o criou: '+e.message);btn.disabled=false;btn.textContent='CRIAR'}
+  };
+  setTimeout(()=>campo('segmento').focus(),60);
+ });
+}
+
+/* Um unico lugar grava Group, com ou sem QG - assim os dois caminhos
+   nao divergem no formato do registro. */
+async function gravarGroup(g,{segmento,produto,qg='',qgChave=''}){
+ const jaExiste=(faccoesTodas||[]).some(x=>String(x.group||'').toUpperCase()===g.toUpperCase());
+ await setDoc(doc(db,'highos','data','faccoes',g),{
+  group:g, segmento, produto:produto||segmento, qg, qgChave,
+  status:'INATIVA', faccao:'', lider:'', staff:'',
+  seasonId:season.id||'',
+  ...(jaExiste?{}:{criadoEm:serverTimestamp()}),
+  updatedAt:serverTimestamp(), updatedBy:currentUser?.email||''
+ },{merge:true});
+}
+
+/* Vincula um Group que ja existe a uma favela livre. */
+async function vincularGroupAQg(group){
+ if(!canEditModule('faccoes'))return permissionDeniedMessage('faccoes',true);
+ const f=(faccoesTodas||[]).find(x=>x.group===group);
+ if(!f)return;
+ const livres=qgsLivres();
+ if(!livres.length)return alert('Nenhuma favela livre nesta season.');
+ dialogo(`<div class="modal-card qg-definir">
+   <button class="modal-x" type="button" aria-label="Fechar">\u00d7</button>
+   <div class="eyebrow">VINCULAR A UMA FAVELA</div>
+   <h2 style="margin:4px 0 2px">${esc(group)}</h2>
+   <p class="page-subtitle" style="margin:0 0 18px">${esc(f.segmento||'')} \u00b7 escolha onde este Group passa a produzir.</p>
+   <div class="qg-definir-grade">
+    <label class="larga"><span>FAVELA / QG</span>
+     <select data-d="qg"><option value="">\u2014 escolha \u2014</option>
+      ${livres.map(q=>`<option value="${esc(q.chave)}">${esc(q.local||q.chave)}${q.setor?' \u00b7 '+esc(q.setor):''}</option>`).join('')}
+     </select></label>
+   </div>
+   <div class="modal-actions">
+    <button type="button" class="btn-secondary compact" data-cancelar>CANCELAR</button>
+    <button type="button" class="btn-primary compact" data-ok>VINCULAR</button>
+   </div></div>`,(modal,fechar)=>{
+  modal.querySelector('[data-ok]').onclick=async ev=>{
+   const chave=modal.querySelector('[data-d="qg"]').value;
+   if(!chave)return alert('Escolha a favela.');
+   const q=qgPorChave(chave);
+   const btn=ev.currentTarget; btn.disabled=true; btn.textContent='VINCULANDO...';
+   try{
+    await gravarGroup(group,{segmento:f.segmento||'',produto:f.produto||'',qg:q.local||'',qgChave:chave});
+    await vincularGroup(fnsFila(),chave,group,currentUser?.email||'');
+    await salvarQg(fnsFila(),chave,{produto:f.produto||''},currentUser?.email||'');
+    await registrarHistoricoQg('QG_VINCULADO',q,`Group ${group} vinculado a ${q.local||chave}`);
+    try{await loadFaccoes()}catch(e){}
+    fechar(); renderFaccoes(); renderQgs(); renderSeasonBadge();
+   }catch(e){alert('N\u00e3o vinculou: '+e.message);btn.disabled=false;btn.textContent='VINCULAR'}
+  };
+ });
+}
+
 async function vincularQg(chave){
  if(!canEditModule('faccoes'))return permissionDeniedMessage('faccoes',true);
  const q=qgPorChave(chave);
@@ -2350,6 +2490,12 @@ async function vincularQg(chave){
    <div class="eyebrow">DEFINIR GROUP</div>
    <h2 style="margin:4px 0 2px">${esc(q.local||chave)}</h2>
    <p class="page-subtitle" style="margin:0 0 18px">O Group é a definição produtiva desta favela: o que ela fabrica, com que receita e que farm. A facção que vai ocupar entra depois, na entrega.</p>
+
+   <label class="qg-definir-usar"><span>USAR UM GROUP JÁ CRIADO</span>
+    <select data-d="existente">
+     <option value="">— criar um novo abaixo —</option>
+     ${groupsSemQg().map(x=>`<option value="${esc(x.group)}">${esc(x.group)}${x.segmento?' · '+esc(x.segmento):''}</option>`).join('')}
+    </select></label>
 
    <div class="qg-definir-grade">
     <label><span>SEGMENTO</span>
@@ -2394,6 +2540,23 @@ async function vincularQg(chave){
   aviso.className='qg-definir-aviso'+(repetido?' alerta':'');
  };
  campo('group').oninput=conferir;
+
+ /* Escolher um Group ja criado preenche e tranca os campos: esse
+    Group ja tem segmento e produto decididos, vincular nao e hora
+    de mudar isso. */
+ const ex=campo('existente');
+ if(ex)ex.onchange=()=>{
+  const alvo=(faccoesTodas||[]).find(x=>x.group===ex.value);
+  const travar=!!alvo;
+  if(alvo){
+   campo('group').value=alvo.group;
+   campo('segmento').value=alvo.segmento||'';
+   campo('produto').value=alvo.produto||alvo.segmento||'';
+  }
+  ['group','segmento','produto'].forEach(k=>{campo(k).disabled=travar});
+  aviso.textContent=travar?'':'';
+  aviso.className='qg-definir-aviso';
+ };
 
  modal.querySelector('[data-ok]').onclick=async ev=>{
   const g=campo('group').value.trim();
@@ -2850,6 +3013,7 @@ async function trocarSeason(){
 }
 
 function renderFaccoes(){
+ ligarNovoGroup();
  const q=($('#facSearch').value||'').toLowerCase(),
 seg=$('#facSegment').value,
 st=$('#facStatus').value;
