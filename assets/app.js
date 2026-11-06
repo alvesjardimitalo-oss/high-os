@@ -2443,14 +2443,19 @@ async function seasonBotLer(){
  try{return await highOsDiscordRequest('/v1/season')}
  catch(e){return {erro:String(e?.message||e)}}
 }
+/* Orfao e registro que o SISTEMA criou errado, nao Group que esta vago.
+   A primeira versao disto marcava "sem season + sem faccao + fora do
+   elenco da season ativa", e os Groups vagos da season anterior se
+   encaixam nos tres - a lista vinha cheia de Group real, com um botao de
+   remover do lado. So conta o que tem cara de chave mal formada: nome com
+   prefixo de season grudado, que nenhum humano digitaria. */
+const PADRAO_ORFAO=/^[a-z0-9]{1,12}(::|__)/i;
 function faccoesOrfas(){
- /* Orfao = nao pertence a season nenhuma E nao esta no elenco de nenhuma
-    planilha. Nunca foi entregue, senao nao seria descartavel. */
  return (faccoesTodas||[]).filter(f=>{
   if(f.removido)return false;
-  if(String(f.seasonId||'').trim())return false;
   if(String(f.faccao||'').trim())return false;
-  return noElenco(f.group)===false;
+  const nome=String(f.group||''), chave=String(f.id||'');
+  return PADRAO_ORFAO.test(nome)||PADRAO_ORFAO.test(chave);
  });
 }
 /* A data de inicio mora no indice de seasons, nao no documento da season:
@@ -2530,9 +2535,12 @@ async function renderSeasonsAdmin(){
 
  if(orfaos){
   const lista=faccoesOrfas();
+  /* O nome inteiro aparece: quem clica em remover tem que poder conferir
+     que ali nao tem Group de verdade. */
   orfaos.innerHTML=lista.length
-   ? '<div class="admin-season-chips">'+lista.map(f=>'<span class="chip orfao" data-orfao="'+esc(f.id||f.group)+'">'+
+   ? '<div class="admin-season-chips">'+lista.map(f=>'<span class="chip orfao" title="'+esc(f.id||'')+'">'+
      esc(f.group)+'</span>').join('')+'</div>'+
+     '<p class="cat-ajuda">Sao registros com chave mal formada, criados por engano. Group vago de season anterior NAO entra nesta lista.</p>'+
      '<div class="modal-actions" style="margin-top:12px"><button type="button" class="btn-secondary compact" data-limpar-orfaos>REMOVER OS '+lista.length+'</button></div>'
    : '<p class="cat-ajuda">Nenhum registro orfao.</p>';
   const btn=orfaos.querySelector('[data-limpar-orfaos]');
@@ -2540,7 +2548,10 @@ async function renderSeasonsAdmin(){
  }
 }
 async function removerOrfaos(lista,btn){
- if(!confirm('Remover '+lista.length+' registro(s) de Group que nao pertencem a season nenhuma?\n\nNenhum deles tem faccao ocupando.'))return;
+ /* Lista os nomes na confirmacao: se um Group de verdade escapar pro
+    filtro, e aqui que da pra ver antes de apagar. */
+ if(!confirm('Remover estes '+lista.length+' registro(s)?\n\n'+lista.map(f=>'• '+f.group).join('\n')+
+  '\n\nSao registros com chave mal formada. Nenhum tem faccao ocupando.'))return;
  btn.disabled=true;
  let feitos=0, falhas=[];
  for(const f of lista){
