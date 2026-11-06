@@ -13235,12 +13235,27 @@ previousStart:prevStart});
 return out.sort((a,b)=>(a.state==='CONCLUIDO')-(b.state==='CONCLUIDO')||b.drop-a.drop);
 
 }
+/* Alerta e sobre Group DESTA season. O nome sozinho nao diz de qual
+   season e - ARMAS07 existe nas metricas da anterior e virava alerta aqui,
+   num Group que esta season nao tem. Alem do corte por data, o nome tem
+   que estar no elenco. */
+/* chaveGroup vem do motor de metricas: mesma normalizacao que o resto do
+   painel usa para casar nome de Group. */
+function grupoDaSeasonAtual(nome=''){
+ if(!season.carregada)return true;
+ const k=chaveGroup(nome);
+ if(!k)return false;
+ /* Cadastrado nesta season, nao so citado na planilha: "Group vago com
+    player" e sobre um Group que existe e esta vago. Se ele nao existe
+    aqui, nao ha o que fazer com o alerta. */
+ return (faccoes||[]).some(f=>!f.removido&&chaveGroup(f.group)===k);
+}
 function vacantMetricAnomalies(){
  const cutoff=new Date();
 cutoff.setDate(cutoff.getDate()-7);
 const by=new Map();
 metricSemOcupante.forEach(r=>{const g=String(r.group||r.organizacao||r.faccao||'').trim(),
-d=metricDateValue(r);if(!g||!d||d<cutoff)return;const vals=Object.values(metricSlots(r)).map(Number).filter(Number.isFinite),
+d=metricDateValue(r);if(!g||!d||d<cutoff)return;if(!grupoDaSeasonAtual(g))return;const vals=Object.values(metricSlots(r)).map(Number).filter(Number.isFinite),
 mx=vals.length?Math.max(...vals):0;if(mx<=0)return;const cur=by.get(alvesNorm(g));if(!cur||d>cur.date)by.set(alvesNorm(g),{group:g,
 date:d,
 value:mx,
