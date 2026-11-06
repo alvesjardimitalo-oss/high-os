@@ -2028,43 +2028,117 @@ async function loadFaccoes(){
    pronto para colar, e o botao de postar aparece sozinho
    quando o endpoint existir.
    ------------------------------------------------------------ */
-function abrirAvisoEntrega(f,extra={}){
- const dados=avisos.dadosDaFaccao(f,extra);
- mostrarAviso(avisos.avisoEntrega(dados),'entrega',f);
-}
-function abrirAvisoRecolhimento(f,extra={}){
- const dados=avisos.dadosDaFaccao(f,extra);
- mostrarAviso(avisos.avisoRecolhimento(dados),'recolhimento',f);
+/* Campos que o cadastro NAO tem como saber: sao do atendimento,
+   negociados caso a caso. Ficam em formulario aqui porque digitar
+   no Discord depois do post e o que gera aviso editado a mao. */
+const CAMPOS_AVISO={
+ entrega:[
+  {k:'responsavel',r:'Staff responsável',obrigatorio:true},
+  {k:'oferta',r:'Oferta',obrigatorio:true,ajuda:'O que foi oferecido para a Org ficar'},
+  {k:'metaRec',r:'Meta de Rec',ajuda:'Vem da meta cadastrada; pode ajustar'},
+  {k:'observacao',r:'Observação',area:true,ajuda:'Condição do acordo, se houver'}
+ ],
+ recolhimento:[
+  {k:'responsavel',r:'Responsável',obrigatorio:true},
+  {k:'motivo',r:'Motivo',obrigatorio:true,opcoes:[
+   'Solicitação da liderança','Baixo contingente','Inatividade',
+   'Quebra de regra','Encerramento de season'
+  ]},
+  {k:'justificativa',r:'Justificativa',area:true,obrigatorio:true,
+   ajuda:'O que sustenta o motivo'},
+  {k:'statusFinal',r:'Status final',ajuda:'Como o local ficou'}
+ ]
+};
+const CANAL_AVISO={entrega:'faccoes-entregues',recolhimento:'faccoes-retomadas'};
+
+/* Monta o corpo pronto da webhook de recolhimento a partir do que o
+   formulario de recolhimento ja captura. E o mesmo modelo da previa:
+   um unico lugar decide como o aviso sai. */
+function avisoRecolhimentoWebhook(f={},r={}){
+ try{
+  return avisos.corpoWebhook(avisos.avisoRecolhimento(avisos.dadosDaFaccao(f,{
+   motivo:r.motivoLabel||r.motivo||'',
+   responsavel:r.responsavel||'',
+   justificativa:r.justificativa||'',
+   data:r.data||undefined,
+   hora:r.hora||undefined,
+   statusFinal:'Facção sem Group. Local vago.'
+  })));
+ }catch(e){console.warn('[AVISO-REC]',e?.message||e);return null}
 }
 
-function mostrarAviso(aviso,tipo,f){
+function abrirAvisoEntrega(f,extra={}){
+ /* A meta ja foi combinada na tela de metas - nao se pergunta duas vezes. */
+ let metaRec=extra.metaRec||'';
+ try{if(!metaRec)metaRec=metasUi.textoMeta(metasUi.metaDoGroup(f))||''}catch(e){}
+ mostrarAviso('entrega',f,{...extra,metaRec});
+}
+function abrirAvisoRecolhimento(f,extra={}){
+ mostrarAviso('recolhimento',f,extra);
+}
+
+function mostrarAviso(tipo,f,extra={}){
+ const campos=CAMPOS_AVISO[tipo]||[];
+ const valores={...extra};
+ const montar=()=>avisos[tipo==='entrega'?'avisoEntrega':'avisoRecolhimento'](
+  avisos.dadosDaFaccao(f,valores));
+ let aviso=montar();
+
  const modal=document.createElement('div');
  modal.className='modal';
  modal.innerHTML=`<div class="modal-card aviso-modal">
-   <button class="modal-x" type="button" aria-label="Fechar">×</button>
-   <div class="eyebrow">AVISO DO DISCORD · ${tipo==='entrega'?'ENTREGA':'RECOLHIMENTO'}</div>
-   <h2 style="margin:4px 0 14px">${esc(f?.group||'')}</h2>
-   <p class="cat-ajuda">Confira e complete o que estiver entre colchetes antes de postar. O texto já vem com a arte do rodapé certa.</p>
-   <div class="aviso-previa">
-    <h3>${esc(aviso.titulo)}</h3>
-    <pre>${esc(aviso.embed.description)}</pre>
-    <img src="${esc(aviso.embed.image.url)}" alt="" onerror="this.style.display='none'">
-    <div class="aviso-rodape">${esc(aviso.embed.footer.text)}</div>
+   <button class="modal-x" type="button" aria-label="Fechar">\u00d7</button>
+   <div class="eyebrow">AVISO DO DISCORD \u00b7 ${tipo==='entrega'?'ENTREGA':'RECOLHIMENTO'}</div>
+   <h2 style="margin:4px 0 4px">${esc(f?.group||'')}</h2>
+   <p class="cat-ajuda">Group, QG, segmento, fac\u00e7\u00e3o, l\u00edder e benef\u00edcios vieram do cadastro. Preencha abaixo o que \u00e9 do atendimento \u2014 a pr\u00e9via acompanha.</p>
+   <div class="aviso-grade">
+    <div class="aviso-form">
+     ${campos.map(c=>`<label class="campo">
+       <span>${esc(c.r)}${c.obrigatorio?' *':''}</span>
+       ${c.opcoes
+         ? `<input list="op_${c.k}" data-c="${c.k}" value="${esc(valores[c.k]||'')}" placeholder="${esc(c.ajuda||'')}">
+            <datalist id="op_${c.k}">${c.opcoes.map(o=>`<option value="${esc(o)}">`).join('')}</datalist>`
+         : c.area
+           ? `<textarea data-c="${c.k}" rows="3" placeholder="${esc(c.ajuda||'')}">${esc(valores[c.k]||'')}</textarea>`
+           : `<input data-c="${c.k}" value="${esc(valores[c.k]||'')}" placeholder="${esc(c.ajuda||'')}">`}
+      </label>`).join('')}
+    </div>
+    <div class="aviso-previa" data-previa>
+     <h3>${esc(aviso.titulo)}</h3>
+     <pre data-desc>${esc(aviso.embed.description)}</pre>
+     <img src="${esc(aviso.embed.image.url)}" alt="" onerror="this.style.display='none'">
+     <div class="aviso-rodape">${esc(aviso.embed.footer.text)}</div>
+    </div>
    </div>
+   <div class="aviso-erro" data-erro hidden></div>
    <div class="modal-actions">
     <button type="button" class="btn-secondary compact" data-fechar>FECHAR</button>
-    <div style="display:flex;gap:9px;margin-left:auto">
+    <div style="display:flex;gap:9px;margin-left:auto;flex-wrap:wrap">
      <button type="button" class="btn-secondary compact" data-json>COPIAR JSON</button>
-     <button type="button" class="btn-primary compact" data-texto>COPIAR TEXTO</button>
+     <button type="button" class="btn-secondary compact" data-texto>COPIAR TEXTO</button>
+     <button type="button" class="btn-primary compact" data-postar>POSTAR NO DISCORD</button>
     </div>
    </div>
   </div>`;
  document.body.appendChild(modal);
+
+ const desc=modal.querySelector('[data-desc]');
+ const erro=modal.querySelector('[data-erro]');
+ const mostrarErro=t=>{if(t){erro.textContent=t;erro.hidden=false}else{erro.hidden=true}};
+
+ /* A previa e o aviso sao o mesmo objeto: o que esta na tela e o
+    que vai pro Discord, sem segunda montagem na hora de postar. */
+ const atualizar=()=>{aviso=montar();desc.textContent=aviso.embed.description};
+ modal.querySelectorAll('[data-c]').forEach(el=>{
+  el.oninput=()=>{valores[el.dataset.c]=el.value;atualizar();mostrarErro('')};
+ });
+
  const fechar=()=>modal.remove();
  modal.querySelector('.modal-x').onclick=fechar;
  modal.querySelector('[data-fechar]').onclick=fechar;
  modal.onclick=e=>{if(e.target===modal)fechar()};
- const copiar=async(txt,btn,rot)=>{
+
+ const copiar=async(txt,btn)=>{
   try{await navigator.clipboard.writeText(txt)}
   catch(e){const t=document.createElement('textarea');t.value=txt;document.body.appendChild(t);t.select();document.execCommand('copy');t.remove()}
   const antes=btn.textContent; btn.textContent='COPIADO';
@@ -2072,6 +2146,33 @@ function mostrarAviso(aviso,tipo,f){
  };
  modal.querySelector('[data-texto]').onclick=e=>copiar(aviso.texto,e.currentTarget);
  modal.querySelector('[data-json]').onclick=e=>copiar(JSON.stringify(avisos.corpoWebhook(aviso),null,2),e.currentTarget);
+
+ modal.querySelector('[data-postar]').onclick=async e=>{
+  const faltando=campos.filter(c=>c.obrigatorio&&!String(valores[c.k]||'').trim()).map(c=>c.r);
+  if(faltando.length)return mostrarErro('Preencha antes de postar: '+faltando.join(', ')+'.');
+  const btn=e.currentTarget; btn.disabled=true; const antes=btn.textContent; btn.textContent='POSTANDO...';
+  try{
+   const r=await highOsDiscordRequest('/v1/avisos',{method:'POST',body:JSON.stringify({
+    tipo,canal:CANAL_AVISO[tipo],group:f?.group||'',
+    webhook:avisos.corpoWebhook(aviso),
+    usuario:currentUser?.email||''
+   })});
+   if(r?.enfileirado){
+    /* Fila do bot: o aviso sai quando o PC ligar, na ordem. */
+    mostrarErro(r.aviso||'O bot esta offline. O aviso ficou na fila.');
+    btn.textContent='NA FILA';
+   }else{
+    btn.textContent='POSTADO';
+    setTimeout(fechar,900);
+   }
+  }catch(err){
+   const m=String(err?.message||err);
+   mostrarErro(/404|not found/i.test(m)
+    ? 'O bot ainda nao tem o endpoint /v1/avisos. Use COPIAR JSON e cole na webhook por enquanto.'
+    : 'Nao deu pra postar: '+m);
+   btn.disabled=false; btn.textContent=antes;
+  }
+ };
 }
 
 /* ============================================================
@@ -3848,7 +3949,23 @@ lines.push('','Status final: GROUP VAGO / FACÇÃO SEM GROUP');
 return lines.join('\n')}
 function updateRecollectUi(){const low=$('#rReason')?.value==='BAIXO_CONTINGENTE';
 $('#lowContingentBox')?.classList.toggle('hidden',!low);
-if($('#rExtract'))$('#rExtract').value=recollectExtract()}
+if($('#rExtract'))$('#rExtract').value=recollectPrevia()}
+/* A previa mostra o modelo novo (o mesmo que vai na webhook); se por
+   algum motivo nao montar, cai no extrato antigo em vez de ficar vazia. */
+function recollectPrevia(){
+ const f=faccoes.find(x=>x.group===$('#rGroup')?.value)||{};
+ try{
+  const w=avisoRecolhimentoWebhook(f,{
+   motivoLabel:recollectReasonLabel($('#rReason')?.value||''),
+   responsavel:$('#rResponsible')?.value||'',
+   justificativa:$('#rDetails')?.value||'',
+   data:$('#rDate')?.value||'',hora:$('#rTime')?.value||''
+  });
+  const e=w?.embeds?.[0];
+  if(e)return e.title+'\n\n'+e.description;
+ }catch(err){}
+ return recollectExtract();
+}
 function openRecollectModal(){const group=$('#fGroup').value,
 f=faccoes.find(x=>x.group===group);
 if(!f||f.status!=='ATIVA')return alert('Este Group não possui uma facção ativa para recolher.');
@@ -3951,7 +4068,11 @@ createdBy:currentUser.email});evidenceId=evidenceRef.id}recolhimento.evidenciaId
 /* O bot posta o extrato (e o print, no baixo contingente) no tópico do Group
    e no canal de recolhidas do Discord do Ilegal. Só vai no PUT; não fica no registro local. */
 const [tituloRec,...corpoRec]=String(recolhimento.extrato||'').split('\n');
-recollectBatch.set(doc(db,'highos','data','faccoes',group),{...data,anuncioRecolhimento:{title:tituloRec,description:corpoRec.join('\n').trim(),imageDataUrl:recollectPanelImage||''}});
+recollectBatch.set(doc(db,'highos','data','faccoes',group),{...data,anuncioRecolhimento:{title:tituloRec,description:corpoRec.join('\n').trim(),imageDataUrl:recollectPanelImage||'',
+ /* webhook: modelo novo (embed com arte, cor e rodape da Ilegal) montado
+    do mesmo formulario de recolhimento. title/description ficam para o
+    bot que ainda nao le o campo novo. */
+ webhook:avisoRecolhimentoWebhook(old,recolhimento)}});
 if(old.faccao){const oid=orgKey(old.faccao);recollectBatch.set(doc(db,'highos','data','organizacoes',oid),{nome:old.faccao,
 status:'SEM_GROUP',
 groupAtual:'',
@@ -6846,7 +6967,8 @@ async function recolherParaTrocaV14(f,novaFaccao,justificativa){
  const recolhimento={motivo:'TROCA_OCUPANTE',motivoLabel:'Troca de ocupante',responsavel,data,hora,justificativa,baixoContingente:null,extrato,createdAtText:agora.toISOString(),createdBy:currentUser.email,troca:true,novaFaccao};
  const vago={...f,status:'INATIVA',faccao:'',lider:'',staff:'',dataEntrega:'',ocupacaoAtual:null,ultimoRecolhimento:{...recolhimento,possuiEvidencia:false},updatedBy:currentUser.email};
  const [titulo,...corpo]=extrato.split('\n');
- await setDoc(doc(db,'highos','data','faccoes',f.group),{...vago,anuncioRecolhimento:{title:titulo,description:corpo.join('\n').trim(),imageDataUrl:''}});
+ await setDoc(doc(db,'highos','data','faccoes',f.group),{...vago,anuncioRecolhimento:{title:titulo,description:corpo.join('\n').trim(),imageDataUrl:'',
+  webhook:avisoRecolhimentoWebhook(f,{motivoLabel:'Encerramento de season',responsavel:currentUser?.email||'',justificativa:'Virada de season.'})}});
  try{await setDoc(doc(db,'highos','data','organizacoes',orgKey(f.faccao)),{nome:f.faccao,status:'SEM_GROUP',groupAtual:'',segmentoAtual:f.segmento||'',qgAtual:'',ultimoRecolhimento:recolhimento,updatedBy:currentUser.email},{merge:true})}catch(e){}
  entregas=entregas.map(d=>d.group===f.group&&d.status==='ATIVA'?{...d,status:'RECOLHIDA',recolhidaPor:currentUser.email,recolhimento}:d);
  const i=faccoes.findIndex(x=>x.group===f.group);if(i>=0)faccoes[i]={...faccoes[i],...vago};
@@ -6960,7 +7082,7 @@ createdBy:currentUser.email};
   renderFaccoes();renderDeliveries();renderOrganizations();
   alert(sheetSynced?'Entrega registrada no High OS Discord e sincronizada com as planilhas.':'Entrega registrada no High OS Discord, mas a planilha NÃO foi sincronizada. Conecte o Google Sheets e sincronize novamente.');
   /* O aviso sai agora, com a entrega fresca na cabeca de quem fez. */
-  try{abrirAvisoEntrega(deliveredGroup,{responsavel:currentUser?.email||'',oferta:payload?.plano||'',metaRec:''})}catch(e){console.warn('[AVISO]',e?.message||e)}
+  try{abrirAvisoEntrega(deliveredGroup,{responsavel:currentUser?.email||'',oferta:payload?.plano||''})}catch(e){console.warn('[AVISO]',e?.message||e)}
 
 
  }catch(err){alert('Erro ao concluir entrega: '+err.message)}
