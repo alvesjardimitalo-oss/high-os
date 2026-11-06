@@ -34,7 +34,7 @@
   <link rel="stylesheet" href="assets/acoes-planejador.css?v=16">
   <link rel="stylesheet" href="assets/acoes-gestao-simples.css?v=2">
   <link rel="stylesheet" href="assets/anim-v15.css?v=15.0.0">
-  <link rel="stylesheet" href="assets/tema.css?v=17.8.0">
+  <link rel="stylesheet" href="assets/tema.css?v=17.11.0">
   <link rel="icon" type="image/png" href="assets/high_logo.png?v=10.4.1">
 </head>
 <body>
@@ -793,6 +793,7 @@
           <div class="admin-summary-grid">
             <button type="button" class="admin-summary-card active" data-admin-tab="acessos"><span>♟</span><div><b>ACESSOS</b><small>Usuários e permissões por módulo</small></div></button>
             <button type="button" class="admin-summary-card" data-admin-tab="groups"><span>◆</span><div><b>GROUPS</b><small>Cadastro, nome, vínculo e estrutura</small></div></button>
+            <button type="button" class="admin-summary-card" data-admin-tab="seasons"><span>❖</span><div><b>SEASONS</b><small>Season ativa, elenco e limpeza da virada</small></div></button>
             <button type="button" class="admin-summary-card" data-admin-tab="dashboard"><span>⌁</span><div><b>DASHBOARD</b><small>Parâmetros de saúde e contingente</small></div></button>
             <button type="button" class="admin-summary-card" data-admin-tab="integracoes"><span>↔</span><div><b>INTEGRAÇÕES</b><small>Google Sheets e sincronizações</small></div></button>
             <button type="button" class="admin-summary-card" data-admin-tab="estrutura"><span>◇</span><div><b>ESTRUTURA</b><small>Segmentos e vínculos</small></div></button>
@@ -828,6 +829,34 @@
               <div id="adminGroupStats" class="fac-stats compact-stats"></div>
               <div id="adminGroupList" class="admin-group-list"><div class="placeholder"><b>◆</b><h3>CARREGANDO GROUPS</h3></div></div>
               <div class="sheet-sync-note">EDITAR COMPLETO abre o perfil técnico existente do Group. RENOMEAR altera o identificador mestre do Group e atualiza o vínculo da facção ocupante. Use renomeação apenas quando o Group realmente mudou de nome na cidade.</div>
+            </div>
+          </div>
+
+          <div class="admin-tab-panel" data-admin-panel="seasons">
+            <div class="dashboard-config-card">
+              <div class="eyebrow">SEASON ATIVA</div>
+              <h3 style="margin:4px 0 6px">Qual season o bot assina</h3>
+              <p class="page-subtitle" style="margin:0 0 16px">Decide o rodapé dos anúncios no Discord e com que season um Group novo nasce. É o que permite a Season 3 ter um Armas01 sem encostar no da Season 2.</p>
+              <div id="seasonBotEstado" class="admin-season-estado">Consultando o bot...</div>
+              <div class="admin-season-form">
+                <label><span>ID</span><input id="seasonBotId" placeholder="S3" maxlength="12" autocomplete="off"></label>
+                <label><span>NOME EXIBIDO</span><input id="seasonBotLabel" placeholder="Ilegal High Season 3" maxlength="60" autocomplete="off"></label>
+                <button type="button" id="seasonBotSalvar" class="btn-primary compact">DEFINIR NO BOT</button>
+              </div>
+            </div>
+
+            <div class="dashboard-config-card">
+              <div class="eyebrow">ELENCO DA SEASON</div>
+              <h3 style="margin:4px 0 6px">Groups sem favela</h3>
+              <p class="page-subtitle" style="margin:0 0 14px">A season abre com o elenco definido e as favelas ainda vazias. O vínculo é feito depois, em QGs da Season.</p>
+              <div id="seasonElenco" class="admin-season-elenco"></div>
+            </div>
+
+            <div class="dashboard-config-card danger-card">
+              <div class="eyebrow">LIMPEZA</div>
+              <h3 style="margin:4px 0 6px">Registros órfãos</h3>
+              <p class="page-subtitle" style="margin:0 0 14px">Registros de Group que não pertencem a nenhuma season e nunca foram entregues. Some da lista de qualquer season, então só aparecem aqui.</p>
+              <div id="seasonOrfaos" class="admin-season-orfaos">Carregando...</div>
             </div>
           </div>
 
@@ -1189,7 +1218,7 @@
   <!-- V15.6.3: eventos-painel, mission-planner e mission-planner-nav carregam só ao abrir o Planejador (app.js) -->
   <script src="assets/anim-v15.js?v=15.0.0" defer></script>
   <script src="assets/api-config.js?v=2"></script>
-  <script type="module" src="assets/app.js?v=17.10.0"></script>
+  <script type="module" src="assets/app.js?v=17.11.0"></script>
 
 <div id="newDeliveryModal" class="modal hidden"><div class="modal-card delivery-modal-v5"><button class="modal-x" id="newDeliveryClose">×</button>
   <div class="eyebrow">NOVA OCUPAÇÃO</div><h2>ENTREGA DE GROUP</h2><p class="delivery-help">O Group traz sua estrutura instalada. Personalize apenas o que será ativado para a nova facção.</p>
