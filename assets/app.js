@@ -25,7 +25,7 @@ import { getFirestore,
  startAfter,
  arrayUnion } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
 import { situacaoGroup, ocupado as ocupadoV14, inconsistencias } from './modules/ocupacao.js';
-import { syncBlipsCoordinates, valuesFor as blipsValuesFor } from './modules/blips-sheet-sync.js?v=1.2.0';
+import { syncBlipsCoordinates, valuesFor as blipsValuesFor } from './modules/blips-sheet-sync.js?v=1.2.1';
 import { montarLinhaDoTempo, atribuirLinhas, coletaDoDia, rotuloColeta, msDe, chaveGroup, descartarColetasVazias } from './modules/metricas-motor.js?v=14.8.2';
 import { painelOcupacaoHtml, painelDisponiveisHtml, ligarPaineis, abrirRevisao } from './modules/painel-ocupacao.js?v=14.7.0';
 import * as fila from './modules/fila-bot.js?v=13.1.0';
@@ -54,7 +54,8 @@ sheetsProvider.addScope('https://www.googleapis.com/auth/spreadsheets.readonly')
 
 const facSheetProvider=new GoogleAuthProvider();
 
-facSheetProvider.addScope('https://www.googleapis.com/auth/spreadsheets');
+/* 18/11/2026 - SOMENTE LEITURA: o High OS não tem permissão de editar planilhas. */
+facSheetProvider.addScope('https://www.googleapis.com/auth/spreadsheets.readonly');
 
 const $=s=>document.querySelector(s), loginView=$('#loginView'),deniedView=$('#deniedView'),appView=$('#appView'),sessionArea=$('#sessionArea');
 
@@ -12835,7 +12836,7 @@ const FAC_SHEET_SPREADSHEET_ID='1MBVzWMFrAzIhYlT7-ZgWZEAoJLjPn3JeZdmHyRcZf2A';
 
 const FAC_SHEET_GID=1572584288;
 
-const FAC_SHEET_SCOPE='https://www.googleapis.com/auth/spreadsheets';
+const FAC_SHEET_SCOPE='https://www.googleapis.com/auth/spreadsheets.readonly';
 
 let facSheetAccessToken='',
 facSheetTitle='',
@@ -12931,6 +12932,8 @@ return token;
 async function facSheetFetch(url,{method='GET',
 body=null,
 token=''}={}){
+ // 18/11/2026: nenhuma gravação em planilha sai do High OS. Atualize a planilha à mão.
+ if(String(method).toUpperCase()!=='GET'||body!==null)throw new Error('High OS em SOMENTE LEITURA: nada é gravado na planilha. A alteração ficou salva no High OS; atualize a planilha à mão.');
  token=token||facSheetAccessToken;
 if(!token)throw new Error('PLANILHA_NAO_CONECTADA');
 const opt={method,

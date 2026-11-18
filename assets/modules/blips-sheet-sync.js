@@ -98,6 +98,8 @@ export function valuesFor(f){
  };
 }
 async function sheets(url,token,method="GET",body){
+ // 18/11/2026: SOMENTE LEITURA - o High OS nunca grava nesta planilha.
+ if(method!=="GET"||body!==undefined)throw new Error("High OS em SOMENTE LEITURA: nada é gravado na aba BLIPS COORDENADAS.");
  const opt={method,headers:{"Authorization":"Bearer "+token}};
  if(body!==undefined){opt.headers["Content-Type"]="application/json";opt.body=JSON.stringify(body);}
  const response=await fetch(url,opt);
