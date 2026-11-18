@@ -58,44 +58,19 @@ test('Garagens, blindados e farm são serializados sem perder os spawns',()=>{
  assert.equal(Object.hasOwn(v,'VIPORG'),false);
  assert.equal(Object.hasOwn(v,'CAPACIDADEBAU'),false);
 });
-test('Entrega não substitui garagem instalada; novas CDS entram',async()=>{
+test('SOMENTE LEITURA (18/11/2026): a aba BLIPS COORDENADAS nunca recebe gravação',async()=>{
  await withSheet(fakeSheet(),async batches=>{
-  await syncBlipsCoordinates({token:'mock',groups:[group()]});
-  const cells=writes(batches);
-  assert.equal(cells.some(x=>x.row===2 && x.col===6),false);
-  assert.equal(cells.find(x=>x.row===3 && x.col===6)?.value,'BLIP: 30,30,30\nSPAWN: 31,31,31');
-  assert.equal(cells.find(x=>x.row===4 && x.col===6)?.value,'BLIP: 40,40,40\nSPAWN: 41,41,41');
+  await assert.rejects(syncBlipsCoordinates({token:'mock',groups:[group()]}),/SOMENTE LEITURA/);
+  assert.equal(batches.length,0);
  });
 });
-test('Alteração explícita substitui apenas o campo selecionado',async()=>{
- await withSheet(fakeSheet(),async batches=>{
-  await syncBlipsCoordinates({token:'mock',groups:[group()],overwriteFieldsByGroup:{
-   Armas01:['GARAGEMPUBLICA']
-  }});
-  const cells=writes(batches);
-  assert.equal(cells.find(x=>x.row===2 && x.col===6)?.value,'BLIP: 20,20,20\nSPAWN: 21,21,21');
-  assert.equal(cells.some(x=>x.row===2 && x.col===7),false);
- });
-});
-test('Remoção explícita permite limpar coordenada; sem ação explícita preserva',async()=>{
- await withSheet(fakeSheet(),async batches=>{
-  const g=group();g.perfilTecnico.operacional.garagens=[];
-  await syncBlipsCoordinates({token:'mock',groups:[g],overwriteFieldsByGroup:{
-   Armas01:['GARAGEMPUBLICA']
-  }});
-  assert.equal(writes(batches).find(x=>x.row===2 && x.col===6)?.value,'');
- });
-});
-test('Group existente no setor errado é sinalizado, sem criar cópia',async()=>{
+test('Group existente no setor errado é sinalizado; nada é gravado',async()=>{
  const rows=fakeSheet();rows[0][4]='MUNIÇÃO';
  await withSheet(rows,async batches=>{
-  const result=await syncBlipsCoordinates({token:'mock',groups:[group()]});
-  assert.equal(result.created,0);
-  assert.equal(result.categoryMismatches.length,1);
-  assert.equal(result.categoryMismatches[0].group,'Armas01');
+  await assert.rejects(syncBlipsCoordinates({token:'mock',groups:[group()]}),/SOMENTE LEITURA/);
+  assert.equal(batches.length,0);
  });
 });
-
 test('Prefixo canônico do Group prevalece sobre segmento inconsistente (Mecânica)',async()=>{
  const rows=fakeSheet();
  rows[0][4]='DROGAS';
