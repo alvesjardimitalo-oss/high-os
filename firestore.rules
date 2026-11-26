@@ -76,6 +76,10 @@ service cloud.firestore {
       allow read: if activeUser();
       allow write: if false;
     }
+    match /hos/metricas/semanas/{semana} {
+      allow read: if activeUser();
+      allow write: if false;
+    }
 
     // ---------- HIGH OS · planejador de missões (uma zona por documento) ----------
     // "rev" só avança de 1 em 1: quem está com versão antiga não sobrescreve o trabalho de outro.

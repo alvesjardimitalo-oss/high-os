@@ -12,7 +12,9 @@ import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { montarAtual, montarDias } from './montar.mjs';
+import { montarAtual, montarDias, montarSemana, semanasDesde } from './montar.mjs';
+
+const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
 const AQUI = dirname(fileURLToPath(import.meta.url));
 const PERFIL = join(AQUI, 'perfil');
@@ -87,7 +89,15 @@ async function lerSite() {
       const [dia, hora] = await Promise.all([lerApi(page, q + '&grouping=day'), lerApi(page, q + '&grouping=hour')]);
       return [org, { dia, hora }];
     });
-    return { atual: montarAtual({ semana, hoje, mes, catalogo, lidoEm }), dias: montarDias(Object.fromEntries(pres)), orgs: ids.length };
+    // Uma ficha por semana (segunda a domingo) desde o início do acompanhamento.
+    // Semanas fechadas não mudam, mas regravar é barato e corrige atrasos do site.
+    const agora = Date.parse(lidoEm);
+    const semanas = {};
+    for (const s of semanasDesde(num(semana?.trackingSince) || agora, agora)) {
+      const ov = await lerApi(page, `ilegal/overview?preset=custom&from=${s.de}&to=${s.ate}`);
+      semanas[s.de] = montarSemana(ov, s, agora);
+    }
+    return { atual: montarAtual({ semana, hoje, mes, catalogo, lidoEm }), dias: montarDias(Object.fromEntries(pres)), semanas, orgs: ids.length };
   } finally {
     await ctx.close();
   }
@@ -95,7 +105,8 @@ async function lerSite() {
 
 /** Lê o site sem gravar nada: confere se a sessão e a leitura estão funcionando. */
 async function testar() {
-  const { atual, dias, orgs } = await lerSite();
+  const { atual, dias, semanas, orgs } = await lerSite();
+  for (const s of Object.values(semanas)) log(`Semana ${s.de} a ${s.ate}${s.parcial ? ' (em andamento)' : ''} · pico global ${s.global.pico} em ${s.global.diaDoPico} · média simultânea ${s.global.mediaOnline} · ${Object.keys(s.organizacoes).length} organizações`);
   const top = [...atual.semana.organizacoes].sort((a, b) => b.pico - a.pico).slice(0, 5).map((o) => `${o.org} (pico ${o.pico})`).join(', ');
   log(`Leitura OK, nada gravado · ${orgs} organizações · ${Object.keys(dias).length} dias · pico da semana ${atual.semana.total.pico} · maiores: ${top}`);
 }
@@ -107,12 +118,13 @@ async function coletar() {
   const refAtual = db.doc('hos/metricas');
 
   try {
-    const { atual, dias, orgs } = await lerSite();
+    const { atual, dias, semanas, orgs } = await lerSite();
     const lote = db.batch();
     lote.set(refAtual, { ...atual, coletor: { status: 'ok', em: FieldValue.serverTimestamp(), erro: '' } });
     for (const [dia, doc] of Object.entries(dias)) lote.set(db.doc(`hos/metricas/dias/${dia}`), doc, { merge: true });
+    for (const [de, doc] of Object.entries(semanas)) lote.set(db.doc(`hos/metricas/semanas/${de}`), doc);
     await lote.commit();
-    log(`OK · ${orgs} organizações · ${Object.keys(dias).length} dias gravados.`);
+    log(`OK · ${orgs} organizações · ${Object.keys(dias).length} dias · ${Object.keys(semanas).length} semanas gravados.`);
   } catch (e) {
     // A tela de Métricas mostra este aviso, assim ninguém confia em número parado.
     await refAtual.set({ coletor: { status: e instanceof SessaoExpirada ? 'sessao' : 'erro', em: FieldValue.serverTimestamp(), erro: String(e.message || e).slice(0, 300) } }, { merge: true }).catch(() => {});

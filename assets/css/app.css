@@ -129,6 +129,25 @@ main:focus { outline: none; }
 .met-col.parcial i { opacity: .4; }
 .met-col small { font-size: 11px; color: var(--texto-2); font-variant-numeric: tabular-nums; }
 .met-col span { font-size: 10.5px; color: var(--texto-3); white-space: nowrap; }
+.met-col.topo i { background: var(--ciano, #3ee0ff); opacity: 1; }
+.met-taxa { height: 6px; width: 72px; margin-left: auto; border-radius: 99px; background: var(--painel-3); overflow: hidden; }
+.met-taxa.larga { width: 100%; height: 8px; }
+.met-taxa i { display: block; height: 100%; background: var(--acido); border-radius: 99px; }
+.met-taxa i.baixa { background: var(--erro); }
+.met-tabela td, .met-matriz td { vertical-align: middle; }
+.met-tabela small, .met-matriz small { font-size: 11px; }
+.met-calor { background: rgba(198, 255, 61, calc(var(--q) * .28)); }
+.met-destaques .item-lista { font-size: 13px; }
+@media print {
+  .trilho, .topo, .acoes, #met-abas, #met-semanas, .filtros input, #met-segs, .toast { display: none !important; }
+  .app { display: block; }
+  main { padding: 0; max-width: none; }
+  * { color: #111 !important; background: transparent !important; box-shadow: none !important; text-shadow: none !important; }
+  body { background: #fff !important; }
+  .met-col i, .met-taxa i { background: #555 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .painel, .kpi, .tabela-caixa { break-inside: avoid; border-color: #ccc !important; }
+  th, td { border-color: #ddd !important; }
+}
 .ok-txt { color: var(--ok); font-weight: 650; }
 .erro-txt { color: var(--erro); font-weight: 650; }
 @media (max-width: 1100px) { .g-2, .g-3, .g-painel { grid-template-columns: 1fr; } }

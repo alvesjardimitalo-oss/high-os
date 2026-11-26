@@ -62,6 +62,54 @@ export function montarAtual({ semana, hoje, mes, catalogo, lidoEm }) {
   };
 }
 
+const DIA_MS = 86400000;
+const iso = (ms) => new Date(ms).toISOString().slice(0, 10);
+
+/** Semanas (segunda a domingo, horário de Brasília) desde o início do acompanhamento até agora. */
+export function semanasDesde(desdeMs, agoraMs) {
+  const meiaNoiteBR = (ms) => { const { dia } = diaHoraBR(ms); return Date.parse(dia + 'T00:00:00Z'); };
+  const segunda = (ms) => { const d = meiaNoiteBR(ms); return d - ((new Date(d).getUTCDay() + 6) % 7) * DIA_MS; };
+  const hoje = iso(meiaNoiteBR(agoraMs));
+  const out = [];
+  for (let s = segunda(desdeMs); s <= segunda(agoraMs); s += 7 * DIA_MS) {
+    const ate = iso(s + 6 * DIA_MS);
+    out.push({ de: iso(s), ate, parcial: ate >= hoje });
+  }
+  return out;
+}
+
+/**
+ * Overview de uma semana fechada (ou em andamento) → documento hos/metricas/semanas/{segunda}.
+ * mediaOnline = jogadores simultâneos em média (tempo online ÷ duração da semana): mede
+ * presença real, coisa que o pico sozinho não mostra.
+ */
+export function montarSemana(ov, { de, ate, parcial }, lidoMs) {
+  const inicio = num(ov?.period?.startAt);
+  const fim = Math.min(num(ov?.period?.endAt) || lidoMs, lidoMs);
+  const duracao = Math.max(fim - inicio, 3600000);
+  const media = (ms) => Math.round((num(ms) / duracao) * 10) / 10;
+  const serie = (ov?.daily || []).map((d) => ({ dia: String(d.key || ''), pico: num(d.peakOnline), horasOnline: horas(d.onlineMs), parcial: !!d.partial }));
+  const topo = serie.reduce((m, d) => (d.pico > (m?.pico ?? -1) ? d : m), null);
+  const organizacoes = {};
+  for (const o of ov?.byOrganization || []) {
+    const org = String(o.organization || o.label || '');
+    if (!org) continue;
+    organizacoes[org] = { pico: num(o.peakOnline), ativos: num(o.activeMembers), membros: num(o.members), horasOnline: horas(o.onlineMs), mediaOnline: media(o.onlineMs) };
+  }
+  return {
+    de, ate, parcial: !!parcial,
+    // Semana que começou antes do site passar a medir: números baixos não são queda real.
+    inicioAcompanhamento: num(ov?.trackingSince) > inicio,
+    global: {
+      pico: num(ov?.totals?.peakOnline), diaDoPico: topo?.dia || '',
+      ativos: num(ov?.totals?.activeMembers), membros: num(ov?.totals?.members),
+      horasOnline: horas(ov?.totals?.onlineMs), mediaOnline: media(ov?.totals?.onlineMs),
+    },
+    dias: serie,
+    organizacoes,
+  };
+}
+
 /**
  * Presença por dia e por hora de cada organização → um documento por dia
  * (hos/metricas/dias/{YYYY-MM-DD}). Gravado com merge, então cada execução só

@@ -137,6 +137,12 @@ export async function diasMetricas(n = 45) {
   return s.docs.map((d) => d.data());
 }
 
+/** Fichas semanais (segunda a domingo), da mais antiga para a mais nova. */
+export async function semanasMetricas() {
+  const s = await getDocs(collection(db, 'hos', 'metricas', 'semanas'));
+  return s.docs.map((d) => d.data()).sort((a, b) => a.de.localeCompare(b.de));
+}
+
 /* ---------------- Planejador de missões (uma zona por documento) ----------------
    Mesmo formato que o planejador já usa: highos/data/missoes_zonas/{id},
    com "rev" subindo de 1 em 1 para ninguém sobrescrever o trabalho de outro. */

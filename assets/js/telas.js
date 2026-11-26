@@ -2,6 +2,7 @@
 import { esc, $, $$, moeda, pct, classeSeg, norm, toast, modal, confirmar, copiar } from './ui.js';
 import { SEGMENTOS, IMAGENS_MN } from './dados.js';
 import * as nuvem from './nuvem.js';
+import { relatorioSemana, porSegmento, acompanhamento, csvSemana, HORARIOS } from './metricas.js';
 import { avisoEntrega, avisoRecolhimento, corpoWebhook, webhookValida, beneficiosDaFaccao } from './avisos.js';
 import { avisoPlanilha } from './app.js';
 
@@ -290,90 +291,196 @@ export async function avisos({ el, estado, params }) {
 }
 
 /* ================= MÉTRICAS ================= */
-const filtroMet = { periodo: 'semana', busca: '', ordem: 'pico', dia: '' };
-const HORARIOS_RH = ['14', '16', '21', '23'];
-const fmtNum = (v) => Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
-const variacao = (agora, antes) => {
-  if (!antes) return '';
-  const d = (agora - antes) / antes;
-  return `<span class="${d >= 0 ? 'ok-txt' : 'erro-txt'}">${d >= 0 ? '+' : ''}${Math.round(d * 100)}%</span> vs. período anterior`;
+// Relatório semanal feito sobre os dados do metricas.highrp.net (gravados pelo coletor/).
+const estMet = { aba: 'semana', semana: '', busca: '', seg: '', ordem: 'posicao', dir: 1, acomp: 'pico', dia: '' };
+const fNum = (v, casas = 1) => (v == null ? '—' : Number(v).toLocaleString('pt-BR', { maximumFractionDigits: casas }));
+const fPct = (v) => (v == null ? '—' : Math.round(v * 100) + '%');
+const fDia = (d) => (d ? d.split('-').reverse().slice(0, 2).join('/') : '—');
+const DIAS_SEM = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+const diaSemana = (d) => (d ? DIAS_SEM[new Date(d + 'T12:00:00Z').getUTCDay()] : '');
+const rotuloSemana = (s) => `${fDia(s.de)} a ${fDia(s.ate)}`;
+/** Variação colorida: absoluta (pico) ou percentual. */
+const seta = (v, { pct: emPct = false, neutro = 0 } = {}) => {
+  if (v == null) return '<span class="fraco">—</span>';
+  const txt = emPct ? `${v > 0 ? '+' : ''}${Math.round(v * 100)}%` : `${v > 0 ? '+' : ''}${fNum(v)}`;
+  if (Math.abs(v) <= neutro) return `<span class="fraco">${emPct ? '0%' : '='}</span>`;
+  return `<span class="${v > 0 ? 'ok-txt' : 'erro-txt'}">${v > 0 ? '▲' : '▼'} ${txt}</span>`;
+};
+const setaPos = (o) => {
+  if (o.posicaoAnt == null) return '<span class="selo ciano" style="font-size:10px">novo</span>';
+  const d = o.posicaoAnt - o.posicao;
+  return d === 0 ? '<span class="fraco">=</span>' : `<span class="${d > 0 ? 'ok-txt' : 'erro-txt'}">${d > 0 ? '▲' : '▼'}${Math.abs(d)}</span>`;
 };
 
 export async function metricas({ el, estado }) {
-  const titulo = cab('metricas.highrp.net', 'Métricas', 'Presença das organizações do Ilegal, lida do site de métricas do High pelo coletor no computador do administrador.');
-  el.innerHTML = titulo + '<div class="painel vazio">Carregando métricas…</div>';
-  let atual, dias;
-  try { [atual, dias] = await Promise.all([nuvem.lerMetricas(), nuvem.diasMetricas()]); }
-  catch (e) { el.innerHTML = titulo + `<div class="painel vazio">Não consegui ler as métricas: ${esc(e.message)}</div>`; return; }
-  if (!atual?.semana) {
-    el.innerHTML = titulo + '<div class="painel vazio"><h2 style="margin-bottom:8px">Aguardando o coletor</h2>Nenhuma leitura gravada ainda. Rode <b>npm run coletar</b> na pasta <b>coletor</b> do computador do administrador.</div>';
+  const titulo = (txt = '') => cab('Relatório semanal · metricas.highrp.net', 'Métricas', txt || 'Presença das organizações do Ilegal, semana a semana.');
+  el.innerHTML = titulo() + '<div class="painel vazio">Carregando métricas…</div>';
+  let atual, dias, semanas;
+  try { [atual, dias, semanas] = await Promise.all([nuvem.lerMetricas(), nuvem.diasMetricas(60), nuvem.semanasMetricas()]); }
+  catch (e) { el.innerHTML = titulo() + `<div class="painel vazio">Não consegui ler as métricas: ${esc(e.message)}</div>`; return; }
+  if (!semanas.length) {
+    el.innerHTML = titulo() + '<div class="painel vazio"><h2 style="margin-bottom:8px">Aguardando o coletor</h2>Nenhuma semana gravada ainda. No computador do administrador, use o atalho <b>High OS - Coletar métricas agora</b>.</div>';
     return;
   }
 
   // Nome da facção e segmento vêm da planilha; a API só conhece o Group (Armas01, Lavagem06…).
   const porGroup = new Map((estado.base?.faccoes || []).map((f) => [norm(f.group), f]));
-  const familia = new Map((atual.catalogo || []).map((g) => [norm(g.group), g.familia]));
+  const familia = new Map((atual?.catalogo || []).map((g) => [norm(g.group), g.familia]));
   const nomeFac = (org) => porGroup.get(norm(org))?.faccao || '';
-  const segOrg = (org) => porGroup.get(norm(org))?.segmento || familia.get(norm(org)) || '';
+  const segOrg = (org) => porGroup.get(norm(org))?.segmento || familia.get(norm(org)) || 'Outros';
+  const linkOrg = (org) => porGroup.has(norm(org)) ? `<a href="#/faccao/${encodeURIComponent(porGroup.get(norm(org)).group)}"><b>${esc(org)}</b></a>` : `<b>${esc(org)}</b>`;
+  const celOrg = (org) => `<td class="${classeSeg(segOrg(org))}"><span class="ponto-seg"></span> ${linkOrg(org)}${nomeFac(org) ? `<br><small class="fraco">${esc(nomeFac(org))}</small>` : ''}</td>`;
 
-  const lido = atual.lidoEm ? new Date(atual.lidoEm) : null;
-  const horasDesde = lido ? (Date.now() - lido) / 3600000 : Infinity;
-  const c = atual.coletor || {};
+  const lido = atual?.lidoEm ? new Date(atual.lidoEm) : null;
+  const c = atual?.coletor || {};
   const avisoColetor = c.status === 'sessao'
-    ? '<div class="aviso erro"><div><b>A sessão do Discord do coletor expirou.</b><br>No computador do coletor, rode <b>npm run login</b> na pasta <b>coletor</b> e entre de novo. Os números abaixo são da última leitura boa.</div></div>'
+    ? '<div class="aviso erro"><div><b>A sessão do Discord do coletor expirou.</b><br>No computador do administrador, abra o atalho <b>High OS - Login do coletor (Discord)</b> e entre de novo. Os números abaixo são da última leitura boa.</div></div>'
     : c.status === 'erro' ? `<div class="aviso erro"><div><b>A última coleta falhou.</b><br>${esc(c.erro || '')}</div></div>`
-      : horasDesde > 8 ? '<div class="aviso alerta"><div><b>Leitura antiga.</b> O coletor não grava há mais de 8 horas. Confira se o computador do administrador ficou ligado.</div></div>' : '';
+      : !lido || (Date.now() - lido) / 3600000 > 8 ? '<div class="aviso alerta"><div><b>Leitura antiga.</b> O coletor não grava há mais de 8 horas. Confira se o computador do administrador ficou ligado.</div></div>' : '';
+
+  if (!semanas.some((s) => s.de === estMet.semana)) estMet.semana = semanas[semanas.length - 1].de;
+  let rel = null;
+
+  /* ---------- aba SEMANA ---------- */
+  const abaSemana = () => {
+    rel = relatorioSemana(semanas, dias, estMet.semana, segOrg);
+    const g = rel.global, s = rel.semana, ant = rel.anterior;
+    const aviso = s.inicioAcompanhamento ? '<div class="aviso alerta"><div><b>Semana de início do acompanhamento.</b> O site começou a medir no meio desta semana; os números são parciais e não servem para comparar.</div></div>'
+      : s.parcial ? `<div class="aviso"><div><b>Semana em andamento.</b> Pico e ativos ainda podem subir até domingo. A comparação é com a semana de ${ant ? rotuloSemana(ant) : '—'} inteira.</div></div>` : '';
+    const t = norm(estMet.busca);
+    const k = estMet.ordem;
+    const val = (o) => (/^h\d\d$/.test(k) ? o.horarios[k.slice(1)] : o[k]) ?? -Infinity;
+    const lista = rel.organizacoes
+      .filter((o) => (!estMet.seg || o.segmento === estMet.seg) && (!t || norm([o.org, nomeFac(o.org), o.segmento].join(' ')).includes(t)))
+      .sort((a, b) => (k === 'org' ? a.org.localeCompare(b.org, 'pt-BR', { numeric: true }) : val(a) > val(b) ? 1 : val(a) < val(b) ? -1 : 0) * estMet.dir || a.posicao - b.posicao);
+    const maxDia = Math.max(1, ...s.dias.map((d) => d.pico));
+    const segs = porSegmento(rel.organizacoes);
+    const th = (k, txt, cls = 'num', dica = '') => `<th class="${cls}" data-ord="${k}" title="${esc(dica)}" style="cursor:pointer">${txt}${estMet.ordem === k ? (estMet.dir > 0 ? ' ↑' : ' ↓') : ''}</th>`;
+    const itemDest = (o, campo) => `<div class="item-lista"><span>${linkOrg(o.org)}</span><span class="fim">${campo(o)}</span></div>`;
+    return aviso + `
+      <div class="kpis">
+        <div class="kpi acido"><span>Pico global da semana</span><b>${fNum(g.pico)}</b><small>${g.diaDoPico ? `${diaSemana(g.diaDoPico)} ${fDia(g.diaDoPico)} · ` : ''}${seta(g.deltaPico)} vs. semana anterior</small></div>
+        <div class="kpi ciano"><span>Média simultânea online</span><b>${fNum(g.mediaOnline)}</b><small>${seta(g.deltaMedia, { pct: true })} · presença real, não só o pico</small></div>
+        <div class="kpi"><span>Membros ativos</span><b>${fNum(g.ativos)}</b><small>${fPct(g.taxaAtividade)} dos ${fNum(g.membros)} membros · ${seta(g.deltaAtivos, { pct: true })}</small></div>
+        <div class="kpi alerta"><span>Organizações com presença</span><b>${g.orgsComPresenca}<small style="font-size:18px"> / ${rel.organizacoes.length}</small></b><small>${rel.destaques.semPresenca.length ? rel.destaques.semPresenca.length + ' sem ninguém na semana' : 'todas apareceram'}</small></div>
+      </div>
+      <div class="grade g-2" style="margin-bottom:16px">
+        <section class="painel"><h2>Pico global por dia <span class="fraco" style="font-size:12px;font-weight:500">${rotuloSemana(s)}</span></h2>
+          <div class="met-serie">${s.dias.map((d) => `<div class="met-col ${d.parcial ? 'parcial' : ''} ${d.dia === g.diaDoPico ? 'topo' : ''}" title="${fDia(d.dia)} · pico ${d.pico} · ${fNum(d.horasOnline, 0)} h online"><small>${d.pico}</small><i style="height:${(d.pico / maxDia) * 100}%"></i><span>${diaSemana(d.dia)} ${fDia(d.dia)}</span></div>`).join('')}</div>
+        </section>
+        <section class="painel"><h2>Por segmento</h2>
+          <div class="tabela-caixa" style="border:0"><table><thead><tr><th>Segmento</th><th class="num" title="Soma da média simultânea das organizações">Média simult.</th><th class="num">Ativos</th><th>Maior pico</th></tr></thead>
+          <tbody>${segs.map((x) => `<tr class="${classeSeg(x.segmento)}"><td><span class="ponto-seg"></span> <b>${esc(x.segmento)}</b> <small class="fraco">${x.organizacoes} org.</small></td><td class="num">${fNum(x.mediaOnline)}</td><td class="num">${fNum(x.ativos)} <small class="fraco">${fPct(x.membros ? x.ativos / x.membros : null)}</small></td><td>${x.melhor ? `${esc(x.melhor.org)} <small class="fraco">${x.melhor.pico}</small>` : '—'}</td></tr>`).join('')}</tbody></table></div>
+        </section>
+      </div>
+      <div class="grade g-3 met-destaques" style="margin-bottom:16px">
+        <section class="painel"><h2>Maiores altas de pico</h2><div class="lista">${rel.destaques.altas.map((o) => itemDest(o, (x) => `${x.picoAnt} → <b>${x.pico}</b> ${seta(x.deltaPico)}`)).join('') || '<div class="vazio">Nenhuma alta.</div>'}</div></section>
+        <section class="painel"><h2>Maiores quedas de pico</h2><div class="lista">${rel.destaques.quedas.map((o) => itemDest(o, (x) => `${x.picoAnt} → <b>${x.pico}</b> ${seta(x.deltaPico)}`)).join('') || '<div class="vazio">Nenhuma queda.</div>'}</div></section>
+        <section class="painel"><h2>Pede atenção</h2><div class="lista">
+          ${rel.destaques.semPresenca.length ? `<div class="item-lista"><span><b>Sem presença:</b> ${rel.destaques.semPresenca.map(esc).join(', ')}</span></div>` : ''}
+          ${rel.destaques.baixaAtividade.filter((o) => o.pico > 0).slice(0, 6).map((o) => itemDest(o, (x) => `${x.ativos} de ${x.membros} ativos · <b class="erro-txt">${fPct(x.taxaAtividade)}</b>`)).join('')}
+          ${!rel.destaques.semPresenca.length && !rel.destaques.baixaAtividade.length ? '<div class="vazio">Nada fora do normal.</div>' : ''}</div>
+          <p class="fraco" style="font-size:11.5px;margin:10px 0 0">Baixa atividade: menos de 40% dos membros entraram na semana.</p></section>
+      </div>
+      <div class="filtros">
+        <input type="search" id="met-busca" placeholder="Buscar group, facção ou segmento" value="${esc(estMet.busca)}">
+        <div class="pilulas" id="met-segs"><button data-seg="" class="${!estMet.seg ? 'ativo' : ''}">Todos</button>${segs.map((x) => `<button data-seg="${esc(x.segmento)}" class="${estMet.seg === x.segmento ? 'ativo' : ''}">${esc(x.segmento)}</button>`).join('')}</div>
+        <span class="fraco">${lista.length} de ${rel.organizacoes.length}</span>
+      </div>
+      <div class="tabela-caixa"><table class="met-tabela"><thead><tr>
+        ${th('posicao', '#', 'num', 'Posição no ranking de pico')}<th></th>${th('org', 'Group / facção', '')}
+        ${th('pico', 'Pico', 'num', 'Maior número de membros online ao mesmo tempo na semana')}${th('deltaPico', 'vs. ant.', 'num', 'Diferença de pico para a semana anterior')}
+        ${th('mediaOnline', 'Média simult.', 'num', 'Média de membros online ao mesmo tempo, a semana toda')}${th('mediaPicoDiario', 'Média do pico diário', 'num', 'Média dos picos de cada dia: mostra se o pico foi um dia isolado')}
+        ${th('ativos', 'Ativos', 'num', 'Membros que entraram pelo menos uma vez na semana')}${th('taxaAtividade', 'Atividade', 'num', 'Ativos ÷ membros')}
+        ${th('horasPorAtivo', 'Horas / ativo', 'num', 'Tempo médio online de cada membro ativo')}${th('diasComPresenca', 'Dias', 'num', 'Dias da semana com alguém online')}
+        ${HORARIOS.map((h) => th('h' + h, h + 'h', 'num', `Pico médio às ${h}h nos dias da semana`)).join('')}
+      </tr></thead><tbody>${lista.map((o) => `<tr>
+        <td class="num"><b>${o.posicao}</b></td><td class="num">${setaPos(o)}</td>${celOrg(o.org)}
+        <td class="num"><b>${fNum(o.pico)}</b>${o.diaDoPico ? `<br><small class="fraco">${diaSemana(o.diaDoPico)}</small>` : ''}</td><td class="num">${seta(o.deltaPico)}</td>
+        <td class="num">${fNum(o.mediaOnline)}<br><small>${seta(o.deltaMedia, { pct: true, neutro: 0.02 })}</small></td><td class="num">${fNum(o.mediaPicoDiario)}</td>
+        <td class="num">${fNum(o.ativos)}<small class="fraco"> / ${fNum(o.membros)}</small></td>
+        <td class="num"><div class="met-taxa" title="${fPct(o.taxaAtividade)}"><i style="width:${Math.round((o.taxaAtividade || 0) * 100)}%" class="${(o.taxaAtividade ?? 1) < 0.4 ? 'baixa' : ''}"></i></div><small>${fPct(o.taxaAtividade)}</small></td>
+        <td class="num">${fNum(o.horasPorAtivo)} h</td><td class="num">${o.diasMedidos ? `${o.diasComPresenca}/${o.diasMedidos}` : '—'}</td>
+        ${HORARIOS.map((h) => `<td class="num">${fNum(o.horarios[h])}</td>`).join('')}</tr>`).join('') || '<tr><td colspan="15" class="vazio">Nenhuma organização com esse filtro.</td></tr>'}</tbody></table></div>
+      <p class="fraco" style="font-size:12px;margin:10px 0 0">Dias, média do pico diário e horários 14h/16h/21h/23h dependem do histórico diário gravado pelo coletor; os horários só existem a partir de 26/11.</p>`;
+  };
+
+  /* ---------- aba ACOMPANHAMENTO ---------- */
+  const abaAcomp = () => {
+    const a = acompanhamento(semanas);
+    const m = estMet.acomp;
+    const rot = { pico: 'Pico', mediaOnline: 'Média simultânea', ativos: 'Membros ativos' }[m];
+    const maxG = Math.max(1, ...a.semanas.map((s) => s.global.pico));
+    const ult = a.semanas.length - 1;
+    const linhas = [...a.linhas].sort((x, y) => (y.valores[ult]?.[m] ?? -1) - (x.valores[ult]?.[m] ?? -1) || x.org.localeCompare(y.org, 'pt-BR', { numeric: true }));
+    const maxV = Math.max(1, ...linhas.flatMap((l) => l.valores.map((v) => v?.[m] || 0)));
+    return `
+      <section class="painel" style="margin-bottom:16px"><h2>Global semana a semana</h2>
+        <div class="tabela-caixa" style="border:0"><table><thead><tr><th>Semana</th><th class="num">Pico global</th><th></th><th>Dia do pico</th><th class="num">Média simult.</th><th class="num">Ativos</th><th class="num">Horas online</th></tr></thead>
+        <tbody>${a.semanas.map((s, k) => { const p = a.semanas[k - 1]; return `<tr><td><b>${rotuloSemana(s)}</b>${s.parcial ? ' <span class="selo alerta">em andamento</span>' : ''}${s.inicio ? ' <span class="selo">início</span>' : ''}</td>
+          <td class="num"><b>${fNum(s.global.pico)}</b> ${p && !p.inicio ? seta(s.global.pico - p.global.pico) : ''}</td><td style="width:28%"><div class="met-taxa larga"><i style="width:${(s.global.pico / maxG) * 100}%"></i></div></td>
+          <td>${s.global.diaDoPico ? `${diaSemana(s.global.diaDoPico)} ${fDia(s.global.diaDoPico)}` : '—'}</td><td class="num">${fNum(s.global.mediaOnline)}</td><td class="num">${fNum(s.global.ativos)}</td><td class="num">${fNum(s.global.horasOnline, 0)}</td></tr>`; }).join('')}</tbody></table></div>
+      </section>
+      <div class="filtros"><div class="pilulas" id="met-acomp">${[['pico', 'Pico'], ['mediaOnline', 'Média simultânea'], ['ativos', 'Membros ativos']].map(([v, r]) => `<button data-m="${v}" class="${m === v ? 'ativo' : ''}">${r}</button>`).join('')}</div>
+        <span class="fraco">${rot} de cada organização por semana. Ordenado pela semana mais recente.</span></div>
+      <div class="tabela-caixa"><table class="met-matriz"><thead><tr><th>Group / facção</th>${a.semanas.map((s) => `<th class="num">${fDia(s.de)}<br><small class="fraco">a ${fDia(s.ate)}</small></th>`).join('')}<th class="num">Tendência</th></tr></thead>
+        <tbody>${linhas.map((l) => {
+          const vals = l.valores.map((v) => v?.[m] ?? null);
+          const comp = a.semanas.map((s, k) => (s.inicio ? null : vals[k])).filter((v) => v != null);
+          const tend = comp.length >= 2 ? comp[comp.length - 1] - comp[comp.length - 2] : null;
+          return `<tr>${celOrg(l.org)}${vals.map((v, k) => `<td class="num met-calor" style="--q:${v == null ? 0 : (v / maxV).toFixed(2)}">${fNum(v)}${a.semanas[k].parcial ? '<small class="fraco">*</small>' : ''}</td>`).join('')}<td class="num">${seta(tend)}</td></tr>`;
+        }).join('')}</tbody></table></div>
+      <p class="fraco" style="font-size:12px;margin:10px 0 0">* semana em andamento. A semana de início do acompanhamento não entra na tendência.</p>`;
+  };
+
+  /* ---------- aba POR DIA ---------- */
+  const abaDia = () => {
+    if (!dias.length) return '<div class="painel vazio">O histórico por dia começa a encher na primeira coleta.</div>';
+    const d = dias.find((x) => x.dia === estMet.dia) || dias[0];
+    estMet.dia = d.dia;
+    const linhas = Object.entries(d.organizacoes || {}).filter(([, o]) => o.pico || Object.values(o.horas || {}).some((h) => h.pico)).sort((a, b) => (b[1].pico || 0) - (a[1].pico || 0));
+    const celHora = (o, h) => { const x = o.horas?.[h]; return x ? `${fNum(x.pico)}<small class="fraco"> · ${fNum(x.media)}</small>` : '<span class="fraco">—</span>'; };
+    return `<div class="filtros"><label class="campo" style="margin:0;max-width:220px"><span>Dia</span><select id="met-sel-dia">${dias.map((x) => `<option value="${esc(x.dia)}" ${x.dia === d.dia ? 'selected' : ''}>${diaSemana(x.dia)} ${esc(x.dia.split('-').reverse().join('/'))}</option>`).join('')}</select></label></div>
+      <div class="tabela-caixa"><table><thead><tr><th>Group / facção</th><th class="num">Média do dia</th><th class="num">Pico do dia</th>${HORARIOS.map((h) => `<th class="num">${h}h</th>`).join('')}</tr></thead>
+      <tbody>${linhas.map(([org, o]) => `<tr>${celOrg(org)}<td class="num">${fNum(o.media)}</td><td class="num"><b>${fNum(o.pico)}</b></td>${HORARIOS.map((h) => `<td class="num">${celHora(o, h)}</td>`).join('')}</tr>`).join('') || '<tr><td colspan="7" class="vazio">Sem presença registrada neste dia.</td></tr>'}</tbody></table></div>
+      <p class="fraco" style="font-size:12px;margin:10px 0 0">Nos horários: pico na hora · média na hora. As horas são guardadas a partir das coletas.</p>`;
+  };
 
   const desenhar = () => {
-    const p = atual[filtroMet.periodo] || atual.semana;
-    const t = norm(filtroMet.busca);
-    const orgs = (p.organizacoes || [])
-      .filter((o) => !t || norm([o.org, nomeFac(o.org), segOrg(o.org)].join(' ')).includes(t))
-      .sort((a, b) => filtroMet.ordem === 'org' ? a.org.localeCompare(b.org, 'pt-BR', { numeric: true }) : (b[filtroMet.ordem] || 0) - (a[filtroMet.ordem] || 0));
-    const maxSerie = Math.max(1, ...p.serie.map((s) => s.pico));
-    $('#met-corpo', el).innerHTML = `
-      <div class="kpis">
-        <div class="kpi acido"><span>Pico de online</span><b>${fmtNum(p.total.pico)}</b><small>${variacao(p.total.pico, p.anterior.pico) || 'no período'}</small></div>
-        <div class="kpi ciano"><span>Membros ativos</span><b>${fmtNum(p.total.ativos)}</b><small>de ${fmtNum(p.total.membros)} membros · ${variacao(p.total.ativos, p.anterior.ativos) || 'no período'}</small></div>
-        <div class="kpi"><span>Horas online somadas</span><b>${fmtNum(Math.round(p.total.horasOnline))}</b><small>${variacao(p.total.horasOnline, p.anterior.horasOnline) || 'no período'}</small></div>
-        <div class="kpi alerta"><span>Online agora</span><b>${fmtNum(p.total.onlineAgora)}</b><small>no momento da leitura</small></div>
-      </div>
-      <section class="painel" style="margin-bottom:16px"><h2>Pico por ${filtroMet.periodo === 'hoje' ? 'hora' : 'dia'} <span class="fraco" style="font-size:12px;font-weight:500">${esc(p.rotulo)}</span></h2>
-        <div class="met-serie">${p.serie.map((s) => `<div class="met-col ${s.parcial ? 'parcial' : ''}" title="${esc(s.rotulo)} · pico ${s.pico} · ${fmtNum(s.horasOnline)} h online${s.parcial ? ' (em andamento)' : ''}"><small>${s.pico}</small><i style="height:${(s.pico / maxSerie) * 100}%"></i><span>${esc(s.rotulo)}</span></div>`).join('')}</div>
-      </section>
-      <div class="tabela-caixa"><table><thead><tr>
-        <th data-ord="org" style="cursor:pointer">Group</th><th>Facção</th><th>Segmento</th>
-        <th class="num" data-ord="pico" style="cursor:pointer">Pico</th><th class="num" data-ord="ativos" style="cursor:pointer">Ativos</th><th class="num" data-ord="membros" style="cursor:pointer">Membros</th><th class="num" data-ord="horasOnline" style="cursor:pointer">Horas online</th><th class="num" data-ord="onlineAgora" style="cursor:pointer">Online agora</th>
-      </tr></thead><tbody>${orgs.map((o) => `<tr class="${classeSeg(segOrg(o.org))}">
-        <td>${porGroup.has(norm(o.org)) ? `<a href="#/faccao/${encodeURIComponent(porGroup.get(norm(o.org)).group)}"><b>${esc(o.org)}</b></a>` : `<b>${esc(o.org)}</b>`}</td><td>${esc(nomeFac(o.org)) || '<span class="fraco">—</span>'}</td><td><span class="ponto-seg"></span> ${esc(segOrg(o.org))}</td>
-        <td class="num"><b>${fmtNum(o.pico)}</b></td><td class="num">${fmtNum(o.ativos)}</td><td class="num">${fmtNum(o.membros)}</td><td class="num">${fmtNum(o.horasOnline)}</td><td class="num">${fmtNum(o.onlineAgora)}</td></tr>`).join('') || '<tr><td colspan="8" class="vazio">Nenhuma organização com esse filtro.</td></tr>'}</tbody></table></div>`;
-    $$('#met-corpo th[data-ord]', el).forEach((th) => th.onclick = () => { filtroMet.ordem = th.dataset.ord; desenhar(); });
+    const corpo = $('#met-corpo', el);
+    corpo.innerHTML = estMet.aba === 'acomp' ? abaAcomp() : estMet.aba === 'dia' ? abaDia() : abaSemana();
+    $('#met-semanas', el).hidden = estMet.aba !== 'semana';
+    $('#met-csv', el).hidden = estMet.aba !== 'semana';
+    if (estMet.aba === 'semana') {
+      $('#met-busca', el).oninput = (e) => { estMet.busca = e.target.value; const p = e.target.selectionStart; desenhar(); const i = $('#met-busca', el); i.focus(); i.setSelectionRange(p, p); };
+      $$('#met-segs button', el).forEach((b) => b.onclick = () => { estMet.seg = b.dataset.seg; desenhar(); });
+      $$('#met-corpo th[data-ord]', el).forEach((th) => th.onclick = () => {
+        const k = th.dataset.ord;
+        if (estMet.ordem === k) estMet.dir *= -1; else { estMet.ordem = k; estMet.dir = ['posicao', 'org'].includes(k) ? 1 : -1; }
+        desenhar();
+      });
+    }
+    if (estMet.aba === 'acomp') $$('#met-acomp button', el).forEach((b) => b.onclick = () => { estMet.acomp = b.dataset.m; desenhar(); });
+    const sel = $('#met-sel-dia', el); if (sel) sel.onchange = (e) => { estMet.dia = e.target.value; desenhar(); };
   };
 
-  const desenharDia = () => {
-    const d = dias.find((x) => x.dia === filtroMet.dia) || dias[0];
-    if (!d) { $('#met-dia', el).innerHTML = '<div class="vazio">O histórico por dia começa a encher na primeira coleta.</div>'; return; }
-    const linhas = Object.entries(d.organizacoes || {}).filter(([, o]) => o.pico || Object.values(o.horas || {}).some((h) => h.pico))
-      .sort((a, b) => (b[1].pico || 0) - (a[1].pico || 0));
-    const celHora = (o, h) => { const x = o.horas?.[h]; return x ? `${fmtNum(x.pico)}<small class="fraco"> · ${fmtNum(x.media)}</small>` : '<span class="fraco">—</span>'; };
-    $('#met-dia', el).innerHTML = `<div class="tabela-caixa"><table><thead><tr><th>Group</th><th>Facção</th><th class="num">Média do dia</th><th class="num">Pico do dia</th>${HORARIOS_RH.map((h) => `<th class="num">${h}h</th>`).join('')}</tr></thead>
-      <tbody>${linhas.map(([org, o]) => `<tr class="${classeSeg(segOrg(org))}"><td><b>${esc(org)}</b></td><td>${esc(nomeFac(org)) || '<span class="fraco">—</span>'}</td><td class="num">${o.media != null ? fmtNum(o.media) : '—'}</td><td class="num"><b>${o.pico != null ? fmtNum(o.pico) : '—'}</b></td>${HORARIOS_RH.map((h) => `<td class="num">${celHora(o, h)}</td>`).join('')}</tr>`).join('') || '<tr><td colspan="8" class="vazio">Sem presença registrada neste dia.</td></tr>'}</tbody></table></div>
-      <p class="fraco" style="font-size:12px;margin:10px 0 0">Nas colunas de horário: pico na hora · média na hora. As horas são guardadas a partir das coletas; dias anteriores ao coletor só têm média e pico do dia.</p>`;
-  };
-
-  el.innerHTML = cab('metricas.highrp.net', 'Métricas', `Presença das organizações do Ilegal. Última leitura: ${lido ? lido.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '—'}.`) + avisoColetor + `
+  el.innerHTML = cab('Relatório semanal · metricas.highrp.net', 'Métricas', `Última leitura: ${lido ? lido.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '—'} · semanas de segunda a domingo.`, '<button class="btn sec" id="met-csv">Baixar CSV</button><button class="btn sec" id="met-imprimir">Imprimir</button>') + avisoColetor + `
     <div class="filtros">
-      <div class="pilulas" id="met-per">${[['hoje', 'Hoje'], ['semana', 'Semana'], ['mes', 'Mês']].filter(([v]) => atual[v]).map(([v, r]) => `<button data-per="${v}" class="${filtroMet.periodo === v ? 'ativo' : ''}">${r}</button>`).join('')}</div>
-      <input type="search" id="met-busca" placeholder="Buscar group, facção ou segmento" value="${esc(filtroMet.busca)}">
+      <div class="pilulas" id="met-abas">${[['semana', 'Relatório da semana'], ['acomp', 'Acompanhamento semanal'], ['dia', 'Presença por dia']].map(([v, r]) => `<button data-aba="${v}" class="${estMet.aba === v ? 'ativo' : ''}">${r}</button>`).join('')}</div>
+      <div class="pilulas" id="met-semanas">${[...semanas].reverse().map((s) => `<button data-sem="${s.de}" class="${estMet.semana === s.de ? 'ativo' : ''}">${rotuloSemana(s)}${s.parcial ? ' · atual' : s.inicioAcompanhamento ? ' · início' : ''}</button>`).join('')}</div>
     </div>
-    <div id="met-corpo"></div>
-    <section class="painel" style="margin-top:18px"><h2>Presença por dia <select id="met-sel-dia" style="width:auto;min-height:34px;padding:4px 10px;margin-left:auto">${dias.map((d) => `<option value="${esc(d.dia)}" ${filtroMet.dia === d.dia ? 'selected' : ''}>${esc(d.dia.split('-').reverse().join('/'))}</option>`).join('')}</select></h2>
-      <div id="met-dia"></div></section>`;
-  $$('#met-per button', el).forEach((bt) => bt.onclick = () => { filtroMet.periodo = bt.dataset.per; $$('#met-per button', el).forEach((x) => x.classList.toggle('ativo', x === bt)); desenhar(); });
-  $('#met-busca', el).oninput = (e) => { filtroMet.busca = e.target.value; desenhar(); };
-  const sel = $('#met-sel-dia', el);
-  if (sel) sel.onchange = (e) => { filtroMet.dia = e.target.value; desenharDia(); };
-  desenhar(); desenharDia();
+    <div id="met-corpo"></div>`;
+  $$('#met-abas button', el).forEach((b) => b.onclick = () => { estMet.aba = b.dataset.aba; $$('#met-abas button', el).forEach((x) => x.classList.toggle('ativo', x === b)); desenhar(); });
+  $$('#met-semanas button', el).forEach((b) => b.onclick = () => { estMet.semana = b.dataset.sem; $$('#met-semanas button', el).forEach((x) => x.classList.toggle('ativo', x === b)); desenhar(); });
+  $('#met-imprimir', el).onclick = () => window.print();
+  $('#met-csv', el).onclick = () => {
+    if (!rel) return;
+    const blob = new Blob(['﻿' + csvSemana(rel, nomeFac)], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = `metricas-semana-${rel.semana.de}.csv`; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
+  desenhar();
 }
 
 /* ================= CONFIGURAÇÕES (admin) ================= */
