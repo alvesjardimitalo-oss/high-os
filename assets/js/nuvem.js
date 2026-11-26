@@ -126,6 +126,17 @@ export async function ultimosAvisos(n = 30) {
   return s.docs.map((d) => ({ id: d.id, ...d.data(), em: d.data().em?.toDate?.() || null }));
 }
 
+/* ---------------- Métricas (gravadas pelo coletor em coletor/) ---------------- */
+export async function lerMetricas() {
+  const s = await getDoc(doc(db, 'hos', 'metricas'));
+  return s.exists() ? s.data() : null;
+}
+/** Últimos dias do histórico, do mais novo para o mais antigo. */
+export async function diasMetricas(n = 45) {
+  const s = await getDocs(query(collection(db, 'hos', 'metricas', 'dias'), orderBy('dia', 'desc'), limit(n)));
+  return s.docs.map((d) => d.data());
+}
+
 /* ---------------- Planejador de missões (uma zona por documento) ----------------
    Mesmo formato que o planejador já usa: highos/data/missoes_zonas/{id},
    com "rev" subindo de 1 em 1 para ninguém sobrescrever o trabalho de outro. */

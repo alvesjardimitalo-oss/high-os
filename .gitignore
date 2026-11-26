@@ -1,0 +1,5 @@
+# Coletor de métricas: chave do Firebase e sessão do Discord ficam só no computador do administrador
+coletor/chave-servico.json
+coletor/perfil/
+coletor/node_modules/
+coletor/coletor.log

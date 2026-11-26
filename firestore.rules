@@ -65,6 +65,18 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // ---------- HIGH OS · métricas (metricas.highrp.net) ----------
+    // Quem grava é o coletor no computador do administrador, com chave de serviço
+    // (o Admin SDK não passa por estas regras). Pelo navegador ninguém escreve.
+    match /hos/metricas {
+      allow read: if activeUser();
+      allow write: if false;
+    }
+    match /hos/metricas/dias/{dia} {
+      allow read: if activeUser();
+      allow write: if false;
+    }
+
     // ---------- HIGH OS · planejador de missões (uma zona por documento) ----------
     // "rev" só avança de 1 em 1: quem está com versão antiga não sobrescreve o trabalho de outro.
     match /highos/data/missoes_zonas/{zonaId} {

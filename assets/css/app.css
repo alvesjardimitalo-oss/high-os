@@ -122,6 +122,15 @@ main:focus { outline: none; }
 .g-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .g-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .g-painel { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); }
+/* Métricas */
+.met-serie { display: flex; align-items: flex-end; gap: 6px; height: 170px; overflow-x: auto; padding-bottom: 2px; }
+.met-col { flex: 1 0 22px; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 4px; }
+.met-col i { display: block; width: 100%; min-height: 2px; border-radius: 6px 6px 2px 2px; background: var(--acido); opacity: .85; }
+.met-col.parcial i { opacity: .4; }
+.met-col small { font-size: 11px; color: var(--texto-2); font-variant-numeric: tabular-nums; }
+.met-col span { font-size: 10.5px; color: var(--texto-3); white-space: nowrap; }
+.ok-txt { color: var(--ok); font-weight: 650; }
+.erro-txt { color: var(--erro); font-weight: 650; }
 @media (max-width: 1100px) { .g-2, .g-3, .g-painel { grid-template-columns: 1fr; } }
 
 .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin-bottom: 16px; }

@@ -290,9 +290,90 @@ export async function avisos({ el, estado, params }) {
 }
 
 /* ================= MÉTRICAS ================= */
-export function metricas({ el }) {
-  el.innerHTML = cab('metricas.highrp.net', 'Métricas', 'Métricas das facções vindas do site de métricas do High, com a sessão do Discord do administrador.') + `
-    <div class="painel vazio"><h2 style="margin-bottom:8px">Em integração</h2>As métricas entram assim que o computador do administrador for conectado para a leitura do site com a sessão do Discord.</div>`;
+const filtroMet = { periodo: 'semana', busca: '', ordem: 'pico', dia: '' };
+const HORARIOS_RH = ['14', '16', '21', '23'];
+const fmtNum = (v) => Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+const variacao = (agora, antes) => {
+  if (!antes) return '';
+  const d = (agora - antes) / antes;
+  return `<span class="${d >= 0 ? 'ok-txt' : 'erro-txt'}">${d >= 0 ? '+' : ''}${Math.round(d * 100)}%</span> vs. período anterior`;
+};
+
+export async function metricas({ el, estado }) {
+  const titulo = cab('metricas.highrp.net', 'Métricas', 'Presença das organizações do Ilegal, lida do site de métricas do High pelo coletor no computador do administrador.');
+  el.innerHTML = titulo + '<div class="painel vazio">Carregando métricas…</div>';
+  let atual, dias;
+  try { [atual, dias] = await Promise.all([nuvem.lerMetricas(), nuvem.diasMetricas()]); }
+  catch (e) { el.innerHTML = titulo + `<div class="painel vazio">Não consegui ler as métricas: ${esc(e.message)}</div>`; return; }
+  if (!atual?.semana) {
+    el.innerHTML = titulo + '<div class="painel vazio"><h2 style="margin-bottom:8px">Aguardando o coletor</h2>Nenhuma leitura gravada ainda. Rode <b>npm run coletar</b> na pasta <b>coletor</b> do computador do administrador.</div>';
+    return;
+  }
+
+  // Nome da facção e segmento vêm da planilha; a API só conhece o Group (Armas01, Lavagem06…).
+  const porGroup = new Map((estado.base?.faccoes || []).map((f) => [norm(f.group), f]));
+  const familia = new Map((atual.catalogo || []).map((g) => [norm(g.group), g.familia]));
+  const nomeFac = (org) => porGroup.get(norm(org))?.faccao || '';
+  const segOrg = (org) => porGroup.get(norm(org))?.segmento || familia.get(norm(org)) || '';
+
+  const lido = atual.lidoEm ? new Date(atual.lidoEm) : null;
+  const horasDesde = lido ? (Date.now() - lido) / 3600000 : Infinity;
+  const c = atual.coletor || {};
+  const avisoColetor = c.status === 'sessao'
+    ? '<div class="aviso erro"><div><b>A sessão do Discord do coletor expirou.</b><br>No computador do coletor, rode <b>npm run login</b> na pasta <b>coletor</b> e entre de novo. Os números abaixo são da última leitura boa.</div></div>'
+    : c.status === 'erro' ? `<div class="aviso erro"><div><b>A última coleta falhou.</b><br>${esc(c.erro || '')}</div></div>`
+      : horasDesde > 8 ? '<div class="aviso alerta"><div><b>Leitura antiga.</b> O coletor não grava há mais de 8 horas. Confira se o computador do administrador ficou ligado.</div></div>' : '';
+
+  const desenhar = () => {
+    const p = atual[filtroMet.periodo] || atual.semana;
+    const t = norm(filtroMet.busca);
+    const orgs = (p.organizacoes || [])
+      .filter((o) => !t || norm([o.org, nomeFac(o.org), segOrg(o.org)].join(' ')).includes(t))
+      .sort((a, b) => filtroMet.ordem === 'org' ? a.org.localeCompare(b.org, 'pt-BR', { numeric: true }) : (b[filtroMet.ordem] || 0) - (a[filtroMet.ordem] || 0));
+    const maxSerie = Math.max(1, ...p.serie.map((s) => s.pico));
+    $('#met-corpo', el).innerHTML = `
+      <div class="kpis">
+        <div class="kpi acido"><span>Pico de online</span><b>${fmtNum(p.total.pico)}</b><small>${variacao(p.total.pico, p.anterior.pico) || 'no período'}</small></div>
+        <div class="kpi ciano"><span>Membros ativos</span><b>${fmtNum(p.total.ativos)}</b><small>de ${fmtNum(p.total.membros)} membros · ${variacao(p.total.ativos, p.anterior.ativos) || 'no período'}</small></div>
+        <div class="kpi"><span>Horas online somadas</span><b>${fmtNum(Math.round(p.total.horasOnline))}</b><small>${variacao(p.total.horasOnline, p.anterior.horasOnline) || 'no período'}</small></div>
+        <div class="kpi alerta"><span>Online agora</span><b>${fmtNum(p.total.onlineAgora)}</b><small>no momento da leitura</small></div>
+      </div>
+      <section class="painel" style="margin-bottom:16px"><h2>Pico por ${filtroMet.periodo === 'hoje' ? 'hora' : 'dia'} <span class="fraco" style="font-size:12px;font-weight:500">${esc(p.rotulo)}</span></h2>
+        <div class="met-serie">${p.serie.map((s) => `<div class="met-col ${s.parcial ? 'parcial' : ''}" title="${esc(s.rotulo)} · pico ${s.pico} · ${fmtNum(s.horasOnline)} h online${s.parcial ? ' (em andamento)' : ''}"><small>${s.pico}</small><i style="height:${(s.pico / maxSerie) * 100}%"></i><span>${esc(s.rotulo)}</span></div>`).join('')}</div>
+      </section>
+      <div class="tabela-caixa"><table><thead><tr>
+        <th data-ord="org" style="cursor:pointer">Group</th><th>Facção</th><th>Segmento</th>
+        <th class="num" data-ord="pico" style="cursor:pointer">Pico</th><th class="num" data-ord="ativos" style="cursor:pointer">Ativos</th><th class="num" data-ord="membros" style="cursor:pointer">Membros</th><th class="num" data-ord="horasOnline" style="cursor:pointer">Horas online</th><th class="num" data-ord="onlineAgora" style="cursor:pointer">Online agora</th>
+      </tr></thead><tbody>${orgs.map((o) => `<tr class="${classeSeg(segOrg(o.org))}">
+        <td>${porGroup.has(norm(o.org)) ? `<a href="#/faccao/${encodeURIComponent(porGroup.get(norm(o.org)).group)}"><b>${esc(o.org)}</b></a>` : `<b>${esc(o.org)}</b>`}</td><td>${esc(nomeFac(o.org)) || '<span class="fraco">—</span>'}</td><td><span class="ponto-seg"></span> ${esc(segOrg(o.org))}</td>
+        <td class="num"><b>${fmtNum(o.pico)}</b></td><td class="num">${fmtNum(o.ativos)}</td><td class="num">${fmtNum(o.membros)}</td><td class="num">${fmtNum(o.horasOnline)}</td><td class="num">${fmtNum(o.onlineAgora)}</td></tr>`).join('') || '<tr><td colspan="8" class="vazio">Nenhuma organização com esse filtro.</td></tr>'}</tbody></table></div>`;
+    $$('#met-corpo th[data-ord]', el).forEach((th) => th.onclick = () => { filtroMet.ordem = th.dataset.ord; desenhar(); });
+  };
+
+  const desenharDia = () => {
+    const d = dias.find((x) => x.dia === filtroMet.dia) || dias[0];
+    if (!d) { $('#met-dia', el).innerHTML = '<div class="vazio">O histórico por dia começa a encher na primeira coleta.</div>'; return; }
+    const linhas = Object.entries(d.organizacoes || {}).filter(([, o]) => o.pico || Object.values(o.horas || {}).some((h) => h.pico))
+      .sort((a, b) => (b[1].pico || 0) - (a[1].pico || 0));
+    const celHora = (o, h) => { const x = o.horas?.[h]; return x ? `${fmtNum(x.pico)}<small class="fraco"> · ${fmtNum(x.media)}</small>` : '<span class="fraco">—</span>'; };
+    $('#met-dia', el).innerHTML = `<div class="tabela-caixa"><table><thead><tr><th>Group</th><th>Facção</th><th class="num">Média do dia</th><th class="num">Pico do dia</th>${HORARIOS_RH.map((h) => `<th class="num">${h}h</th>`).join('')}</tr></thead>
+      <tbody>${linhas.map(([org, o]) => `<tr class="${classeSeg(segOrg(org))}"><td><b>${esc(org)}</b></td><td>${esc(nomeFac(org)) || '<span class="fraco">—</span>'}</td><td class="num">${o.media != null ? fmtNum(o.media) : '—'}</td><td class="num"><b>${o.pico != null ? fmtNum(o.pico) : '—'}</b></td>${HORARIOS_RH.map((h) => `<td class="num">${celHora(o, h)}</td>`).join('')}</tr>`).join('') || '<tr><td colspan="8" class="vazio">Sem presença registrada neste dia.</td></tr>'}</tbody></table></div>
+      <p class="fraco" style="font-size:12px;margin:10px 0 0">Nas colunas de horário: pico na hora · média na hora. As horas são guardadas a partir das coletas; dias anteriores ao coletor só têm média e pico do dia.</p>`;
+  };
+
+  el.innerHTML = cab('metricas.highrp.net', 'Métricas', `Presença das organizações do Ilegal. Última leitura: ${lido ? lido.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '—'}.`) + avisoColetor + `
+    <div class="filtros">
+      <div class="pilulas" id="met-per">${[['hoje', 'Hoje'], ['semana', 'Semana'], ['mes', 'Mês']].filter(([v]) => atual[v]).map(([v, r]) => `<button data-per="${v}" class="${filtroMet.periodo === v ? 'ativo' : ''}">${r}</button>`).join('')}</div>
+      <input type="search" id="met-busca" placeholder="Buscar group, facção ou segmento" value="${esc(filtroMet.busca)}">
+    </div>
+    <div id="met-corpo"></div>
+    <section class="painel" style="margin-top:18px"><h2>Presença por dia <select id="met-sel-dia" style="width:auto;min-height:34px;padding:4px 10px;margin-left:auto">${dias.map((d) => `<option value="${esc(d.dia)}" ${filtroMet.dia === d.dia ? 'selected' : ''}>${esc(d.dia.split('-').reverse().join('/'))}</option>`).join('')}</select></h2>
+      <div id="met-dia"></div></section>`;
+  $$('#met-per button', el).forEach((bt) => bt.onclick = () => { filtroMet.periodo = bt.dataset.per; $$('#met-per button', el).forEach((x) => x.classList.toggle('ativo', x === bt)); desenhar(); });
+  $('#met-busca', el).oninput = (e) => { filtroMet.busca = e.target.value; desenhar(); };
+  const sel = $('#met-sel-dia', el);
+  if (sel) sel.onchange = (e) => { filtroMet.dia = e.target.value; desenharDia(); };
+  desenhar(); desenharDia();
 }
 
 /* ================= CONFIGURAÇÕES (admin) ================= */

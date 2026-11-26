@@ -17,7 +17,7 @@ Painel da staff do Ilegal do High Roleplay. Sistema refeito do zero em novembro 
   - Os endereços das webhooks ficam no Firestore (`hos/config/privado/webhooks`), cadastrados em *Configurações*. Nunca ficam no código.
   - Cada envio é registrado em `hos/dados/avisos`.
 - **Planejador.** O módulo `assets/mission-planner.js` é o mesmo de antes. As zonas ficam em `highos/data/missoes_zonas` (uma por documento, com `rev`).
-- **Métricas** (metricas.highrp.net, com sessão do Discord): em integração.
+- **Métricas** (metricas.highrp.net): o coletor em `coletor/` roda no computador do administrador com a sessão do Discord, lê o site 4 vezes por dia e grava em `hos/metricas`. Instalação em `coletor/LEIAME.md`.
 
 ## Telas
 Painel · Facções · Ficha da facção · Conferência · Catálogo VIP · Economia · Entregas e recolhimentos · Planejador de missões · Métricas · Configurações (admin)
@@ -34,6 +34,7 @@ assets/js/telas.js         telas
 assets/js/planejador.js    encaixe do planejador (mapa mantido do sistema anterior)
 assets/planejador.html     marcação do planejador
 firestore.rules            regras do projeto high-os (inclui o bloco /ti do Ítalo InfoTec)
+coletor/                   coletor de métricas (Node, roda no PC do administrador)
 tests/                     node --test tests/*.test.mjs
 ```
 

@@ -1,0 +1,15 @@
+{
+  "name": "high-os-coletor-metricas",
+  "private": true,
+  "type": "module",
+  "description": "Lê metricas.highrp.net com a sessão do Discord do administrador e grava no Firestore do High OS.",
+  "scripts": {
+    "login": "node coletor.mjs login",
+    "testar": "node coletor.mjs testar",
+    "coletar": "node coletor.mjs coletar"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.4.0",
+    "playwright-core": "^1.54.0"
+  }
+}
