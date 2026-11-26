@@ -143,6 +143,12 @@ export async function semanasMetricas() {
   return s.docs.map((d) => d.data()).sort((a, b) => a.de.localeCompare(b.de));
 }
 
+/** Perímetros das facções (hos/qgs), gravados pelo coletor. */
+export async function lerQgs() {
+  const s = await getDoc(doc(db, 'hos', 'qgs'));
+  return s.exists() ? s.data() : null;
+}
+
 /* ---------------- Memória de CDS (alturas reais para o TP de validação) ---------------- */
 const colMemoriaCds = () => collection(db, 'highos', 'data', 'cds_memoria');
 export async function lerMemoriaCds() {
@@ -162,7 +168,11 @@ export async function gravarMemoriaCds(itens) {
 /* ---------------- Planejador de missões (uma zona por documento) ----------------
    Mesmo formato que o planejador já usa: highos/data/missoes_zonas/{id},
    com "rev" subindo de 1 em 1 para ninguém sobrescrever o trabalho de outro. */
-const refZona = (id) => doc(db, 'highos', 'data', 'missoes_zonas', idZona(id));
+// O documento usa o próprio id da zona (formato do sistema anterior: "facxfac-norte",
+// "m_1789…"). Só ids com caracteres que o Firestore não aceita viram hash. Antes, todo id
+// virava hash e salvar uma zona antiga criava uma CÓPIA em vez de atualizar a original.
+const idDocZona = (id) => { const s = String(id || ''); return /^[A-Za-z0-9_.-]{1,150}$/.test(s) && s !== '.' && s !== '..' ? s : idZona(s); };
+const refZona = (id) => doc(db, 'highos', 'data', 'missoes_zonas', idDocZona(id));
 function idZona(id) {
   const s = String(id || '');
   let h = 5381; for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;

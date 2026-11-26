@@ -1927,7 +1927,7 @@ iconAnchor:[12,
       const geom=dominationZoneGeometry(m),canClose=geom.mode==='polygon';if(canClose){const zone=L.polygon(poly.map(p=>ll(p.x,p.y)),{weight:2,fillOpacity:.055,interactive:false}).addTo(state.map);zone._mpKind='zone';state.drawn.push(zone);}else{const raw=Array.isArray(m.zonePolygon)?m.zonePolygon:[];let run=[];const flush=()=>{if(run.length>=2){const line=L.polyline(run.map(p=>ll(p.x,p.y)),{weight:2,dashArray:'6 7',opacity:.85,interactive:false}).addTo(state.map);line._mpKind='zone';state.drawn.push(line);}run=[];};raw.forEach(v=>{if(validCoord(v?.x)&&validCoord(v?.y))run.push(v);else flush();});flush();}
       poly.forEach(p=>{const rawIndex=(m.zonePolygon||[]).indexOf(p),vertexNo=rawIndex>=0?rawIndex+1:0,ic=L.divIcon({className:'',html:'<div style="min-width:22px;height:22px;border:2px solid #fff;border-radius:50%;background:#171923;color:#fff;font:10px/18px system-ui;text-align:center">'+vertexNo+'</div>',iconSize:[22,22],iconAnchor:[11,11]});const mk=L.marker(ll(p.x,p.y),{icon:ic,interactive:true,draggable:state.editing}).addTo(state.map).bindPopup('<b>Vértice da Zona '+String(vertexNo).padStart(2,'0')+'</b><br>'+f(p.x)+', '+f(p.y)+', '+f(Number(p.z)||0)+(state.editing?'<br><small>Arraste para ajustar • será necessário validar novamente</small>':''));mk.on('dragend',ev=>{if(rawIndex<0)return;const n=ev.target.getLatLng(),v=m.zonePolygon[rawIndex];v.x=n.lng;v.y=n.lat;v.z=0;v.status='planned';v.validatedAt=null;v.validationReason='coordinate-change';commit('Vértice '+String(rawIndex+1).padStart(2,'0')+' movido — validação removida');});mk._mpKind='zone';state.drawn.push(mk);});
     }else if(hasCenter&&!polyMode){const eventRadius=effectiveEventRadius(m);if(eventRadius>0){const zone=L.circle(ll(m.center.x,m.center.y),{radius:eventRadius,weight:2,fillOpacity:.035,dashArray:(m.category||'dominacao')==='gas'?'8 6':null,interactive:false}).addTo(state.map);zone._mpKind='zone';state.drawn.push(zone);}}
-    drawSafeRoute(m);drawCompareOverlay();drawDominationAccess(m);drawZoneProposal();drawLocSuggestions();
+    drawQgs();drawSafeRoute(m);drawCompareOverlay();drawDominationAccess(m);drawZoneProposal();drawLocSuggestions();
     if(!state.safeConfigView&&!state.safePresentation)m.points.forEach((p,i)=>{
       p.id=i+1;const valid=isValidated(p),
 outside=((m.category||'dominacao')==='gas')&&!pointInsideZone(m,p),
@@ -2963,7 +2963,16 @@ ${lines.map(l=>`- ${l}`).join('\n')}
   }
   function qgList(){try{const l=window.HighOSMissionCloud?.qgs?.();return Array.isArray(l)?l:[];}catch(e){return [];}}
   function raioQg(){return Number(CATALOG()?.RAIO_QG_M)||150;}
-  function nearQg(p,qgs=qgList()){const r=raioQg();let best=null;qgs.forEach(q=>{const d=Math.hypot(Number(p.x)-q.x,Number(p.y)-q.y);if(d<r&&(!best||d<best.d))best={...q,d};});return best;}
+  const raioDe=q=>Number(q?.raio)>0?Number(q.raio):raioQg();
+  function nearQg(p,qgs=qgList()){let best=null;qgs.forEach(q=>{const d=Math.hypot(Number(p.x)-q.x,Number(p.y)-q.y);if(d<raioDe(q)&&(!best||d<best.d))best={...q,d};});return best;}
+  /* V13 — perímetros das facções no mapa (vermelho): QG e pontos afastados do Group. */
+  function drawQgs(){
+    if(!state.map)return;
+    qgList().forEach(q=>{const qg=q.tipo==='qg'||!q.tipo;
+      const c=L.circle(ll(q.x,q.y),{radius:raioDe(q),weight:qg?2:1,color:'#ef4444',dashArray:qg?null:'4 6',opacity:.85,fillColor:'#ef4444',fillOpacity:qg?.10:.06,interactive:true}).addTo(state.map).bindTooltip(esc(q.qg||q.group||'QG')+' • perímetro '+Math.round(raioDe(q))+' m • sem spawn aqui');
+      c._mpKind='qg';state.drawn.push(c);});
+  }
+  window.addEventListener('highos:qgs',()=>{state._zIdx=null;try{renderMap();renderRequestStatus();}catch(e){}});
   /* Resultado de água por ponto fica em cache; o checklist lê o cache e
      pede a leitura quando falta (re-renderiza ao terminar). */
   const waterOf=new Map();
@@ -3153,7 +3162,7 @@ ${lines.map(l=>`- ${l}`).join('\n')}
     const base=Math.random()*360;sr.rotas=[];
     for(let k=0;k<nRotas;k++){
     const dir=(base+k*360/nRotas)*Math.PI/180;
-    const nota=async(x,y,r)=>{if(qgs.some(g=>Math.hypot(g.x-x,g.y-y)<r*.6))return -1;const lf=await landFraction(x,y,r,12);return lf===null?.5:lf;};
+    const nota=async(x,y,r)=>{if(qgs.some(g=>Math.hypot(g.x-x,g.y-y)<Math.max(r*.6,raioDe(g))))return -1;const lf=await landFraction(x,y,r,12);return lf===null?.5:lf;};
     /* cada SAFE precisa caber dentro da anterior; escolhe o centro com mais terra firme
        e um leve deslocamento (a safe "anda" em vez de só encolher no lugar) */
     let px=Number(m.center.x),py=Number(m.center.y),pr=R0;const st=[];
@@ -3208,7 +3217,7 @@ ${lines.map(l=>`- ${l}`).join('\n')}
     const qgs=qgList(),cand=[],N=7;
     for(let i=0;i<N;i++)for(let j=0;j<N;j++){
       const x=x0+R*.6+(x1-x0-R*1.2)*(i/(N-1)),y=y0+R*.6+(y1-y0-R*1.2)*(j/(N-1));
-      const qgDentro=qgs.filter(g=>Math.hypot(g.x-x,g.y-y)<R+raioQg());
+      const qgDentro=qgs.filter(g=>Math.hypot(g.x-x,g.y-y)<R+raioDe(g));
       const sobre=others.filter(z=>Math.hypot(Number(z.center.x)-x,Number(z.center.y)-y)<R+effectiveEventRadius(z));
       cand.push({x,y,qg:qgDentro.length,sobre:sobre.length});
     }
@@ -3403,8 +3412,8 @@ ${lines.map(l=>`- ${l}`).join('\n')}
         ?{label:`Spawn${ti.agua.length>1?'s':''} na água pelo mapa: ${ti.agua.map(pad2).join(', ')} — confira (píer/ponte podem enganar)`,ok:false,block:false,warn:true}
         :{label:ti.pend?'Verificando água no mapa…':'Nenhum spawn na água (leitura do mapa)',ok:!ti.pend,block:false});
       if(ti.temQg)out.push(ti.qg.length
-        ?{label:`Spawn perto de QG: ${ti.qg.slice(0,4).map(o=>`${pad2(o.n)} a ${Math.round(o.q.d)} m de ${o.q.qg||o.q.group}`).join(', ')} (mínimo ${raioQg()} m)`,ok:false,block:false,warn:true}
-        :{label:`Nenhum spawn a menos de ${raioQg()} m de QG`,ok:true,block:false});
+        ?{label:`Spawn dentro do perímetro de facção: ${ti.qg.slice(0,4).map(o=>`${pad2(o.n)} a ${Math.round(o.q.d)} m de ${o.q.qg||o.q.group} (perímetro ${Math.round(raioDe(o.q))} m)`).join(', ')}${ti.qg.length>4?` e mais ${ti.qg.length-4}`:''} — mova o spawn ou use OTIMIZAR`,ok:false,block:true}
+        :{label:`Nenhum spawn dentro de perímetro de facção (${qgList().length} perímetros do site de métricas)`,ok:true,block:false});
     }
     const zi=zoneInsights(m);
     if(zi.total){
@@ -3672,6 +3681,11 @@ ${P.regras.map(l=>`- ${l}`).join('\n\n')}${t.zonasIguais?`
     if(dominationZoneMode(m)==='polygon'){const g=dominationZoneGeometry(m);if(g.mode!=='polygon'){alert('O polígono da Zona de Dominação está incompleto ou inválido. Conclua o contorno (mínimo 3 vértices) antes de gerar a solicitação.');return false;}}
     if(!pts.length){alert('Nenhum spawn validado para gerar a solicitação.');return false;}
     if(pending>0){alert(`Existem ${pending} spawn(s) pendente(s). Valide todos antes de gerar a solicitação.`);return false;}
+    {const tq=terrainIssues(m);if(tq.qg.length){alert(`${tq.qg.length} spawn(s) dentro do perímetro de facção:
+
+${tq.qg.slice(0,8).map(o=>`- Spawn ${String(o.n).padStart(2,'0')} a ${Math.round(o.q.d)} m de ${o.q.qg||o.q.group}`).join('\n')}
+
+Mova esses spawns ou use OTIMIZAR antes de gerar a solicitação.`);return false;}}
     if(!centerReadyFor(m)){alert(`Valide primeiro a CDS real do ${type.gas?'CENTRO DO GÁS / MARCO ZERO':'CENTRO DA ZONA'}.`);return false;}
     const counts=zoneCoverageCounts(m);
     if(type.gas&&counts.outside>0){alert(`${counts.outside} spawn(s) estão FORA da safe inicial (${Math.round(counts.radius)} m). Todos precisam iniciar dentro da área segura.`);return false;}

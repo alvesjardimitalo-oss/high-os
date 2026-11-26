@@ -136,3 +136,38 @@ export function montarDias(presencas) {
   }
   return dias;
 }
+
+/**
+ * Perímetros das facções a partir do ilegal/map (pontos de cada Group, só X e Y).
+ * O QG é o núcleo: bancada, baú e desmanche perto da bancada. O raio cobre esses
+ * pontos com folga (mínimo 150 m). Garagens, rotas e amenities fora do QG viram
+ * perímetros menores. O planejador evita spawns e SAFEs dentro deles.
+ */
+export function montarQgs(map, { raioMin = 150, folga = 60, raioPonto = 60, distNucleo = 250 } = {}) {
+  const familia = new Map((map?.groups || []).map((g) => [g.group, g.family || '']));
+  const porGroup = new Map();
+  for (const p of map?.pois || []) {
+    if (!p?.group || !Number.isFinite(Number(p.x)) || !Number.isFinite(Number(p.y))) continue;
+    if (!porGroup.has(p.group)) porGroup.set(p.group, []);
+    porGroup.get(p.group).push({ kind: String(p.kind || ''), x: Number(p.x), y: Number(p.y) });
+  }
+  const r2 = (v) => Math.round(v * 100) / 100;
+  const out = [];
+  for (const [group, pois] of porGroup) {
+    const nucleoTipo = pois.filter((p) => ['bench', 'chest', 'desmanche'].includes(p.kind));
+    const ancora = pois.find((p) => p.kind === 'bench') || nucleoTipo[0] || pois[0];
+    const nucleo = (nucleoTipo.length ? nucleoTipo : pois).filter((p) => Math.hypot(p.x - ancora.x, p.y - ancora.y) <= distNucleo);
+    const cx = nucleo.reduce((a, p) => a + p.x, 0) / nucleo.length, cy = nucleo.reduce((a, p) => a + p.y, 0) / nucleo.length;
+    const raio = Math.max(raioMin, Math.ceil(Math.max(...nucleo.map((p) => Math.hypot(p.x - cx, p.y - cy))) + folga));
+    out.push({ group, familia: familia.get(group) || '', tipo: 'qg', x: r2(cx), y: r2(cy), raio });
+    // pontos fora do perímetro do QG (garagem longe, rota, amenity) ganham o próprio perímetro
+    const vistos = [];
+    for (const p of pois) {
+      if (Math.hypot(p.x - cx, p.y - cy) <= raio) continue;
+      if (vistos.some((v) => Math.hypot(v.x - p.x, v.y - p.y) <= raioPonto)) continue;
+      vistos.push(p);
+      out.push({ group, familia: familia.get(group) || '', tipo: p.kind || 'ponto', x: r2(p.x), y: r2(p.y), raio: raioPonto });
+    }
+  }
+  return out.sort((a, b) => a.group.localeCompare(b.group, 'pt-BR', { numeric: true }) || (a.tipo === 'qg' ? -1 : b.tipo === 'qg' ? 1 : 0));
+}

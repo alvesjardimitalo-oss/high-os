@@ -11,6 +11,20 @@ let carregando = null, ultimaLeitura = null, ultimaEm = 0;
 /* Memória de CDS: alturas reais já validadas no jogo, de qualquer zona (mesmo apagada).
    O módulo do planejador lê com cdsMemoria() e grava com gravarCds(). */
 let memoriaCds = [], memoriaLida = null;
+
+/* Perímetros das facções (QG e pontos afastados), vindos do site de métricas pelo coletor. */
+let qgsFaccoes = [], qgsLidos = null;
+function carregarQgs(estado) {
+  qgsLidos ||= nuvem.lerQgs().then((d) => {
+    const nome = new Map((estado.base?.faccoes || []).map((f) => [String(f.group || '').toUpperCase(), f.faccao || '']));
+    qgsFaccoes = (d?.qgs || []).filter((q) => Number.isFinite(+q.x) && Number.isFinite(+q.y)).map((q) => {
+      const fac = nome.get(String(q.group).toUpperCase());
+      return { x: +q.x, y: +q.y, raio: +q.raio || 150, group: q.group, tipo: q.tipo, qg: `${q.tipo === 'qg' ? 'QG' : q.tipo === 'garage' ? 'Garagem' : q.tipo === 'route' ? 'Rota' : 'Ponto'} ${q.group}${fac ? ' · ' + fac : ''}` };
+    });
+    window.dispatchEvent(new CustomEvent('highos:qgs', { detail: { total: qgsFaccoes.length } }));
+  }).catch((e) => { qgsLidos = null; console.warn('[planejador] perímetros das facções', e); });
+  return qgsLidos;
+}
 const celulaCds = (x, y) => `c_${Math.round(x / 5)}_${Math.round(y / 5)}`;
 const cdsValida = (o) => [o?.x, o?.y, o?.z].every((v) => Number.isFinite(Number(v))) && Number(o.x) !== 0 && Number(o.y) !== 0 && Number(o.z) > -50 && Number(o.z) < 1500;
 function carregarMemoriaCds() {
@@ -43,14 +57,16 @@ async function gravarMemoria(lista, estado) {
 }
 const evento = (detail) => window.dispatchEvent(new CustomEvent('highos:mission-cloud', { detail }));
 
+let estadoPlanejador = {};
 export function prepararNuvemPlanejador(estado) {
+  estadoPlanejador = estado;
   window.HighOSMissionCloud = {
     version: 2,
     canEdit: () => !!estado.perfil?.staff,
     user: () => estado.usuario?.email || '',
     /* Facções com Group ocupado (meta de spawns) e QGs (spawn não pode cair dentro). */
     faccoesAtivas: () => (estado.base?.faccoes || []).filter((f) => f.assumido).map((f) => ({ group: f.group, faccao: f.faccao, segmento: f.segmento })),
-    qgs: () => [],
+    qgs: () => qgsFaccoes,
     pull: async ({ force = false } = {}) => {
       if (!force && ultimaLeitura && Date.now() - ultimaEm < 20000) return ultimaLeitura;
       try {
@@ -86,6 +102,7 @@ const estilo = (href) => { if (document.querySelector(`link[href="${href}"]`)) r
 async function carregar() {
   if (window.HighMissionPlanner) return;
   carregarMemoriaCds();
+  carregarQgs(estadoPlanejador);
   ['assets/vendor/leaflet/leaflet.css', 'assets/mission-planner.css?v=12.18.0', 'assets/mission-planner-nav.css?v=12.8.0', 'assets/planejador-v15.css?v=15.0.0', 'assets/css/planejador-tema.css?v=1.2.0'].forEach(estilo);
   const html = await fetch('assets/planejador.html?v=1.0.0').then((r) => { if (!r.ok) throw new Error('planejador.html HTTP ' + r.status); return r.text(); });
   const area = document.createElement('div');
@@ -94,7 +111,7 @@ async function carregar() {
   if (!window.L) await script('assets/vendor/leaflet/leaflet.js');
   window.HighCarregarHtml2canvas = () => (window.html2canvas ? Promise.resolve() : script('assets/vendor/html2canvas.min.js'));
   await script('assets/modules/eventos-painel.js?v=12.17.0');
-  await script('assets/mission-planner.js?v=13.0.0');
+  await script('assets/mission-planner.js?v=13.1.0');
   await script('assets/mission-planner-nav.js?v=12.8.1');
 }
 

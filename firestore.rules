@@ -76,6 +76,11 @@ service cloud.firestore {
       allow read: if activeUser();
       allow write: if false;
     }
+    // Perímetros das facções (QGs), gravados pelo coletor a partir do site de métricas.
+    match /hos/qgs {
+      allow read: if activeUser();
+      allow write: if false;
+    }
     match /hos/metricas/semanas/{semana} {
       allow read: if activeUser();
       allow write: if false;

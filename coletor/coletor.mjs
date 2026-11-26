@@ -12,7 +12,7 @@ import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { montarAtual, montarDias, montarSemana, semanasDesde } from './montar.mjs';
+import { montarAtual, montarDias, montarSemana, semanasDesde, montarQgs } from './montar.mjs';
 
 const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
@@ -76,12 +76,13 @@ async function lerSite() {
     const page = ctx.pages()[0] || await ctx.newPage();
     await page.goto(SITE, { waitUntil: 'domcontentloaded' });
     const lidoEm = new Date().toISOString();
-    const [semana, hoje, mes, catalogo, orgs] = await Promise.all([
+    const [semana, hoje, mes, catalogo, orgs, mapa] = await Promise.all([
       lerApi(page, 'ilegal/overview?preset=week'),
       lerApi(page, 'ilegal/overview?preset=today'),
       lerApi(page, 'ilegal/overview?preset=month'),
       lerApi(page, 'ilegal/catalog'),
       lerApi(page, 'ilegal/organizations'),
+      lerApi(page, 'ilegal/map'),
     ]);
     const ids = (orgs || []).map((o) => o.id).filter(Boolean);
     const pres = await emLotes(ids, 4, async (org) => {
@@ -97,7 +98,7 @@ async function lerSite() {
       const ov = await lerApi(page, `ilegal/overview?preset=custom&from=${s.de}&to=${s.ate}`);
       semanas[s.de] = montarSemana(ov, s, agora);
     }
-    return { atual: montarAtual({ semana, hoje, mes, catalogo, lidoEm }), dias: montarDias(Object.fromEntries(pres)), semanas, orgs: ids.length };
+    return { atual: montarAtual({ semana, hoje, mes, catalogo, lidoEm }), dias: montarDias(Object.fromEntries(pres)), semanas, qgs: montarQgs(mapa), orgs: ids.length };
   } finally {
     await ctx.close();
   }
@@ -105,7 +106,8 @@ async function lerSite() {
 
 /** Lê o site sem gravar nada: confere se a sessão e a leitura estão funcionando. */
 async function testar() {
-  const { atual, dias, semanas, orgs } = await lerSite();
+  const { atual, dias, semanas, qgs, orgs } = await lerSite();
+  log(`Perímetros de facção: ${qgs.filter((q) => q.tipo === 'qg').length} QGs + ${qgs.filter((q) => q.tipo !== 'qg').length} pontos afastados`);
   for (const s of Object.values(semanas)) log(`Semana ${s.de} a ${s.ate}${s.parcial ? ' (em andamento)' : ''} · pico global ${s.global.pico} em ${s.global.diaDoPico} · média simultânea ${s.global.mediaOnline} · ${Object.keys(s.organizacoes).length} organizações`);
   const top = [...atual.semana.organizacoes].sort((a, b) => b.pico - a.pico).slice(0, 5).map((o) => `${o.org} (pico ${o.pico})`).join(', ');
   log(`Leitura OK, nada gravado · ${orgs} organizações · ${Object.keys(dias).length} dias · pico da semana ${atual.semana.total.pico} · maiores: ${top}`);
@@ -118,11 +120,12 @@ async function coletar() {
   const refAtual = db.doc('hos/metricas');
 
   try {
-    const { atual, dias, semanas, orgs } = await lerSite();
+    const { atual, dias, semanas, qgs, orgs } = await lerSite();
     const lote = db.batch();
     lote.set(refAtual, { ...atual, coletor: { status: 'ok', em: FieldValue.serverTimestamp(), erro: '' } });
     for (const [dia, doc] of Object.entries(dias)) lote.set(db.doc(`hos/metricas/dias/${dia}`), doc, { merge: true });
     for (const [de, doc] of Object.entries(semanas)) lote.set(db.doc(`hos/metricas/semanas/${de}`), doc);
+    if (qgs.length) lote.set(db.doc('hos/qgs'), { lidoEm: atual.lidoEm, origem: 'metricas.highrp.net/ilegal/map', qgs });
     await lote.commit();
     log(`OK · ${orgs} organizações · ${Object.keys(dias).length} dias · ${Object.keys(semanas).length} semanas gravados.`);
   } catch (e) {
