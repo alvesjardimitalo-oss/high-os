@@ -1,0 +1,138 @@
+<!-- Planejador de missões: marcação do módulo mission-planner.js (mantida do sistema anterior). -->
+<section class="page" id="page-planejador">
+
+          <section id="mpCentralV954" class="mp-central-v952" aria-label="Central de Missões"></section>
+
+          <div class="mission-planner-shell">
+            <aside class="mission-planner-side">
+              <div class="mp-card">
+                <h3>DADOS DA MISSÃO</h3>
+                <label>Nome da missão<input id="mpMissionName" placeholder="Ex.: Dominação — Sul"></label>
+                <div class="mp-grid">
+                  <label>Evento<input id="mpEventType" placeholder="Dominação"></label>
+                  <label>Painel<input id="mpPanel" placeholder="/evento"></label>
+                </div>
+                <div class="mp-grid" style="margin-top:8px">
+                  <label>Tipo do evento<select id="mpEventKind"></select></label>
+                  <label>Solicitação<select id="mpRequestKind"><option value="create-event">CRIAR EVENTO</option><option value="create-zone">CRIAR ZONA</option><option value="alter-zone">ALTERAR ZONA</option></select></label>
+                </div>
+                <div id="mpEventKindHint" class="mpk-hint"></div>
+                <label style="margin-top:8px">Modo de trabalho
+                  <select id="mpMode"><option value="assistant">ASSISTENTE DE VALIDAÇÃO</option><option value="manual">MODO MANUAL</option></select>
+                </label>
+                <div id="mpModeHint" class="mp-readout" style="margin-top:8px"></div>
+              </div>
+
+              <div class="mp-card">
+                <h3>COORDENADA CENTRAL</h3>
+                <label>Descrição<input id="mpCenterLabel" placeholder="Centro da área do gás"></label>
+                <div class="mp-grid" style="margin-top:8px">
+                  <label>X<input id="mpCenterX" inputmode="decimal"></label>
+                  <label>Y<input id="mpCenterY" inputmode="decimal"></label>
+                  <label>Z<input id="mpCenterZ" inputmode="decimal"></label>
+                  <label>Heading<input id="mpCenterH" inputmode="decimal"></label>
+                </div>
+                <div id="mpClicked" class="mp-readout" style="margin-top:8px">Clique no mapa para definir/ajustar o centro.</div>
+                <div class="mp-actions"><button type="button" id="mpFit">ENQUADRAR MISSÃO</button><button type="button" id="mpGoLS">LOS SANTOS / NORTE</button><button type="button" id="mpGoCayo">CAYO PERICO</button></div>
+              </div>
+
+              <div class="mp-card">
+                <h3>GERAR SPAWNS EM CÍRCULO</h3>
+                <p class="mp-note">No modo Assistente, todos os pontos gerados começam PENDENTES. Nenhum será considerado validado só por possuir X/Y/Heading.</p>
+                <div class="mp-grid">
+                  <label>Quantidade<input id="mpQty" type="number" min="2" max="100" value="25"></label>
+                  <label>Raio do círculo (m)<input id="mpCircleRadius" type="number" min="1" value="1000"></label>
+                </div>
+                <label style="margin-top:8px">Ângulo inicial<input id="mpStartAngle" type="number" value="0"></label>
+                <div class="mp-actions"><button type="button" id="mpGenerateCircle" class="primary">GERAR CÍRCULO</button></div>
+              </div>
+
+              <div class="mp-card">
+                <h3>MAPA / PONTO MANUAL</h3>
+                <div id="mpCursor" class="mp-readout">Passe o mouse no mapa para ver X/Y.</div>
+                <div class="mp-actions"><button type="button" id="mpPlaceBtn" class="primary">MARCAR PONTO NO MAPA</button></div>
+                <div class="mp-grid" style="margin-top:8px">
+                  <label>X<input id="mpX" inputmode="decimal"></label>
+                  <label>Y<input id="mpY" inputmode="decimal"></label>
+                  <label>Z<input id="mpZ" inputmode="decimal"></label>
+                  <label>Heading<input id="mpH" inputmode="decimal"></label>
+                </div>
+                <div class="mp-actions"><button type="button" id="mpAddCoord">ADICIONAR CDS MANUAL</button></div>
+              </div>
+
+              <div class="mp-card">
+                <h3>IMPORTAÇÃO EM LOTE</h3>
+                <textarea id="mpBulk" rows="6" placeholder="1 - 998.81,-436.32,64.08,232.45
+2 - 728.29,-348.61,43.88,243.78"></textarea>
+                <div class="mp-actions"><button type="button" id="mpImport">IMPORTAR CDS</button></div>
+                <p class="mp-note">Assistente: importações entram como pendentes até validação. Manual: CDS completa e sem zero pode entrar validada.</p>
+              </div>
+
+              <div class="mp-card mp-validation-card">
+                <h3>ASSISTENTE DE VALIDAÇÃO</h3>
+                <div id="mpValidationTarget" class="mp-readout">Selecione um ponto pendente.</div>
+                <div class="mp-actions mp-actions-tight">
+                  <button type="button" id="mpCopyPointTp">COPIAR TP DESTE PONTO</button>
+                  <button type="button" id="mpJumpPending">IR AO PRÓXIMO PENDENTE</button>
+                </div>
+                <label style="margin-top:8px">Cole a CDS real do FiveM
+                  <input id="mpValidateCds" autocomplete="off" placeholder="123.17,-456.34,31.72,180.00">
+                </label>
+                <p class="mp-note mp-note-compact">Aceita <b>tpcds</b>, chaves, vector4, ponto e vírgula ou espaço. Enter valida e já pula para o próximo pendente.</p>
+                <div class="mp-actions">
+                  <button type="button" id="mpValidateBtn" class="primary">VALIDAR E AVANÇAR</button>
+                  <button type="button" id="mpInvalidateBtn">VOLTAR A PENDENTE</button>
+                </div>
+                <div id="mpValidationFeedback" class="mp-validation-feedback info">Copie o TP do ponto, vá até o local no jogo e cole aqui a CDS real.</div>
+                <details class="mp-details">
+                  <summary>VALIDAR VÁRIOS DE UMA VEZ</summary>
+                  <textarea id="mpValidateBulk" rows="5" placeholder="1 - 998.81,-436.32,64.08,232.45
+2 - 728.29,-348.61,43.88,243.78"></textarea>
+                  <div class="mp-actions"><button type="button" id="mpValidateBulkBtn">VALIDAR LOTE</button></div>
+                </details>
+                <p class="mp-note">Ponto pendente usa Z provisório 0.00 para permitir TPCDS + NC. Ele continua vermelho até você colar a CDS real com Z válido. Ao mover um ponto validado, ele volta para PENDENTE e recebe Z provisório 0.00.</p>
+              </div>
+
+              <div class="mp-card">
+                <h3>STATUS DA MISSÃO</h3>
+                <div class="mp-kpis">
+                  <div class="mp-kpi"><span>PONTOS</span><b id="mpCount">0</b></div>
+                  <div class="mp-kpi"><span>VALIDADOS</span><b id="mpValidCount">0</b></div>
+                  <div class="mp-kpi"><span>PENDENTES</span><b id="mpPendingCount">0</b></div>
+                </div>
+                <label style="margin-top:8px">Raio visual por spawn <b id="mpRadiusValue">100 m</b><input id="mpRadius" type="range" min="10" max="1000" step="10" value="100"></label>
+                <div class="mp-grid" style="margin-top:8px"><div class="mp-kpi"><span>SOBREPOSIÇÕES</span><b id="mpOverlap">0</b></div><div class="mp-kpi"><span>MENOR DISTÂNCIA</span><b id="mpNearest">—</b></div></div>
+              </div>
+
+              <div class="mp-card">
+                <h3>PONTOS DA MISSÃO</h3>
+                <div id="mpPointList" class="mp-point-list"></div>
+                <div class="mp-actions"><button type="button" id="mpClear" class="danger">LIMPAR PONTOS</button></div>
+              </div>
+
+              <div class="mp-card">
+                <h3>EXPORTAR</h3>
+                <textarea id="mpExport" rows="7" readonly placeholder="Somente pontos realmente validados aparecem aqui. Pontos pendentes são copiados com Z estimado pelas CDS já validadas próximas, para o TP não cair embaixo do mapa."></textarea>
+                <div class="mp-actions"><button type="button" id="mpExportBtn" class="primary">COPIAR CDS VALIDADAS</button><button type="button" id="mpExportXYBtn">COPIAR CDS PARA TESTE (Z ESTIMADO)</button></div>
+              </div>
+
+              <div class="mp-card">
+                <h3>GERAR SOLICITAÇÃO</h3>
+                <div class="mp-actions"><button type="button" id="mpGenerateRequest" class="primary">GERAR TEXTO DA SOLICITAÇÃO</button><button type="button" id="mpCopyRequest">COPIAR TEXTO</button></div>
+                <textarea id="mpRequestText" rows="10" placeholder="O texto será montado com o evento, coordenada central e CDS validadas."></textarea>
+              </div>
+
+              <div class="mp-card">
+                <h3>PRINT SALVO DO MAPA</h3>
+                <div id="mpSnapshotEmpty" class="mp-note">O print é atualizado automaticamente após alterações.</div>
+                <img id="mpSnapshotPreview" class="mp-snapshot-preview" alt="Último print salvo do mapa">
+                <div class="mp-actions"><button type="button" id="mpCaptureBtn">ATUALIZAR / BAIXAR PRINT</button></div>
+              </div>
+            </aside>
+
+            <div class="mission-planner-mapwrap">
+              <div class="mp-map-status"><b>PLANEJADOR DE MISSÕES</b><span id="mpTileStatus" class="warn">Carregando mapa GTA V…</span></div>
+              <div id="missionPlannerMap"></div>
+            </div>
+          </div>
+        </section>

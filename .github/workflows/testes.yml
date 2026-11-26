@@ -1,0 +1,24 @@
+name: Testes do High OS
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  testar:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Sintaxe dos scripts
+        run: for f in assets/js/*.js assets/mission-planner*.js assets/modules/*.js; do node --check "$f"; done
+      - name: Testes da leitura das planilhas e dos avisos
+        run: node --test tests/*.test.mjs
+      - name: Nenhuma webhook do Discord no código público
+        run: |
+          if grep -rEn "discord(app)?\.com/api/webhooks/[0-9]+/[A-Za-z0-9_-]{20,}" --include=*.js --include=*.html --include=*.json --include=*.md .; then
+            echo "::error::Webhook do Discord encontrada no código. Ela deve ficar só no Firebase (Configurações)."; exit 1
+          fi

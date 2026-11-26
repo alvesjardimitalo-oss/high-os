@@ -1,21 +1,15 @@
 rules_version = '2';
 
 /* =============================================================
-   HIGH OS · REGRAS DE SEGURANCA DO FIRESTORE (V12.7)
-   -------------------------------------------------------------
-   Ate a V9.3 nao existia arquivo de regras no repositorio: toda a
-   autorizacao era feita apenas no navegador (isAdmin / canEditModule),
-   o que qualquer usuario logado conseguia contornar pelo console.
-   Estas regras replicam o mesmo modelo de permissoes NO SERVIDOR.
+   REGRAS DO FIRESTORE · projeto high-os
+   Este projeto é COMPARTILHADO: High OS (painel do Ilegal) e Ítalo InfoTec
+   (bloco /ti, copiado de italo-alves-ti/firebase/regras-ti.rules).
+   Antes de publicar, confira no Console se existe alguma regra de OUTRO
+   app que não esteja aqui — publicar substitui o arquivo inteiro.
 
-   PUBLICAR:
-     firebase deploy --only firestore:rules,firestore:indexes
-   ou cole o conteudo em: Firebase Console > Firestore > Regras.
+   PUBLICAR: Firebase Console > Firestore Database > Regras > colar > Publicar.
 
-   Modelo de usuario esperado em users/{email}:
-     { role: 'ADMIN' | 'CONSULTA' | 'RH_METRICAS' | ...,
-       active: true,
-       permissions: { metricas: 'EDIT', historico: 'VIEW', ... } }
+   Staff do High OS em users/{email}: { role: 'ADMIN' | 'STAFF' | 'CONSULTA' | 'RH_*', active: true }
    ============================================================= */
 
 service cloud.firestore {
@@ -28,270 +22,64 @@ service cloud.firestore {
     function myEmail() {
       return request.auth.token.email.lower();
     }
-    function lowerPath() {
+    function perfilPath() {
       return /databases/$(database)/documents/users/$(myEmail());
     }
-    function rawPath() {
-      return /databases/$(database)/documents/users/$(request.auth.token.email);
-    }
-    function registered() {
-      return signedIn() && (exists(lowerPath()) || exists(rawPath()));
-    }
-    function profile() {
-      return exists(lowerPath()) ? get(lowerPath()).data : get(rawPath()).data;
-    }
     function activeUser() {
-      return registered() && profile().get('active', true) != false;
+      return signedIn() && exists(perfilPath()) && get(perfilPath()).data.get('active', true) != false;
     }
     function role() {
-      return activeUser() ? profile().get('role', 'CONSULTA').upper() : 'NONE';
+      return activeUser() ? get(perfilPath()).data.get('role', 'CONSULTA').upper() : 'NONE';
     }
     function isAdmin() {
       return role() == 'ADMIN';
     }
-    function metricOnly() {
-      return role() in ['RH_METRICAS', 'RH_VISUALIZADOR', 'RH_ANALISTA', 'RH_GESTOR'];
+    // staff: tudo que não é ADMIN, CONSULTA ou RH_* (perfis só de leitura)
+    function isStaff() {
+      return activeUser() && (isAdmin() || !(role() == 'CONSULTA' || role().matches('RH_.*')));
     }
 
-    // ---------- permissoes por modulo (espelha defaultPermissionsForRole) ----------
-    function defaultPerm(mod) {
-      return isAdmin()
-        ? 'EDIT'
-        : metricOnly()
-          ? ((mod == 'metricas' || mod == 'dashboard') ? 'VIEW' : 'NONE')
-          : role() == 'CONSULTA'
-            ? 'VIEW'
-            : (mod == 'historico' ? 'VIEW' : 'EDIT');
-    }
-    function permFor(mod) {
-      return isAdmin()
-        ? 'EDIT'
-        : (activeUser()
-            && profile().get('permissions', {}).keys().hasAll([mod]))
-          ? profile().permissions[mod].upper()
-          : defaultPerm(mod);
-    }
-    function canView(mod) { return permFor(mod) in ['VIEW', 'EDIT']; }
-    function canEdit(mod) { return permFor(mod) == 'EDIT'; }
-
-    // ---------- usuarios ----------
+    // ---------- HIGH OS · usuários ----------
     match /users/{email} {
-      // cada um le o proprio cadastro; ADMIN le todos (tela de Usuarios)
       allow get: if signedIn() && (email.lower() == myEmail() || isAdmin());
       allow list: if isAdmin();
-      // somente ADMIN cria, altera cargo/permissoes ou desativa
       allow create, update, delete: if isAdmin();
     }
 
-    // ---------- dados operacionais ----------
-    match /highos/data/faccoes/{docId} {
-      allow read: if canView('faccoes');
-      allow write: if canEdit('faccoes');
+    // ---------- HIGH OS · webhooks dos avisos (endereços ficam fora do código público) ----------
+    match /hos/config/privado/webhooks {
+      allow read: if isStaff();
+      allow write: if isAdmin();
     }
-    match /highos/data/organizacoes/{docId} {
-      allow read: if canView('faccoes');
-      allow write: if canEdit('faccoes');
-    }
-    match /highos/data/entregas/{docId} {
-      allow read: if canView('faccoes');
-      allow write: if canEdit('faccoes');
-    }
-    // V12.5 - o print do painel anexado ao recolhimento mora aqui. Sem esta
-    // regra o catch-all no fim do arquivo recusava a gravacao e o recolhimento
-    // COM print abortava inteiro (o Group nem chegava a ficar vago).
-    // O registro e prova: ninguem altera; so ADMIN apaga.
-    match /highos/data/evidencias_recolhimento/{docId} {
-      allow read: if canView('faccoes');
-      allow create: if canEdit('faccoes')
-                    && request.resource.data.get('createdBy', '').lower() == myEmail()
-                    && request.resource.data.get('imagemDataUrl', '') is string
-                    && request.resource.data.imagemDataUrl.matches('^data:image/(jpeg|png|webp);base64,.*')
-                    && request.resource.data.imagemDataUrl.size() <= 800000;
+
+    // ---------- HIGH OS · registro dos avisos publicados ----------
+    match /hos/dados/avisos/{avisoId} {
+      allow read: if activeUser();
+      allow create: if isStaff()
+                    && request.resource.data.por == myEmail()
+                    && request.resource.data.tipo in ['entrega', 'recolhimento']
+                    && request.resource.data.group is string
+                    && request.resource.data.group.size() <= 40
+                    && request.resource.data.em == request.time;
       allow update: if false;
       allow delete: if isAdmin();
     }
-    // Trilha imutável de transferências de ocupação. Sem este match, os
-    // writeBatch de TRANSFER_PANEL são negados pelo bloqueio geral abaixo.
-    match /highos/data/ocupacoes/{docId} {
-      allow read: if canView('faccoes');
-      allow create: if canEdit('faccoes')
-                    && request.resource.data.get('createdBy', '').lower() == myEmail()
-                    && request.resource.data.get('tipo', '') == 'TRANSFERENCIA_GROUP'
-                    && request.resource.data.get('groupOrigem', '') is string
-                    && request.resource.data.get('groupDestino', '') is string;
-      allow update: if false;
-      allow delete: if isAdmin();
-    }
-    match /highos/data/solicitacoes/{docId} {
-      allow read: if canView('solicitacoes');
-      allow write: if canEdit('solicitacoes');
-    }
-    // V10 - espelho mensal: um documento por mes, no lugar de 10 mil linhas
-    match /highos/data/metricas_mensais/{mes} {
-      allow read: if canView('metricas');
-      allow write: if canEdit('metricas');
-    }
-    match /highos/data/metricas/{docId} {
-      allow read: if canView('metricas');
-      allow write: if canEdit('metricas');
-    }
 
-    // Historico e auditoria: quem enxerga o modulo le;
-    // qualquer usuario ativo pode ACRESCENTAR evento (o app registra tudo),
-    // mas ninguem altera ou apaga registro passado, exceto ADMIN.
-    match /highos/data/historico/{docId} {
-      allow read: if canView('historico') || isAdmin();
-      // V12.5 - o autor do evento precisa ser quem esta logado: antes qualquer
-      // usuario ativo podia gravar um log em nome de outra pessoa.
-      allow create: if activeUser()
-                    && request.resource.data.get('usuario', '') is string
-                    && request.resource.data.usuario.lower() == myEmail();
-      allow update, delete: if isAdmin();
-    }
-    // V12.5 - cada um cria e atualiza apenas a PROPRIA sessao, e nao pode
-    // trocar o dono de uma sessao existente.
-    match /highos/data/sessoes_usuario/{docId} {
-      allow read: if isAdmin();
-      allow create: if activeUser()
-                    && request.resource.data.get('email', '') is string
-                    && request.resource.data.email.lower() == myEmail();
-      allow update: if activeUser()
-                    && resource.data.get('email', '').lower() == myEmail()
-                    && request.resource.data.get('email', '') == resource.data.get('email', '');
-      allow delete: if isAdmin();
-    }
-    match /highos/data/alertas_dashboard/{docId} {
-      allow read: if canView('dashboard');
-      allow write: if canEdit('dashboard');
-    }
-
-    // ---------- chat interno: so os dois participantes ----------
-    // IMPORTANTE: numa consulta de lista o Firestore avalia a regra contra os
-    // FILTROS da consulta, nao documento a documento. Por isso a regra usa o
-    // campo participants e o app consulta com array-contains no mesmo campo.
-    match /highos/data/chat_mensagens/{docId} {
-      allow read: if isAdmin()
-                  || (activeUser() && canView('chat')
-                      && myEmail() in resource.data.get('participants', []));
-      allow create: if activeUser() && canEdit('chat')
-                    && request.resource.data.email.lower() == myEmail()
-                    && request.resource.data.recipientEmail is string
-                    && request.resource.data.participants is list
-                    && request.resource.data.participants.size() == 2
-                    && myEmail() in request.resource.data.participants
-                    && request.resource.data.recipientEmail.lower() in request.resource.data.participants
-                    && request.resource.data.get('texto', '').size() <= 1000;
-      // update liberado apenas para ADMIN: e o que permite rodar a migracao
-      // que preenche participants nas mensagens antigas (tools/migrar-chat.html)
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
-    }
-
-    // ---------- sinalizacao de chamadas do messenger ----------
-    match /highos/data/call_signals/{docId} {
-      allow read: if activeUser() && canView('chat')
-                  && myEmail() in resource.data.get('participants', []);
-      allow create: if activeUser() && canView('chat')
-                    && request.resource.data.participants is list
-                    && request.resource.data.participants.size() == 2
-                    && myEmail() in request.resource.data.participants;
-      allow update: if activeUser() && canView('chat')
-                    && myEmail() in resource.data.get('participants', [])
-                    && request.resource.data.participants == resource.data.participants;
-      allow delete: if activeUser() && canView('chat')
-                    && myEmail() in resource.data.get('participants', []);
-    }
-
-    // ---------- metricas: configuracao da fonte ----------
-    match /highos/metricas_config {
-      allow read: if activeUser();
-      allow write: if canEdit('metricas');
-    }
-
-    // ---------- fila de atualizacoes para o bot ----------
-    // O bot roda no PC de casa. Com ele offline, as gravacoes ficam
-    // aqui e sao reenviadas quando a maquina volta. So quem pode editar
-    // faccoes enfileira; o contador e lido por qualquer usuario ativo
-    // para o painel saber, em UMA leitura, se ha algo pendente.
-    match /highos/data/fila_bot/{itemId} {
-      allow read: if activeUser();
-      allow create: if canEdit('faccoes')
-                    && request.resource.data.status == 'PENDENTE'
-                    && request.resource.data.criadoPor == myEmail();
-      allow update: if canEdit('faccoes');
-      allow delete: if isAdmin();
-    }
-    match /highos/fila_bot_status {
-      allow read: if activeUser();
-      allow write: if canEdit('faccoes');
-    }
-
-    // ---------- catalogo de craft e rota ----------
-    // As receitas sairam do codigo e passaram a morar aqui, editaveis
-    // pela equipe. Um documento so: ler custa 1 leitura.
-    match /highos/data/config/catalogo_craft {
-      allow read: if activeUser();
-      allow write: if canEdit('faccoes');
-    }
-
-    // ---------- seasons: QGs e coordenadas vindos da planilha ----------
-    // Um documento por season guarda TODOS os QGs. Ler o painel custa
-    // 1 leitura, nao uma por QG. Escrever e so do admin, pelo importador.
-    match /highos/data/seasons/{seasonId} {
-      allow read: if activeUser();
-      allow write: if isAdmin();
-    }
-    match /highos/season_atual {
-      allow read: if activeUser();
-      allow write: if isAdmin();
-    }
-
-    // ---------- configuracoes ----------
-    match /highos/data/config/segmentos {
-      allow read: if activeUser();
-      allow write: if isAdmin();
-    }
-    match /highos/data/config/dashboard {
-      allow read: if activeUser();
-      allow write: if isAdmin();
-    }
-    // V10.6 - o painel deixa configurar o Spotify a quem tem EDIT no modulo,
-    // mas a regra exigia ADMIN: o usuario recebia permission-denied em silencio.
-    match /highos/data/config/spotify {
-      allow read: if activeUser();
-      allow write: if canEdit('spotify');
-    }
-    // V12.7 - documento antigo: continua legivel como copia de seguranca,
-    // mas ninguem grava mais nele (as zonas agora ficam em missoes_zonas).
-    match /highos/data/config/missoes_planejador {
-      allow read: if canView('planejador');
-      allow write: if isAdmin();
-    }
-    // V12.7 - trava da migracao unica para o formato novo
-    match /highos/data/config/missoes_migracao {
-      allow read: if canView('planejador');
-      allow write: if canEdit('planejador');
-    }
-    // V12.7 - uma zona por documento. "rev" so avanca de 1 em 1: quem esta
-    // com versao antiga nao consegue sobrescrever o trabalho de outra pessoa.
-    // Exclusao e um marcador (deleted:true); apagar de verdade so ADMIN.
+    // ---------- HIGH OS · planejador de missões (uma zona por documento) ----------
+    // "rev" só avança de 1 em 1: quem está com versão antiga não sobrescreve o trabalho de outro.
     match /highos/data/missoes_zonas/{zonaId} {
-      allow read: if canView('planejador');
-      allow create: if canEdit('planejador')
+      allow read: if activeUser();
+      allow create: if isStaff()
                     && request.resource.data.rev == 1
                     && request.resource.data.updatedBy == myEmail()
                     && request.resource.data.json is string
                     && request.resource.data.json.size() <= 900000;
-      allow update: if canEdit('planejador')
+      allow update: if isStaff()
                     && request.resource.data.rev == resource.data.rev + 1
                     && request.resource.data.updatedBy == myEmail()
                     && request.resource.data.json is string
                     && request.resource.data.json.size() <= 900000;
       allow delete: if isAdmin();
-    }
-    match /highos/data/config/{outro} {
-      allow read: if activeUser();
-      allow write: if isAdmin();
     }
 
     // ---------- Ítalo Alves TI (assistência técnica · repo italo-alves-ti) ----------
@@ -328,13 +116,59 @@ service cloud.firestore {
         && request.resource.data.status == 'Novo'
         && request.resource.data.criadoEm == request.time;
     }
+    // Métricas sem dados pessoais: só CRIAÇÃO de eventos com campos fixos.
+    // A leitura permanece restrita ao dono pela regra match /ti/{document=**}.
+    // IMPORTANTE: regras não fazem rate limit; acompanhar cotas/abuso do Firestore.
+    // Não ativar enforcement geral do App Check do projeto high-os sem adaptar os outros apps.
+    match /ti/base/metricasSite/{eventoId} {
+      allow create: if request.resource.data.keys().hasOnly(['tipo', 'categoria', 'pagina', 'canal', 'criadoEm'])
+        && request.resource.data.keys().hasAll(['tipo', 'categoria', 'pagina', 'canal', 'criadoEm'])
+        && request.resource.data.tipo in ['visita', 'chat_aberto', 'sintoma_selecionado',
+                      'ferramenta_iniciada', 'ferramenta_concluida', 'whatsapp_aberto']
+        && request.resource.data.categoria is string
+        && request.resource.data.categoria.matches('^[a-z0-9-]{0,36}$')
+        && request.resource.data.pagina in ['inicio', 'ferramentas', 'dicas', 'atendimento', 'acompanhar', 'institucional']
+        && request.resource.data.canal in ['social', 'whatsapp', 'busca', 'email', 'referencia', 'direto']
+        && request.resource.data.criadoEm == request.time;
+    }
+    // Black Friday da Karen: cada frasco é uma VAGA numerada (ex.: kaiak-extremo-2).
+    // Reservar = gravar a vaga com uma "trava" (SHA-256 de um segredo que só o
+    // celular da cliente conhece). O Firebase só aceita reservar vaga livre:
+    // nunca usada, cancelada ou vencida (10 min sem pagamento). Duas clientes
+    // não pegam a mesma vaga. Cancelar: só quem tem o segredo da trava.
+    // Sem dados pessoais aqui. A Karen (tiDono) altera tudo pelo painel.
+    function tiVagaLivre(r) {
+      return !(('pagoEm' in r) && r.pagoEm != '')
+        && ((('canceladoEm' in r) && r.canceladoEm != '') || r.criadoEm + duration.value(10, 'm') < request.time);
+    }
+    function tiVagaNova(id, d) {
+      return id.matches('^[a-z0-9][a-z0-9-]{0,39}-[0-9]{1,3}$')
+        && d.keys().hasOnly(['trava', 'criadoEm'])
+        && d.trava is string && d.trava.matches('^[0-9a-f]{64}$')
+        && d.criadoEm == request.time;
+    }
+    function tiVagaCancelada(antes, d) {
+      return d.keys().hasOnly(['trava', 'criadoEm', 'canceladoEm', 'segredo'])
+        && d.trava == antes.trava && d.criadoEm == antes.criadoEm
+        && d.canceladoEm == request.time
+        && d.segredo is string && d.segredo.size() <= 64
+        && hashing.sha256(d.segredo).toHexString().lower() == antes.trava
+        && !(('pagoEm' in antes) && antes.pagoEm != '');
+    }
+    match /ti/base/vagas-bf/{vagaId} {
+      allow get: if true;
+      allow list: if request.query.limit <= 500;
+      allow create: if tiVagaNova(vagaId, request.resource.data);
+      allow update: if (tiVagaNova(vagaId, request.resource.data) && tiVagaLivre(resource.data))
+        || tiVagaCancelada(resource.data, request.resource.data);
+    }
     // "Acompanhar OS": o visitante só LÊ um documento se souber o ID exato
     // (hash do código da OS + telefone). Não dá para listar nem gravar.
     match /ti/base/rastreio/{rastreioId} {
       allow get: if true;
     }
 
-    // ---------- tudo que nao foi previsto fica fechado ----------
+    // ---------- tudo que não foi previsto fica fechado ----------
     match /{document=**} {
       allow read, write: if false;
     }

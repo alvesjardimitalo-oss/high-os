@@ -1,0 +1,15 @@
+/* HIGH OS — o planejador (módulo mantido) com as cores da identidade nova. */
+#area-planejador { padding: 20px 28px 40px; }
+#page-planejador {
+  --mpn-bg: #0a0d12; --mpn-panel: #121821; --mpn-line: rgba(255,255,255,.13); --mpn-line-soft: rgba(255,255,255,.07);
+  --mpn-text: #eef3f8; --mpn-muted: #a9b6c6; --mpn-accent: #c6ff3d;
+  --mpk-brand: #c6ff3d; --mpk-ok: #34d399; --mpk-warn: #fbbf24; --mpk-bad: #fb6f6f; --mpk-muted: #6f7d8f;
+  --pv-bg: #0a0d12; --pv-card: #121821; --pv-card2: #17202b; --pv-line: rgba(255,255,255,.07); --pv-line2: rgba(198,255,61,.35);
+  --pv-txt: #eef3f8; --pv-mut: #a9b6c6; --pv-acc: #c6ff3d; --pv-acc2: #a3e01a;
+  display: block !important; color: var(--texto);
+}
+#page-planejador .mp-card { background: var(--painel); border: 1px solid var(--linha); border-radius: 16px; }
+#page-planejador button { font: inherit; }
+#page-planejador button.primary, #page-planejador .primary { background: var(--acido); color: #0a0d12; border-color: var(--acido); }
+#page-planejador input, #page-planejador select, #page-planejador textarea { min-height: 36px; }
+@media (max-width: 760px) { #area-planejador { padding: 12px 12px 96px; } }
