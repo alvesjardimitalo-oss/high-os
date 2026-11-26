@@ -1,12 +1,12 @@
 // HIGH OS — telas. Tudo o que vem das planilhas é só leitura.
 import { esc, $, $$, moeda, pct, classeSeg, norm, toast, modal, confirmar, copiar } from './ui.js';
-import { SEGMENTOS } from './dados.js';
+import { SEGMENTOS, IMAGENS_MN } from './dados.js';
 import * as nuvem from './nuvem.js';
 import { avisoEntrega, avisoRecolhimento, corpoWebhook, webhookValida, beneficiosDaFaccao } from './avisos.js';
 import { avisoPlanilha } from './app.js';
 
 const semDados = (el) => {
-  el.innerHTML = avisoPlanilha() + '<div class="painel vazio">Sem dados das planilhas ainda.</div>';
+  el.innerHTML = '<div class="painel vazio">Sem dados das planilhas ainda.</div>';
 };
 const cab = (sobre, titulo, texto = '', acoes = '') => `<div class="cab"><div><div class="sobre">${esc(sobre)}</div><h1>${esc(titulo)}</h1>${texto ? `<p>${texto}</p>` : ''}</div>${acoes ? `<div class="acoes">${acoes}</div>` : ''}</div>`;
 const seloSituacao = (f) => !f.assumido ? '<span class="selo ciano">Disponível</span>' : f.completo ? '<span class="selo ok">Completo</span>' : '<span class="selo alerta">Cadastro pendente</span>';
@@ -19,7 +19,7 @@ export function painel({ el, estado }) {
   const pendentes = b.faccoes.filter((f) => f.assumido && !f.completo);
   const livres = b.faccoes.filter((f) => !f.assumido);
   const meta = b.faccoes.filter((f) => f.assumido && f.porMeta);
-  el.innerHTML = avisoPlanilha() + cab('Visão geral', `Olá, ${estado.perfil.nome.split(' ')[0]}.`, `${o.assumidos} de ${o.total} groups estão com facção. ${livres.length ? livres.length + ' esperam dono.' : 'Nenhum group livre.'}`, '<a class="btn" href="#/avisos?tipo=entrega">Nova entrega</a><a class="btn sec" href="#/avisos?tipo=recolhimento">Recolhimento</a>') + `
+  el.innerHTML = cab('Visão geral', `Olá, ${estado.perfil.nome.split(' ')[0]}.`, `${o.assumidos} de ${o.total} groups estão com facção. ${livres.length ? livres.length + ' esperam dono.' : 'Nenhum group livre.'}`, '<a class="btn" href="#/avisos?tipo=entrega">Nova entrega</a><a class="btn sec" href="#/avisos?tipo=recolhimento">Recolhimento</a>') + `
     <div class="kpis">
       <div class="kpi acido"><span>Groups com facção</span><b>${o.assumidos}</b><small>de ${o.total} cadastrados</small></div>
       <div class="kpi ciano"><span>Groups disponíveis</span><b>${o.disponiveis}</b><small>prontos para entrega</small></div>
@@ -68,7 +68,7 @@ export function faccoes({ el, estado, params }) {
       <div class="rod"><span><span class="ponto-seg"></span>${esc(f.segmento)}</span><span>${esc(f.lider ? f.lider.split(' - ').slice(1).join(' - ') || f.lider : f.assumido ? 'sem líder' : '')}</span></div></a>`).join('') || '<div class="painel vazio" style="grid-column:1/-1">Nenhum group com esses filtros.</div>';
     $('#contagem', el).textContent = `${lista.length} de ${b.faccoes.length}`;
   };
-  el.innerHTML = avisoPlanilha() + cab('Organizações', 'Facções e groups', 'Cadastro lido da planilha de facções. Toque num card para ver a ficha completa.') + `
+  el.innerHTML = cab('Organizações', 'Facções e groups', 'Cadastro lido da planilha de facções. Toque num card para ver a ficha completa.') + `
     <div class="filtros">
       <input type="search" id="busca" placeholder="Buscar facção, group, QG ou líder" value="${esc(filtroFac.busca)}">
       <div class="pilulas" id="segs"><button data-seg="" class="${!filtroFac.segmento ? 'ativo' : ''}">Todos</button>${SEGMENTOS.map((s) => `<button data-seg="${esc(s)}" class="${filtroFac.segmento === s ? 'ativo' : ''}">${esc(s)}</button>`).join('')}</div>
@@ -90,7 +90,7 @@ export function ficha({ el, estado }, group) {
   const ben = f.beneficios, c = f.conferencia;
   const catalogo = (nome) => b.vips.find((v) => norm(v.produto) === norm(nome));
   const linha = (k, v) => `<dt>${esc(k)}</dt><dd>${v ? esc(v) : '<span class="fraco">—</span>'}</dd>`;
-  el.innerHTML = avisoPlanilha() + `
+  el.innerHTML = `
     <section class="ficha-topo ${classeSeg(f.segmento)}">
       <a href="#/faccoes" class="fraco" style="text-decoration:none">← Facções</a>
       <div class="grp" style="margin-top:12px">${esc(f.group)} · ${esc(f.segmento)}</div>
@@ -126,7 +126,7 @@ export function conferencia({ el, estado }) {
   const comConf = b.faccoes.filter((f) => f.conferencia);
   const nomes = comConf[0]?.conferencia.itens.map((i) => i.nome) || [];
   const falta = (f) => f.conferencia.itens.filter((i) => i.ok === false).length;
-  el.innerHTML = avisoPlanilha() + cab('Checklist de entrega', 'Conferência', 'O que já foi conferido no jogo em cada group: craft, farm, baú, garagens, rota, rádio, chat, uniforme e salário.') + `
+  el.innerHTML = cab('Checklist de entrega', 'Conferência', 'O que já foi conferido no jogo em cada group: craft, farm, baú, garagens, rota, rádio, chat, uniforme e salário.') + `
     <div class="kpis">
       <div class="kpi acido"><span>Groups conferidos</span><b>${comConf.filter((f) => f.conferencia.itens[0]?.ok).length}</b><small>de ${comConf.length}</small></div>
       <div class="kpi alerta"><span>Itens recusados</span><b>${comConf.reduce((s, f) => s + falta(f), 0)}</b><small>marcados como não</small></div>
@@ -142,33 +142,46 @@ export function conferencia({ el, estado }) {
 export function vips({ el, estado }) {
   const b = estado.base; if (!b) return semDados(el);
   const usos = (p) => b.faccoes.filter((f) => f.vips.some((v) => norm(v.nome) === norm(p))).length;
-  el.innerHTML = avisoPlanilha() + cab('Loja', 'Catálogo de VIPs', 'Produtos da loja e o que cada um entrega. "Em uso" conta as facções que têm o item no cadastro.') + `
+  el.innerHTML = cab('Loja', 'Catálogo de VIPs', 'Produtos da loja e o que cada um entrega. "Em uso" conta as facções que têm o item no cadastro.') + `
     <div class="vitrine">${b.vips.map((v) => `<article class="produto">
       <header style="display:flex;justify-content:space-between;gap:8px;align-items:start"><h3>${esc(v.produto)}</h3>${usos(v.produto) ? `<span class="selo acido">em uso · ${usos(v.produto)}</span>` : ''}</header>
       <div class="preco">${v.valor != null ? moeda(v.valor) : '<small>por meta / interno</small>'}${v.idLoja ? ` <small>· ID ${esc(v.idLoja)}</small>` : ''}</div>
       <p>${esc(v.beneficios)}</p><footer>${esc(v.prazo)}</footer></article>`).join('')}</div>`;
 }
 
-/* ================= ECONOMIA ================= */
-let catEco = 0, buscaEco = '';
+/* ================= ECONOMIA (catálogo do Mercado Negro) ================= */
+let catEco = 0, buscaEco = '', inativosEco = false;
+const SELO_STATUS = { inativo: ['', 'Inativo'], revisar: ['alerta', 'Em revisão'], indisponivel: ['erro', 'Indisponível'] };
 export function economia({ el, estado }) {
   const b = estado.base; if (!b) return semDados(el);
-  const blocos = b.economia;
+  const m = b.mercado;
+  const blocos = m.blocos;
   if (catEco >= blocos.length) catEco = 0;
-  const s = b.sync;
+  const visivel = (i) => inativosEco || i.status !== 'inativo';
+  const ativos = (bl) => bl.itens.filter((i) => i.status !== 'inativo').length;
+  const quando = m.atualizadoEm ? new Date(m.atualizadoEm).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '';
+  const linha = (i) => `<tr class="${i.status === 'inativo' ? 'apagado' : ''}">
+    <td><div class="item-eco">${i.imagem ? `<img src="${esc(IMAGENS_MN + i.imagem)}" alt="" loading="lazy" data-img>` : '<span class="sem-img"></span>'}
+      <div><b>${esc(i.nome)}</b>${i.destaque ? ' <span class="selo acido">Destaque</span>' : ''}${SELO_STATUS[i.status] ? ` <span class="selo ${SELO_STATUS[i.status][0]}">${SELO_STATUS[i.status][1]}</span>` : ''}${i.obs ? `<br><small class="muted">${esc(i.obs)}</small>` : ''}</div></div></td>
+    <td class="num">${i.parceria != null ? moeda(i.parceria) : '<span class="fraco">a definir</span>'}</td>
+    <td class="num">${i.pista != null ? moeda(i.pista) : '<span class="fraco">a definir</span>'}${i.parceria && i.pista ? `<span class="dif">+${Math.round((i.pista / i.parceria - 1) * 100)}%</span>` : ''}</td></tr>`;
   const desenhar = () => {
     const t = norm(buscaEco);
-    const alvo = t ? blocos.map((bl) => ({ ...bl, itens: bl.itens.filter((i) => norm(i.nome).includes(t)) })).filter((bl) => bl.itens.length) : [blocos[catEco]].filter(Boolean);
+    const alvo = (t ? blocos.map((bl) => ({ ...bl, itens: bl.itens.filter((i) => norm(i.nome).includes(t)) })) : [blocos[catEco]].filter(Boolean))
+      .map((bl) => ({ ...bl, itens: bl.itens.filter(visivel) })).filter((bl) => bl.itens.length || bl.regras.length);
     $('#eco', el).innerHTML = alvo.map((bl) => `<section class="painel" style="margin-bottom:14px"><h2>${esc(bl.categoria)} <span class="fraco" style="font-size:13px">${bl.itens.length} itens</span></h2>
-      <div class="tabela-caixa"><table><thead><tr><th>Item</th><th class="num">Valor parceria</th><th class="num">Valor pista</th></tr></thead>
-      <tbody>${bl.itens.map((i) => `<tr><td>${esc(i.nome)}</td><td class="num">${i.parceria != null ? moeda(i.parceria) : '<span class="fraco">a definir</span>'}</td><td class="num">${i.pista != null ? moeda(i.pista) : '<span class="fraco">a definir</span>'}${i.parceria && i.pista ? `<span class="dif">+${Math.round((i.pista / i.parceria - 1) * 100)}%</span>` : ''}</td></tr>`).join('')}</tbody></table></div>
+      ${bl.itens.length ? `<div class="tabela-caixa"><table><thead><tr><th>Item</th><th class="num">Valor parceria</th><th class="num">Valor pista</th></tr></thead><tbody>${bl.itens.map(linha).join('')}</tbody></table></div>` : ''}
       ${bl.regras.length ? `<div class="regras">${bl.regras.map((r) => `<div class="aviso" style="margin:0">${esc(r)}</div>`).join('')}</div>` : ''}</section>`).join('') || '<div class="painel vazio">Nenhum item encontrado.</div>';
+    // imagem que não existe no site do Mercado Negro vira o quadrado vazio
+    $$('img[data-img]', el).forEach((img) => img.addEventListener('error', () => { const s = document.createElement('span'); s.className = 'sem-img'; img.replaceWith(s); }, { once: true }));
   };
-  el.innerHTML = avisoPlanilha() + cab('Valores do Ilegal', 'Economia', `Tabela de valores lida da aba ECONOMIA ILEGAL.${s.fim ? ` Última sincronização da planilha: ${esc(s.fim)}.` : ''}`) + `
-    <div class="filtros"><input type="search" id="busca-eco" placeholder="Buscar item em todas as categorias" value="${esc(buscaEco)}"></div>
-    <div class="categorias" id="cats">${blocos.map((bl, i) => `<button data-i="${i}" class="${i === catEco && !buscaEco ? 'ativo' : ''}">${esc(bl.categoria)}<small>${bl.itens.length} itens</small></button>`).join('')}</div>
+  el.innerHTML = cab('Mercado Negro', 'Economia', `Preços do catálogo do Mercado Negro${quando ? ` · atualizado em ${esc(quando)}` : ''}${m.publicadoPor ? ` por ${esc(m.publicadoPor)}` : ''}.`, '<a class="btn sec" href="https://alvesjardimitalo-oss.github.io/high-mercado-negro/index.html" target="_blank" rel="noopener">Abrir o site</a>') + `
+    <div class="filtros"><input type="search" id="busca-eco" placeholder="Buscar item em todas as categorias" value="${esc(buscaEco)}">
+      <label style="display:flex;gap:8px;align-items:center;color:var(--texto-2)"><input type="checkbox" id="inativos-eco" style="width:auto;min-height:0" ${inativosEco ? 'checked' : ''}> Mostrar inativos</label></div>
+    <div class="categorias" id="cats">${blocos.map((bl, i) => `<button data-i="${i}" class="${i === catEco && !buscaEco ? 'ativo' : ''}">${esc(bl.categoria)}<small>${ativos(bl)} ativos · ${bl.itens.length} no total</small></button>`).join('')}</div>
     <div id="eco"></div>`;
   $('#busca-eco', el).oninput = (e) => { buscaEco = e.target.value; $$('#cats button', el).forEach((x) => x.classList.toggle('ativo', !buscaEco && +x.dataset.i === catEco)); desenhar(); };
+  $('#inativos-eco', el).onchange = (e) => { inativosEco = e.target.checked; desenhar(); };
   $$('#cats button', el).forEach((bt) => bt.onclick = () => { catEco = +bt.dataset.i; buscaEco = ''; $('#busca-eco', el).value = ''; $$('#cats button', el).forEach((x) => x.classList.toggle('ativo', x === bt)); desenhar(); });
   desenhar();
 }
@@ -185,7 +198,7 @@ export async function avisos({ el, estado, params }) {
   const groups = b?.faccoes || [];
   const pre = groups.find((f) => f.group === params.get('group'));
 
-  el.innerHTML = avisoPlanilha() + cab('Discord · Ilegal', 'Entregas e recolhimentos', 'Monte o aviso, confira a prévia e publique direto no canal pela webhook. Cada envio fica registrado aqui embaixo.') + `
+  el.innerHTML = cab('Discord · Ilegal', 'Entregas e recolhimentos', 'Monte o aviso, confira a prévia e publique direto no canal pela webhook. Cada envio fica registrado aqui embaixo.') + `
     <div class="grade g-2">
       <section class="painel">
         <div class="tipo-aviso"><button data-tipo="entrega">Entrega de organização<small>Group passa para uma facção</small></button><button data-tipo="recolhimento">Recolhimento<small>Facção deixa o group</small></button></div>
