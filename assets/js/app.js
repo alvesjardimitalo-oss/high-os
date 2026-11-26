@@ -56,12 +56,14 @@ export async function carregarPlanilhas({ silencioso = false } = {}) {
   }
   desenharChip();
 }
+/* Sem aviso permanente: o botão só aparece quando é preciso agir
+   (o acesso às planilhas vence em 1 hora ou a leitura falhou). */
 function desenharChip() {
   const c = $('#chip-sync'); if (!c) return;
-  const min = estado.lidoEm ? Math.round((Date.now() - new Date(estado.lidoEm)) / 60000) : null;
-  c.className = 'chip-sync' + (estado.erro ? (estado.base ? ' velho' : ' erro') : min > 15 ? ' velho' : '');
-  c.innerHTML = `<i></i>${estado.erro && !estado.base ? 'Planilhas sem acesso' : min == null ? 'Lendo planilhas…' : 'Planilhas · ' + (min < 1 ? 'agora' : 'há ' + min + ' min')}`;
-  c.title = estado.erro || 'Clique para ler as planilhas de novo';
+  c.hidden = !estado.erro;
+  c.className = 'chip-sync velho';
+  c.innerHTML = `<i></i>${estado.semAcesso ? 'Atualizar planilhas' : 'Tentar ler as planilhas'}`;
+  c.title = estado.erro || '';
 }
 
 /** Aviso padrão quando a leitura falhou: renovar acesso ou mostrar o motivo. */

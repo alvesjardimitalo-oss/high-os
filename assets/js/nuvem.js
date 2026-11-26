@@ -4,7 +4,7 @@ import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChang
 import {
   getFirestore, doc, getDoc, setDoc, addDoc, collection, getDocs, query, orderBy, limit, serverTimestamp, deleteDoc,
 } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
-import { PLANILHAS, FAIXAS } from './dados.js';
+import { PLANILHAS, FAIXAS, CATALOGO_MN } from './dados.js';
 
 const app = initializeApp({
   apiKey: 'AIzaSyBKtl3rCA9Id1RDMwGch-yi4hxAs83DraU',
@@ -94,10 +94,17 @@ async function lerFaixas(planilha, faixas) {
 
 /** Lê as duas planilhas de uma vez. Guarda a última leitura para abrir rápido. */
 export async function lerPlanilhas() {
-  const [faccoes, ilegal] = await Promise.all([lerFaixas('faccoes', FAIXAS.faccoes), lerFaixas('ilegal', FAIXAS.ilegal)]);
-  const bruto = { faccoes, ilegal, lidoEm: new Date().toISOString() };
+  const [faccoes, mercado] = await Promise.all([lerFaixas('faccoes', FAIXAS.faccoes), lerMercadoNegro()]);
+  const bruto = { faccoes, mercado, lidoEm: new Date().toISOString() };
   try { localStorage.setItem('hos.planilhas', JSON.stringify(bruto)); } catch { /* cheio ou bloqueado */ }
   return bruto;
+}
+/** Catálogo público do Mercado Negro (não precisa de login). */
+export async function lerMercadoNegro() {
+  try {
+    const r = await fetch(CATALOGO_MN + '?v=' + Date.now(), { cache: 'no-store' });
+    return r.ok ? await r.json() : (ultimaLeitura()?.mercado || null);
+  } catch { return ultimaLeitura()?.mercado || null; }
 }
 export function ultimaLeitura() {
   try { return JSON.parse(localStorage.getItem('hos.planilhas') || 'null'); } catch { return null; }

@@ -6,7 +6,6 @@
 /** As duas planilhas oficiais. O High OS só lê; quem edita é a staff, direto nelas. */
 export const PLANILHAS = {
   faccoes: { id: '1MBVzWMFrAzIhYlT7-ZgWZEAoJLjPn3JeZdmHyRcZf2A', nome: 'HIGH · Documento das facções do Ilegal' },
-  ilegal: { id: '1zs-LNN1XS8t9cYwHe4_6TMxRDIy6yS-cLv66Rx_K9C4', nome: 'Ilegal · High Season 3' },
 };
 
 /** Faixas lidas de cada planilha (uma chamada batchGet por planilha). */
@@ -17,10 +16,6 @@ export const FAIXAS = {
     groups: "'Base de Groups'!A1:E200",
     vips: "'Catálogo de VIPs'!A1:E100",
     historico: "'Histórico de aquisições'!A1:K1000",
-  },
-  ilegal: {
-    economia: "'ECONOMIA ILEGAL'!S13:BB120",
-    sync: "'LOG SYNC ILEGAL'!A1:H12",
   },
 };
 
@@ -145,40 +140,35 @@ export function historicoAquisicoes(linhas) {
   }));
 }
 
-/* ---------------- Economia ilegal (tabela de valores) ----------------
-   Na planilha os valores ficam em blocos lado a lado, de 4 colunas
-   (item · parceria · pista · espaço), a partir da coluna S. Linha 2 do
-   recorte = título do bloco; linha 3 = cabeçalho; daí para baixo, itens.
-   Linhas de regra ("50% do cliente…") viram observação do bloco. */
-export function economia(linhas) {
-  const titulos = linhas[1] || [], cab = linhas[2] || [];
-  const largura = Math.max(...linhas.map((l) => l.length), 0);
-  const blocos = [];
-  for (let c = 0; c < largura; c += 4) {
-    const titulo = limpa(titulos[c]).replace(/\s*\(VALORES\)\s*/i, '').trim() || limpa(cab[c]) || limpa((linhas[0] || [])[c + 1]) || limpa((linhas[0] || [])[c]);
-    if (!titulo) continue;
-    const itens = [], regras = [];
-    for (const l of linhas.slice(3)) {
-      const nome = limpa(l[c]);
-      if (!nome) continue;
-      const parceria = valorBR(l[c + 1]), pista = valorBR(l[c + 2]);
-      if (/%/.test(nome) && parceria == null && pista == null) { regras.push(nome + (limpa(l[c + 1]) ? ' · ' + limpa(l[c + 1]) : '') + (limpa(l[c + 2]) ? ' · ' + limpa(l[c + 2]) : '')); continue; }
-      if (/%/.test(limpa(l[c + 1]))) { regras.push([nome, limpa(l[c + 1]), limpa(l[c + 2])].filter(Boolean).join(' · ')); continue; }
-      itens.push({ nome, parceria, pista });
-    }
-    if (itens.length || regras.length) blocos.push({ categoria: titulo, itens, regras });
-  }
-  return blocos;
-}
+/* ---------------- Mercado Negro (economia) ----------------
+   Fonte: data/catalogo.json do site do Mercado Negro (mesmo domínio do High OS),
+   publicado a partir da planilha "Tabela Mercado Negro". */
+export const CATALOGO_MN = 'https://alvesjardimitalo-oss.github.io/high-mercado-negro/data/catalogo.json';
+export const IMAGENS_MN = 'https://alvesjardimitalo-oss.github.io/high-mercado-negro/assets/itens/';
 
-/** Última sincronização da economia (aba LOG SYNC ILEGAL). */
-export function logSync(linhas) {
-  const v = (rotulo) => limpa((linhas.find((l) => norm(l[0]) === norm(rotulo)) || [])[1]);
-  return { inicio: v('INÍCIO'), fim: v('FIM'), atualizacoes: v('ATUALIZAÇÕES'), inativos: v('INATIVOS') };
+export function mercadoNegro(json) {
+  const itens = Array.isArray(json?.itens) ? json.itens : [];
+  const porCat = new Map();
+  for (const i of itens) {
+    const cat = limpa(i.categoria) || 'OUTROS';
+    if (!porCat.has(cat)) porCat.set(cat, []);
+    porCat.get(cat).push({
+      nome: limpa(i.item), parceria: Number.isFinite(+i.parceria) && i.parceria !== '' && i.parceria != null ? +i.parceria : null,
+      pista: Number.isFinite(+i.pista) && i.pista !== '' && i.pista != null ? +i.pista : null,
+      status: norm(i.status || 'ativo').toLowerCase(), destaque: !!i.destaque, obs: limpa(i.observacao || i.obs),
+      imagem: limpa(i.imagem), ordem: Number(i.ordem) || 0,
+    });
+  }
+  const regras = (json?.regras?.lavagem || []).filter((r) => r.ativo !== false).map((r) => limpa(r.texto ? `${r.titulo}: ${r.texto}` : r.titulo));
+  const blocos = [...porCat.entries()].map(([categoria, l]) => ({
+    categoria, itens: l.sort((a, b) => a.ordem - b.ordem || a.nome.localeCompare(b.nome)),
+    regras: norm(categoria) === 'LAVAGEM' ? regras : [],
+  }));
+  return { blocos, atualizadoEm: json?.meta?.atualizado_em || '', publicadoPor: json?.meta?.publicado_por || '', aviso: json?.meta?.aviso || '' };
 }
 
 /** Junta tudo numa base só, pronta para as telas. */
-export function montarBase({ faccoes: f = {}, ilegal: i = {} }) {
+export function montarBase({ faccoes: f = {}, mercado = null }) {
   const lista = faccoesDoCadastro(f.cadastro || []);
   const conf = conferencias(f.conferencia || []);
   const hist = historicoAquisicoes(f.historico || []);
@@ -191,7 +181,6 @@ export function montarBase({ faccoes: f = {}, ilegal: i = {} }) {
     ocupacao: ocupacao(lista),
     vips: catalogoVips(f.vips || []),
     historico: hist,
-    economia: economia(i.economia || []),
-    sync: logSync(i.sync || []),
+    mercado: mercadoNegro(mercado),
   };
 }

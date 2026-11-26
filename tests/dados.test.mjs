@@ -1,7 +1,7 @@
 // node --test tests/
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { faccoesDoCadastro, ocupacao, conferencias, catalogoVips, economia, valorBR, montarBase, logSync } from '../assets/js/dados.js';
+import { faccoesDoCadastro, ocupacao, conferencias, catalogoVips, mercadoNegro, valorBR, montarBase } from '../assets/js/dados.js';
 
 const CAB = ['SEGMENTO','GROUP','QG / LOCALIZAÇÃO','ASSUMIDO','NOME DA FACÇÃO','ID DO LÍDER','TELEFONE DO LÍDER','ID DO SUBLÍDER','TELEFONE DO SUBLÍDER','STATUS','GARAGEM VIP','VIP 1','AQUISIÇÃO 1','VIP 2','AQUISIÇÃO 2','VIP 3','AQUISIÇÃO 3','VIP 4','AQUISIÇÃO 4','CONDIÇÃO DO VIP','RÁDIO EXCLUSIVA','CHAT DE FACÇÃO','UNIFORME','ROTA EXCLUSIVA','SALÁRIO / 40 MIN','BAÚ (KG)'];
 const CADASTRO = [CAB,
@@ -56,22 +56,23 @@ test('catálogo de VIPs ignora "SEM VIP"', () => {
   assert.equal(v.length, 1); assert.equal(v[0].valor, 299);
 });
 
-test('economia: blocos lado a lado e regras de porcentagem', () => {
-  const e = economia([
-    ['ARMAS','','','','MUNIÇÃO'],
-    ['ARMAMENTO (VALORES)','','','','MUNIÇÃO (VALORES)'],
-    ['ARMAS','VALOR PARCERIA','VALOR PISTA ','','MUNIÇÃO','VALOR PARCERIA','VALOR PISTA'],
-    ['AK-102',' R$  180.000,00 ',' R$  189.000,00 ','','PISTOLA 100X','R$ 5.000,00','R$ 5.450,00'],
-    ['UZI','','','','50% DO CLIENTE E 50% DO DESMANCHE.'],
-  ]);
-  assert.deepEqual(e.map((b) => b.categoria), ['ARMAMENTO', 'MUNIÇÃO']);
-  assert.deepEqual(e[0].itens[0], { nome: 'AK-102', parceria: 180000, pista: 189000 });
-  assert.equal(e[0].itens[1].parceria, null, 'item sem valor continua listado');
-  assert.equal(e[1].regras[0], '50% DO CLIENTE E 50% DO DESMANCHE.');
-});
-
-test('log de sincronização', () => {
-  assert.equal(logSync([['INÍCIO','26/11/2026 07:58'],['INATIVOS','49']]).inativos, '49');
+test('mercado negro: agrupa por categoria, ordena e traz regras da lavagem', () => {
+  const m = mercadoNegro({
+    meta: { atualizado_em: '2026-11-18T21:19:03-03:00' },
+    itens: [
+      { categoria: 'ARMAS', item: 'AK-102', parceria: 180000, pista: 189000, status: 'ativo', ordem: 2, imagem: 'ak102.png' },
+      { categoria: 'ARMAS', item: 'UZI', parceria: '', pista: null, status: 'inativo', ordem: 1 },
+      { categoria: 'LAVAGEM', item: 'PENDRIVE 1', parceria: 9000, pista: 9810, status: 'ativo' },
+    ],
+    regras: { lavagem: [{ titulo: 'Lavagem de dinheiro sujo', texto: '10% da máquina | 15% da lavagem | 75% do cliente', ativo: true }, { titulo: 'Secagem', ativo: false }] },
+  });
+  assert.deepEqual(m.blocos.map((b) => b.categoria), ['ARMAS', 'LAVAGEM']);
+  assert.deepEqual(m.blocos[0].itens.map((i) => i.nome), ['UZI', 'AK-102']);
+  assert.equal(m.blocos[0].itens[0].parceria, null, 'valor vazio vira "a definir"');
+  assert.equal(m.blocos[0].itens[0].status, 'inativo');
+  assert.equal(m.blocos[1].regras.length, 1, 'só regras ativas');
+  assert.equal(m.atualizadoEm, '2026-11-18T21:19:03-03:00');
+  assert.deepEqual(mercadoNegro(null).blocos, [], 'sem catálogo não quebra');
 });
 
 test('montarBase liga conferência e histórico ao Group', () => {
