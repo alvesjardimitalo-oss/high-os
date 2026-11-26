@@ -2,7 +2,7 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js';
 import {
-  getFirestore, doc, getDoc, setDoc, addDoc, collection, getDocs, query, orderBy, limit, serverTimestamp, deleteDoc,
+  getFirestore, doc, getDoc, setDoc, addDoc, collection, getDocs, query, orderBy, limit, serverTimestamp, deleteDoc, writeBatch,
 } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
 import { PLANILHAS, FAIXAS, CATALOGO_MN } from './dados.js';
 
@@ -141,6 +141,22 @@ export async function diasMetricas(n = 45) {
 export async function semanasMetricas() {
   const s = await getDocs(collection(db, 'hos', 'metricas', 'semanas'));
   return s.docs.map((d) => d.data()).sort((a, b) => a.de.localeCompare(b.de));
+}
+
+/* ---------------- Memória de CDS (alturas reais para o TP de validação) ---------------- */
+const colMemoriaCds = () => collection(db, 'highos', 'data', 'cds_memoria');
+export async function lerMemoriaCds() {
+  const s = await getDocs(colMemoriaCds());
+  return s.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+/** itens: [{ id, x, y, z, origem }] — grava em lotes de até 400. */
+export async function gravarMemoriaCds(itens) {
+  const por = (auth.currentUser?.email || '').toLowerCase();
+  for (let i = 0; i < itens.length; i += 400) {
+    const lote = writeBatch(db);
+    itens.slice(i, i + 400).forEach((it) => lote.set(doc(colMemoriaCds(), it.id), { x: it.x, y: it.y, z: it.z, origem: String(it.origem || 'cds').slice(0, 40), por, em: serverTimestamp() }));
+    await lote.commit();
+  }
 }
 
 /* ---------------- Planejador de missões (uma zona por documento) ----------------

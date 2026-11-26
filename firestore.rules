@@ -81,6 +81,22 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ---------- HIGH OS · memória de CDS do planejador ----------
+    // Uma célula de 5 m por CDS real validada no jogo. O planejador usa estas alturas
+    // no TP de validação para não cair embaixo do mapa (limbo). Só staff grava.
+    match /highos/data/cds_memoria/{celula} {
+      allow read: if activeUser();
+      allow create, update: if isStaff()
+                    && request.resource.data.keys().hasOnly(['x', 'y', 'z', 'origem', 'por', 'em'])
+                    && request.resource.data.x is number && request.resource.data.y is number
+                    && request.resource.data.z is number
+                    && request.resource.data.z > -50 && request.resource.data.z < 1500
+                    && request.resource.data.origem is string && request.resource.data.origem.size() <= 40
+                    && request.resource.data.por == myEmail()
+                    && request.resource.data.em == request.time;
+      allow delete: if isAdmin();
+    }
+
     // ---------- HIGH OS · planejador de missões (uma zona por documento) ----------
     // "rev" só avança de 1 em 1: quem está com versão antiga não sobrescreve o trabalho de outro.
     match /highos/data/missoes_zonas/{zonaId} {
