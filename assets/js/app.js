@@ -1,11 +1,12 @@
 // HIGH OS — Central do Ilegal. Inicialização, login e navegação.
 import * as nuvem from './nuvem.js';
 import { montarBase } from './dados.js';
+import { derivar, brutoDasAbas } from './base.js';
 import { esc, $, $$, toast, ICONES } from './ui.js';
 import * as telas from './telas.js';
 import { telaPlanejador, prepararNuvemPlanejador } from './planejador.js';
 
-export const estado = { usuario: null, perfil: null, base: null, lidoEm: null, erro: '', semAcesso: false };
+export const estado = { usuario: null, perfil: null, base: null, abas: null, meta: null, mercado: null, erro: '', carregado: false };
 const raiz = $('#raiz');
 
 const MENU = [
@@ -26,12 +27,12 @@ function telaLogin(msg = '') {
   raiz.innerHTML = `<div class="login">
     <section class="login-arte">
       <div class="login-marca"><img src="assets/high_logo.png" alt="">HIGH OS</div>
-      <div><h1>Central do <em>Ilegal</em>.</h1><p>Facções, groups, VIPs, economia, entregas e o planejador de missões num lugar só — lido direto das planilhas oficiais.</p></div>
+      <div><h1>Central do <em>Ilegal</em>.</h1><p>Facções, groups, VIPs, economia, entregas e o planejador de missões num lugar só.</p></div>
       <span class="fraco">High Roleplay · Season 3</span>
     </section>
     <section class="login-caixa"><div class="login-cartao">
       <h2>Entrar</h2>
-      <p class="muted">Use a conta Google cadastrada na staff. O Google vai pedir permissão para as planilhas do Ilegal. O High OS só lê — a única alteração é no <b>recolhimento</b>, que limpa os dados da org na linha do Group.</p>
+      <p class="muted">Use a conta Google cadastrada na staff. Os dados ficam no High OS; a planilha recebe uma cópia quando o administrador manda.</p>
       ${msg ? `<div class="aviso erro" style="margin-top:14px">${esc(msg)}</div>` : ''}
       <button class="btn" id="entrar">Entrar com Google</button>
       <p class="nota">Acesso restrito. Peça ao administrador para cadastrar o seu e-mail.</p>
@@ -42,35 +43,37 @@ function telaLogin(msg = '') {
   };
 }
 
-/* ---------------- Planilhas ---------------- */
-export async function carregarPlanilhas({ silencioso = false } = {}) {
-  try {
-    const bruto = await nuvem.lerPlanilhas();
-    estado.base = montarBase(bruto); estado.lidoEm = bruto.lidoEm; estado.erro = ''; estado.semAcesso = false;
-    if (!silencioso) toast('Planilhas atualizadas.');
-  } catch (err) {
-    estado.semAcesso = err instanceof nuvem.SemAcessoPlanilha;
-    estado.erro = err.message || String(err);
-    const cache = nuvem.ultimaLeitura();
-    if (!estado.base && cache) { estado.base = montarBase(cache); estado.lidoEm = cache.lidoEm; }
-  }
-  desenharChip();
+/* ---------------- Base (Firebase, em tempo real) ---------------- */
+let pararBase = null;
+window.__hosEstado = estado; // usado pelo editor de linhas das telas
+document.addEventListener('hos:redesenhar', () => setTimeout(redesenharSePuder, 0));
+function remontar() {
+  if (!estado.abas) return;
+  estado.base = montarBase({ faccoes: brutoDasAbas(estado.abas), mercado: estado.mercado });
 }
-/* Sem aviso permanente: o botão só aparece quando é preciso agir
-   (o acesso às planilhas vence em 1 hora ou a leitura falhou). */
-function desenharChip() {
-  const c = $('#chip-sync'); if (!c) return;
-  c.hidden = !estado.erro;
-  c.className = 'chip-sync velho';
-  c.innerHTML = `<i></i>${estado.semAcesso ? 'Atualizar planilhas' : 'Tentar ler as planilhas'}`;
-  c.title = estado.erro || '';
+/* Telas com formulário aberto não são redesenhadas sozinhas (perderia o que está sendo digitado). */
+const TELAS_COM_FORMULARIO = new Set(['avisos', 'config', 'planejador', 'metricas']);
+function redesenharSePuder() {
+  if (document.querySelector('.fundo-modal')) return;
+  const rota = (location.hash.replace(/^#\/?/, '') || 'painel').split(/[/?]/)[0];
+  if (!TELAS_COM_FORMULARIO.has(rota)) rotear();
+}
+function ligarBase() {
+  if (pararBase) pararBase();
+  pararBase = nuvem.ouvirBase(({ meta, abas }) => {
+    const primeira = !estado.carregado;
+    estado.meta = meta; estado.abas = derivar(abas); estado.erro = ''; estado.carregado = true;
+    remontar();
+    if (primeira) rotear(); else redesenharSePuder();
+  }, (err) => { estado.erro = err.message || String(err); estado.carregado = true; rotear(); });
+  nuvem.lerMercadoNegro().then((m) => { estado.mercado = m; remontar(); if (estado.carregado) redesenharSePuder(); });
 }
 
-/** Aviso padrão quando a leitura falhou: renovar acesso ou mostrar o motivo. */
-export function avisoPlanilha() {
-  if (!estado.erro) return '';
-  return `<div class="aviso ${estado.base ? 'alerta' : 'erro'}"><div><b>${estado.semAcesso ? 'O acesso às planilhas expirou.' : 'Não consegui ler as planilhas.'}</b><div class="muted">${esc(estado.semAcesso ? 'O Google libera a leitura por 1 hora. Renove para ver os dados atuais.' : estado.erro)}${estado.base ? ' Mostrando a última leitura deste computador.' : ''}</div></div>
-    <div class="acoes"><button class="btn peq" data-reconectar>${estado.semAcesso ? 'Renovar acesso' : 'Tentar de novo'}</button></div></div>`;
+/** Aviso quando a base ainda não foi importada ou não pôde ser lida. */
+export function avisoBase() {
+  if (estado.erro) return `<div class="aviso erro"><div><b>Não consegui ler a base do Firebase.</b><div class="muted">${esc(estado.erro)}</div></div></div>`;
+  if (estado.carregado && !estado.abas?.cadastro?.linhas?.length) return `<div class="aviso alerta"><div><b>A base das facções está vazia.</b><div class="muted">${estado.perfil?.admin ? 'Importe a planilha em Configurações → Base das facções.' : 'Peça ao administrador para importar a planilha.'}</div></div>${estado.perfil?.admin ? '<div class="acoes"><a class="btn peq" href="#/config">Importar</a></div>' : ''}</div>`;
+  return '';
 }
 
 /* ---------------- Estrutura ---------------- */
@@ -86,25 +89,12 @@ function montarApp() {
     <div class="conteudo">
       <header class="topo">
         <div class="local" id="local"></div><div class="espaco"></div>
-        <button class="chip-sync" id="chip-sync" type="button"></button>
         <div class="eu"><span class="avatar">${esc((p.nome || '?')[0].toUpperCase())}</span><div><b>${esc(p.nome)}</b><small>${esc(p.admin ? 'Administrador' : p.staff ? 'Staff' : 'Consulta')}</small></div></div>
       </header>
       <main id="tela" tabindex="-1"></main>
     </div></div>`;
   $('#sair').onclick = async (e) => { e.preventDefault(); await nuvem.sair(); };
-  $('#chip-sync').onclick = recarregar;
-  desenharChip();
 }
-
-async function recarregar() {
-  if (estado.semAcesso) {
-    try { await nuvem.reconectarPlanilhas(); } catch (err) { if (!/popup-closed|cancelled/.test(err?.code || '')) toast(err.message || String(err), 'erro'); return; }
-  }
-  $('#chip-sync').innerHTML = '<i></i>Lendo planilhas…';
-  await carregarPlanilhas();
-  rotear();
-}
-document.addEventListener('click', (e) => { if (e.target.closest('[data-reconectar]')) { e.preventDefault(); recarregar(); } });
 
 /* ---------------- Rotas ---------------- */
 let saida = null;
@@ -135,18 +125,12 @@ window.addEventListener('hashchange', rotear);
 /* ---------------- Início ---------------- */
 nuvem.aoMudarLogin(async (usuario) => {
   estado.usuario = usuario;
-  if (!usuario) { estado.perfil = null; telaLogin(); return; }
+  if (!usuario) { if (pararBase) { pararBase(); pararBase = null; } estado.perfil = null; estado.carregado = false; estado.abas = null; estado.base = null; telaLogin(); return; }
   const p = await nuvem.perfil(usuario.email);
   if (!p) { await nuvem.sair(); telaLogin(`A conta ${usuario.email} não está cadastrada ou está desativada no High OS.`); return; }
   estado.perfil = p;
   prepararNuvemPlanejador(estado);
-  const cache = nuvem.ultimaLeitura();
-  if (cache) { estado.base = montarBase(cache); estado.lidoEm = cache.lidoEm; }
   montarApp();
-  if (!estado.base) $('#tela').innerHTML = '<div class="boot" style="min-height:50vh"><img src="assets/high_logo.png" alt="" width="48" height="48"><span>Lendo as planilhas…</span></div>';
-  else rotear();
-  await carregarPlanilhas({ silencioso: true });
-  rotear();
-  // Mantém a leitura em dia sem ninguém precisar clicar.
-  setInterval(() => { if (!document.hidden && nuvem.temAcessoPlanilhas()) carregarPlanilhas({ silencioso: true }).then(() => { if (/^(#\/?(painel)?)?$/.test(location.hash)) rotear(); }); }, 5 * 60 * 1000);
+  $('#tela').innerHTML = '<div class="boot" style="min-height:50vh"><img src="assets/high_logo.png" alt="" width="48" height="48"><span>Carregando a base…</span></div>';
+  ligarBase();
 });

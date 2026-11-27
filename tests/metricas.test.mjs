@@ -117,3 +117,12 @@ test('atividade do Group para a ficha (ignora maiúsculas)', async () => {
   assert.equal(atividadeDoGroup(SEMANAS, DIAS, 'ARMAS99'), null);
   assert.equal(atividadeDoGroup(SEMANAS, DIAS, 'armas05').serieDias[0].pico, 0, 'dia sem registro vira 0');
 });
+
+test('group livre não aparece nos alertas', async () => {
+  const r = relatorioSemana(SEMANAS, DIAS, '2026-11-23', () => '', (o) => o !== 'Drogas01');
+  assert.deepEqual(r.destaques.semPresenca, []);
+  assert.deepEqual(r.destaques.baixaAtividade, []);
+  assert.deepEqual(r.destaques.quedas.map((o) => o.org), ['Armas05']);
+  assert.equal(r.global.orgsOcupadas, 2);
+  assert.equal(r.organizacoes.find((o) => o.org === 'Drogas01').livre, true);
+});

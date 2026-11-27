@@ -30,9 +30,11 @@ function diasDaSemana(dias, de, ate) {
 
 /**
  * Relatório de uma semana: global, cada organização com comparação à semana anterior,
- * ranking e destaques. segmentoDe(org) diz o segmento (vem da planilha).
+ * ranking e destaques. segmentoDe(org) diz o segmento (vem do cadastro).
+ * ocupado(org) diz se o Group tem facção hoje: Group livre não entra nos destaques
+ * (queda, sem presença, baixa atividade) — não é alerta, é Group disponível.
  */
-export function relatorioSemana(semanas, dias, de, segmentoDe = () => '') {
+export function relatorioSemana(semanas, dias, de, segmentoDe = () => '', ocupado = () => true) {
   const lista = ordenarSemanas(semanas);
   const i = lista.findIndex((s) => s.de === de);
   const sem = lista[i >= 0 ? i : lista.length - 1];
@@ -64,7 +66,9 @@ export function relatorioSemana(semanas, dias, de, segmentoDe = () => '') {
     };
   });
 
-  const comAnterior = orgs.filter((o) => o.deltaPico != null);
+  for (const o of orgs) o.livre = !ocupado(o.org);
+  const ativas = orgs.filter((o) => !o.livre);
+  const comAnterior = ativas.filter((o) => o.deltaPico != null);
   return {
     semana: sem, anterior: ant,
     global: {
@@ -73,14 +77,15 @@ export function relatorioSemana(semanas, dias, de, segmentoDe = () => '') {
       deltaMedia: deltaPct(sem.global.mediaOnline, ant?.global.mediaOnline),
       deltaAtivos: deltaPct(sem.global.ativos, ant?.global.ativos),
       taxaAtividade: sem.global.membros ? Math.min(1, sem.global.ativos / sem.global.membros) : null,
-      orgsComPresenca: orgs.filter((o) => o.pico > 0).length,
+      orgsComPresenca: ativas.filter((o) => o.pico > 0).length,
+      orgsOcupadas: ativas.length,
     },
     organizacoes: orgs,
     destaques: {
       altas: comAnterior.filter((o) => o.deltaPico > 0).sort((a, b) => b.deltaPico - a.deltaPico).slice(0, 5),
       quedas: comAnterior.filter((o) => o.deltaPico < 0).sort((a, b) => a.deltaPico - b.deltaPico).slice(0, 5),
-      semPresenca: orgs.filter((o) => !o.pico).map((o) => o.org).sort(),
-      baixaAtividade: orgs.filter((o) => o.membros >= 5 && o.taxaAtividade != null && o.taxaAtividade < 0.4).sort((a, b) => a.taxaAtividade - b.taxaAtividade),
+      semPresenca: ativas.filter((o) => !o.pico).map((o) => o.org).sort(),
+      baixaAtividade: ativas.filter((o) => o.membros >= 5 && o.taxaAtividade != null && o.taxaAtividade < 0.4).sort((a, b) => a.taxaAtividade - b.taxaAtividade),
     },
   };
 }

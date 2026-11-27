@@ -1,10 +1,11 @@
-// HIGH OS — Firebase (login, perfil da staff, dados do sistema) e Google Sheets (leitura + limpeza da org no recolhimento).
+// HIGH OS — Firebase (login, perfil da staff, base das facções, avisos, métricas) e Google Sheets (só importar/exportar, ADMIN).
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js';
 import {
-  getFirestore, doc, getDoc, setDoc, addDoc, collection, getDocs, query, orderBy, limit, serverTimestamp, deleteDoc, writeBatch,
+  getFirestore, doc, getDoc, setDoc, addDoc, collection, getDocs, query, orderBy, limit, serverTimestamp, deleteDoc, writeBatch, onSnapshot,
 } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
-import { PLANILHAS, FAIXAS, CATALOGO_MN, planoRecolhimento } from './dados.js';
+import { PLANILHAS, FAIXAS, CATALOGO_MN } from './dados.js';
+import { CHAVES_ABAS, daMatriz, planoExportacao, idNovo } from './base.js';
 
 const app = initializeApp({
   apiKey: 'AIzaSyBKtl3rCA9Id1RDMwGch-yi4hxAs83DraU',
@@ -17,15 +18,14 @@ const app = initializeApp({
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
-/* Escopo de edição: o High OS lê tudo, mas só ESCREVE no recolhimento
-   (limpa as colunas da org na linha do Group — ver limparOrgNaPlanilha). */
-const ESCOPO = 'https://www.googleapis.com/auth/spreadsheets';
+/* Login só com Google (sem planilha). A planilha só é usada pelo ADMIN, na importação e no
+   "Enviar para a planilha": aí o Google pede a permissão de edição na hora (tokenPlanilhas). */
 const provedor = new GoogleAuthProvider();
-provedor.addScope(ESCOPO);
 provedor.setCustomParameters({ prompt: 'select_account' });
+const provedorPlanilhas = new GoogleAuthProvider();
+provedorPlanilhas.addScope('https://www.googleapis.com/auth/spreadsheets');
 
-// v2: o token antigo era só leitura; trocar a chave obriga a renovar o acesso com o novo escopo.
-const CHAVE_TOKEN = 'hos.sheets.token.v2';
+const CHAVE_TOKEN = 'hos.sheets.token.v3';
 function guardarToken(token) {
   if (!token) return;
   try { sessionStorage.setItem(CHAVE_TOKEN, JSON.stringify({ token, exp: Date.now() + 55 * 60 * 1000 })); } catch { /* sem armazenamento */ }
@@ -36,18 +36,21 @@ function tokenValido() {
     return t && t.exp > Date.now() ? t.token : '';
   } catch { return ''; }
 }
-export const temAcessoPlanilhas = () => !!tokenValido();
+/** Token da planilha: usa o guardado (vale ~1 h) ou abre o Google para liberar. Chamar a partir de um clique. */
+async function tokenPlanilhas() {
+  const t = tokenValido();
+  if (t) return t;
+  provedorPlanilhas.setCustomParameters({ login_hint: auth.currentUser?.email || '' });
+  const r = await signInWithPopup(auth, provedorPlanilhas);
+  const novo = GoogleAuthProvider.credentialFromResult(r)?.accessToken;
+  if (!novo) throw new Error('O Google não liberou o acesso à planilha.');
+  guardarToken(novo);
+  return novo;
+}
 
-/** Login com Google; já pede a leitura das planilhas no mesmo passo. */
 export async function entrar() {
   const r = await signInWithPopup(auth, provedor);
-  guardarToken(GoogleAuthProvider.credentialFromResult(r)?.accessToken);
   return r.user;
-}
-/** O acesso às planilhas vence em 1 hora: renova sem sair do sistema. */
-export async function reconectarPlanilhas() {
-  const r = await signInWithPopup(auth, provedor);
-  guardarToken(GoogleAuthProvider.credentialFromResult(r)?.accessToken);
 }
 export async function sair() {
   try { sessionStorage.removeItem(CHAVE_TOKEN); } catch { /* ok */ }
@@ -77,68 +80,138 @@ export async function listarUsuarios() {
 export const salvarUsuario = (email, dados) => setDoc(doc(db, 'users', String(email).toLowerCase()), dados, { merge: true });
 export const excluirUsuario = (email) => deleteDoc(doc(db, 'users', String(email).toLowerCase()));
 
-/* ---------------- Planilhas (Google Sheets API) ---------------- */
-export class SemAcessoPlanilha extends Error {}
+/* ---------------- Base das facções (Firebase) ----------------
+   hos/planilha                → { cabecalhos, importadoEm, importadoPor, exportadoEm, exportadoPor }
+   hos/planilha/{aba}/{linha}  → { ordem, valores: { coluna: texto } }
+   hos/dados/alteracoes/{id}   → log de cada alteração (antes/depois, quem, quando) */
+const refMeta = () => doc(db, 'hos', 'planilha');
+const colAba = (aba) => collection(db, 'hos', 'planilha', aba);
+const eu = () => (auth.currentUser?.email || '').toLowerCase();
 
-async function lerFaixas(planilha, faixas) {
-  const token = tokenValido();
-  if (!token) throw new SemAcessoPlanilha('Acesso às planilhas expirou.');
-  const qs = Object.values(faixas).map((f) => 'ranges=' + encodeURIComponent(f)).join('&');
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${PLANILHAS[planilha].id}/values:batchGet?${qs}&valueRenderOption=FORMATTED_VALUE`;
-  const r = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
-  if (r.status === 401) { try { sessionStorage.removeItem(CHAVE_TOKEN); } catch { /* ok */ } throw new SemAcessoPlanilha('Acesso às planilhas expirou.'); }
-  if (r.status === 403 || r.status === 404) throw new Error(`Sua conta Google não tem acesso à planilha "${PLANILHAS[planilha].nome}".`);
-  if (!r.ok) throw new Error(`Falha ao ler a planilha "${PLANILHAS[planilha].nome}" (HTTP ${r.status}).`);
-  const j = await r.json();
-  const nomes = Object.keys(faixas);
-  return Object.fromEntries((j.valueRanges || []).map((v, i) => [nomes[i], v.values || []]));
+/**
+ * Escuta a base em tempo real. cb({ meta, abas: { cadastro: { cabecalho, linhas }, ... } })
+ * é chamado na primeira leitura e a cada alteração de qualquer pessoa. Devolve a função que para.
+ */
+export function ouvirBase(cb, aoErro = () => {}) {
+  let meta = null; const linhas = {}; const prontos = new Set();
+  const emitir = () => {
+    if (!meta && prontos.size < CHAVES_ABAS.length + 1) return;
+    if (prontos.size < CHAVES_ABAS.length + 1) return;
+    const abas = Object.fromEntries(CHAVES_ABAS.map((k) => [k, { cabecalho: meta?.cabecalhos?.[k] || [], linhas: linhas[k] || [] }]));
+    cb({ meta, abas });
+  };
+  const paradas = [
+    onSnapshot(refMeta(), (s) => { meta = s.exists() ? s.data() : null; prontos.add('meta'); emitir(); }, aoErro),
+    ...CHAVES_ABAS.map((k) => onSnapshot(colAba(k), (s) => {
+      linhas[k] = s.docs.map((d) => ({ id: d.id, ordem: Number(d.data().ordem) || 0, valores: d.data().valores || {} }));
+      prontos.add(k); emitir();
+    }, aoErro)),
+  ];
+  return () => paradas.forEach((p) => p());
 }
 
-/** Lê as duas planilhas de uma vez. Guarda a última leitura para abrir rápido. */
-export async function lerPlanilhas() {
-  const [faccoes, mercado] = await Promise.all([lerFaixas('faccoes', FAIXAS.faccoes), lerMercadoNegro()]);
-  const bruto = { faccoes, mercado, lidoEm: new Date().toISOString() };
-  try { localStorage.setItem('hos.planilhas', JSON.stringify(bruto)); } catch { /* cheio ou bloqueado */ }
-  return bruto;
+/** Grava alterações numa linha (só as colunas informadas) e deixa o log. */
+export async function salvarLinha(aba, id, valores, { antes = {}, acao = 'edição', motivo = '' } = {}) {
+  const lote = writeBatch(db);
+  lote.set(doc(colAba(aba), id), { valores, atualizadoEm: serverTimestamp(), atualizadoPor: eu() }, { merge: true });
+  lote.set(doc(collection(db, 'hos', 'dados', 'alteracoes')), { aba, linha: id, acao, motivo, antes, depois: valores, por: eu(), em: serverTimestamp() });
+  await lote.commit();
 }
+/** Linha nova no fim da aba. */
+export async function novaLinha(aba, valores, ordem, { motivo = '' } = {}) {
+  const id = idNovo();
+  const lote = writeBatch(db);
+  lote.set(doc(colAba(aba), id), { ordem, valores, atualizadoEm: serverTimestamp(), atualizadoPor: eu() });
+  lote.set(doc(collection(db, 'hos', 'dados', 'alteracoes')), { aba, linha: id, acao: 'nova linha', motivo, antes: {}, depois: valores, por: eu(), em: serverTimestamp() });
+  await lote.commit();
+  return id;
+}
+export async function excluirLinha(aba, id, antes = {}) {
+  const lote = writeBatch(db);
+  lote.delete(doc(colAba(aba), id));
+  lote.set(doc(collection(db, 'hos', 'dados', 'alteracoes')), { aba, linha: id, acao: 'exclusão', antes, depois: {}, por: eu(), em: serverTimestamp() });
+  await lote.commit();
+}
+export async function ultimasAlteracoes(n = 40) {
+  const s = await getDocs(query(collection(db, 'hos', 'dados', 'alteracoes'), orderBy('em', 'desc'), limit(n)));
+  return s.docs.map((d) => ({ id: d.id, ...d.data(), em: d.data().em?.toDate?.() || null }));
+}
+
+/* ---------------- Planilha (Google Sheets) — só ADMIN ---------------- */
+const API = 'https://sheets.googleapis.com/v4/spreadsheets/';
+async function chamarPlanilha(caminho, opcoes = {}) {
+  const token = await tokenPlanilhas();
+  const r = await fetch(API + PLANILHAS.faccoes.id + caminho, { ...opcoes, headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json', ...(opcoes.headers || {}) } });
+  if (r.status === 401) { try { sessionStorage.removeItem(CHAVE_TOKEN); } catch { /* ok */ } throw new Error('O acesso à planilha venceu. Clique de novo para liberar.'); }
+  if (r.status === 403) throw new Error(`Sua conta Google não tem permissão de edição na planilha "${PLANILHAS.faccoes.nome}".`);
+  if (!r.ok) throw new Error(`A planilha respondeu com erro (HTTP ${r.status}).`);
+  return r.json();
+}
+
+/** Migração: lê todas as abas da planilha e SUBSTITUI a base do Firebase por elas. */
+export async function importarDaPlanilha() {
+  const faixas = FAIXAS.faccoes;
+  const qs = CHAVES_ABAS.map((k) => 'ranges=' + encodeURIComponent(faixas[k])).join('&');
+  const j = await chamarPlanilha(`/values:batchGet?${qs}&valueRenderOption=FORMATTED_VALUE`);
+  const abas = Object.fromEntries(CHAVES_ABAS.map((k, i) => [k, daMatriz(j.valueRanges?.[i]?.values || [], k)]));
+  if (!abas.cadastro.linhas.length) throw new Error('A aba Cadastro de Facções veio vazia. Nada foi alterado.');
+  const ops = [];
+  for (const k of CHAVES_ABAS) {
+    const novos = new Set(abas[k].linhas.map((l) => l.id));
+    const atuais = await getDocs(colAba(k));
+    atuais.docs.filter((d) => !novos.has(d.id)).forEach((d) => ops.push((b) => b.delete(d.ref)));
+    abas[k].linhas.forEach((l) => ops.push((b) => b.set(doc(colAba(k), l.id), { ordem: l.ordem, valores: l.valores, atualizadoEm: serverTimestamp(), atualizadoPor: eu() })));
+  }
+  for (let i = 0; i < ops.length; i += 400) { const b = writeBatch(db); ops.slice(i, i + 400).forEach((f) => f(b)); await b.commit(); }
+  await setDoc(refMeta(), { cabecalhos: Object.fromEntries(CHAVES_ABAS.map((k) => [k, abas[k].cabecalho])), importadoEm: serverTimestamp(), importadoPor: eu() }, { merge: true });
+  await addDoc(collection(db, 'hos', 'dados', 'alteracoes'), { aba: '*', linha: '*', acao: 'importação da planilha', antes: {}, depois: Object.fromEntries(CHAVES_ABAS.map((k) => [k, abas[k].linhas.length])), por: eu(), em: serverTimestamp() });
+  return Object.fromEntries(CHAVES_ABAS.map((k) => [k, abas[k].linhas.length]));
+}
+
+/** O que a planilha tem hoje (cabeçalho e, por célula, se é fórmula ou tem valor). */
+async function gradeDaPlanilha() {
+  const faixas = FAIXAS.faccoes;
+  const qs = CHAVES_ABAS.map((k) => 'ranges=' + encodeURIComponent(faixas[k])).join('&');
+  const j = await chamarPlanilha(`?${qs}&includeGridData=true&fields=${encodeURIComponent('sheets(properties(title),data(rowData(values(userEnteredValue,formattedValue))))')}`);
+  const porTitulo = new Map((j.sheets || []).map((s) => [s.properties.title, s]));
+  return Object.fromEntries(CHAVES_ABAS.map((k) => {
+    const titulo = faixas[k].slice(1, faixas[k].lastIndexOf("'!")).replace(/''/g, "'");
+    const linhas = porTitulo.get(titulo)?.data?.[0]?.rowData || [];
+    const [cab = {}, ...resto] = linhas;
+    return [k, {
+      cabecalho: (cab.values || []).map((c) => String(c.formattedValue ?? c.userEnteredValue?.stringValue ?? '').trim()),
+      linhas: resto.map((r) => (r.values || []).map((c) => {
+        const u = c.userEnteredValue || {};
+        return { formula: u.formulaValue || '', cheio: Object.keys(u).length > 0 };
+      })),
+    }];
+  }));
+}
+
+/** Manda a base do sistema para a planilha. Fórmulas da planilha são mantidas (e refeitas onde sumiram). */
+export async function exportarParaPlanilha(abas) {
+  const grade = await gradeDaPlanilha();
+  const planos = Object.fromEntries(CHAVES_ABAS.map((k) => [k, planoExportacao(k, abas[k], grade[k])]));
+  const data = CHAVES_ABAS.flatMap((k) => planos[k].dados);
+  for (let i = 0; i < data.length; i += 60) {
+    await chamarPlanilha('/values:batchUpdate', { method: 'POST', body: JSON.stringify({ valueInputOption: 'USER_ENTERED', data: data.slice(i, i + 60) }) });
+  }
+  await setDoc(refMeta(), { exportadoEm: serverTimestamp(), exportadoPor: eu() }, { merge: true });
+  await addDoc(collection(db, 'hos', 'dados', 'alteracoes'), { aba: '*', linha: '*', acao: 'envio para a planilha', antes: {}, depois: Object.fromEntries(CHAVES_ABAS.map((k) => [k, planos[k].linhas])), por: eu(), em: serverTimestamp() });
+  return planos;
+}
+
 /** Catálogo público do Mercado Negro (não precisa de login). */
+const CHAVE_MN = 'hos.mercado';
 export async function lerMercadoNegro() {
+  const guardado = () => { try { return JSON.parse(localStorage.getItem(CHAVE_MN) || 'null'); } catch { return null; } };
   try {
     const r = await fetch(CATALOGO_MN + '?v=' + Date.now(), { cache: 'no-store' });
-    return r.ok ? await r.json() : (ultimaLeitura()?.mercado || null);
-  } catch { return ultimaLeitura()?.mercado || null; }
-}
-/**
- * Recolhimento: limpa na aba Cadastro de Facções só as colunas da org do Group
- * (ASSUMIDO → NÃO, facção, líder, sublíder, STATUS → DISPONÍVEL).
- * Lê a linha na hora (não confia na leitura guardada) para não apagar linha errada.
- */
-export async function limparOrgNaPlanilha(group) {
-  const token = tokenValido();
-  if (!token) throw new SemAcessoPlanilha('Acesso às planilhas expirou.');
-  const { id, nome } = PLANILHAS.faccoes;
-  const faixa = FAIXAS.faccoes.cadastro;
-  const aba = faixa.slice(0, faixa.lastIndexOf('!'));
-  const auth = { Authorization: 'Bearer ' + token };
-  const falha = async (r, acao) => {
-    if (r.status === 401) { try { sessionStorage.removeItem(CHAVE_TOKEN); } catch { /* ok */ } return new SemAcessoPlanilha('Acesso às planilhas expirou.'); }
-    if (r.status === 403) return new Error(`Sua conta Google não tem permissão de EDIÇÃO na planilha "${nome}".`);
-    return new Error(`Falha ao ${acao} a planilha "${nome}" (HTTP ${r.status}).`);
-  };
-  const lida = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}/values/${encodeURIComponent(faixa)}?valueRenderOption=FORMATTED_VALUE`, { headers: auth });
-  if (!lida.ok) throw await falha(lida, 'ler');
-  const plano = planoRecolhimento((await lida.json()).values || [], group);
-  if (!plano) throw new Error(`Não achei o ${group} na aba Cadastro de Facções.`);
-  if (plano.jaLivre) return plano;
-  const r = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}/values:batchUpdate`, {
-    method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ valueInputOption: 'RAW', data: plano.celulas.map((c) => ({ range: `${aba}!${c.a1}`, values: [[c.valor]] })) }),
-  });
-  if (!r.ok) throw await falha(r, 'atualizar');
-  return plano;
-}
-export function ultimaLeitura() {
-  try { return JSON.parse(localStorage.getItem('hos.planilhas') || 'null'); } catch { return null; }
+    if (!r.ok) return guardado();
+    const j = await r.json();
+    try { localStorage.setItem(CHAVE_MN, JSON.stringify(j)); } catch { /* ok */ }
+    return j;
+  } catch { return guardado(); }
 }
 
 /* ---------------- Webhooks e avisos ---------------- */

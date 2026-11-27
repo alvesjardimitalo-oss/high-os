@@ -313,3 +313,13 @@ tr.apagado td { opacity: .5; }
   h1 { font-size: 24px; }
   .seg-linha { grid-template-columns: 96px 1fr 44px; }
 }
+
+/* Editor de linha (base das facções) */
+.modal.larga { width: min(820px, 100%); max-height: calc(100vh - 40px); overflow: auto; }
+.grade-campos { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0 12px; }
+.grade-campos textarea { resize: vertical; }
+.check-campo { display: flex; align-items: center; gap: 8px; padding: 9px 11px; border-radius: 11px; background: var(--bg-2); border: 1px solid var(--linha); font-size: 13px; cursor: pointer; }
+.check-campo input { width: 16px; height: 16px; accent-color: var(--acido); }
+.painel h2 .btn.peq { margin-left: 6px; vertical-align: middle; }
+/* Métricas: group livre com presença aparece apagado */
+tr.met-livre td { opacity: .55; }

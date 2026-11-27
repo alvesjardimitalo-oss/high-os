@@ -65,6 +65,31 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // ---------- HIGH OS · base das facções (o sistema é a fonte; a planilha só recebe cópia) ----------
+    // hos/planilha: cabeçalhos das abas e datas de importação/envio (só ADMIN grava).
+    match /hos/planilha {
+      allow read: if activeUser();
+      allow write: if isAdmin();
+    }
+    // hos/planilha/{aba}/{linha}: { ordem, valores: { coluna: texto }, atualizadoEm, atualizadoPor }
+    match /hos/planilha/{aba}/{linha} {
+      allow read: if activeUser();
+      allow create, update: if isStaff()
+                            && aba in ['cadastro', 'conferencia', 'groups', 'vips', 'historico']
+                            && request.resource.data.valores is map
+                            && request.resource.data.atualizadoPor == myEmail();
+      allow delete: if isAdmin();
+    }
+    // Log de toda alteração da base (antes/depois, quem, quando). Ninguém edita o log.
+    match /hos/dados/alteracoes/{id} {
+      allow read: if activeUser();
+      allow create: if isStaff()
+                    && request.resource.data.por == myEmail()
+                    && request.resource.data.em == request.time;
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
+
     // ---------- HIGH OS · métricas (metricas.highrp.net) ----------
     // Quem grava é o coletor no computador do administrador, com chave de serviço
     // (o Admin SDK não passa por estas regras). Pelo navegador ninguém escreve.

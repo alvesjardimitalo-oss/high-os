@@ -6,13 +6,12 @@ Painel da staff do Ilegal do High Roleplay. Sistema refeito do zero em novembro 
 - **Site estático** no GitHub Pages: `index.html` + módulos em `assets/js/`, sem etapa de build.
 - **Login Google** pelo Firebase (projeto `high-os`). Só entra quem está em `users/{email}` com `active` diferente de `false`.
   - Papéis: `ADMIN` (tudo, incluindo Configurações), `STAFF` (publica avisos e edita o planejador) e `CONSULTA` / `RH_*` (só vê).
-- **Planilhas: leitura, com uma exceção.** O login pede ao Google `spreadsheets`. O High OS só lê, exceto no **recolhimento**: depois de postar o aviso, limpa na aba *Cadastro de Facções* as colunas da org do Group (ASSUMIDO → NÃO, NOME DA FACÇÃO, líder, sublíder, STATUS → DISPONÍVEL). Group, QG, VIPs e benefícios não são tocados. Quem publica precisa ter permissão de edição na planilha; se a limpeza falhar, o aviso sai mesmo assim e o sistema avisa o que limpar à mão.
-  - Cada pessoa lê com a própria conta, que precisa ter acesso às planilhas.
-  - O acesso vale 1 hora. Depois aparece o botão **Renovar acesso**.
-  - Os dados são lidos de novo a cada 5 minutos.
-  - Planilhas usadas:
-    - *HIGH · Documento das facções do Ilegal*: cadastro, conferência, base de groups, catálogo de VIPs e histórico.
-    - *Ilegal · High Season 3*: economia e log de sincronização.
+- **Base das facções no Firebase.** O High OS é a fonte dos dados (cadastro, conferência, base de groups, catálogo de VIPs e histórico).
+  - Cada aba fica em `hos/planilha/{aba}/{linha}` (`{ ordem, valores }`); cabeçalhos e datas em `hos/planilha`. Leitura em tempo real para todos.
+  - Entrega e recolhimento atualizam o cadastro na hora; a staff edita cadastro, conferência, VIPs e histórico pelas telas. Toda alteração vai para `hos/dados/alteracoes` (antes/depois, quem, quando).
+  - Colunas que na planilha são fórmula (segmento, QG, status, VIPs da conferência) são calculadas pelo sistema (`assets/js/base.js`).
+  - **Planilha só por botão (ADMIN), em Configurações:** *Importar da planilha* (migração; substitui a base) e *Enviar para a planilha* (copia a base para a planilha mantendo as fórmulas e refazendo as que sumiram). O Google pede a permissão de edição só nessa hora.
+  - Regras novas em `firestore.rules` (publicar no Console antes de usar).
 - **Avisos ao Discord.** A tela *Entregas e recolhimentos* posta direto na webhook do canal.
   - Os endereços das webhooks ficam no Firestore (`hos/config/privado/webhooks`), cadastrados em *Configurações*. Nunca ficam no código.
   - Cada envio é registrado em `hos/dados/avisos`.
@@ -26,9 +25,10 @@ Painel · Facções · Ficha da facção · Conferência · Catálogo VIP · Eco
 ```
 index.html                 casca do app
 assets/css/app.css         identidade visual
-assets/js/app.js           login, navegação e leitura periódica das planilhas
-assets/js/nuvem.js         Firebase (perfil, webhooks, avisos, zonas) e Google Sheets (leitura + limpeza da org no recolhimento)
-assets/js/dados.js         conversão das planilhas em facções, ocupação, VIPs, economia (funções puras)
+assets/js/app.js           login, navegação e base em tempo real (Firebase)
+assets/js/nuvem.js         Firebase (perfil, base das facções, webhooks, avisos, zonas) e Google Sheets (importar/enviar, ADMIN)
+assets/js/base.js          base das facções: planilha ⇄ Firebase, campos calculados, entrega/recolhimento, exportação (funções puras)
+assets/js/dados.js         montagem das facções, ocupação, VIPs, economia para as telas (funções puras)
 assets/js/avisos.js        modelos dos avisos de entrega e recolhimento
 assets/js/telas.js         telas
 assets/js/planejador.js    encaixe do planejador (mapa mantido do sistema anterior)
