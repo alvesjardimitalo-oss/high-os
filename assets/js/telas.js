@@ -1,10 +1,10 @@
-// HIGH OS — telas. Tudo o que vem das planilhas é só leitura.
+// HIGH OS — telas. As planilhas são só lidas, exceto no recolhimento (limpa a org na linha do Group).
 import { esc, $, $$, moeda, pct, classeSeg, norm, toast, modal, confirmar, copiar } from './ui.js';
 import { SEGMENTOS, IMAGENS_MN } from './dados.js';
 import * as nuvem from './nuvem.js';
 import { relatorioSemana, porSegmento, acompanhamento, csvSemana, HORARIOS } from './metricas.js';
 import { avisoEntrega, avisoRecolhimento, corpoWebhook, webhookValida, beneficiosDaFaccao } from './avisos.js';
-import { avisoPlanilha } from './app.js';
+import { avisoPlanilha, carregarPlanilhas } from './app.js';
 
 const semDados = (el) => {
   el.innerHTML = '<div class="painel vazio">Sem dados das planilhas ainda.</div>';
@@ -269,13 +269,29 @@ export async function avisos({ el, estado, params }) {
     const url = webhooks[tipo];
     if (!webhookValida(url)) return toast('A webhook deste aviso não está configurada.', 'erro');
     const d = dados();
-    if (!(await confirmar(`Publicar o aviso de ${tipo} do ${d.group}${d.faccao ? ' (' + d.faccao + ')' : ''} no Discord?`, { ok: 'Publicar' }))) return;
+    const recolher = tipo === 'recolhimento';
+    const pergunta = `Publicar o aviso de ${tipo} do ${d.group}${d.faccao ? ' (' + d.faccao + ')' : ''} no Discord?`
+      + (recolher ? ` Também vai limpar na planilha os dados da org do ${d.group}: ASSUMIDO vira NÃO, STATUS vira DISPONÍVEL e saem facção, líder e sublíder. Group, QG, VIPs e benefícios ficam como estão.` : '');
+    if (!(await confirmar(pergunta, { ok: 'Publicar' }))) return;
     const bt = form.querySelector('[type=submit]'); bt.disabled = true;
     try {
       const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpoWebhook(aviso())) });
       if (!r.ok) throw new Error('O Discord recusou (HTTP ' + r.status + ').');
-      await nuvem.registrarAviso({ tipo, group: d.group, faccao: d.faccao || '', segmento: d.segmento, dados: d }).catch(() => {});
-      toast('Aviso publicado no Discord.');
+      // Recolhimento: o Group fica livre na hora — limpa a org na planilha logo depois do aviso.
+      let planilha = null, erroPlanilha = '';
+      if (recolher) {
+        try { planilha = await nuvem.limparOrgNaPlanilha(d.group); } catch (err) { erroPlanilha = err.message || String(err); }
+      }
+      await nuvem.registrarAviso({
+        tipo, group: d.group, faccao: d.faccao || '', segmento: d.segmento, dados: d,
+        ...(recolher ? { planilhaLimpa: !erroPlanilha, planilhaErro: erroPlanilha, planilhaAntes: planilha?.celulas?.map((c) => ({ coluna: c.coluna, valor: c.antes })) || [] } : {}),
+      }).catch(() => {});
+      if (!recolher) toast('Aviso publicado no Discord.');
+      else if (erroPlanilha) toast(`Aviso publicado, mas a planilha NÃO foi limpa: ${erroPlanilha} Limpe a linha do ${d.group} à mão (ASSUMIDO = NÃO, STATUS = DISPONÍVEL, sem facção/líder/sublíder).`, 'erro');
+      else {
+        toast(planilha?.jaLivre ? `Aviso publicado. O ${d.group} já estava livre na planilha.` : `Aviso publicado e org do ${d.group} limpa na planilha (linha ${planilha.linha}).`);
+        await carregarPlanilhas({ silencioso: true });
+      }
       carregarHistorico();
     } catch (err) { toast('Não foi publicado: ' + (err.message || err), 'erro'); }
     bt.disabled = !podeEnviar;

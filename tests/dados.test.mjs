@@ -80,3 +80,18 @@ test('montarBase liga conferência e histórico ao Group', () => {
   assert.equal(b.faccoes[0].historico.length, 1);
   assert.equal(b.faccoes[1].historico.length, 0);
 });
+
+test('recolhimento: limpa só as colunas da org na linha do Group', async () => {
+  const { planoRecolhimento, letraColuna } = await import('../assets/js/dados.js');
+  assert.equal(letraColuna(0), 'A'); assert.equal(letraColuna(9), 'J'); assert.equal(letraColuna(26), 'AA');
+  const p = planoRecolhimento(CADASTRO, 'armas02');
+  assert.equal(p.linha, 3, 'cabeçalho é a linha 1');
+  assert.equal(p.faccaoNaPlanilha, 'BETA');
+  assert.equal(p.jaLivre, false);
+  assert.deepEqual(p.celulas.map((c) => c.a1), ['D3', 'E3', 'F3', 'G3', 'H3', 'I3', 'J3']);
+  assert.deepEqual(p.celulas.map((c) => c.valor), ['NÃO', '', '', '', '', '', 'DISPONÍVEL']);
+  assert.ok(!p.celulas.some((c) => /GROUP|SEGMENTO|QG|VIP|ROTA/.test(c.coluna)), 'não mexe no Group, QG, VIPs nem benefícios');
+  assert.equal(planoRecolhimento(CADASTRO, 'MUNICAO01').jaLivre, true);
+  assert.equal(planoRecolhimento(CADASTRO, 'NAOEXISTE'), null);
+  assert.throws(() => planoRecolhimento([['GROUP', 'ASSUMIDO'], ['X', 'SIM']], 'X'), /sem a\(s\) coluna/);
+});

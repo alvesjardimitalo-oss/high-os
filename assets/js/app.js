@@ -26,12 +26,12 @@ function telaLogin(msg = '') {
   raiz.innerHTML = `<div class="login">
     <section class="login-arte">
       <div class="login-marca"><img src="assets/high_logo.png" alt="">HIGH OS</div>
-      <div><h1>Central do <em>Ilegal</em>.</h1><p>Facções, groups, VIPs, economia, entregas e o planejador de missões num lugar só — lido direto das planilhas oficiais, sem mexer nelas.</p></div>
+      <div><h1>Central do <em>Ilegal</em>.</h1><p>Facções, groups, VIPs, economia, entregas e o planejador de missões num lugar só — lido direto das planilhas oficiais.</p></div>
       <span class="fraco">High Roleplay · Season 3</span>
     </section>
     <section class="login-caixa"><div class="login-cartao">
       <h2>Entrar</h2>
-      <p class="muted">Use a conta Google cadastrada na staff. O Google vai pedir permissão para <b>ver</b> as planilhas do Ilegal — o High OS não consegue alterá-las.</p>
+      <p class="muted">Use a conta Google cadastrada na staff. O Google vai pedir permissão para as planilhas do Ilegal. O High OS só lê — a única alteração é no <b>recolhimento</b>, que limpa os dados da org na linha do Group.</p>
       ${msg ? `<div class="aviso erro" style="margin-top:14px">${esc(msg)}</div>` : ''}
       <button class="btn" id="entrar">Entrar com Google</button>
       <p class="nota">Acesso restrito. Peça ao administrador para cadastrar o seu e-mail.</p>

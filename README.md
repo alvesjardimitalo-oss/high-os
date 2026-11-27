@@ -6,7 +6,7 @@ Painel da staff do Ilegal do High Roleplay. Sistema refeito do zero em novembro 
 - **Site estático** no GitHub Pages: `index.html` + módulos em `assets/js/`, sem etapa de build.
 - **Login Google** pelo Firebase (projeto `high-os`). Só entra quem está em `users/{email}` com `active` diferente de `false`.
   - Papéis: `ADMIN` (tudo, incluindo Configurações), `STAFF` (publica avisos e edita o planejador) e `CONSULTA` / `RH_*` (só vê).
-- **Planilhas, só leitura.** O login pede ao Google apenas `spreadsheets.readonly`, então o High OS não consegue alterar nada.
+- **Planilhas: leitura, com uma exceção.** O login pede ao Google `spreadsheets`. O High OS só lê, exceto no **recolhimento**: depois de postar o aviso, limpa na aba *Cadastro de Facções* as colunas da org do Group (ASSUMIDO → NÃO, NOME DA FACÇÃO, líder, sublíder, STATUS → DISPONÍVEL). Group, QG, VIPs e benefícios não são tocados. Quem publica precisa ter permissão de edição na planilha; se a limpeza falhar, o aviso sai mesmo assim e o sistema avisa o que limpar à mão.
   - Cada pessoa lê com a própria conta, que precisa ter acesso às planilhas.
   - O acesso vale 1 hora. Depois aparece o botão **Renovar acesso**.
   - Os dados são lidos de novo a cada 5 minutos.
@@ -27,7 +27,7 @@ Painel · Facções · Ficha da facção · Conferência · Catálogo VIP · Eco
 index.html                 casca do app
 assets/css/app.css         identidade visual
 assets/js/app.js           login, navegação e leitura periódica das planilhas
-assets/js/nuvem.js         Firebase (perfil, webhooks, avisos, zonas) e Google Sheets (só leitura)
+assets/js/nuvem.js         Firebase (perfil, webhooks, avisos, zonas) e Google Sheets (leitura + limpeza da org no recolhimento)
 assets/js/dados.js         conversão das planilhas em facções, ocupação, VIPs, economia (funções puras)
 assets/js/avisos.js        modelos dos avisos de entrega e recolhimento
 assets/js/telas.js         telas

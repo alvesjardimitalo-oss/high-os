@@ -1,9 +1,11 @@
-// HIGH OS — leitura das planilhas (SOMENTE LEITURA).
+// HIGH OS — leitura das planilhas.
 // Funções puras: recebem as linhas que a API do Google Sheets devolve
 // (matriz de strings) e montam os objetos que as telas usam. Nada aqui
-// grava em planilha, e nada depende do navegador: dá para testar no Node.
+// depende do navegador: dá para testar no Node. A única escrita do sistema
+// (limpar a org no recolhimento) só é PLANEJADA aqui — quem grava é o nuvem.js.
 
-/** As duas planilhas oficiais. O High OS só lê; quem edita é a staff, direto nelas. */
+/** Planilhas oficiais. O High OS lê tudo e só escreve uma coisa: no recolhimento,
+ *  limpa as colunas da org na linha do Group (ver planoRecolhimento). */
 export const PLANILHAS = {
   faccoes: { id: '1MBVzWMFrAzIhYlT7-ZgWZEAoJLjPn3JeZdmHyRcZf2A', nome: 'HIGH · Documento das facções do Ilegal' },
 };
@@ -94,6 +96,51 @@ export function ocupacao(faccoes) {
     porMeta: faccoes.filter((f) => f.assumido && f.porMeta).length,
     ocupacao: total ? assumidos / total : 0,
     segmentos,
+  };
+}
+
+/* ---------------- Recolhimento: limpar a org na planilha ----------------
+   Só as colunas da ORG. As do Group (segmento, group, QG) e os VIPs/benefícios
+   ficam como estão — mesmo padrão das linhas já recolhidas (ex.: MUNICAO06). */
+export const COLUNAS_ORG = [
+  ['ASSUMIDO', 'NÃO'],
+  ['NOME DA FACÇÃO', ''],
+  ['ID DO LÍDER', ''],
+  ['TELEFONE DO LÍDER', ''],
+  ['ID DO SUBLÍDER', ''],
+  ['TELEFONE DO SUBLÍDER', ''],
+  ['STATUS', 'DISPONÍVEL'],
+];
+
+/** Número da coluna (0 = A) → letra(s) da planilha. */
+export function letraColuna(i) {
+  let s = '';
+  for (let n = i + 1; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s;
+  return s;
+}
+
+/**
+ * Acha a linha do Group no Cadastro e diz quais células limpar.
+ * Colunas achadas pelo nome do cabeçalho (não pela posição), então mover coluna não quebra.
+ * Devolve null se o Group não existir; lança erro se faltar coluna da org.
+ */
+export function planoRecolhimento(linhas = [], group) {
+  const [cab = []] = linhas;
+  const idx = (nome) => cab.findIndex((c) => norm(c) === norm(nome));
+  const iGroup = idx('GROUP');
+  if (iGroup < 0) throw new Error('A aba Cadastro de Facções está sem a coluna GROUP.');
+  const faltam = COLUNAS_ORG.filter(([nome]) => idx(nome) < 0).map(([nome]) => nome);
+  if (faltam.length) throw new Error('A aba Cadastro de Facções está sem a(s) coluna(s): ' + faltam.join(', ') + '.');
+  const r = linhas.findIndex((l, i) => i > 0 && norm(l?.[iGroup]) === norm(group));
+  if (r < 0) return null;
+  const linha = linhas[r];
+  const iNome = idx('NOME DA FACÇÃO');
+  return {
+    linha: r + 1, // linha real da planilha (o cabeçalho é a linha 1)
+    group: limpa(linha[iGroup]),
+    faccaoNaPlanilha: limpa(linha[iNome]),
+    jaLivre: norm(linha[idx('ASSUMIDO')]) !== 'SIM' && !limpa(linha[iNome]),
+    celulas: COLUNAS_ORG.map(([nome, valor]) => ({ coluna: nome, a1: letraColuna(idx(nome)) + (r + 1), antes: limpa(linha[idx(nome)]), valor })),
   };
 }
 

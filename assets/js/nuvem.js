@@ -1,10 +1,10 @@
-// HIGH OS — Firebase (login, perfil da staff, dados do sistema) e Google Sheets (só leitura).
+// HIGH OS — Firebase (login, perfil da staff, dados do sistema) e Google Sheets (leitura + limpeza da org no recolhimento).
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js';
 import {
   getFirestore, doc, getDoc, setDoc, addDoc, collection, getDocs, query, orderBy, limit, serverTimestamp, deleteDoc, writeBatch,
 } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
-import { PLANILHAS, FAIXAS, CATALOGO_MN } from './dados.js';
+import { PLANILHAS, FAIXAS, CATALOGO_MN, planoRecolhimento } from './dados.js';
 
 const app = initializeApp({
   apiKey: 'AIzaSyBKtl3rCA9Id1RDMwGch-yi4hxAs83DraU',
@@ -17,13 +17,15 @@ const app = initializeApp({
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
-/* Escopo SOMENTE LEITURA: o High OS não tem como alterar as planilhas. */
-const ESCOPO = 'https://www.googleapis.com/auth/spreadsheets.readonly';
+/* Escopo de edição: o High OS lê tudo, mas só ESCREVE no recolhimento
+   (limpa as colunas da org na linha do Group — ver limparOrgNaPlanilha). */
+const ESCOPO = 'https://www.googleapis.com/auth/spreadsheets';
 const provedor = new GoogleAuthProvider();
 provedor.addScope(ESCOPO);
 provedor.setCustomParameters({ prompt: 'select_account' });
 
-const CHAVE_TOKEN = 'hos.sheets.token';
+// v2: o token antigo era só leitura; trocar a chave obriga a renovar o acesso com o novo escopo.
+const CHAVE_TOKEN = 'hos.sheets.token.v2';
 function guardarToken(token) {
   if (!token) return;
   try { sessionStorage.setItem(CHAVE_TOKEN, JSON.stringify({ token, exp: Date.now() + 55 * 60 * 1000 })); } catch { /* sem armazenamento */ }
@@ -75,7 +77,7 @@ export async function listarUsuarios() {
 export const salvarUsuario = (email, dados) => setDoc(doc(db, 'users', String(email).toLowerCase()), dados, { merge: true });
 export const excluirUsuario = (email) => deleteDoc(doc(db, 'users', String(email).toLowerCase()));
 
-/* ---------------- Planilhas (Google Sheets API, só leitura) ---------------- */
+/* ---------------- Planilhas (Google Sheets API) ---------------- */
 export class SemAcessoPlanilha extends Error {}
 
 async function lerFaixas(planilha, faixas) {
@@ -105,6 +107,35 @@ export async function lerMercadoNegro() {
     const r = await fetch(CATALOGO_MN + '?v=' + Date.now(), { cache: 'no-store' });
     return r.ok ? await r.json() : (ultimaLeitura()?.mercado || null);
   } catch { return ultimaLeitura()?.mercado || null; }
+}
+/**
+ * Recolhimento: limpa na aba Cadastro de Facções só as colunas da org do Group
+ * (ASSUMIDO → NÃO, facção, líder, sublíder, STATUS → DISPONÍVEL).
+ * Lê a linha na hora (não confia na leitura guardada) para não apagar linha errada.
+ */
+export async function limparOrgNaPlanilha(group) {
+  const token = tokenValido();
+  if (!token) throw new SemAcessoPlanilha('Acesso às planilhas expirou.');
+  const { id, nome } = PLANILHAS.faccoes;
+  const faixa = FAIXAS.faccoes.cadastro;
+  const aba = faixa.slice(0, faixa.lastIndexOf('!'));
+  const auth = { Authorization: 'Bearer ' + token };
+  const falha = async (r, acao) => {
+    if (r.status === 401) { try { sessionStorage.removeItem(CHAVE_TOKEN); } catch { /* ok */ } return new SemAcessoPlanilha('Acesso às planilhas expirou.'); }
+    if (r.status === 403) return new Error(`Sua conta Google não tem permissão de EDIÇÃO na planilha "${nome}".`);
+    return new Error(`Falha ao ${acao} a planilha "${nome}" (HTTP ${r.status}).`);
+  };
+  const lida = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}/values/${encodeURIComponent(faixa)}?valueRenderOption=FORMATTED_VALUE`, { headers: auth });
+  if (!lida.ok) throw await falha(lida, 'ler');
+  const plano = planoRecolhimento((await lida.json()).values || [], group);
+  if (!plano) throw new Error(`Não achei o ${group} na aba Cadastro de Facções.`);
+  if (plano.jaLivre) return plano;
+  const r = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}/values:batchUpdate`, {
+    method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ valueInputOption: 'RAW', data: plano.celulas.map((c) => ({ range: `${aba}!${c.a1}`, values: [[c.valor]] })) }),
+  });
+  if (!r.ok) throw await falha(r, 'atualizar');
+  return plano;
 }
 export function ultimaLeitura() {
   try { return JSON.parse(localStorage.getItem('hos.planilhas') || 'null'); } catch { return null; }
