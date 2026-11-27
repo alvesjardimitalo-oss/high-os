@@ -104,3 +104,16 @@ test('ficha semanal calcula média simultânea e dia do pico', () => {
   assert.equal(s.organizacoes.Lavagem01.mediaOnline, 6.5);
   assert.equal(montarSemana({ ...ov, trackingSince: ini + 5 }, { de: 'a', ate: 'b' }, fim).inicioAcompanhamento, true);
 });
+
+test('atividade do Group para a ficha (ignora maiúsculas)', async () => {
+  const { atividadeDoGroup } = await import('../assets/js/metricas.js');
+  const a = atividadeDoGroup(SEMANAS, DIAS, 'LAVAGEM01');
+  assert.equal(a.org.org, 'Lavagem01');
+  assert.equal(a.org.pico, 29); assert.equal(a.org.posicao, 1);
+  assert.equal(a.semana.de, '2026-11-23');
+  assert.deepEqual(a.serieDias.map((d) => d.pico), [99, 20, 29], 'ordem cronológica');
+  assert.deepEqual(a.serieSemanas.map((s) => s.de), ['2026-11-16', '2026-11-23']);
+  assert.equal(a.totalOrgs, 3);
+  assert.equal(atividadeDoGroup(SEMANAS, DIAS, 'ARMAS99'), null);
+  assert.equal(atividadeDoGroup(SEMANAS, DIAS, 'armas05').serieDias[0].pico, 0, 'dia sem registro vira 0');
+});

@@ -113,3 +113,28 @@ export function csvSemana(rel, nomeDe = () => '') {
   const linhas = [...rel.organizacoes].sort((a, b) => a.posicao - b.posicao).map((o) => [o.posicao, o.org, nomeDe(o.org), o.segmento, o.pico, o.picoAnt, o.deltaPico, o.mediaOnline, o.mediaPicoDiario, o.ativos, o.membros, o.taxaAtividade == null ? '' : Math.round(o.taxaAtividade * 100), o.horasOnline, o.horasPorAtivo, o.diasComPresenca, o.diaDoPico, ...HORARIOS.map((h) => o.horarios[h])]);
   return [cab, ...linhas].map((l) => l.map((v) => `"${n(v).replace(/"/g, '""')}"`).join(';')).join('\r\n');
 }
+
+/**
+ * Atividade de um Group para a ficha da facção: a linha dele no relatório da semana
+ * mais recente (com comparação), o pico dia a dia e o pico semana a semana.
+ * A API grava "Lavagem01" e a planilha "LAVAGEM01": a busca ignora maiúsculas.
+ * Devolve null se o coletor nunca viu esse Group.
+ */
+export function atividadeDoGroup(semanas, dias, group, { nDias = 14, nSemanas = 8 } = {}) {
+  const alvo = String(group || '').trim().toLowerCase();
+  const chave = (obj) => Object.keys(obj || {}).find((k) => k.toLowerCase() === alvo);
+  const lista = ordenarSemanas(semanas);
+  if (!lista.some((s) => chave(s.organizacoes))) return null;
+  const ultima = lista[lista.length - 1];
+  const rel = relatorioSemana(lista, dias, ultima.de);
+  const org = rel.organizacoes.find((o) => o.org.toLowerCase() === alvo) || null;
+  const serieDias = [...(dias || [])].sort((a, b) => a.dia.localeCompare(b.dia)).slice(-nDias).map((d) => {
+    const o = d.organizacoes?.[chave(d.organizacoes)];
+    return { dia: d.dia, pico: o?.pico ?? 0, parcial: !!d.parcial };
+  });
+  const serieSemanas = lista.slice(-nSemanas).map((s) => {
+    const o = s.organizacoes?.[chave(s.organizacoes)];
+    return { de: s.de, ate: s.ate, parcial: !!s.parcial, inicio: !!s.inicioAcompanhamento, pico: o?.pico ?? 0, mediaOnline: o?.mediaOnline ?? 0, ativos: o?.ativos ?? 0 };
+  });
+  return { semana: rel.semana, anterior: rel.anterior, org, totalOrgs: rel.organizacoes.length, serieDias, serieSemanas };
+}

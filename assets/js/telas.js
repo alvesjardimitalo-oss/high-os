@@ -2,7 +2,7 @@
 import { esc, $, $$, moeda, pct, classeSeg, norm, toast, modal, confirmar, copiar } from './ui.js';
 import { SEGMENTOS, IMAGENS_MN } from './dados.js';
 import * as nuvem from './nuvem.js';
-import { relatorioSemana, porSegmento, acompanhamento, csvSemana, HORARIOS } from './metricas.js';
+import { relatorioSemana, porSegmento, acompanhamento, csvSemana, HORARIOS, atividadeDoGroup } from './metricas.js';
 import { avisoEntrega, avisoRecolhimento, corpoWebhook, webhookValida, beneficiosDaFaccao } from './avisos.js';
 import { avisoPlanilha, carregarPlanilhas } from './app.js';
 
@@ -100,6 +100,7 @@ export function ficha({ el, estado }, group) {
       <div class="meta">${seloSituacao(f)}${f.garagemVip ? `<span class="selo">Garagem VIP ${esc(f.garagemVip.toLowerCase())}</span>` : ''}${f.condicaoVip && !/NÃO SE APLICA/i.test(f.condicaoVip) ? `<span class="selo alerta">${esc(f.condicaoVip)}</span>` : ''}</div>
       ${estado.perfil.staff ? `<div class="acoes">${f.assumido ? `<a class="btn sec" href="#/avisos?tipo=recolhimento&group=${encodeURIComponent(f.group)}">Recolher</a>` : ''}<a class="btn" href="#/avisos?tipo=entrega&group=${encodeURIComponent(f.group)}">${f.assumido ? 'Aviso de entrega' : 'Entregar group'}</a></div>` : ''}
     </section>
+    <section class="painel" id="atividade" style="margin-bottom:16px"><h2>Atividade da facção</h2><div class="vazio">Carregando métricas…</div></section>
     <div class="grade g-2">
       <section class="painel"><h2>Liderança</h2><dl class="dados">${linha('Líder', f.lider)}${linha('Telefone', f.telLider)}${linha('Sublíder', f.sublider)}${linha('Telefone', f.telSublider)}${linha('Status', f.status)}</dl></section>
       <section class="painel"><h2>Benefícios no cadastro</h2><dl class="dados">${linha('Salário / 40 min', ben.salario)}${linha('Baú', ben.bau)}${linha('Rádio', ben.radio)}${linha('Chat', ben.chat)}${linha('Uniforme', ben.uniforme)}${linha('Rota exclusiva', ben.rota)}</dl></section>
@@ -119,6 +120,43 @@ export function ficha({ el, estado }, group) {
       </section>
     </div>`;
   $$('[data-copiar]', el).forEach((bt) => bt.onclick = () => copiar(bt.dataset.copiar));
+  atividadeNaFicha($('#atividade', el), f);
+}
+
+/* Métricas do Group dentro da ficha (mesmos dados da tela de Métricas). */
+async function atividadeNaFicha(caixa, f) {
+  if (!caixa) return;
+  const titulo = `<h2>Atividade da facção <a href="#/metricas" class="fraco" style="font-size:12px;font-weight:500;margin-left:6px">ver em Métricas →</a></h2>`;
+  let semanas, dias;
+  try { [semanas, dias] = await Promise.all([nuvem.semanasMetricas(), nuvem.diasMetricas(21)]); }
+  catch (e) { caixa.innerHTML = titulo + `<div class="vazio">Não consegui ler as métricas: ${esc(e.message || e)}</div>`; return; }
+  if (!caixa.isConnected) return; // saiu da ficha enquanto carregava
+  const a = atividadeDoGroup(semanas, dias, f.group);
+  if (!a) { caixa.innerHTML = titulo + `<div class="vazio">O coletor ainda não registrou o ${esc(f.group)}.</div>`; return; }
+  const o = a.org, s = a.semana;
+  const sem = (x) => `${fDia(x.de)} a ${fDia(x.ate)}`;
+  const nota = s.inicioAcompanhamento ? 'Semana de início do acompanhamento: números parciais.'
+    : s.parcial ? `Semana em andamento (${sem(s)}). Comparação com ${a.anterior ? sem(a.anterior) : '—'}.` : `Semana de ${sem(s)}.`;
+  const maxDia = Math.max(1, ...a.serieDias.map((d) => d.pico));
+  const maxSem = Math.max(1, ...a.serieSemanas.map((x) => x.pico));
+  const picoDiaTopo = Math.max(...a.serieDias.map((d) => d.pico));
+  const picoSemTopo = Math.max(...a.serieSemanas.map((x) => x.pico));
+  caixa.innerHTML = titulo + `<p class="fraco" style="margin:-4px 0 14px;font-size:12.5px">${esc(nota)}</p>` + (o ? `
+    <div class="kpis">
+      <div class="kpi acido"><span>Pico da semana</span><b>${fNum(o.pico)}</b><small>${seta(o.deltaPico)} vs. anterior${o.diaDoPico ? ` · ${diaSemana(o.diaDoPico)} ${fDia(o.diaDoPico)}` : ''}</small></div>
+      <div class="kpi ciano"><span>Média simultânea</span><b>${fNum(o.mediaOnline)}</b><small>${seta(o.deltaMedia, { pct: true })} vs. anterior</small></div>
+      <div class="kpi"><span>Membros ativos</span><b>${fNum(o.ativos)}<small style="font-size:18px"> / ${fNum(o.membros)}</small></b><small>${fPct(o.taxaAtividade)} de atividade · ${fNum(o.horasPorAtivo)} h por ativo</small></div>
+      <div class="kpi alerta"><span>Posição no Ilegal</span><b>${o.posicao}º<small style="font-size:18px"> / ${a.totalOrgs}</small></b><small>${setaPos(o)} · ${o.diasComPresenca ?? 0} de ${o.diasMedidos} dias com presença</small></div>
+    </div>
+    <div class="tabela-caixa" style="margin-bottom:16px"><table><thead><tr><th>Pico médio por horário</th>${HORARIOS.map((h) => `<th class="num">${h}h</th>`).join('')}<th class="num">Média do pico diário</th><th class="num">Horas online</th></tr></thead>
+      <tbody><tr><td class="fraco">Semana atual</td>${HORARIOS.map((h) => `<td class="num">${fNum(o.horarios[h])}</td>`).join('')}<td class="num">${fNum(o.mediaPicoDiario)}</td><td class="num">${fNum(o.horasOnline, 0)}</td></tr></tbody></table></div>`
+    : '<div class="aviso alerta"><div>Sem registro deste Group na semana atual.</div></div>') + `
+    <div class="grade g-2">
+      <div><h3 style="margin:0 0 8px">Pico por dia <span class="fraco" style="font-size:12px;font-weight:500">últimos ${a.serieDias.length} dias</span></h3>
+        <div class="met-serie">${a.serieDias.map((d) => `<div class="met-col ${d.parcial ? 'parcial' : ''} ${d.pico && d.pico === picoDiaTopo ? 'topo' : ''}" title="${fDia(d.dia)} · pico ${d.pico}"><small>${d.pico}</small><i style="height:${(d.pico / maxDia) * 100}%"></i><span>${diaSemana(d.dia)} ${fDia(d.dia)}</span></div>`).join('')}</div></div>
+      <div><h3 style="margin:0 0 8px">Pico por semana <span class="fraco" style="font-size:12px;font-weight:500">últimas ${a.serieSemanas.length}</span></h3>
+        <div class="met-serie">${a.serieSemanas.map((x) => `<div class="met-col ${x.parcial || x.inicio ? 'parcial' : ''} ${x.pico && x.pico === picoSemTopo ? 'topo' : ''}" title="${sem(x)} · pico ${x.pico} · média ${fNum(x.mediaOnline)} · ${x.ativos} ativos"><small>${x.pico}</small><i style="height:${(x.pico / maxSem) * 100}%"></i><span>${fDia(x.de)}</span></div>`).join('')}</div></div>
+    </div>`;
 }
 
 /* ================= CONFERÊNCIA ================= */
